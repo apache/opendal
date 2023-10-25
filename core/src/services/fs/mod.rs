@@ -18,6 +18,5 @@
 mod backend;
 pub use backend::FsBuilder as Fs;
 
-mod error;
 mod pager;
 mod writer;

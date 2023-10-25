@@ -23,7 +23,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use futures::AsyncWrite;
 
-use super::error::parse_io_error;
 use crate::raw::*;
 use crate::*;
 
@@ -42,7 +41,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         Pin::new(&mut self.f)
             .poll_write(cx, bs.chunk())
-            .map_err(parse_io_error)
+            .map_err(new_std_io_error)
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
@@ -53,17 +52,19 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut self.f).poll_close(cx).map_err(parse_io_error)
+        Pin::new(&mut self.f)
+            .poll_close(cx)
+            .map_err(new_std_io_error)
     }
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.f.write(bs.chunk()).map_err(parse_io_error)
+        self.f.write(bs.chunk()).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.f.flush().map_err(parse_io_error)?;
+        self.f.flush().map_err(new_std_io_error)?;
 
         Ok(())
     }

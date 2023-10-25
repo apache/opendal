@@ -346,10 +346,6 @@ impl oio::Page for MadsimPager {
     }
 }
 
-fn parse_io_error(e: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "madsim error")
-}
-
 /// A simulated server.This an experimental feature, docs are not ready yet.
 #[derive(Default, Clone)]
 pub struct MadsimServer;

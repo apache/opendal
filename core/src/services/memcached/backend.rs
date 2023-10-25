@@ -250,7 +250,7 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
         let conn = TcpStream::connect(&self.address)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
         Ok(ascii::Connection::new(conn))
     }
 
@@ -261,8 +261,4 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
         false
     }
-}
-
-pub fn parse_io_error(err: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, &err.kind().to_string()).set_source(err)
 }

@@ -303,21 +303,21 @@ impl Accessor for SftpBackend {
                 let start = f
                     .seek(SeekFrom::End(size as i64))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(start + size))
             }
             (Some(offset), None) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, None)
             }
             (Some(offset), Some(size)) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(size))
             }
         };
@@ -557,24 +557,4 @@ async fn connect_sftp(
     debug!("sftp connection created at {}", root);
 
     Ok(sftp)
-}
-
-/// Parse all io related errors.
-pub fn parse_io_error(err: std::io::Error) -> Error {
-    use std::io::ErrorKind::*;
-
-    let (kind, retryable) = match err.kind() {
-        NotFound => (ErrorKind::NotFound, false),
-        PermissionDenied => (ErrorKind::PermissionDenied, false),
-        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, true),
-    };
-
-    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    err
 }

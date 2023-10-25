@@ -25,7 +25,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::debug;
 
-use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
 use crate::raw::*;
@@ -127,14 +126,14 @@ impl Builder for HdfsBuilder {
             builder = builder.with_user(user.as_str());
         }
 
-        let client = builder.connect().map_err(parse_io_error)?;
+        let client = builder.connect().map_err(new_std_io_error)?;
 
         // Create root dir if not exist.
         if let Err(e) = client.metadata(&root) {
             if e.kind() == io::ErrorKind::NotFound {
                 debug!("root {} is not exist, creating now", root);
 
-                client.create_dir(&root).map_err(parse_io_error)?
+                client.create_dir(&root).map_err(new_std_io_error)?
             }
         }
 
@@ -198,7 +197,7 @@ impl Accessor for HdfsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        self.client.create_dir(&p).map_err(parse_io_error)?;
+        self.client.create_dir(&p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -214,7 +213,7 @@ impl Accessor for HdfsBackend {
             .read(true)
             .async_open(&p)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         let (start, end) = match (args.range().offset(), args.range().size()) {
             (None, None) => (0, None),
@@ -222,21 +221,21 @@ impl Accessor for HdfsBackend {
                 let start = f
                     .seek(SeekFrom::End(size as i64))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(start + size))
             }
             (Some(offset), None) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, None)
             }
             (Some(offset), Some(size)) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(size))
             }
         };
@@ -262,7 +261,7 @@ impl Accessor for HdfsBackend {
 
         self.client
             .create_dir(&parent.to_string_lossy())
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -272,7 +271,10 @@ impl Accessor for HdfsBackend {
             open_options.write(true);
         }
 
-        let f = open_options.async_open(&p).await.map_err(parse_io_error)?;
+        let f = open_options
+            .async_open(&p)
+            .await
+            .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
@@ -280,7 +282,7 @@ impl Accessor for HdfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+        let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -305,7 +307,7 @@ impl Accessor for HdfsBackend {
             return if err.kind() == io::ErrorKind::NotFound {
                 Ok(RpDelete::default())
             } else {
-                Err(parse_io_error(err))
+                Err(new_std_io_error(err))
             };
         }
 
@@ -318,7 +320,7 @@ impl Accessor for HdfsBackend {
             self.client.remove_file(&p)
         };
 
-        result.map_err(parse_io_error)?;
+        result.map_err(new_std_io_error)?;
 
         Ok(RpDelete::default())
     }
@@ -332,7 +334,7 @@ impl Accessor for HdfsBackend {
                 return if e.kind() == io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
-                    Err(parse_io_error(e))
+                    Err(new_std_io_error(e))
                 }
             }
         };
@@ -345,7 +347,7 @@ impl Accessor for HdfsBackend {
     fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        self.client.create_dir(&p).map_err(parse_io_error)?;
+        self.client.create_dir(&p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -360,20 +362,22 @@ impl Accessor for HdfsBackend {
             .open_file()
             .read(true)
             .open(&p)
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         let (start, end) = match (args.range().offset(), args.range().size()) {
             (None, None) => (0, None),
             (None, Some(size)) => {
-                let start = f.seek(SeekFrom::End(size as i64)).map_err(parse_io_error)?;
+                let start = f
+                    .seek(SeekFrom::End(size as i64))
+                    .map_err(new_std_io_error)?;
                 (start, Some(start + size))
             }
             (Some(offset), None) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
                 (start, None)
             }
             (Some(offset), Some(size)) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
                 (start, Some(size))
             }
         };
@@ -399,7 +403,7 @@ impl Accessor for HdfsBackend {
 
         self.client
             .create_dir(&parent.to_string_lossy())
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         let f = self
             .client
@@ -407,7 +411,7 @@ impl Accessor for HdfsBackend {
             .create(true)
             .write(true)
             .open(&p)
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
@@ -415,7 +419,7 @@ impl Accessor for HdfsBackend {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+        let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -440,7 +444,7 @@ impl Accessor for HdfsBackend {
             return if err.kind() == io::ErrorKind::NotFound {
                 Ok(RpDelete::default())
             } else {
-                Err(parse_io_error(err))
+                Err(new_std_io_error(err))
             };
         }
 
@@ -453,7 +457,7 @@ impl Accessor for HdfsBackend {
             self.client.remove_file(&p)
         };
 
-        result.map_err(parse_io_error)?;
+        result.map_err(new_std_io_error)?;
 
         Ok(RpDelete::default())
     }
@@ -467,7 +471,7 @@ impl Accessor for HdfsBackend {
                 return if e.kind() == io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
-                    Err(parse_io_error(e))
+                    Err(new_std_io_error(e))
                 }
             }
         };

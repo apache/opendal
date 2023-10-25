@@ -26,7 +26,6 @@ use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
 
-use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
 use crate::raw::*;
@@ -211,7 +210,7 @@ impl FsBackend {
             })?
             .to_path_buf();
 
-        std::fs::create_dir_all(parent).map_err(parse_io_error)?;
+        std::fs::create_dir_all(parent).map_err(new_std_io_error)?;
 
         Ok(p)
     }
@@ -239,7 +238,7 @@ impl FsBackend {
 
         tokio::fs::create_dir_all(&parent)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         Ok(p)
     }
@@ -290,7 +289,7 @@ impl Accessor for FsBackend {
 
         tokio::fs::create_dir_all(&p)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -313,11 +312,11 @@ impl Accessor for FsBackend {
             .read(true)
             .open(&p)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         if self.enable_path_check {
             // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
-            let meta = f.metadata().await.map_err(parse_io_error)?;
+            let meta = f.metadata().await.map_err(new_std_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
                 return Err(Error::new(
                     ErrorKind::NotFound,
@@ -338,21 +337,21 @@ impl Accessor for FsBackend {
                 let start = f
                     .seek(SeekFrom::End(size as i64))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(start + size))
             }
             (Some(offset), None) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, None)
             }
             (Some(offset), Some(size)) => {
                 let start = f
                     .seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(parse_io_error)?;
+                    .map_err(new_std_io_error)?;
                 (start, Some(size))
             }
         };
@@ -372,7 +371,7 @@ impl Accessor for FsBackend {
             if op.append()
                 && tokio::fs::try_exists(&target_path)
                     .await
-                    .map_err(parse_io_error)?
+                    .map_err(new_std_io_error)?
             {
                 (target_path, None)
             } else {
@@ -395,7 +394,7 @@ impl Accessor for FsBackend {
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
@@ -404,11 +403,11 @@ impl Accessor for FsBackend {
         let from = self.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
         let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
 
-        tokio::fs::copy(from, to).await.map_err(parse_io_error)?;
+        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
 
         Ok(RpCopy::default())
     }
@@ -417,11 +416,13 @@ impl Accessor for FsBackend {
         let from = self.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
         let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
 
-        tokio::fs::rename(from, to).await.map_err(parse_io_error)?;
+        tokio::fs::rename(from, to)
+            .await
+            .map_err(new_std_io_error)?;
 
         Ok(RpRename::default())
     }
@@ -429,7 +430,7 @@ impl Accessor for FsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let meta = tokio::fs::metadata(&p).await.map_err(parse_io_error)?;
+        let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
 
         if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
             return Err(Error::new(
@@ -450,7 +451,7 @@ impl Accessor for FsBackend {
             .with_last_modified(
                 meta.modified()
                     .map(DateTime::from)
-                    .map_err(parse_io_error)?,
+                    .map_err(new_std_io_error)?,
             );
 
         Ok(RpStat::new(m))
@@ -464,15 +465,15 @@ impl Accessor for FsBackend {
         match meta {
             Ok(meta) => {
                 if meta.is_dir() {
-                    tokio::fs::remove_dir(&p).await.map_err(parse_io_error)?;
+                    tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
                 } else {
-                    tokio::fs::remove_file(&p).await.map_err(parse_io_error)?;
+                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
                 }
 
                 Ok(RpDelete::default())
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(parse_io_error(err)),
+            Err(err) => Err(new_std_io_error(err)),
         }
     }
 
@@ -485,7 +486,7 @@ impl Accessor for FsBackend {
                 return if e.kind() == std::io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
-                    Err(parse_io_error(e))
+                    Err(new_std_io_error(e))
                 };
             }
         };
@@ -498,7 +499,7 @@ impl Accessor for FsBackend {
     fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        std::fs::create_dir_all(p).map_err(parse_io_error)?;
+        std::fs::create_dir_all(p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -511,11 +512,11 @@ impl Accessor for FsBackend {
         let mut f = std::fs::OpenOptions::new()
             .read(true)
             .open(p)
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         if self.enable_path_check {
             // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
-            let meta = f.metadata().map_err(parse_io_error)?;
+            let meta = f.metadata().map_err(new_std_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
                 return Err(Error::new(
                     ErrorKind::NotFound,
@@ -533,15 +534,17 @@ impl Accessor for FsBackend {
         let (start, end) = match (args.range().offset(), args.range().size()) {
             (None, None) => (0, None),
             (None, Some(size)) => {
-                let start = f.seek(SeekFrom::End(size as i64)).map_err(parse_io_error)?;
+                let start = f
+                    .seek(SeekFrom::End(size as i64))
+                    .map_err(new_std_io_error)?;
                 (start, Some(start + size))
             }
             (Some(offset), None) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
                 (start, None)
             }
             (Some(offset), Some(size)) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
                 (start, Some(size))
             }
         };
@@ -561,7 +564,7 @@ impl Accessor for FsBackend {
             if op.append()
                 && Path::new(&target_path)
                     .try_exists()
-                    .map_err(parse_io_error)?
+                    .map_err(new_std_io_error)?
             {
                 (target_path, None)
             } else {
@@ -584,7 +587,7 @@ impl Accessor for FsBackend {
 
         let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
@@ -593,11 +596,11 @@ impl Accessor for FsBackend {
         let from = self.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(parse_io_error)?;
+        std::fs::metadata(&from).map_err(new_std_io_error)?;
 
         let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
 
-        std::fs::copy(from, to).map_err(parse_io_error)?;
+        std::fs::copy(from, to).map_err(new_std_io_error)?;
 
         Ok(RpCopy::default())
     }
@@ -606,11 +609,11 @@ impl Accessor for FsBackend {
         let from = self.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(parse_io_error)?;
+        std::fs::metadata(&from).map_err(new_std_io_error)?;
 
         let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
 
-        std::fs::rename(from, to).map_err(parse_io_error)?;
+        std::fs::rename(from, to).map_err(new_std_io_error)?;
 
         Ok(RpRename::default())
     }
@@ -618,7 +621,7 @@ impl Accessor for FsBackend {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let meta = std::fs::metadata(p).map_err(parse_io_error)?;
+        let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
 
         if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
             return Err(Error::new(
@@ -639,7 +642,7 @@ impl Accessor for FsBackend {
             .with_last_modified(
                 meta.modified()
                     .map(DateTime::from)
-                    .map_err(parse_io_error)?,
+                    .map_err(new_std_io_error)?,
             );
 
         Ok(RpStat::new(m))
@@ -653,15 +656,15 @@ impl Accessor for FsBackend {
         match meta {
             Ok(meta) => {
                 if meta.is_dir() {
-                    std::fs::remove_dir(&p).map_err(parse_io_error)?;
+                    std::fs::remove_dir(&p).map_err(new_std_io_error)?;
                 } else {
-                    std::fs::remove_file(&p).map_err(parse_io_error)?;
+                    std::fs::remove_file(&p).map_err(new_std_io_error)?;
                 }
 
                 Ok(RpDelete::default())
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(parse_io_error(err)),
+            Err(err) => Err(new_std_io_error(err)),
         }
     }
 
@@ -674,7 +677,7 @@ impl Accessor for FsBackend {
                 return if e.kind() == std::io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
-                    Err(parse_io_error(e))
+                    Err(new_std_io_error(e))
                 };
             }
         };

@@ -91,7 +91,7 @@ impl Stream for Lister {
         if let Some(oe) = self.buf.pop_front() {
             let (path, metadata) = oe.into_entry().into_parts();
             // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_bit(self.required_metakey) {
+            if metadata.contains_metakey(self.required_metakey) {
                 return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
             }
 
@@ -178,7 +178,7 @@ impl Iterator for BlockingLister {
         if let Some(oe) = self.buf.pop_front() {
             let (path, metadata) = oe.into_entry().into_parts();
             // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_bit(self.required_metakey) {
+            if metadata.contains_metakey(self.required_metakey) {
                 return Some(Ok(Entry::new(path, metadata)));
             }
 

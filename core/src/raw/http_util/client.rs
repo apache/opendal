@@ -38,7 +38,7 @@ const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    pub(crate) client: reqwest::Client,
+    client: reqwest::Client,
 }
 
 /// We don't want users to know details about our clients.

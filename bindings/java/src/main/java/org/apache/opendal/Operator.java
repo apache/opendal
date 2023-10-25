@@ -21,11 +21,10 @@ package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -217,15 +216,8 @@ public class Operator extends NativeObject {
     public CompletableFuture<List<Entry>> list(String path) {
         final long requestid = list(nativeHandle, path);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
-        if (result != null) {
-            return result.thenApplyAsync(e -> {
-                if (e == null) {
-                    return Collections.emptyList();
-                }
-                return new ArrayList<>(Arrays.asList(e));
-            });
-        }
-        return null;
+        Objects.requireNonNull(result);
+        return result.thenApplyAsync(Arrays::asList);
     }
 
     @Override

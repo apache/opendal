@@ -29,7 +29,6 @@ use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
-use opendal::Metakey;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -207,7 +206,7 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 async fn do_stat<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let metadata = op.stat(&path).await?;
     let mut env = unsafe { get_current_env() };
-    make_metadata(&mut env, metadata, Metakey::Complete.into())
+    make_metadata(&mut env, metadata)
 }
 
 /// # Safety
@@ -506,7 +505,7 @@ async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'loc
     )?;
 
     for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(&mut env, entry.to_owned(), Metakey::Mode.into())?;
+        let entry = make_entry(&mut env, entry.to_owned())?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

@@ -20,7 +20,6 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +99,7 @@ public class BlockingOperator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return new ArrayList<>(Arrays.asList(list(nativeHandle, path)));
+        return Arrays.asList(list(nativeHandle, path));
     }
 
     @Override

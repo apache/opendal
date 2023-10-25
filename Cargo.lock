@@ -4342,7 +4342,6 @@ name = "opendal-java"
 version = "0.41.0"
 dependencies = [
  "anyhow",
- "flagset",
  "jni",
  "num_cpus",
  "once_cell",

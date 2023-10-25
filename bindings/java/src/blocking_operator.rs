@@ -26,7 +26,6 @@ use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
-use opendal::Metakey;
 
 use crate::jstring_to_string;
 use crate::make_entry;
@@ -127,7 +126,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
 fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
     let metadata = op.stat(&path)?;
-    Ok(make_metadata(env, metadata, Metakey::Complete.into())?.into_raw())
+    Ok(make_metadata(env, metadata)?.into_raw())
 }
 
 /// # Safety
@@ -274,7 +273,7 @@ fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
     )?;
 
     for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(env, entry.to_owned(), Metakey::Mode.into())?;
+        let entry = make_entry(env, entry.to_owned())?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

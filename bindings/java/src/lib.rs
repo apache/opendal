@@ -20,7 +20,6 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 
 use crate::error::Error;
-use flagset::FlagSet;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::{JMap, JValue};
@@ -229,73 +228,67 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
     Ok(capability)
 }
 
-fn make_metadata<'a>(
-    env: &mut JNIEnv<'a>,
-    metadata: Metadata,
-    metakey: FlagSet<Metakey>,
-) -> Result<JObject<'a>> {
+fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject<'a>> {
     let mode = match metadata.mode() {
         EntryMode::FILE => 0,
         EntryMode::DIR => 1,
         EntryMode::Unknown => 2,
     };
 
-    let last_modified =
-        if metakey.contains(Metakey::LastModified) || metakey.contains(Metakey::Complete) {
-            metadata.last_modified().map_or_else(
-                || Ok::<JObject<'_>, Error>(JObject::null()),
-                |v| {
-                    Ok(env.new_object(
-                        "java/util/Date",
-                        "(J)V",
-                        &[JValue::Long(v.timestamp_millis())],
-                    )?)
-                },
-            )?
-        } else {
-            JObject::null()
-        };
+    let metakey = metadata.metakey();
 
-    let cache_control =
-        if metakey.contains(Metakey::CacheControl) || metakey.contains(Metakey::Complete) {
-            string_to_jstring(env, metadata.cache_control())?
-        } else {
-            JObject::null()
-        };
-    let content_disposition =
-        if metakey.contains(Metakey::ContentDisposition) || metakey.contains(Metakey::Complete) {
-            string_to_jstring(env, metadata.content_disposition())?
-        } else {
-            JObject::null()
-        };
-    let content_md5 =
-        if metakey.contains(Metakey::ContentMd5) || metakey.contains(Metakey::Complete) {
-            string_to_jstring(env, metadata.content_md5())?
-        } else {
-            JObject::null()
-        };
-    let content_type =
-        if metakey.contains(Metakey::ContentType) || metakey.contains(Metakey::Complete) {
-            string_to_jstring(env, metadata.content_type())?
-        } else {
-            JObject::null()
-        };
-    let etag = if metakey.contains(Metakey::Etag) || metakey.contains(Metakey::Complete) {
+    let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
+
+    let last_modified = if contains_metakey(Metakey::LastModified) {
+        metadata.last_modified().map_or_else(
+            || Ok::<JObject<'_>, Error>(JObject::null()),
+            |v| {
+                Ok(env.new_object(
+                    "java/util/Date",
+                    "(J)V",
+                    &[JValue::Long(v.timestamp_millis())],
+                )?)
+            },
+        )?
+    } else {
+        JObject::null()
+    };
+
+    let cache_control = if contains_metakey(Metakey::CacheControl) {
+        string_to_jstring(env, metadata.cache_control())?
+    } else {
+        JObject::null()
+    };
+    let content_disposition = if contains_metakey(Metakey::ContentDisposition) {
+        string_to_jstring(env, metadata.content_disposition())?
+    } else {
+        JObject::null()
+    };
+    let content_md5 = if contains_metakey(Metakey::ContentMd5) {
+        string_to_jstring(env, metadata.content_md5())?
+    } else {
+        JObject::null()
+    };
+    let content_type = if contains_metakey(Metakey::ContentType) {
+        string_to_jstring(env, metadata.content_type())?
+    } else {
+        JObject::null()
+    };
+    let etag = if contains_metakey(Metakey::Etag) {
         string_to_jstring(env, metadata.etag())?
     } else {
         JObject::null()
     };
-    let version = if metakey.contains(Metakey::Version) || metakey.contains(Metakey::Complete) {
+    let version = if contains_metakey(Metakey::Version) {
         string_to_jstring(env, metadata.version())?
     } else {
         JObject::null()
     };
-    let content_length =
-        if metakey.contains(Metakey::ContentLength) || metakey.contains(Metakey::Complete) {
-            metadata.content_length() as jlong
-        } else {
-            -1
-        };
+    let content_length = if contains_metakey(Metakey::ContentLength) {
+        metadata.content_length() as jlong
+    } else {
+        -1
+    };
 
     let result = env
         .new_object(
@@ -316,13 +309,9 @@ fn make_metadata<'a>(
     Ok(result)
 }
 
-fn make_entry<'a>(
-    env: &mut JNIEnv<'a>,
-    entry: Entry,
-    metakey: FlagSet<Metakey>,
-) -> Result<JObject<'a>> {
+fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
     let path = env.new_string(entry.path())?;
-    let metadata = make_metadata(env, entry.metadata().to_owned(), metakey)?;
+    let metadata = make_metadata(env, entry.metadata().to_owned())?;
 
     Ok(env.new_object(
         "org/apache/opendal/Entry",

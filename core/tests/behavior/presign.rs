@@ -42,7 +42,7 @@ pub fn behavior_presign_tests(op: &Operator) -> Vec<Trial> {
 pub async fn test_presign_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
 
     let signed_req = op.presign_write(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
@@ -74,7 +74,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
 pub async fn test_presign_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
@@ -104,7 +104,7 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
 pub async fn test_presign_read(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
 
     op.write(&path, content.clone())
         .await

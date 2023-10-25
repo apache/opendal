@@ -64,7 +64,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -91,7 +91,7 @@ pub async fn test_list_dir_with_metakey(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -141,7 +141,7 @@ pub async fn test_list_dir_with_metakey_complete(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability().clone());
 
     op.write(&path, content).await.expect("write must succeed");
 

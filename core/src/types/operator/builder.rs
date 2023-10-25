@@ -163,6 +163,8 @@ impl Operator {
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
             #[cfg(feature = "services-cos")]
             Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
+            #[cfg(feature = "services-d1")]
+            Scheme::D1 => Self::from_map::<services::D1>(map)?.finish(),
             #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
             #[cfg(feature = "services-dropbox")]

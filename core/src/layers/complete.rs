@@ -162,9 +162,7 @@ impl<A: Accessor> CompleteAccessor<A> {
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
-        let range = args.range();
-        let (rp, r) = self.inner.read(path, args).await?;
-        let content_length = rp.metadata().content_length();
+        let (rp, r) = self.inner.read(path, args.clone()).await?;
 
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
@@ -173,24 +171,7 @@ impl<A: Accessor> CompleteAccessor<A> {
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self.inner.stat(path, OpStat::new()).await?.into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
+                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, args);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))
@@ -215,9 +196,7 @@ impl<A: Accessor> CompleteAccessor<A> {
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
-        let range = args.range();
-        let (rp, r) = self.inner.blocking_read(path, args)?;
-        let content_length = rp.metadata().content_length();
+        let (rp, r) = self.inner.blocking_read(path, args.clone())?;
 
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
@@ -226,27 +205,7 @@ impl<A: Accessor> CompleteAccessor<A> {
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self
-                            .inner
-                            .blocking_stat(path, OpStat::new())?
-                            .into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
+                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, args);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))

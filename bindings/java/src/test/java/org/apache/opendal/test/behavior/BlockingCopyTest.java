@@ -83,7 +83,7 @@ class BlockingCopyTest extends BehaviorTestBase {
         blockingOp().createDir(sourcePath);
 
         assertThatThrownBy(() -> blockingOp().copy(sourcePath, targetPath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
         blockingOp().delete(sourcePath);
     }
@@ -102,8 +102,8 @@ class BlockingCopyTest extends BehaviorTestBase {
 
         blockingOp().createDir(targetPath);
 
-        assertThatThrownBy(() -> op().copy(sourcePath, targetPath).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+        assertThatThrownBy(() -> blockingOp().copy(sourcePath, targetPath))
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
         blockingOp().delete(sourcePath);
         blockingOp().delete(targetPath);
@@ -120,7 +120,7 @@ class BlockingCopyTest extends BehaviorTestBase {
         blockingOp().write(sourcePath, sourceContent);
 
         assertThatThrownBy(() -> blockingOp().copy(sourcePath, sourcePath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsSameFile));
 
         blockingOp().delete(sourcePath);
     }

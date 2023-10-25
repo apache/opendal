@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
 use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::Path;
@@ -248,8 +247,8 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::FromFileReader<Compat<tokio::fs::File>>;
-    type BlockingReader = oio::FromFileReader<std::fs::File>;
+    type Reader = oio::FileReader<Compat<tokio::fs::File>>;
+    type BlockingReader = oio::FileReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
@@ -306,7 +305,7 @@ impl Accessor for FsBackend {
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use oio::ReadExt;
+        use tokio::io::AsyncSeekExt;
 
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -316,7 +315,7 @@ impl Accessor for FsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        let total_length = if self.enable_path_check {
+        if self.enable_path_check {
             // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
             let meta = f.metadata().await.map_err(parse_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
@@ -331,41 +330,36 @@ impl Accessor for FsBackend {
                     "given path is a directory",
                 ));
             }
+        }
 
-            meta.len()
-        } else {
-            use tokio::io::AsyncSeekExt;
-
-            f.seek(SeekFrom::End(0)).await.map_err(parse_io_error)?
+        let (start, end) = match (args.range().offset(), args.range().size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::End(size as i64))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(start + size))
+            }
+            (Some(offset), None) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(size))
+            }
         };
 
-        let f = Compat::new(f);
+        let r = oio::FileReader::new(Compat::new(f), start, end);
 
-        let br = args.range();
-        let (start, end) = match (br.offset(), br.size()) {
-            // Read a specific range.
-            (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
-            // Read from offset.
-            (Some(offset), None) => (offset, total_length),
-            // Read the last size bytes.
-            (None, Some(size)) => (
-                if total_length > size {
-                    total_length - size
-                } else {
-                    0
-                },
-                total_length,
-            ),
-            // Read the whole file.
-            (None, None) => (0, total_length),
-        };
-
-        let mut r = oio::into_read_from_file(f, start, end);
-
-        // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0)).await?;
-
-        Ok((RpRead::new(end - start), r))
+        Ok((RpRead::new(0), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -510,7 +504,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use oio::BlockingRead;
+        use std::io::Seek;
 
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -519,7 +513,7 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(parse_io_error)?;
 
-        let total_length = if self.enable_path_check {
+        if self.enable_path_check {
             // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
             let meta = f.metadata().map_err(parse_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
@@ -534,39 +528,27 @@ impl Accessor for FsBackend {
                     "given path is a directory",
                 ));
             }
+        }
 
-            meta.len()
-        } else {
-            use std::io::Seek;
-
-            f.seek(SeekFrom::End(0)).map_err(parse_io_error)?
+        let (start, end) = match (args.range().offset(), args.range().size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = f.seek(SeekFrom::End(size as i64)).map_err(parse_io_error)?;
+                (start, Some(start + size))
+            }
+            (Some(offset), None) => {
+                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (start, Some(size))
+            }
         };
 
-        let br = args.range();
-        let (start, end) = match (br.offset(), br.size()) {
-            // Read a specific range.
-            (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
-            // Read from offset.
-            (Some(offset), None) => (offset, total_length),
-            // Read the last size bytes.
-            (None, Some(size)) => (
-                if total_length > size {
-                    total_length - size
-                } else {
-                    0
-                },
-                total_length,
-            ),
-            // Read the whole file.
-            (None, None) => (0, total_length),
-        };
+        let r = oio::FileReader::new(f, start, end);
 
-        let mut r: oio::FromFileReader<std::fs::File> = oio::into_read_from_file(f, start, end);
-
-        // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0))?;
-
-        Ok((RpRead::new(end - start), r))
+        Ok((RpRead::new(0), r))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

@@ -15,25 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
+use async_compat::Compat;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
+use std::pin::Pin;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
+use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::pager::SftpPager;
-use super::utils::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
@@ -224,7 +226,7 @@ impl Debug for SftpBackend {
 
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = SftpReader;
+    type Reader = oio::FileReader<Pin<Box<Compat<TokioCompatFile>>>>;
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
@@ -285,41 +287,51 @@ impl Accessor for SftpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        use tokio::io::AsyncSeekExt;
+
         let client = self.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await?;
 
-        let mut file = client.open(path.as_path()).await?;
+        let mut f = client.open(path.as_path()).await?;
 
-        let total_length = file.metadata().await?.len().ok_or(Error::new(
-            ErrorKind::NotFound,
-            format!("file not found: {}", path.to_str().unwrap()).as_str(),
-        ))?;
-
-        let br = args.range();
-        let (start, end) = match (br.offset(), br.size()) {
-            // Read a specific range.
-            (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
-            // Read from offset.
-            (Some(offset), None) => (offset, total_length),
-            // Read the last size bytes.
-            (None, Some(size)) => (
-                if total_length > size {
-                    total_length - size
-                } else {
-                    0
-                },
-                total_length,
-            ),
-            // Read the whole file.
-            (None, None) => (0, total_length),
+        let (start, end) = match (args.range().offset(), args.range().size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::End(size as i64))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(start + size))
+            }
+            (Some(offset), None) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(size))
+            }
         };
 
-        let r = SftpReader::new(file, start, end).await?;
+        // Sorry for the ugly code...
+        //
+        // - `f` is a openssh file.
+        // - `TokioCompatFile::new(f)` makes it implements tokio AsyncRead + AsyncSeek for openssh File.
+        // - `Compat::new(f)` make it compatible to `futures::AsyncRead + futures::AsyncSeek`.
+        // - `Box::pin(x)` to make sure this reader implements `Unpin`, since `TokioCompatFile` is not.
+        // - `oio::FileReader::new(x)` makes it a `oio::FileReader` which implements `oio::Read`.
+        let r = oio::FileReader::new(Box::pin(Compat::new(TokioCompatFile::new(f))), start, end);
 
-        Ok((RpRead::new(end - start), r))
+        Ok((RpRead::new(0), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -545,4 +557,24 @@ async fn connect_sftp(
     debug!("sftp connection created at {}", root);
 
     Ok(sftp)
+}
+
+/// Parse all io related errors.
+pub fn parse_io_error(err: std::io::Error) -> Error {
+    use std::io::ErrorKind::*;
+
+    let (kind, retryable) = match err.kind() {
+        NotFound => (ErrorKind::NotFound, false),
+        PermissionDenied => (ErrorKind::PermissionDenied, false),
+        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, true),
+    };
+
+    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

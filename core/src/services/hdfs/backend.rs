@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
@@ -160,8 +159,8 @@ unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
-    type Reader = oio::FromFileReader<hdrs::AsyncFile>;
-    type BlockingReader = oio::FromFileReader<hdrs::File>;
+    type Reader = oio::FileReader<hdrs::AsyncFile>;
+    type BlockingReader = oio::FileReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type Pager = Option<HdfsPager>;
@@ -205,14 +204,11 @@ impl Accessor for HdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use oio::ReadExt;
+        use futures::AsyncSeekExt;
 
         let p = build_rooted_abs_path(&self.root, path);
 
-        // This will be addressed by https://github.com/apache/incubator-opendal/issues/506
-        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
-
-        let f = self
+        let mut f = self
             .client
             .open_file()
             .read(true)
@@ -220,23 +216,34 @@ impl Accessor for HdfsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        let br = args.range();
-        let (start, end) = match (br.offset(), br.size()) {
-            // Read a specific range.
-            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
-            // Read from offset.
-            (Some(offset), None) => (offset, meta.len()),
-            // Read the last size bytes.
-            (None, Some(size)) => (meta.len() - size, meta.len()),
-            // Read the whole file.
-            (None, None) => (0, meta.len()),
+        let (start, end) = match (args.range().offset(), args.range().size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::End(size as i64))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(start + size))
+            }
+            (Some(offset), None) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = f
+                    .seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(parse_io_error)?;
+                (start, Some(size))
+            }
         };
 
-        let mut r = oio::into_read_from_file(f, start, end);
-        // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0)).await?;
+        let r = oio::FileReader::new(f, start, end);
 
-        Ok((RpRead::new(end - start), r))
+        Ok((RpRead::new(0), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -344,37 +351,36 @@ impl Accessor for HdfsBackend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use oio::BlockingRead;
+        use std::io::Seek;
 
         let p = build_rooted_abs_path(&self.root, path);
 
-        // This will be addressed by https://github.com/apache/incubator-opendal/issues/506
-        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
-
-        let f = self
+        let mut f = self
             .client
             .open_file()
             .read(true)
             .open(&p)
             .map_err(parse_io_error)?;
 
-        let br = args.range();
-        let (start, end) = match (br.offset(), br.size()) {
-            // Read a specific range.
-            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
-            // Read from offset.
-            (Some(offset), None) => (offset, meta.len()),
-            // Read the last size bytes.
-            (None, Some(size)) => (meta.len() - size, meta.len()),
-            // Read the whole file.
-            (None, None) => (0, meta.len()),
+        let (start, end) = match (args.range().offset(), args.range().size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = f.seek(SeekFrom::End(size as i64)).map_err(parse_io_error)?;
+                (start, Some(start + size))
+            }
+            (Some(offset), None) => {
+                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (start, Some(size))
+            }
         };
 
-        let mut r = oio::into_read_from_file(f, start, end);
-        // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0))?;
+        let r = oio::FileReader::new(f, start, end);
 
-        Ok((RpRead::new(end - start), r))
+        Ok((RpRead::new(0), r))
     }
 
     fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

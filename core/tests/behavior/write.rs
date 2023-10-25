@@ -51,6 +51,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_write_with_empty_content,
         test_write_with_dir_path,
         test_write_with_special_chars,
+        test_write_with_non_ascii_code_in_path,
         test_write_with_cache_control,
         test_write_with_content_type,
         test_write_with_content_disposition,
@@ -180,6 +181,31 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
+    let (content, size) = gen_bytes();
+
+    op.write(&path, content).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Write a single file with non-ascii code in path should succeed.
+pub async fn test_write_with_non_ascii_code_in_path(op: Operator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        return Ok(());
+    }
+
+    let path = format!("{}🐂🍺中文.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
     op.write(&path, content).await?;

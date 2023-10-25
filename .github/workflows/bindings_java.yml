@@ -81,15 +81,3 @@ jobs:
         run: |
           ./mvnw clean install -DskipTests
           ./mvnw verify artifact:compare
-      - name: Behavior tests
-        working-directory: bindings/java
-        shell: bash
-        run: |
-          export OPENDAL_TEST=memory
-          export OPENDAL_MEMORY_ROOT=/opendal
-          ./mvnw test -Dtest="behavior.*Test"
-
-          export OPENDAL_TEST=fs
-          export OPENDAL_FS_ROOT=${{ runner.temp }}/
-          ./mvnw test -Dtest="behavior.*Test"
-

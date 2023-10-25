@@ -216,8 +216,7 @@ public class Operator extends NativeObject {
     public CompletableFuture<List<Entry>> list(String path) {
         final long requestid = list(nativeHandle, path);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
-        Objects.requireNonNull(result);
-        return result.thenApplyAsync(Arrays::asList);
+        return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
 
     @Override

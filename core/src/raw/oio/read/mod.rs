@@ -42,3 +42,6 @@ pub use futures_read::FuturesReader;
 
 mod tokio_read;
 pub use tokio_read::TokioReader;
+
+mod std_read;
+pub use std_read::StdReader;

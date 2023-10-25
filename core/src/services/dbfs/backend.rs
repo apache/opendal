@@ -220,12 +220,7 @@ impl Accessor for DbfsBackend {
             }
         }
 
-        let op = DbfsReader::new(
-            self.core.clone(),
-            args,
-            path.to_string(),
-            meta.content_length(),
-        );
+        let op = DbfsReader::new(self.core.clone(), args, path.to_string());
 
         Ok((RpRead::with_metadata(meta), op))
     }

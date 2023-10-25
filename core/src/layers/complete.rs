@@ -116,10 +116,10 @@ use crate::*;
 pub struct CompleteLayer;
 
 impl<A: Accessor> Layer<A> for CompleteLayer {
-    type LayeredAccessor = CompleteReaderAccessor<A>;
+    type LayeredAccessor = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        CompleteReaderAccessor {
+        CompleteAccessor {
             meta: inner.info(),
             inner: Arc::new(inner),
         }
@@ -127,18 +127,18 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
 }
 
 /// Provide complete wrapper for backend.
-pub struct CompleteReaderAccessor<A: Accessor> {
+pub struct CompleteAccessor<A: Accessor> {
     meta: AccessorInfo,
     inner: Arc<A>,
 }
 
-impl<A: Accessor> Debug for CompleteReaderAccessor<A> {
+impl<A: Accessor> Debug for CompleteAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> CompleteReaderAccessor<A> {
+impl<A: Accessor> CompleteAccessor<A> {
     fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
         let scheme = self.meta.scheme();
         let op = op.into();
@@ -351,7 +351,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
+impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;

@@ -46,17 +46,17 @@ use crate::*;
 pub fn into_seekable_read_by_range<A: Accessor, R>(
     acc: Arc<A>,
     path: &str,
-    reader: R,
-    offset: u64,
-    size: u64,
+    op: OpRead,
 ) -> ByRangeSeekableReader<A, R> {
     ByRangeSeekableReader {
         acc,
         path: path.to_string(),
+        op,
+
         offset,
         size,
         cur: 0,
-        state: State::Reading(reader),
+        state: State::<R>::Idle,
         last_seek_pos: None,
     }
 }
@@ -65,6 +65,7 @@ pub fn into_seekable_read_by_range<A: Accessor, R>(
 pub struct ByRangeSeekableReader<A: Accessor, R> {
     acc: Arc<A>,
     path: String,
+    op: OpRead,
 
     offset: u64,
     size: u64,
@@ -81,6 +82,7 @@ pub struct ByRangeSeekableReader<A: Accessor, R> {
 
 enum State<R> {
     Idle,
+    Stating(BoxFuture<'static, Result<RpStat>>),
     Sending(BoxFuture<'static, Result<(RpRead, R)>>),
     Reading(R),
 }

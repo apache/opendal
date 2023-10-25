@@ -63,7 +63,6 @@ pub fn into_seekable_read_by_range<A: Accessor, R>(
         size,
         cur: 0,
         state: State::<R>::Idle,
-        last_seek_pos: None,
     }
 }
 
@@ -77,13 +76,6 @@ pub struct ByRangeSeekableReader<A: Accessor, R> {
     size: Option<u64>,
     cur: u64,
     state: State<R>,
-
-    /// Seek operation could return Pending which may lead
-    /// `SeekFrom::Current(off)` been input multiple times.
-    ///
-    /// So we need to store the last seek pos to make sure
-    /// we always seek to the right position.
-    last_seek_pos: Option<u64>,
 }
 
 enum State<R> {

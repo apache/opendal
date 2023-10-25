@@ -39,3 +39,6 @@ pub use into_read_from_stream::FromStreamReader;
 
 mod futures_read;
 pub use futures_read::FuturesReader;
+
+mod tokio_read;
+pub use tokio_read::TokioReader;

@@ -81,57 +81,57 @@ jobs:
         shell: bash
         working-directory: fixtures/tikv
         run: |
-            mkdir -p /tmp/tikv/ssl
-            cp -r `pwd`/ssl/* /tmp/tikv/ssl
+          mkdir -p /tmp/tikv/ssl
+          cp -r `pwd`/ssl/* /tmp/tikv/ssl
 
       - name: install tiup
         run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
       - name: Start tikv-tls
         run: |
-            # use latest stable version
-            ~/.tiup/bin/tiup install tikv:v7.3.0 pd:v7.3.0
+          # use latest stable version
+          ~/.tiup/bin/tiup install tikv:v7.3.0 pd:v7.3.0
 
-            ~/.tiup/components/tikv/v7.3.0/tikv-server \
-                --addr=127.0.0.1:20160 \
-                --advertise-addr=127.0.0.1:20160 \
-                --status-addr=127.0.0.1:20180 \
-                --pd-endpoints=https://127.0.0.1:2379 \
-                --data-dir=/tmp/tikv/data \
-                --log-file=/tmp/tikv/tikv.log \
-                --config=tikv-tls.toml &
+          ~/.tiup/components/tikv/v7.3.0/tikv-server \
+              --addr=127.0.0.1:20160 \
+              --advertise-addr=127.0.0.1:20160 \
+              --status-addr=127.0.0.1:20180 \
+              --pd-endpoints=https://127.0.0.1:2379 \
+              --data-dir=/tmp/tikv/data \
+              --log-file=/tmp/tikv/tikv.log \
+              --config=tikv-tls.toml &
 
-            ~/.tiup/components/pd/v7.3.0/pd-server \
-                --name=pd1 \
-                --peer-urls=https://127.0.0.1:2380 \
-                --advertise-peer-urls=https://127.0.0.1:2380 \
-                --client-urls=https://127.0.0.1:2379 \
-                --advertise-client-urls=https://127.0.0.1:2379 \
-                --initial-cluster=pd1=https://127.0.0.1:2380 \
-                --data-dir=/tmp/pd1/data \
-                --log-file=/tmp/pd1/pd.log \
-                --config=pd-tls.toml &
+          ~/.tiup/components/pd/v7.3.0/pd-server \
+              --name=pd1 \
+              --peer-urls=https://127.0.0.1:2380 \
+              --advertise-peer-urls=https://127.0.0.1:2380 \
+              --client-urls=https://127.0.0.1:2379 \
+              --advertise-client-urls=https://127.0.0.1:2379 \
+              --initial-cluster=pd1=https://127.0.0.1:2380 \
+              --data-dir=/tmp/pd1/data \
+              --log-file=/tmp/pd1/pd.log \
+              --config=pd-tls.toml &
 
-            while :; do
-                echo "waiting tikv-tls-cluster to be ready"
-                [[ "$(curl -I --cacert /tmp/tikv/ssl/ca.pem --cert /tmp/tikv/ssl/client.pem --key /tmp/tikv/ssl/client-key.pem https://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
-                sleep 1
-            done
+          while :; do
+              echo "waiting tikv-tls-cluster to be ready"
+              [[ "$(curl -I --cacert /tmp/tikv/ssl/ca.pem --cert /tmp/tikv/ssl/client.pem --key /tmp/tikv/ssl/client-key.pem https://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
+              sleep 1
+          done
         working-directory: fixtures/tikv
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-            need-protoc: true
-            need-nextest: true
+          need-protoc: true
+          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
         run: cargo nextest run behavior --features services-tikv
         env:
-            OPENDAL_TEST: tikv
-            OPENDAL_TIKV_ENDPOINTS: "https://127.0.0.1:2379"
-            OPENDAL_TIKV_INSECURE: false
-            OPENDAL_TIKV_CA_PATH: "/tmp/tikv/ssl/ca.pem"
-            OPENDAL_TIKV_CERT_PATH: "/tmp/tikv/ssl/client.pem"
-            OPENDAL_TIKV_KEY_PATH: "/tmp/tikv/ssl/client-key.pem"
+          OPENDAL_TEST: tikv
+          OPENDAL_TIKV_ENDPOINTS: "https://127.0.0.1:2379"
+          OPENDAL_TIKV_INSECURE: false
+          OPENDAL_TIKV_CA_PATH: "/tmp/tikv/ssl/ca.pem"
+          OPENDAL_TIKV_CERT_PATH: "/tmp/tikv/ssl/client.pem"
+          OPENDAL_TIKV_KEY_PATH: "/tmp/tikv/ssl/client-key.pem"

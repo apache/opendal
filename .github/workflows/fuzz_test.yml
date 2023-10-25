@@ -81,7 +81,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [ fuzz_reader, fuzz_writer ]
+        fuzz-targets: [fuzz_reader, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
@@ -116,7 +116,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [ fuzz_reader, fuzz_writer ]
+        fuzz-targets: [fuzz_reader, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
@@ -141,7 +141,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [ fuzz_reader, fuzz_writer ]
+        fuzz-targets: [fuzz_reader, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev

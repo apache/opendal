@@ -40,6 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
+    /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
+    CloudflareKv,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
     Cos,
     /// [d1][crate::services::D1]: D1 services
@@ -121,6 +123,8 @@ pub enum Scheme {
     Tikv,
     /// [azfile][crate::services::azfile]: Azfile Services
     Azfile,
+    /// [mongodb](crate::services::mongodb): MongoDB Services
+    Mongodb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -237,6 +241,8 @@ impl Scheme {
             Scheme::Webhdfs,
             #[cfg(feature = "services-redb")]
             Scheme::Redb,
+            #[cfg(feature = "services-mongodb")]
+            Scheme::Mongodb,
         ])
     }
 }
@@ -267,6 +273,7 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
+            "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
@@ -306,6 +313,7 @@ impl FromStr for Scheme {
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
+            "mongodb" => Ok(Scheme::Mongodb),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -318,6 +326,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::Cacache => "cacache",
+            Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
@@ -358,6 +367,7 @@ impl From<Scheme> for &'static str {
             Scheme::Tikv => "tikv",
             Scheme::Azfile => "azfile",
             Scheme::Sqlite => "sqlite",
+            Scheme::Mongodb => "mongodb",
             Scheme::Custom(v) => v,
         }
     }

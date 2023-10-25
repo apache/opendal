@@ -70,6 +70,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
+  "services-mysql",
   "services-redb",
   "services-redis",
   "services-redis-rustls",
@@ -79,6 +80,8 @@ services-all = [
   "services-tikv",
   "services-vercel-artifacts",
   "services-wasabi",
+  "services-mongodb",
+  "services-sqlite",
 ]
 
 # Default services provided by opendal.
@@ -123,6 +126,9 @@ services-supabase = ["opendal/services-supabase"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-mysql = ["opendal/services-mysql"]
+services-mongodb = ["opendal/services-mongodb"]
+services-sqlite = ["opendal/services-sqlite"]
 
 [dependencies]
 anyhow = "1.0.71"

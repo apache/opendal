@@ -28,12 +28,12 @@ This service can be used to:
 
 ```rust
 use anyhow::Result;
-use opendal::services::MySql;
+use opendal::services::Mysql;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = MySql::default();
+    let mut builder = Mysql::default();
     builder.root("/");
     builder.connection_string("mysql://you_username:your_password@127.0.0.1:5432/your_database");
     builder.table("your_table");

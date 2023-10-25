@@ -28,22 +28,22 @@ inputs:
 runs:
   using: "composite"
   steps:
-      - name: Setup
-        shell: bash
-        run: |
-            mkdir -p ./dynamic_test_core &&
-            cat <<EOF >./dynamic_test_core/action.yml
-            runs:
-              using: composite
-              steps:
-              - name: Setup Test Core
-                uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-              - name: Run Test Core
-                shell: bash
-                working-directory: core
-                run: cargo nextest run behavior --features ${{ inputs.feature }}
-                env:
-                  OPENDAL_TEST: ${{ inputs.service }}
-            EOF
-      - name: Run
-        uses: ./dynamic_test_core
+    - name: Setup
+      shell: bash
+      run: |
+        mkdir -p ./dynamic_test_core &&
+        cat <<EOF >./dynamic_test_core/action.yml
+        runs:
+          using: composite
+          steps:
+          - name: Setup Test Core
+            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
+          - name: Run Test Core
+            shell: bash
+            working-directory: core
+            run: cargo nextest run behavior --features ${{ inputs.feature }}
+            env:
+              OPENDAL_TEST: ${{ inputs.service }}
+        EOF
+    - name: Run
+      uses: ./dynamic_test_core

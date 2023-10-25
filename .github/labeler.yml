@@ -16,16 +16,16 @@
 # under the License.
 
 releases-note/feat:
-    - '^feat'
+  - '^feat'
 releases-note/refactor:
-    - '^refactor'
+  - '^refactor'
 releases-note/fix:
-    - '^fix'
+  - '^fix'
 releases-note/docs:
-    - '^doc'
+  - '^doc'
 releases-note/ci:
-    - '^ci'
+  - '^ci'
 releases-note/build:
-    - '^build'
+  - '^build'
 releases-note/chore:
-    - '^chore'
+  - '^chore'

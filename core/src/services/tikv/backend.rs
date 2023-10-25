@@ -33,6 +33,7 @@ use crate::Scheme;
 use crate::*;
 
 /// TiKV backend builder
+#[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct TikvBuilder {
     /// network address of the TiKV service.

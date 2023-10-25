@@ -16,6 +16,7 @@
 // under the License.
 
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 
 use crate::*;
 
@@ -53,7 +54,10 @@ pub async fn test_rename_file(op: Operator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
@@ -147,7 +151,10 @@ pub async fn test_rename_nested(op: Operator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
@@ -173,7 +180,10 @@ pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");

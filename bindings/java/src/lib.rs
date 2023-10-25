@@ -32,8 +32,10 @@ use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
+use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -233,23 +235,60 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
         EntryMode::Unknown => 2,
     };
 
-    let last_modified = metadata.last_modified().map_or_else(
-        || Ok::<JObject<'_>, Error>(JObject::null()),
-        |v| {
-            Ok(env.new_object(
-                "java/util/Date",
-                "(J)V",
-                &[JValue::Long(v.timestamp_millis())],
-            )?)
-        },
-    )?;
+    let metakey = metadata.metakey();
 
-    let cache_control = string_to_jstring(env, metadata.cache_control())?;
-    let content_disposition = string_to_jstring(env, metadata.content_disposition())?;
-    let content_md5 = string_to_jstring(env, metadata.content_md5())?;
-    let content_type = string_to_jstring(env, metadata.content_type())?;
-    let etag = string_to_jstring(env, metadata.etag())?;
-    let version = string_to_jstring(env, metadata.version())?;
+    let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
+
+    let last_modified = if contains_metakey(Metakey::LastModified) {
+        metadata.last_modified().map_or_else(
+            || Ok::<JObject<'_>, Error>(JObject::null()),
+            |v| {
+                Ok(env.new_object(
+                    "java/util/Date",
+                    "(J)V",
+                    &[JValue::Long(v.timestamp_millis())],
+                )?)
+            },
+        )?
+    } else {
+        JObject::null()
+    };
+
+    let cache_control = if contains_metakey(Metakey::CacheControl) {
+        string_to_jstring(env, metadata.cache_control())?
+    } else {
+        JObject::null()
+    };
+    let content_disposition = if contains_metakey(Metakey::ContentDisposition) {
+        string_to_jstring(env, metadata.content_disposition())?
+    } else {
+        JObject::null()
+    };
+    let content_md5 = if contains_metakey(Metakey::ContentMd5) {
+        string_to_jstring(env, metadata.content_md5())?
+    } else {
+        JObject::null()
+    };
+    let content_type = if contains_metakey(Metakey::ContentType) {
+        string_to_jstring(env, metadata.content_type())?
+    } else {
+        JObject::null()
+    };
+    let etag = if contains_metakey(Metakey::Etag) {
+        string_to_jstring(env, metadata.etag())?
+    } else {
+        JObject::null()
+    };
+    let version = if contains_metakey(Metakey::Version) {
+        string_to_jstring(env, metadata.version())?
+    } else {
+        JObject::null()
+    };
+    let content_length = if contains_metakey(Metakey::ContentLength) {
+        metadata.content_length() as jlong
+    } else {
+        -1
+    };
 
     let result = env
         .new_object(
@@ -257,7 +296,7 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
             "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
             &[
                 JValue::Int(mode as jint),
-                JValue::Long(metadata.content_length() as jlong),
+                JValue::Long(content_length),
                 JValue::Object(&content_disposition),
                 JValue::Object(&content_md5),
                 JValue::Object(&content_type),
@@ -268,6 +307,17 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
             ],
         )?;
     Ok(result)
+}
+
+fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
+    let path = env.new_string(entry.path())?;
+    let metadata = make_metadata(env, entry.metadata().to_owned())?;
+
+    Ok(env.new_object(
+        "org/apache/opendal/Entry",
+        "(Ljava/lang/String;Lorg/apache/opendal/Metadata;)V",
+        &[JValue::Object(&path), JValue::Object(&metadata)],
+    )?)
 }
 
 fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {

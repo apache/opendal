@@ -27,14 +27,60 @@ import lombok.Data;
  */
 @Data
 public class Metadata {
+    /**
+     * Mode of the entry.
+     */
     public final EntryMode mode;
+    /**
+     * Content Length of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be -1.
+     */
     public final long contentLength;
+    /**
+     * Content-Disposition of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String contentDisposition;
+    /**
+     * Content MD5 of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String contentMd5;
+    /**
+     * Content Type of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String contentType;
+    /**
+     * Cache Control of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String cacheControl;
+    /**
+     * Etag of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String etag;
+    /**
+     * Last Modified of the entry.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final Date lastModified;
+    /**
+     * Version of the entry.
+     * Version is a string that can be used to identify the version of this entry.
+     * This field may come out from the version control system, like object
+     * versioning in AWS S3.
+     *
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
     public final String version;
 
     public Metadata(
@@ -67,11 +113,17 @@ public class Metadata {
     }
 
     public enum EntryMode {
-        /// FILE means the path has data to read.
+        /**
+         * FILE means the path has data to read.
+         */
         FILE,
-        /// DIR means the path can be listed.
+        /**
+         * DIR means the path can be listed.
+         */
         DIR,
-        /// Unknown means we don't know what we can do on this path.
+        /**
+         * Unknown means we don't know what we can do on this path.
+         */
         UNKNOWN;
 
         public static EntryMode of(int mode) {

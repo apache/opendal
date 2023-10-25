@@ -59,6 +59,9 @@ pub use chrono_util::*;
 mod tokio_util;
 pub use tokio_util::*;
 
+mod std_io_util;
+pub use std_io_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;

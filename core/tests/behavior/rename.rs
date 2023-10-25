@@ -55,7 +55,7 @@ pub async fn test_rename_file(op: Operator) -> Result<()> {
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
 
@@ -152,7 +152,7 @@ pub async fn test_rename_nested(op: Operator) -> Result<()> {
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
 
@@ -181,7 +181,7 @@ pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&target_content)),
+        format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
 

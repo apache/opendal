@@ -36,3 +36,6 @@ pub use file_read::FileReader;
 mod into_read_from_stream;
 pub use into_read_from_stream::into_read_from_stream;
 pub use into_read_from_stream::FromStreamReader;
+
+mod futures_read;
+pub use futures_read::FuturesReader;

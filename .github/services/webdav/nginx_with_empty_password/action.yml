@@ -30,5 +30,5 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_WEBDAV_ENDPOINT=tcp://127.0.0.1:8080
-        OPENDAL_WEBDAV_USERNAME: foo
+        OPENDAL_WEBDAV_USERNAME=foo
         EOF

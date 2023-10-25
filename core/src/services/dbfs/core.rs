@@ -26,17 +26,10 @@ use http::Response;
 use http::StatusCode;
 use serde_json::json;
 
-use crate::raw::build_rooted_abs_path;
-use crate::raw::new_request_build_error;
-use crate::raw::percent_encode_path;
-use crate::raw::AsyncBody;
-use crate::raw::BytesRange;
-use crate::raw::HttpClient;
-use crate::raw::IncomingAsyncBody;
+use crate::raw::*;
 use crate::*;
 
 use super::error::parse_error;
-use super::reader::IncomingDbfsAsyncBody;
 
 pub struct DbfsCore {
     pub root: String,
@@ -166,7 +159,8 @@ impl DbfsCore {
     pub async fn dbfs_read(
         &self,
         path: &str,
-        range: BytesRange,
+        offset: u64,
+        length: u64,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -178,11 +172,11 @@ impl DbfsCore {
             percent_encode_path(&p)
         );
 
-        if let Some(offset) = range.offset() {
+        if offset > 0 {
             url.push_str(&format!("&offset={}", offset));
         }
 
-        if let Some(length) = range.size() {
+        if length > 0 {
             url.push_str(&format!("&length={}", length));
         }
 
@@ -195,7 +189,14 @@ impl DbfsCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let resp = self.client.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(resp),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

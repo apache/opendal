@@ -197,56 +197,37 @@ impl Accessor for DbfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.dbfs_read(path, args.range()).await?;
+        let mut meta = Metadata::new(EntryMode::FILE);
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+        if let Some(length) = args.range().size() {
+            meta.set_content_length(length);
+        } else {
+            let stat_resp = self.core.dbfs_get_status(path).await?;
+            meta = parse_into_metadata(path, stat_resp.headers())?;
+            let decoded_response =
+                serde_json::from_slice::<DbfsStatus>(&stat_resp.into_body().bytes().await?)
+                    .map_err(new_json_deserialize_error)?;
+            meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                decoded_response.modification_time,
+            )?);
+            meta.set_mode(if decoded_response.is_dir {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            });
+            if !decoded_response.is_dir {
+                meta.set_content_length(decoded_response.file_size as u64);
             }
-            _ => Err(parse_error(resp).await?),
         }
 
-        // let resp = self.core.dbfs_read(path, args.range()).await?;
-        //
-        // let status = resp.status();
-        //
-        // match status {
-        //     StatusCode::OK => {
-        //         // NOTE: If range is not specified, we need to get content length from stat API.
-        //         if let Some(size) = args.range().size() {
-        //             let mut meta = parse_into_metadata(path, resp.headers())?;
-        //             meta.set_content_length(size);
-        //             Ok((RpRead::with_metadata(meta), resp.into_body()))
-        //         } else {
-        //             let stat_resp = self.core.dbfs_get_status(path).await?;
-        //             let meta = match stat_resp.status() {
-        //                 StatusCode::OK => {
-        //                     let mut meta = parse_into_metadata(path, stat_resp.headers())?;
-        //                     let bs = stat_resp.into_body().bytes().await?;
-        //                     let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
-        //                         .map_err(new_json_deserialize_error)?;
-        //                     meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
-        //                         decoded_response.modification_time,
-        //                     )?);
-        //                     match decoded_response.is_dir {
-        //                         true => meta.set_mode(EntryMode::DIR),
-        //                         false => {
-        //                             meta.set_mode(EntryMode::FILE);
-        //                             meta.set_content_length(decoded_response.file_size as u64)
-        //                         }
-        //                     };
-        //                     meta
-        //                 }
-        //                 _ => return Err(parse_error(stat_resp).await?),
-        //             };
-        //             Ok((RpRead::with_metadata(meta), resp.into_body()))
-        //         }
-        //     }
-        //     _ => Err(parse_dbfs_read_error(resp).await?),
-        // }
+        let op = DbfsReader::new(
+            self.core.clone(),
+            args,
+            path.to_string(),
+            meta.content_length(),
+        );
+
+        Ok((RpRead::with_metadata(meta), op))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

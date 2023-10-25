@@ -21,7 +21,6 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::reader::IncomingDbfsAsyncBody;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
@@ -46,37 +45,6 @@ impl Debug for DbfsError {
 }
 
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
-
-    let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, false),
-    };
-
-    let message = match serde_json::from_slice::<DbfsError>(&bs) {
-        Ok(dbfs_error) => format!("{:?}", dbfs_error.message),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
-
-    let mut err = Error::new(kind, &message);
-
-    err = with_error_response_context(err, parts);
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    Ok(err)
-}
-
-pub async fn parse_dbfs_read_error(resp: Response<IncomingDbfsAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 

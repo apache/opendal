@@ -29,10 +29,10 @@ use bytes::Bytes;
 
 use crate::raw::oio::into_flat_page;
 use crate::raw::oio::into_hierarchy_page;
-use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
 use crate::raw::oio::FlatPager;
 use crate::raw::oio::HierarchyPager;
+use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
 use crate::raw::*;
 use crate::*;
@@ -171,7 +171,7 @@ impl<A: Accessor> CompleteAccessor<A> {
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, args);
+                let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))
@@ -205,7 +205,7 @@ impl<A: Accessor> CompleteAccessor<A> {
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, args);
+                let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))
@@ -547,9 +547,9 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 
 pub enum CompleteReader<A: Accessor, R> {
     AlreadyComplete(R),
-    NeedSeekable(ByRangeSeekableReader<A, R>),
+    NeedSeekable(RangeReader<A, R>),
     NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeSeekableReader<A, R>>),
+    NeedBoth(StreamableReader<RangeReader<A, R>>),
 }
 
 impl<A, R> oio::Read for CompleteReader<A, R>

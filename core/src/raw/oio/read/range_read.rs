@@ -29,45 +29,16 @@ use futures::future::BoxFuture;
 use crate::raw::*;
 use crate::*;
 
-/// Convert given reader into [`oio::Reader`] by range.
+/// RangeReader that can do seek on non-seekable reader.
 ///
-/// # Input
+/// `oio::Reader` requires the underlying reader to be seekable, but some services like s3, gcs
+/// doesn't support seek natively. RangeReader implement seek by read_with_range. We will start
+/// a new read request with the correct range when seek is called.
 ///
-/// The input is an Accessor will may return a non-seekable reader.
-///
-/// # Output
-///
-/// The output is a reader that can be seek by range.
-///
-/// # Notes
-///
-/// This operation is not zero cost. If the accessor already returns a
-/// seekable reader, please don't use this.
-pub fn into_seekable_read_by_range<A: Accessor, R>(
-    acc: Arc<A>,
-    path: &str,
-    op: OpRead,
-) -> ByRangeSeekableReader<A, R> {
-    // Normalize range like `..` into `0..` to make sure offset is valid.
-    let (offset, size) = match (op.range().offset(), op.range().size()) {
-        (None, None) => (Some(0), None),
-        v => v,
-    };
-
-    ByRangeSeekableReader {
-        acc,
-        path: Arc::new(path.to_string()),
-        op,
-
-        offset,
-        size,
-        cur: 0,
-        state: State::<R>::Idle,
-    }
-}
-
-/// ByRangeReader that can do seek on non-seekable reader.
-pub struct ByRangeSeekableReader<A: Accessor, R> {
+/// The `seek` operation on `RangeReader` is zero cost and purely in-memory. But calling `seek`
+/// while there is a pending read request will cancel the request and start a new one. This could
+/// add extra cost to the read operation.
+pub struct RangeReader<A: Accessor, R> {
     acc: Arc<A>,
     path: Arc<String>,
     op: OpRead,
@@ -88,10 +59,43 @@ enum State<R> {
 /// Safety: State will only be accessed under &mut.
 unsafe impl<R> Sync for State<R> {}
 
-impl<A, R> ByRangeSeekableReader<A, R>
+impl<A, R> RangeReader<A, R>
 where
     A: Accessor,
 {
+    /// Create a new [`oio::Reader`] by range support.
+    ///
+    /// # Input
+    ///
+    /// The input is an Accessor will may return a non-seekable reader.
+    ///
+    /// # Output
+    ///
+    /// The output is a reader that can be seek by range.
+    ///
+    /// # Notes
+    ///
+    /// This operation is not zero cost. If the accessor already returns a
+    /// seekable reader, please don't use this.
+    pub fn new(acc: Arc<A>, path: &str, op: OpRead) -> RangeReader<A, R> {
+        // Normalize range like `..` into `0..` to make sure offset is valid.
+        let (offset, size) = match (op.range().offset(), op.range().size()) {
+            (None, None) => (Some(0), None),
+            v => v,
+        };
+
+        RangeReader {
+            acc,
+            path: Arc::new(path.to_string()),
+            op,
+
+            offset,
+            size,
+            cur: 0,
+            state: State::<R>::Idle,
+        }
+    }
+
     /// Fill current reader's range by total_size.
     fn fill_range(&mut self, total_size: u64) -> Result<()> {
         (self.offset, self.size) = match (self.offset, self.size) {
@@ -138,7 +142,7 @@ where
     }
 }
 
-impl<A, R> ByRangeSeekableReader<A, R>
+impl<A, R> RangeReader<A, R>
 where
     A: Accessor<Reader = R>,
     R: oio::Read,
@@ -179,7 +183,7 @@ where
     }
 }
 
-impl<A, R> ByRangeSeekableReader<A, R>
+impl<A, R> RangeReader<A, R>
 where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
@@ -220,7 +224,7 @@ where
     }
 }
 
-impl<A, R> oio::Read for ByRangeSeekableReader<A, R>
+impl<A, R> oio::Read for RangeReader<A, R>
 where
     A: Accessor<Reader = R>,
     R: oio::Read,
@@ -415,7 +419,7 @@ where
     }
 }
 
-impl<A, R> oio::BlockingRead for ByRangeSeekableReader<A, R>
+impl<A, R> oio::BlockingRead for RangeReader<A, R>
 where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
@@ -682,7 +686,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(into_seekable_read_by_range(
+        let mut r = Box::new(RangeReader::new(
             acc,
             "x",
             OpRead::default().with_range(BytesRange::from(..)),
@@ -717,7 +721,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(into_seekable_read_by_range(
+        let mut r = Box::new(RangeReader::new(
             acc,
             "x",
             OpRead::default().with_range(BytesRange::from(4096..4096 + 4096)),

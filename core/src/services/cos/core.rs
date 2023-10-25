@@ -288,7 +288,7 @@ impl CosCore {
         let p = build_abs_path(&self.root, path);
 
         let mut queries = vec![];
-        if !path.is_empty() {
+        if !p.is_empty() {
             queries.push(format!("prefix={}", percent_encode_path(&p)));
         }
         if !delimiter.is_empty() {

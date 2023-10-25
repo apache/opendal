@@ -38,9 +38,3 @@ pub use into_read_from_file::FromFileReader;
 mod into_read_from_stream;
 pub use into_read_from_stream::into_read_from_stream;
 pub use into_read_from_stream::FromStreamReader;
-
-mod cloneable_read;
-pub use cloneable_read::into_cloneable_reader_within_std;
-pub use cloneable_read::into_cloneable_reader_within_tokio;
-pub use cloneable_read::CloneableReaderWithinStd;
-pub use cloneable_read::CloneableReaderWithinTokio;

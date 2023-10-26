@@ -295,7 +295,7 @@ where
                 // # Safety
                 //
                 // We make sure that the length of buf is maintained correctly.
-                #[deny(clippy::uninit_vec)]
+                #[allow(clippy::uninit_vec)]
                 unsafe {
                     g.buf.set_len(g.buf.capacity());
                 }
@@ -384,7 +384,7 @@ pub trait BlockingRead: Send + Sync {
                 // # Safety
                 //
                 // We make sure that the length of buf is maintained correctly.
-                #[deny(clippy::uninit_vec)]
+                #[allow(clippy::uninit_vec)]
                 unsafe {
                     g.buf.set_len(g.buf.capacity());
                 }

@@ -18,12 +18,12 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
-use jni::objects::{JByteArray, JObjectArray};
 use jni::sys::jsize;
 use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
@@ -37,7 +37,6 @@ use crate::convert::jmap_to_hashmap;
 use crate::convert::jstring_to_string;
 use crate::get_current_env;
 use crate::get_global_runtime;
-use crate::layer::NativeLayer;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
@@ -50,40 +49,21 @@ pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
     _: JClass,
     scheme: JString,
     map: JObject,
-    specs: JObjectArray,
 ) -> jlong {
-    intern_constructor(&mut env, scheme, map, specs).unwrap_or_else(|e| {
+    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_constructor(
-    env: &mut JNIEnv,
-    scheme: JString,
-    map: JObject,
-    specs: JObjectArray,
-) -> Result<jlong> {
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
-
     let mut op = Operator::via_map(scheme, map)?;
-
-    // auto add the blocking layer on demand
     if !op.info().full_capability().blocking {
         let _guard = unsafe { get_global_runtime() }.enter();
         op = op.layer(BlockingLayer::create()?);
     }
-
-    // add user-specified layers
-    let specs_len = env.get_array_length(&specs)?;
-    for i in 0..specs_len {
-        let spec = env.get_object_array_element(&specs, i)?;
-        let layer = env.call_method(&spec, "makeNativeLayer", "()J", &[])?.j()?;
-        let layer = unsafe { Box::from_raw(layer as *mut NativeLayer) };
-        op = op.layer(layer.into_inner());
-    }
-
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 

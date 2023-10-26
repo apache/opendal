@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.opendal.layer.NativeLayerSpec;
 
 /**
  * BlockingOperator represents an underneath OpenDAL operator that
@@ -49,10 +48,10 @@ public class BlockingOperator extends NativeObject {
      *
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
-     * @param specs  a list of native layer specs to construct layers onto the op.
+     * @param layers a list of native layer specs to construct layers onto the op.
      */
-    public static BlockingOperator of(String schema, Map<String, String> map, List<NativeLayerSpec> specs) {
-        try (final Operator operator = Operator.of(schema, map, specs)) {
+    public static BlockingOperator of(String schema, Map<String, String> map, List<NativeLayer> layers) {
+        try (final Operator operator = Operator.of(schema, map, layers)) {
             return operator.blocking();
         }
     }

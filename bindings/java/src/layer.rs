@@ -22,30 +22,20 @@ use jni::sys::{jboolean, jfloat, jlong};
 use jni::JNIEnv;
 
 use opendal::layers::RetryLayer;
-use opendal::raw::{FusedAccessor, Layer};
-
-pub(crate) enum NativeLayer {
-    Retry(RetryLayer),
-}
-
-impl NativeLayer {
-    pub(crate) fn into_inner(self) -> impl Layer<FusedAccessor> {
-        match self {
-            NativeLayer::Retry(layer) => layer,
-        }
-    }
-}
+use opendal::Operator;
 
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayerSpec_makeNativeLayer(
+pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayer_doLayer(
     _: JNIEnv,
     _: JClass,
+    op: *mut Operator,
     jitter: jboolean,
     factor: jfloat,
     min_delay: jlong,
     max_delay: jlong,
     max_times: jlong,
 ) -> jlong {
+    let op = unsafe { Box::from_raw(op) };
     let mut retry = RetryLayer::new();
     retry = retry.with_factor(factor);
     retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
@@ -56,5 +46,5 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayerSpec_makeNa
     if max_times >= 0 {
         retry = retry.with_max_times(max_times as usize);
     }
-    Box::into_raw(Box::new(NativeLayer::Retry(retry))) as jlong
+    Box::into_raw(Box::new(op.layer(retry))) as jlong
 }

@@ -21,9 +21,10 @@ package org.apache.opendal.layer;
 
 import java.time.Duration;
 import lombok.Builder;
+import org.apache.opendal.NativeLayer;
 
 @Builder
-public class RetryNativeLayerSpec extends NativeLayerSpec {
+public class RetryNativeLayer extends NativeLayer {
 
     private final boolean jitter;
 
@@ -40,10 +41,10 @@ public class RetryNativeLayerSpec extends NativeLayerSpec {
     private final long maxTimes = 3;
 
     @Override
-    protected long makeNativeLayer() {
-        return makeNativeLayer(jitter, factor, minDelay.toNanos(), maxDelay.toNanos(), maxTimes);
+    protected long layer(long op) {
+        return doLayer(op, jitter, factor, minDelay.toNanos(), maxDelay.toNanos(), maxTimes);
     }
 
-    private static native long makeNativeLayer(
-            boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
+    private static native long doLayer(
+            long nativeHandle, boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
 }

@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.opendal.layer.NativeLayerSpec;
 
 /**
  * Operator represents an underneath OpenDAL operator that
@@ -122,15 +121,23 @@ public class Operator extends NativeObject {
      *
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
-     * @param specs  a list of native layer specs to construct layers onto the op.
+     * @param layers a list of native layer specs to construct layers onto the op.
      */
-    public static Operator of(String schema, Map<String, String> map, List<NativeLayerSpec> specs) {
-        final long nativeHandle = constructor(schema, map, specs.toArray(new NativeLayerSpec[0]));
-        final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new Operator(nativeHandle, info);
+    public static Operator of(String schema, Map<String, String> map, List<NativeLayer> layers) {
+        final long nativeHandle = constructor(schema, map);
+        if (layers.isEmpty()) {
+            final OperatorInfo info = makeOperatorInfo(nativeHandle);
+            return new Operator(nativeHandle, info);
+        } else {
+            long op = nativeHandle;
+            for (NativeLayer layer : layers) {
+                op = layer.layer(op);
+            }
+            return new Operator(op, makeOperatorInfo(op));
+        }
     }
 
-    Operator(long nativeHandle, OperatorInfo info) {
+    private Operator(long nativeHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
     }
@@ -234,7 +241,7 @@ public class Operator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(String schema, Map<String, String> map, NativeLayerSpec[] specs);
+    private static native long constructor(String schema, Map<String, String> map);
 
     private static native long read(long nativeHandle, String path);
 

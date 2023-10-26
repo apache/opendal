@@ -24,9 +24,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.opendal.NativeLayer;
 import org.apache.opendal.Operator;
-import org.apache.opendal.layer.NativeLayerSpec;
-import org.apache.opendal.layer.RetryNativeLayerSpec;
+import org.apache.opendal.layer.RetryNativeLayer;
 import org.junit.jupiter.api.Test;
 
 public class NativeLayerTest {
@@ -34,8 +34,8 @@ public class NativeLayerTest {
     void testOperatorWithRetryLayer() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
-        final NativeLayerSpec retryLayerSpec = RetryNativeLayerSpec.builder().build();
-        final List<NativeLayerSpec> nativeLayerSpecs = Collections.singletonList(retryLayerSpec);
+        final NativeLayer retryLayerSpec = RetryNativeLayer.builder().build();
+        final List<NativeLayer> nativeLayerSpecs = Collections.singletonList(retryLayerSpec);
         try (final Operator op = Operator.of("memory", conf, nativeLayerSpecs)) {
             assertThat(op.info).isNotNull();
         }

@@ -15,9 +15,66 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
+
 from dotenv import load_dotenv
 import pytest
+import opendal
 
 
 load_dotenv()
 pytest_plugins = ("pytest_asyncio",)
+
+
+def pytest_configure(config):
+    # register an additional marker
+    config.addinivalue_line(
+        "markers",
+        "need_capability(*capability): mark test to run only on named capability",
+    )
+
+
+@pytest.fixture()
+def service_name():
+    return os.environ.get("OPENDAL_TEST")
+
+
+@pytest.fixture()
+def setup_config(service_name):
+    # Read arguments from envs.
+    prefix = f"opendal_{service_name}_"
+    config = {}
+    for key in os.environ.keys():
+        if key.lower().startswith(prefix):
+            config[key[len(prefix) :].lower()] = os.environ.get(key)
+
+    return config
+
+
+@pytest.fixture()
+def operator(service_name, setup_config):
+    return opendal.Operator(service_name, **setup_config)
+
+
+@pytest.fixture()
+def async_operator(service_name, setup_config):
+    return opendal.AsyncOperator(service_name, **setup_config)
+
+
+@pytest.fixture(autouse=True)
+def check_capability(request, operator, async_operator):
+    if request.node.get_closest_marker("need_capability"):
+        if request.node.get_closest_marker("need_capability").args:
+            if not all(
+                [
+                    getattr(operator.capability(), x)
+                    for x in request.node.get_closest_marker("need_capability").args
+                ]
+                + [
+                    getattr(async_operator.capability(), x)
+                    for x in request.node.get_closest_marker("need_capability").args
+                ]
+            ):
+                pytest.skip(
+                    f"skip because {request.node.get_closest_marker('need_capability').args} not supported"
+                )

@@ -105,7 +105,7 @@ impl AdaptiveBuf {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
 

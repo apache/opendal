@@ -58,7 +58,7 @@ impl AdaptiveBuf {
     }
 
     /// Returning the initialized part of the buffer.
-    pub fn initialized_mut<'a>(&'a mut self) -> ReadBuf<'a> {
+    pub fn initialized_mut(&mut self) -> ReadBuf {
         let dst = self.buffer.spare_capacity_mut();
         let length = dst.len();
         let mut buf = ReadBuf::uninit(dst);

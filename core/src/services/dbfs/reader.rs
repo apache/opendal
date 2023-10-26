@@ -35,7 +35,9 @@ use super::core::DbfsCore;
 use crate::raw::*;
 use crate::*;
 
-const DBFS_READ_LIMIT: usize = 1048576;
+// The number of bytes to read starting from the offset. This has a limit of 1 MB
+// Reference: https://docs.databricks.com/api/azure/workspace/dbfs/read
+const DBFS_READ_LIMIT: usize = 1024 * 1024;
 
 pub struct DbfsReader {
     state: State,
@@ -77,16 +79,6 @@ impl DbfsReader {
                 Error::new(ErrorKind::Unexpected, "decode response content failed")
                     .with_operation("http_util::IncomingDbfsAsyncBody::poll_read")
                     .set_source(err)
-            })
-            .and_then(|v| {
-                String::from_utf8(v).map_err(|err| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "response data contains invalid utf8 bytes",
-                    )
-                    .with_operation("http_util::IncomingDbfsAsyncBody::poll_read")
-                    .set_source(err)
-                })
             })?;
 
         Ok(decoded_data.into())

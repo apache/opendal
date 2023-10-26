@@ -39,7 +39,7 @@ use super::writer::DbfsWriter;
 #[derive(Default, Clone)]
 pub struct DbfsBuilder {
     root: Option<String>,
-    endpoint: String,
+    endpoint: Option<String>,
     token: Option<String>,
 }
 
@@ -77,8 +77,11 @@ impl DbfsBuilder {
     /// - Azure: `https://adb-1234567890123456.78.azuredatabricks.net`
     /// - Aws: `https://dbc-123a5678-90bc.cloud.databricks.com`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        assert!(!endpoint.is_empty());
-        self.endpoint = endpoint.trim_end_matches('/').to_string();
+        self.endpoint = if endpoint.is_empty() {
+            None
+        } else {
+            Some(endpoint.trim_end_matches('/').to_string())
+        };
         self
     }
 
@@ -111,9 +114,9 @@ impl Builder for DbfsBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match self.endpoint.is_empty() {
-            false => Ok(&self.endpoint),
-            true => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+        let endpoint = match &self.endpoint {
+            Some(endpoint) => Ok(endpoint.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Dbfs)),
         }?;
@@ -291,13 +294,7 @@ impl Accessor for DbfsBackend {
 
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 

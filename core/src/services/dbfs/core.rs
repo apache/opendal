@@ -60,8 +60,10 @@ impl DbfsCore {
             .trim_end_matches('/')
             .to_string();
 
-        let req_body = format!("{{\"path\": \"{}\"}}", percent_encode_path(&p));
-        let body = AsyncBody::Bytes(Bytes::from(req_body));
+        let req_body = &json!({
+            "path": percent_encode_path(&p),
+        });
+        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

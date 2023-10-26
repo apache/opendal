@@ -78,6 +78,16 @@ impl IncomingAsyncBody {
         }
     }
 
+    /// Create an empty IncomingAsyncBody.
+    pub(crate) fn empty() -> Self {
+        Self {
+            inner: Box::new(()),
+            size: Some(0),
+            consumed: 0,
+            chunk: None,
+        }
+    }
+
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
         use oio::ReadExt;
@@ -145,7 +155,7 @@ impl IncomingAsyncBody {
 
 impl oio::Read for IncomingAsyncBody {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
-        if buf.is_empty() {
+        if buf.is_empty() || self.size == Some(0) {
             return Poll::Ready(Ok(0));
         }
 
@@ -179,6 +189,10 @@ impl oio::Read for IncomingAsyncBody {
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.size == Some(0) {
+            return Poll::Ready(None);
+        }
+
         if let Some(bs) = self.chunk.take() {
             return Poll::Ready(Some(Ok(bs)));
         }

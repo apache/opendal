@@ -233,7 +233,7 @@ where
         match &mut self.state {
             State::Idle => {
                 // Sanity check for normal cases.
-                if buf.is_empty() || self.cur > self.size.unwrap_or(u64::MAX) {
+                if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
                     return Poll::Ready(Ok(0));
                 }
 
@@ -362,7 +362,7 @@ where
         match &mut self.state {
             State::Idle => {
                 // Sanity check for normal cases.
-                if self.cur > self.size.unwrap_or(u64::MAX) {
+                if self.cur >= self.size.unwrap_or(u64::MAX) {
                     return Poll::Ready(None);
                 }
 
@@ -428,7 +428,7 @@ where
         match &mut self.state {
             State::Idle => {
                 // Sanity check for normal cases.
-                if buf.is_empty() || self.cur > self.size.unwrap_or(u64::MAX) {
+                if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
                     return Ok(0);
                 }
 
@@ -528,7 +528,7 @@ where
         match &mut self.state {
             State::Idle => {
                 // Sanity check for normal cases.
-                if self.cur > self.size.unwrap_or(u64::MAX) {
+                if self.cur >= self.size.unwrap_or(u64::MAX) {
                     return None;
                 }
 

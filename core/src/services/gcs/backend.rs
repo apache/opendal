@@ -390,6 +390,8 @@ impl Accessor for GcsBackend {
 
         if resp.status().is_success() {
             Ok((RpRead::new(), resp.into_body()))
+        } else if resp.status() == StatusCode::RANGE_NOT_SATISFIABLE {
+            Ok((RpRead::new(), IncomingAsyncBody::empty()))
         } else {
             Err(parse_error(resp).await?)
         }

@@ -238,6 +238,7 @@ impl Accessor for HttpBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),
         }
     }

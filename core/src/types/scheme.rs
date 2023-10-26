@@ -40,6 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
+    /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
+    CloudflareKv,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
     Cos,
     /// [d1][crate::services::D1]: D1 services
@@ -50,6 +52,8 @@ pub enum Scheme {
     Etcd,
     /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
     Foundationdb,
+    /// [dbfs][crate::services::Dbfs]: DBFS backend support.
+    Dbfs,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -271,11 +275,13 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
+            "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
             "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
+            "dbfs" => Ok(Scheme::Dbfs),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "gdrive" => Ok(Scheme::Gdrive),
@@ -323,10 +329,12 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::Cacache => "cacache",
+            Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",
+            Scheme::Dbfs => "dbfs",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",

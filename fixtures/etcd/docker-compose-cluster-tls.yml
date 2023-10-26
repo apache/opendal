@@ -23,13 +23,13 @@ services:
       - "23790:2379"
       - "23800:2380"
     volumes:
-    - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
-    - ./server.pem:/opt/bitnami/etcd/conf/server.pem
-    - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
-    - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
-    - ./client.pem:/opt/bitnami/etcd/client.pem
-    - ./etcd1/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
-    - ./etcd1/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
+      - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
+      - ./server.pem:/opt/bitnami/etcd/conf/server.pem
+      - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
+      - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
+      - ./client.pem:/opt/bitnami/etcd/client.pem
+      - ./etcd1/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
+      - ./etcd1/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
       ETCD_ROOT_PASSWORD: opendal
       ALLOW_NONE_AUTHENTICATION: "yes"
@@ -55,13 +55,13 @@ services:
       - "23791:2379"
       - "23801:2380"
     volumes:
-    - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
-    - ./server.pem:/opt/bitnami/etcd/conf/server.pem
-    - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
-    - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
-    - ./client.pem:/opt/bitnami/etcd/client.pem
-    - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
-    - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
+      - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
+      - ./server.pem:/opt/bitnami/etcd/conf/server.pem
+      - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
+      - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
+      - ./client.pem:/opt/bitnami/etcd/client.pem
+      - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
+      - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
       ETCD_ROOT_PASSWORD: opendal
       ALLOW_NONE_AUTHENTICATION: "yes"
@@ -87,13 +87,13 @@ services:
       - "23792:2379"
       - "23802:2380"
     volumes:
-    - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
-    - ./server.pem:/opt/bitnami/etcd/conf/server.pem
-    - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
-    - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
-    - ./client.pem:/opt/bitnami/etcd/client.pem
-    - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
-    - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
+      - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
+      - ./server.pem:/opt/bitnami/etcd/conf/server.pem
+      - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
+      - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
+      - ./client.pem:/opt/bitnami/etcd/client.pem
+      - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
+      - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
       ALLOW_NONE_AUTHENTICATION: "yes"
       ETCD_ROOT_PASSWORD: opendal

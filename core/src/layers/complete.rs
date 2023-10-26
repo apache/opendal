@@ -421,8 +421,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 
         self.inner.stat(path, args).await.map(|v| {
             v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
             })
         })
     }
@@ -523,8 +523,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 
         self.inner.blocking_stat(path, args).map(|v| {
             v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
             })
         })
     }

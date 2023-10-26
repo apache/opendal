@@ -109,8 +109,9 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
     (content, size)
 }
 
-pub fn gen_bytes() -> (Vec<u8>, usize) {
-    gen_bytes_with_range(1..4 * 1024 * 1024)
+pub fn gen_bytes(cap: Capability) -> (Vec<u8>, usize) {
+    let max_size = cap.write_total_max_size.unwrap_or(4 * 1024 * 1024);
+    gen_bytes_with_range(1..max_size)
 }
 
 pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {

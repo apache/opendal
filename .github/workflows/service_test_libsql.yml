@@ -56,21 +56,21 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-            curl --location '127.0.0.1:8080/v2/pipeline' \
-            --header 'Content-Type: application/json' \
-            --data '{
-                "baton": null,
-                "requests": [
-                    {
-                        "type": "execute",
-                        "stmt": {
-                            "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
-                            "args": [],
-                            "want_rows": true
-                        }
-                    }
-                ]
-            }'
+          curl --location '127.0.0.1:8080/v2/pipeline' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "baton": null,
+              "requests": [
+                  {
+                      "type": "execute",
+                      "stmt": {
+                          "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
+                          "args": [],
+                          "want_rows": true
+                      }
+                  }
+              ]
+          }'
 
       - name: Test
         shell: bash
@@ -102,31 +102,31 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-            curl --location '127.0.0.1:8080/v2/pipeline' \
-            --header 'Content-Type: application/json' \
-            --header 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ' \
-            --data '{
-                "baton": null,
-                "requests": [
-                    {
-                        "type": "execute",
-                        "stmt": {
-                            "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
-                            "args": [],
-                            "want_rows": true
-                        }
-                    }
-                ]
-            }'
+          curl --location '127.0.0.1:8080/v2/pipeline' \
+          --header 'Content-Type: application/json' \
+          --header 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ' \
+          --data '{
+              "baton": null,
+              "requests": [
+                  {
+                      "type": "execute",
+                      "stmt": {
+                          "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
+                          "args": [],
+                          "want_rows": true
+                      }
+                  }
+              ]
+          }'
 
       - name: Test
         shell: bash
         working-directory: core
         run: cargo nextest run behavior --features services-libsql
         env:
-            OPENDAL_TEST: libsql
-            OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
-            OPENDAL_LIBSQL_AUTH_TOKEN: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
-            OPENDAL_LIBSQL_TABLE: data
-            OPENDAL_LIBSQL_KEY_FIELD: key
-            OPENDAL_LIBSQL_VALUE_FIELD: data
+          OPENDAL_TEST: libsql
+          OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
+          OPENDAL_LIBSQL_AUTH_TOKEN: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
+          OPENDAL_LIBSQL_TABLE: data
+          OPENDAL_LIBSQL_KEY_FIELD: key
+          OPENDAL_LIBSQL_VALUE_FIELD: data

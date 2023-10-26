@@ -19,16 +19,16 @@ name: caddy
 description: 'Behavior test for http service in caddy'
 
 runs:
-    using: "composite"
-    steps:
-    - name: Setup etcd cluster
+  using: "composite"
+  steps:
+    - name: Setup http in caddy
       shell: bash
       working-directory: fixtures/http
       run: docker-compose -f docker-compose-caddy.yml up -d
     - name: Setup
       shell: bash
       run: |
-          cat << EOF >> $GITHUB_ENV
-          OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
-          OPENDAL_DISABLE_RANDOM_ROOT=true
-          EOF
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_DISABLE_RANDOM_ROOT=true
+        EOF

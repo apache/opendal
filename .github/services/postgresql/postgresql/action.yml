@@ -19,18 +19,18 @@ name: postgresql
 description: 'Behavior test for postgresql'
 
 runs:
-    using: "composite"
-    steps:
-        -   name: Setup PostgreSQL Server
-            shell: bash
-            working-directory: fixtures/postgresql
-            run: docker-compose -f docker-compose.yml up -d
-        - name: Setup
-          shell: bash
-          run: |
-              cat << EOF >> $GITHUB_ENV
-              OPENDAL_POSTGRESQL_CONNECTION_STRING=postgresql://user:password@localhost:5432/testdb
-              OPENDAL_POSTGRESQL_TABLE=data
-              OPENDAL_POSTGRESQL_KEY_FIELD=key
-              OPENDAL_POSTGRESQL_VALUE_FIELD=value
-              EOF
+  using: "composite"
+  steps:
+    - name: Setup PostgreSQL Server
+      shell: bash
+      working-directory: fixtures/postgresql
+      run: docker-compose -f docker-compose.yml up -d
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_POSTGRESQL_CONNECTION_STRING=postgresql://user:password@localhost:5432/testdb
+        OPENDAL_POSTGRESQL_TABLE=data
+        OPENDAL_POSTGRESQL_KEY_FIELD=key
+        OPENDAL_POSTGRESQL_VALUE_FIELD=value
+        EOF

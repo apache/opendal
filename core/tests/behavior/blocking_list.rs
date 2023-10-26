@@ -46,7 +46,7 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 
@@ -74,7 +74,7 @@ pub fn test_blocking_list_dir_with_metakey(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 
@@ -124,7 +124,7 @@ pub fn test_blocking_list_dir_with_metakey_complete(op: BlockingOperator) -> Res
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 

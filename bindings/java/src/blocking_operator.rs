@@ -20,12 +20,15 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jobject;
+use jni::sys::jobjectArray;
+use jni::sys::jsize;
 use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
 
-use crate::jstring_to_string;
+use crate::convert::jstring_to_string;
+use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
 
@@ -220,4 +223,59 @@ fn intern_rename(
     let target_path = jstring_to_string(env, &target_path)?;
 
     Ok(op.rename(&source_path, &target_path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_removeAll(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) {
+    intern_remove_all(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+    let path = jstring_to_string(env, &path)?;
+
+    Ok(op.remove_all(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_list(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) -> jobjectArray {
+    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        JObject::default().into_raw()
+    })
+}
+
+fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+    let path = jstring_to_string(env, &path)?;
+    let obs = op.list(&path)?;
+
+    let jarray = env.new_object_array(
+        obs.len() as jsize,
+        "org/apache/opendal/Entry",
+        JObject::null(),
+    )?;
+
+    for (idx, entry) in obs.iter().enumerate() {
+        let entry = make_entry(env, entry.to_owned())?;
+        env.set_object_array_element(&jarray, idx as jsize, entry)?;
+    }
+
+    Ok(jarray.into_raw())
 }

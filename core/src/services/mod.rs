@@ -29,6 +29,11 @@ mod azdls;
 #[cfg(feature = "services-azdls")]
 pub use azdls::Azdls;
 
+#[cfg(feature = "services-cloudflare-kv")]
+mod cloudflare_kv;
+#[cfg(feature = "services-cloudflare-kv")]
+pub use self::cloudflare_kv::CloudflareKv;
+
 #[cfg(feature = "services-cos")]
 mod cos;
 #[cfg(feature = "services-cos")]
@@ -243,3 +248,8 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+
+#[cfg(feature = "services-dbfs")]
+mod dbfs;
+#[cfg(feature = "services-dbfs")]
+pub use self::dbfs::Dbfs;

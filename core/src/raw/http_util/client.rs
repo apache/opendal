@@ -113,7 +113,7 @@ impl HttpClient {
                 //
                 // We don't set this by hand, just don't allow retry.
                 err.is_redirect() ||
-                 // We never use `Response::error_for_status`, just don't allow retry.
+                // We never use `Response::error_for_status`, just don't allow retry.
                 //
                 // Status should be checked by our services.
                 err.is_status()

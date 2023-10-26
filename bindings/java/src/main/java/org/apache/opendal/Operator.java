@@ -22,12 +22,14 @@ package org.apache.opendal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.opendal.layer.NativeLayerSpec;
 
 /**
  * Operator represents an underneath OpenDAL operator that
@@ -104,6 +106,14 @@ public class Operator extends NativeObject {
 
     public final OperatorInfo info;
 
+
+    /**
+     * @see #of(String, Map, List)
+     */
+    public static Operator of(String schema, Map<String, String> map) {
+        return of(schema, map, Collections.emptyList());
+    }
+
     /**
      * Construct an OpenDAL operator:
      *
@@ -113,9 +123,10 @@ public class Operator extends NativeObject {
      *
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
+     * @param specs  a list of native layer specs to construct layers onto the op.
      */
-    public static Operator of(String schema, Map<String, String> map) {
-        final long nativeHandle = constructor(schema, map);
+    public static Operator of(String schema, Map<String, String> map, List<NativeLayerSpec> specs) {
+        final long nativeHandle = constructor(schema, map, specs.toArray(new NativeLayerSpec[0]));
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
         return new Operator(nativeHandle, info);
     }
@@ -224,7 +235,7 @@ public class Operator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(String schema, Map<String, String> map);
+    private static native long constructor(String schema, Map<String, String> map, NativeLayerSpec[] specs);
 
     private static native long read(long nativeHandle, String path);
 

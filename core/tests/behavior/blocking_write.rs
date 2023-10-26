@@ -88,7 +88,7 @@ pub fn test_blocking_create_dir_existing(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content)?;
 
@@ -102,7 +102,7 @@ pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
 /// Write file with dir path should return an error
 pub fn test_blocking_write_with_dir_path(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let result = op.write(&path, content);
     assert!(result.is_err());
@@ -126,7 +126,7 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content)?;
 
@@ -141,7 +141,7 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 
@@ -181,7 +181,7 @@ pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()>
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 
@@ -208,7 +208,7 @@ pub fn test_blocking_stat_not_exist(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .expect("write must succeed");
@@ -233,7 +233,7 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -262,7 +262,7 @@ pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, _) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -302,7 +302,7 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .expect("write must succeed");
@@ -342,7 +342,7 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .expect("write must succeed");
@@ -379,7 +379,7 @@ pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -417,7 +417,7 @@ pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 
@@ -432,7 +432,7 @@ pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
 /// Remove one file
 pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).expect("write must succeed");
 

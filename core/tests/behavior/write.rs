@@ -126,7 +126,7 @@ pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
 /// Write a single file and test with stat.
 pub async fn test_write_only(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await?;
 
@@ -157,7 +157,7 @@ pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
 /// Write file with dir path should return an error
 pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let result = op.write(&path, content).await;
     assert!(result.is_err());
@@ -180,7 +180,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await?;
 
@@ -198,7 +198,7 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let target_cache_control = "no-cache, no-store, max-age=300";
     op.write_with(&path, content)
@@ -224,7 +224,7 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     let target_content_type = "application/json";
     op.write_with(&path, content)
@@ -251,7 +251,7 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     let target_content_disposition = "attachment; filename=\"filename.jpg\"";
     op.write_with(&path, content)
@@ -274,7 +274,7 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
 /// Stat existing file should return metadata
 pub async fn test_stat_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -313,7 +313,7 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -329,7 +329,7 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
 pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -360,7 +360,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -392,7 +392,7 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -435,7 +435,7 @@ pub async fn test_stat_root(op: Operator) -> Result<()> {
 pub async fn test_read_full(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -461,7 +461,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -491,7 +491,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, _) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -522,7 +522,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -555,7 +555,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, _) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -586,7 +586,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (_, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -636,7 +636,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -667,7 +667,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -700,7 +700,7 @@ pub async fn test_fuzz_reader_with_range(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -741,7 +741,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -782,7 +782,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -847,7 +847,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability().clone());
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -874,7 +874,7 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -924,7 +924,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -974,7 +974,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await
@@ -1018,7 +1018,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> Result<()> {
 /// Delete existing file should succeed.
 pub async fn test_writer_abort(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let mut writer = match op.writer(&path).await {
         Ok(writer) => writer,
@@ -1046,7 +1046,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
 /// Delete existing file should succeed.
 pub async fn test_delete_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -1084,7 +1084,7 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -1108,7 +1108,7 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
 /// Remove one file
 pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -1325,7 +1325,7 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 pub async fn test_invalid_reader_seek(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability().clone());
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&path, content.clone())
         .await

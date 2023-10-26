@@ -292,6 +292,10 @@ where
         loop {
             if g.buf.capacity() - g.buf.len() < g.next {
                 g.buf.reserve(g.next);
+                // # Safety
+                //
+                // We make sure that the length of buf is maintained correctly.
+                #[deny(clippy::uninit_vec)]
                 unsafe {
                     g.buf.set_len(g.buf.capacity());
                 }
@@ -377,6 +381,10 @@ pub trait BlockingRead: Send + Sync {
         loop {
             if g.buf.capacity() - g.buf.len() < g.next {
                 g.buf.reserve(g.next);
+                // # Safety
+                //
+                // We make sure that the length of buf is maintained correctly.
+                #[deny(clippy::uninit_vec)]
                 unsafe {
                     g.buf.set_len(g.buf.capacity());
                 }

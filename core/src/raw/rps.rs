@@ -97,13 +97,13 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 }
 
 /// Reply for `read` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RpRead {}
 
 impl RpRead {
     /// Create a new reply for `read`.
     pub fn new() -> Self {
-        RpRead {}
+        RpRead::default()
     }
 }
 

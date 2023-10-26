@@ -41,7 +41,7 @@ pub fn behavior_blocking_rename_tests(op: &Operator) -> Vec<Trial> {
 /// Rename a file and test with stat.
 pub fn test_blocking_rename_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
@@ -89,7 +89,7 @@ pub fn test_blocking_rename_source_dir(op: BlockingOperator) -> Result<()> {
 /// Rename to a dir should return an error.
 pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content)?;
 
@@ -110,7 +110,7 @@ pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
 /// Rename a file to self should return an error.
 pub fn test_blocking_rename_self(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _size) = gen_bytes();
+    let (source_content, _size) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content)?;
 
@@ -126,7 +126,7 @@ pub fn test_blocking_rename_self(op: BlockingOperator) -> Result<()> {
 /// Rename to a nested path, parent path should be created successfully.
 pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
@@ -153,12 +153,12 @@ pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
 /// Rename to a exist path should overwrite successfully.
 pub fn test_blocking_rename_overwrite(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
     assert_ne!(source_content, target_content);
 
     op.write(&target_path, target_content)?;

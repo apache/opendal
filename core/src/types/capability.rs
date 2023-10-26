@@ -98,6 +98,10 @@ pub struct Capability {
     ///
     /// For example, Google GCS requires align size to 256KiB in write_multi.
     pub write_multi_align_size: Option<usize>,
+    /// write_total_max_size is the max size that services support in write_total.
+    ///
+    /// For example, Cloudflare D1 supports 1MB as max in write_total.
+    pub write_total_max_size: Option<usize>,
 
     /// If operator supports create dir.
     pub create_dir: bool,

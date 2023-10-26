@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: etcd-cluster-tls
-description: 'Behavior test for etcd-cluster-tls'
+name: etcd-tls
+description: 'Behavior test for etcd-tls'
 
 runs:
   using: "composite"
@@ -27,15 +27,15 @@ runs:
       run: |
         mkdir -p /tmp/etcd
         cp -r `pwd`/etcd/* /tmp/etcd
-    - name: Setup etcd cluster
+    - name: Setup etcd tls
       shell: bash
       working-directory: fixtures/etcd
-      run: docker-compose -f docker-compose-cluster-tls.yml up -d
+      run: docker-compose -f docker-compose-stanlone-tls.yml up -d
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_ETCD_ENDPOINTS=https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792
+        OPENDAL_ETCD_ENDPOINTS=https://127.0.0.1:2379
         OPENDAL_ETCD_ROOT=/tmp/opendal
         OPENDAL_ETCD_USERNAME=root
         OPENDAL_ETCD_PASSWORD=opendal

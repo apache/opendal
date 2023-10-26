@@ -18,15 +18,15 @@
 version: '3.8'
 
 services:
-  webdav:
-    image: dgraziotin/nginx-webdav-nononsense
+  nextcloud:
+    image: nextcloud
     ports:
       - "8080:80"
     volumes:
-      - webdav-data:/data
+      - nextcloud:/var/www/html
     environment:
       - WEBDAV_USERNAME=admin
       - WEBDAV_PASSWORD=admin
 
 volumes:
-  webdav-data:
+  nextcloud:

@@ -18,15 +18,15 @@
 version: '3.8'
 
 services:
-  webdav:
-    image: dgraziotin/nginx-webdav-nononsense
+  owncloud:
+    image: owncloud
     ports:
-      - "8080:80"
+      - "8081:80"
     volumes:
-      - webdav-data:/data
+      - owncloud:/mnt/data
     environment:
       - WEBDAV_USERNAME=admin
       - WEBDAV_PASSWORD=admin
 
 volumes:
-  webdav-data:
+  owncloud:

@@ -22,7 +22,6 @@ package org.apache.opendal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,13 +105,6 @@ public class Operator extends NativeObject {
     public final OperatorInfo info;
 
     /**
-     * @see #of(String, Map, List)
-     */
-    public static Operator of(String schema, Map<String, String> map) {
-        return of(schema, map, Collections.emptyList());
-    }
-
-    /**
      * Construct an OpenDAL operator:
      *
      * <p>
@@ -121,20 +113,11 @@ public class Operator extends NativeObject {
      *
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
-     * @param layers a list of native layer specs to construct layers onto the op.
      */
-    public static Operator of(String schema, Map<String, String> map, List<NativeLayer> layers) {
+    public static Operator of(String schema, Map<String, String> map) {
         final long nativeHandle = constructor(schema, map);
-        if (layers.isEmpty()) {
-            final OperatorInfo info = makeOperatorInfo(nativeHandle);
-            return new Operator(nativeHandle, info);
-        } else {
-            long op = nativeHandle;
-            for (NativeLayer layer : layers) {
-                op = layer.layer(op);
-            }
-            return new Operator(op, makeOperatorInfo(op));
-        }
+        final OperatorInfo info = makeOperatorInfo(nativeHandle);
+        return new Operator(nativeHandle, info);
     }
 
     private Operator(long nativeHandle, OperatorInfo info) {
@@ -154,6 +137,11 @@ public class Operator extends NativeObject {
     public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
         return new Operator(nativeHandle, this.info);
+    }
+
+    public Operator layer(NativeLayer layer) {
+        final long nativeHandle = layer.layer(this.nativeHandle);
+        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {

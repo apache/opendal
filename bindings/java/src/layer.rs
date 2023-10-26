@@ -35,7 +35,7 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayer_doLayer(
     max_delay: jlong,
     max_times: jlong,
 ) -> jlong {
-    let op = unsafe { Box::from_raw(op) };
+    let op = unsafe { &*op };
     let mut retry = RetryLayer::new();
     retry = retry.with_factor(factor);
     retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
@@ -46,5 +46,5 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayer_doLayer(
     if max_times >= 0 {
         retry = retry.with_max_times(max_times as usize);
     }
-    Box::into_raw(Box::new(op.layer(retry))) as jlong
+    Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
 }

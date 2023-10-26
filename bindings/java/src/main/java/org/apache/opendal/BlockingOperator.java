@@ -21,7 +21,6 @@ package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -33,13 +32,6 @@ public class BlockingOperator extends NativeObject {
     public final OperatorInfo info;
 
     /**
-     * @see #of(String, Map, List)
-     */
-    public static BlockingOperator of(String schema, Map<String, String> map) {
-        return of(schema, map, Collections.emptyList());
-    }
-
-    /**
      * Construct an OpenDAL blocking operator:
      *
      * <p>
@@ -48,10 +40,9 @@ public class BlockingOperator extends NativeObject {
      *
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
-     * @param layers a list of native layer specs to construct layers onto the op.
      */
-    public static BlockingOperator of(String schema, Map<String, String> map, List<NativeLayer> layers) {
-        try (final Operator operator = Operator.of(schema, map, layers)) {
+    public static BlockingOperator of(String schema, Map<String, String> map) {
+        try (final Operator operator = Operator.of(schema, map)) {
             return operator.blocking();
         }
     }

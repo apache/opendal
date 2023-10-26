@@ -32,10 +32,10 @@ use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::convert::jmap_to_hashmap;
+use crate::convert::jstring_to_string;
 use crate::get_current_env;
 use crate::get_global_runtime;
-use crate::jmap_to_hashmap;
-use crate::jstring_to_string;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;

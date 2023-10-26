@@ -18,9 +18,11 @@
 use jni::objects::{JClass, JObject};
 use jni::sys::{jobjectArray, jsize};
 use jni::JNIEnv;
+
 use opendal::Scheme;
 
-use crate::{string_to_jstring, Result};
+use crate::convert::string_to_jstring;
+use crate::Result;
 
 /// # Safety
 ///

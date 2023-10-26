@@ -27,7 +27,7 @@ use jni::JNIEnv;
 
 use opendal::BlockingOperator;
 
-use crate::jstring_to_string;
+use crate::convert::jstring_to_string;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;

@@ -16,11 +16,9 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 
-use async_compat::Compat;
 use async_trait::async_trait;
 use chrono::DateTime;
 use log::debug;
@@ -246,8 +244,8 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::FileReader<Compat<tokio::fs::File>>;
-    type BlockingReader = oio::FileReader<std::fs::File>;
+    type Reader = oio::TokioReader<tokio::fs::File>;
+    type BlockingReader = oio::StdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
@@ -262,7 +260,6 @@ impl Accessor for FsBackend {
 
                 read: true,
                 read_can_seek: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_empty: true,
@@ -303,12 +300,10 @@ impl Accessor for FsBackend {
     /// - open file first, and than use `seek`. (100ns)
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use tokio::io::AsyncSeekExt;
-
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let mut f = tokio::fs::OpenOptions::new()
+        let f = tokio::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .await
@@ -331,33 +326,7 @@ impl Accessor for FsBackend {
             }
         }
 
-        let (start, end) = match (args.range().offset(), args.range().size()) {
-            (None, None) => (0, None),
-            (None, Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::End(size as i64))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(start + size))
-            }
-            (Some(offset), None) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, None)
-            }
-            (Some(offset), Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(size))
-            }
-        };
-
-        let r = oio::FileReader::new(Compat::new(f), start, end);
-
+        let r = oio::TokioReader::new(f);
         Ok((RpRead::new(0), r))
     }
 
@@ -504,12 +473,10 @@ impl Accessor for FsBackend {
         Ok(RpCreateDir::default())
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use std::io::Seek;
-
+    fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let mut f = std::fs::OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .read(true)
             .open(p)
             .map_err(new_std_io_error)?;
@@ -531,25 +498,7 @@ impl Accessor for FsBackend {
             }
         }
 
-        let (start, end) = match (args.range().offset(), args.range().size()) {
-            (None, None) => (0, None),
-            (None, Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::End(size as i64))
-                    .map_err(new_std_io_error)?;
-                (start, Some(start + size))
-            }
-            (Some(offset), None) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
-                (start, None)
-            }
-            (Some(offset), Some(size)) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
-                (start, Some(size))
-            }
-        };
-
-        let r = oio::FileReader::new(f, start, end);
+        let r = oio::StdReader::new(f);
 
         Ok((RpRead::new(0), r))
     }

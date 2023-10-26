@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
-use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -158,8 +157,8 @@ unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
-    type Reader = oio::FileReader<hdrs::AsyncFile>;
-    type BlockingReader = oio::FileReader<hdrs::File>;
+    type Reader = oio::FuturesReader<hdrs::AsyncFile>;
+    type BlockingReader = oio::StdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type Pager = Option<HdfsPager>;
@@ -174,7 +173,6 @@ impl Accessor for HdfsBackend {
 
                 read: true,
                 read_can_seek: true,
-                read_with_range: true,
 
                 write: true,
                 // TODO: wait for https://github.com/apache/incubator-opendal/pull/2715
@@ -202,12 +200,10 @@ impl Accessor for HdfsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use futures::AsyncSeekExt;
-
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .read(true)
@@ -215,32 +211,7 @@ impl Accessor for HdfsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let (start, end) = match (args.range().offset(), args.range().size()) {
-            (None, None) => (0, None),
-            (None, Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::End(size as i64))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(start + size))
-            }
-            (Some(offset), None) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, None)
-            }
-            (Some(offset), Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(size))
-            }
-        };
-
-        let r = oio::FileReader::new(f, start, end);
+        let r = oio::FuturesReader::new(f);
 
         Ok((RpRead::new(0), r))
     }
@@ -352,37 +323,17 @@ impl Accessor for HdfsBackend {
         Ok(RpCreateDir::default())
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use std::io::Seek;
-
+    fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .read(true)
             .open(&p)
             .map_err(new_std_io_error)?;
 
-        let (start, end) = match (args.range().offset(), args.range().size()) {
-            (None, None) => (0, None),
-            (None, Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::End(size as i64))
-                    .map_err(new_std_io_error)?;
-                (start, Some(start + size))
-            }
-            (Some(offset), None) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
-                (start, None)
-            }
-            (Some(offset), Some(size)) => {
-                let start = f.seek(SeekFrom::Start(offset)).map_err(new_std_io_error)?;
-                (start, Some(size))
-            }
-        };
-
-        let r = oio::FileReader::new(f, start, end);
+        let r = oio::StdReader::new(f);
 
         Ok((RpRead::new(0), r))
     }

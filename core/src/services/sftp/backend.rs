@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_compat::Compat;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -226,7 +224,7 @@ impl Debug for SftpBackend {
 
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = oio::FileReader<Pin<Box<Compat<TokioCompatFile>>>>;
+    type Reader = oio::TokioReader<Pin<Box<TokioCompatFile>>>;
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
@@ -241,7 +239,6 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
-                read_with_range: true,
                 read_can_seek: true,
 
                 write: true,
@@ -286,50 +283,22 @@ impl Accessor for SftpBackend {
         return Ok(RpCreateDir::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use tokio::io::AsyncSeekExt;
-
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let client = self.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await?;
 
-        let mut f = client.open(path.as_path()).await?;
-
-        let (start, end) = match (args.range().offset(), args.range().size()) {
-            (None, None) => (0, None),
-            (None, Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::End(size as i64))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(start + size))
-            }
-            (Some(offset), None) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, None)
-            }
-            (Some(offset), Some(size)) => {
-                let start = f
-                    .seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(new_std_io_error)?;
-                (start, Some(size))
-            }
-        };
+        let f = client.open(path.as_path()).await?;
 
         // Sorry for the ugly code...
         //
         // - `f` is a openssh file.
         // - `TokioCompatFile::new(f)` makes it implements tokio AsyncRead + AsyncSeek for openssh File.
-        // - `Compat::new(f)` make it compatible to `futures::AsyncRead + futures::AsyncSeek`.
         // - `Box::pin(x)` to make sure this reader implements `Unpin`, since `TokioCompatFile` is not.
-        // - `oio::FileReader::new(x)` makes it a `oio::FileReader` which implements `oio::Read`.
-        let r = oio::FileReader::new(Box::pin(Compat::new(TokioCompatFile::new(f))), start, end);
+        // - `oio::TokioReader::new(x)` makes it a `oio::TokioReader` which implements `oio::Read`.
+        let r = oio::TokioReader::new(Box::pin(TokioCompatFile::new(f)));
 
         Ok((RpRead::new(0), r))
     }

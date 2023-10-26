@@ -16,171 +16,495 @@
 // under the License.
 
 use std::cmp;
-use std::io::Read;
-use std::io::Seek;
+
 use std::io::SeekFrom;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::AsyncRead;
-use futures::AsyncSeek;
+use futures::future::BoxFuture;
+use futures::Future;
 
 use crate::raw::*;
 use crate::*;
 
-/// FileReader implements [`oio::Read`] via `AsyncRead + AsyncSeek`.
-pub struct FileReader<R> {
-    inner: R,
+/// FileReader that implement range read and streamable read on seekable reader.
+///
+/// `oio::Reader` requires the underlying reader to handle range correctly and have streamable support.
+/// But some services like `fs`, `hdfs` only have seek support. FileReader implements range and stream
+/// support based on `seek`. We will maintain the correct range for give file and implement streamable
+/// operations based on [`oio::AdaptiveBuf`].
+pub struct FileReader<A: Accessor, R> {
+    acc: Arc<A>,
+    path: Arc<String>,
+    op: OpRead,
 
-    start: u64,
-    end: Option<u64>,
+    offset: Option<u64>,
+    size: Option<u64>,
+    cur: u64,
 
-    offset: u64,
+    buf: oio::AdaptiveBuf,
+    state: State<R>,
 }
 
-impl<R> FileReader<R> {
+enum State<R> {
+    Idle,
+    Send(BoxFuture<'static, Result<(RpRead, R)>>),
+    Read(R),
+}
+
+/// Safety: State will only be accessed under &mut.
+unsafe impl<R> Sync for State<R> {}
+
+impl<A, R> FileReader<A, R>
+where
+    A: Accessor,
+{
     /// Create a new FileReader.
     ///
     /// # Notes
     ///
     /// It's required that input reader's cursor is at the input `start` of the file.
-    pub fn new(fd: R, start: u64, end: Option<u64>) -> FileReader<R> {
+    pub fn new(acc: Arc<A>, path: &str, op: OpRead) -> FileReader<A, R> {
         FileReader {
-            inner: fd,
-            start,
-            end,
+            acc,
+            path: Arc::new(path.to_string()),
+            op,
 
-            offset: start,
-        }
-    }
-
-    fn calculate_position(&self, pos: SeekFrom) -> Result<SeekFrom> {
-        match pos {
-            SeekFrom::Start(n) => {
-                if n < self.start {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
-                }
-
-                Ok(SeekFrom::Start(self.start + n))
-            }
-            SeekFrom::End(n) => {
-                let end = if let Some(end) = self.end {
-                    end as i64 + n
-                } else {
-                    n
-                };
-
-                if self.start as i64 + end < 0 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
-                }
-
-                Ok(SeekFrom::End(end))
-            }
-            SeekFrom::Current(n) => {
-                if self.offset as i64 + n < self.start as i64 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
-                }
-
-                Ok(SeekFrom::Current(n))
-            }
+            offset: None,
+            size: None,
+            cur: 0,
+            buf: oio::AdaptiveBuf::default(),
+            state: State::<R>::Idle,
         }
     }
 }
 
-impl<R> oio::Read for FileReader<R>
+impl<A, R> FileReader<A, R>
 where
-    R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+    A: Accessor<Reader = R>,
+    R: oio::Read,
+{
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, R)>> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
+
+        // FileReader doesn't support range, we will always use full range to open a file.
+        let op = self.op.clone().with_range(BytesRange::from(..));
+
+        Box::pin(async move { acc.read(&path, op).await })
+    }
+}
+
+impl<A, R> oio::Read for FileReader<A, R>
+where
+    A: Accessor<Reader = R>,
+    R: oio::Read,
 {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let size = if let Some(end) = self.end {
-            if self.offset >= end {
-                return Poll::Ready(Ok(0));
+        match &mut self.state {
+            State::Idle => {
+                self.state = State::Send(self.read_future());
+                self.poll_read(cx, buf)
             }
-            cmp::min(buf.len(), (end - self.offset) as usize)
-        } else {
-            buf.len()
-        };
+            State::Send(fut) => {
+                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                    // If send future returns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
+                    err
+                })?;
+                self.state = State::Read(r);
+                self.poll_read(cx, buf)
+            }
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::End(size as i64)))?;
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
+                let size = if let Some(size) = self.size {
+                    // Sanity check.
+                    if self.cur >= size {
+                        return Poll::Ready(Ok(0));
+                    }
+                    cmp::min(buf.len(), (size - self.cur) as usize)
+                } else {
+                    buf.len()
+                };
 
-        let n =
-            ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf[..size])).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "read data from FileReader").set_source(err)
-            })?;
-        self.offset += n as u64;
-        Poll::Ready(Ok(n))
+                match ready!(r.poll_read(cx, &mut buf[..size])) {
+                    Ok(0) => Poll::Ready(Ok(0)),
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        Poll::Ready(Ok(n))
+                    }
+                    // We don't need to reset state here since it's ok to poll the same reader.
+                    Err(err) => Poll::Ready(Err(err)),
+                }
+            }
+        }
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let pos = self.calculate_position(pos)?;
-
-        let cur = ready!(Pin::new(&mut self.inner).poll_seek(cx, pos)).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "seek data from FileReader").set_source(err)
-        })?;
-
-        self.offset = cur;
-        Poll::Ready(Ok(self.offset - self.start))
+        match &mut self.state {
+            State::Idle => {
+                self.state = State::Send(self.read_future());
+                self.poll_seek(cx, pos)
+            }
+            State::Send(fut) => {
+                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                    // If send future returns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
+                    err
+                })?;
+                self.state = State::Read(r);
+                self.poll_seek(cx, pos)
+            }
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::End(-(size as i64))))?;
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
+                let pos = calculate_position(self.offset, self.size, self.cur, pos)?;
+                let cur = ready!(r.poll_seek(cx, pos))?;
+                self.cur = cur - self.offset.unwrap();
+                Poll::Ready(Ok(cur))
+            }
+        }
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
+        match &mut self.state {
+            State::Idle => {
+                self.state = State::Send(self.read_future());
+                self.poll_next(cx)
+            }
+            State::Send(fut) => {
+                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                    // If send future returns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
+                    err
+                })?;
+                self.state = State::Read(r);
+                self.poll_next(cx)
+            }
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::End(size as i64)))?;
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
 
-        Poll::Ready(Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support next",
-        ))))
+                self.buf.reserve();
+
+                let mut buf = self.buf.initialized_mut();
+                let buf = buf.initialized_mut();
+
+                let size = if let Some(size) = self.size {
+                    // Sanity check.
+                    if self.cur >= size {
+                        return Poll::Ready(None);
+                    }
+                    cmp::min(buf.len(), (size - self.cur) as usize)
+                } else {
+                    buf.len()
+                };
+
+                match ready!(r.poll_read(cx, &mut buf[..size])) {
+                    Ok(0) => Poll::Ready(None),
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        self.buf.record(n);
+                        Poll::Ready(Some(Ok(self.buf.split(n))))
+                    }
+                    // We don't need to reset state here since it's ok to poll the same reader.
+                    Err(err) => Poll::Ready(Some(Err(err))),
+                }
+            }
+        }
     }
 }
 
-impl<R> oio::BlockingRead for FileReader<R>
+impl<A, R> oio::BlockingRead for FileReader<A, R>
 where
-    R: Read + Seek + Send + Sync + 'static,
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let size = if let Some(end) = self.end {
-            if self.offset >= end {
-                return Ok(0);
-            }
-            cmp::min(buf.len(), (end - self.offset) as usize)
-        } else {
-            buf.len()
-        };
+        match &mut self.state {
+            State::Idle => {
+                // FileReader doesn't support range, we will always use full range to open a file.
+                let op = self.op.clone().with_range(BytesRange::from(..));
 
-        let n = self.inner.read(&mut buf[..size]).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read data from FileReader").set_source(err)
-        })?;
-        self.offset += n as u64;
-        Ok(n)
+                let (_, r) = self.acc.blocking_read(&self.path, op)?;
+                self.state = State::Read(r);
+                self.read(buf)
+            }
+
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = r.seek(SeekFrom::End(size as i64))?;
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = r.seek(SeekFrom::Start(offset))?;
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = r.seek(SeekFrom::Start(offset))?;
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
+                let size = if let Some(size) = self.size {
+                    // Sanity check.
+                    if self.cur >= size {
+                        return Ok(0);
+                    }
+                    cmp::min(buf.len(), (size - self.cur) as usize)
+                } else {
+                    buf.len()
+                };
+
+                match r.read(&mut buf[..size]) {
+                    Ok(0) => Ok(0),
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        Ok(n)
+                    }
+                    // We don't need to reset state here since it's ok to poll the same reader.
+                    Err(err) => Err(err),
+                }
+            }
+            State::Send(_) => {
+                unreachable!(
+                    "It's invalid to go into State::Send for BlockingRead, please report this bug"
+                )
+            }
+        }
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let pos = self.calculate_position(pos)?;
+        match &mut self.state {
+            State::Idle => {
+                // FileReader doesn't support range, we will always use full range to open a file.
+                let op = self.op.clone().with_range(BytesRange::from(..));
 
-        let cur = self.inner.seek(pos).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "seek data from FileReader").set_source(err)
-        })?;
-
-        self.offset = cur;
-        Ok(self.offset - self.start)
+                let (_, r) = self.acc.blocking_read(&self.path, op)?;
+                self.state = State::Read(r);
+                self.seek(pos)
+            }
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = r.seek(SeekFrom::End(-(size as i64)))?;
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = r.seek(SeekFrom::Start(offset))?;
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = r.seek(SeekFrom::Start(offset))?;
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
+                let pos = calculate_position(self.offset, self.size, self.cur, pos)?;
+                let cur = r.seek(pos)?;
+                self.cur = cur - self.offset.unwrap();
+                Ok(self.cur)
+            }
+            State::Send(_) => {
+                unreachable!(
+                    "It's invalid to go into State::Send for BlockingRead, please report this bug"
+                )
+            }
+        }
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support iterating",
-        )))
+        match &mut self.state {
+            State::Idle => {
+                // FileReader doesn't support range, we will always use full range to open a file.
+                let op = self.op.clone().with_range(BytesRange::from(..));
+
+                let r = match self.acc.blocking_read(&self.path, op) {
+                    Ok((_, r)) => r,
+                    Err(err) => return Some(Err(err)),
+                };
+                self.state = State::Read(r);
+                self.next()
+            }
+
+            State::Read(r) => {
+                // We should know where to start read the data.
+                if self.offset.is_none() {
+                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
+                        (None, None) => (0, None),
+                        (None, Some(size)) => {
+                            let start = match r.seek(SeekFrom::End(size as i64)) {
+                                Ok(v) => v,
+                                Err(err) => return Some(Err(err)),
+                            };
+                            (start, Some(size))
+                        }
+                        (Some(offset), None) => {
+                            let start = match r.seek(SeekFrom::Start(offset)) {
+                                Ok(v) => v,
+                                Err(err) => return Some(Err(err)),
+                            };
+                            (start, None)
+                        }
+                        (Some(offset), Some(size)) => {
+                            let start = match r.seek(SeekFrom::Start(offset)) {
+                                Ok(v) => v,
+                                Err(err) => return Some(Err(err)),
+                            };
+                            (start, Some(size))
+                        }
+                    };
+                    self.offset = Some(offset);
+                    self.size = size;
+                }
+
+                self.buf.reserve();
+
+                let mut buf = self.buf.initialized_mut();
+                let buf = buf.initialized_mut();
+
+                let size = if let Some(size) = self.size {
+                    // Sanity check.
+                    if self.cur >= size {
+                        return None;
+                    }
+                    cmp::min(buf.len(), (size - self.cur) as usize)
+                } else {
+                    buf.len()
+                };
+
+                match r.read(&mut buf[..size]) {
+                    Ok(0) => None,
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        self.buf.record(n);
+                        Some(Ok(self.buf.split(n)))
+                    }
+                    // We don't need to reset state here since it's ok to poll the same reader.
+                    Err(err) => Some(Err(err)),
+                }
+            }
+            State::Send(_) => {
+                unreachable!(
+                    "It's invalid to go into State::Send for BlockingRead, please report this bug"
+                )
+            }
+        }
+    }
+}
+
+/// Calculate the actual position that we should seek to.
+fn calculate_position(
+    offset: Option<u64>,
+    size: Option<u64>,
+    cur: u64,
+    pos: SeekFrom,
+) -> Result<SeekFrom> {
+    let offset = offset.expect("offset should be set for calculate_position");
+
+    match pos {
+        SeekFrom::Start(n) => {
+            // It's valid for user to seek outsides end of the file.
+            Ok(SeekFrom::Start(offset + n))
+        }
+        SeekFrom::End(n) => {
+            if let Some(size) = size {
+                if size as i64 + n < 0 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}")));
+                }
+                // size is known, we can convert SeekFrom::End into SeekFrom::Start.
+                Ok(SeekFrom::Start(offset + (size as i64 + n) as u64))
+            } else {
+                // size unknown means we can forward seek end to underlying reader directly.
+                Ok(SeekFrom::End(n))
+            }
+        }
+        SeekFrom::Current(n) => {
+            if cur as i64 + n < 0 {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "seek to a negative position is invalid",
+                )
+                .with_context("position", format!("{pos:?}")));
+            }
+            Ok(SeekFrom::Start(offset + (cur as i64 + n) as u64))
+        }
     }
 }

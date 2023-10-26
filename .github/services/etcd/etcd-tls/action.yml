@@ -30,7 +30,7 @@ runs:
     - name: Setup etcd tls
       shell: bash
       working-directory: fixtures/etcd
-      run: docker-compose -f docker-compose-stanlone-tls.yml up -d
+      run: docker-compose -f docker-compose-standalone-tls.yml up -d
     - name: Setup
       shell: bash
       run: |

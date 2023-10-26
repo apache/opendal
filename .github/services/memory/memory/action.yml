@@ -20,3 +20,8 @@ description: 'Behavior test for memory'
 
 runs:
   using: "composite"
+  steps:
+    - name: Setup
+      shell: bash
+      run: |
+        echo "OPENDAL_MEMORY_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV

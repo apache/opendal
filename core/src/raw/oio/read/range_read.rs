@@ -637,7 +637,7 @@ mod tests {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
             Ok((
-                RpRead::new(bs.len() as u64),
+                RpRead::new(),
                 MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
                 },

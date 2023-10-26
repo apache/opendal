@@ -17,10 +17,10 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
 use std::pin::Pin;
-use std::task::Context;
 use std::task::Poll;
+use std::task::{ready, Context};
+use std::{cmp, io};
 
 use bytes::Bytes;
 use futures::Future;
@@ -198,6 +198,16 @@ pub trait ReadExt: Read {
     fn next(&mut self) -> NextFuture<'_, Self> {
         NextFuture { reader: self }
     }
+
+    /// Build a future for `read_to_end`.
+    fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self> {
+        let start = buf.len();
+        ReadToEndFuture {
+            reader: self,
+            buf,
+            start,
+        }
+    }
 }
 
 /// Make this future `!Unpin` for compatibility with async trait methods.
@@ -256,6 +266,82 @@ where
     }
 }
 
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
+pub struct ReadToEndFuture<'a, R: Read + Unpin + ?Sized> {
+    reader: &'a mut R,
+    buf: &'a mut Vec<u8>,
+    start: usize,
+}
+
+impl<R> Future for ReadToEndFuture<'_, R>
+where
+    R: Read + Unpin + ?Sized,
+{
+    type Output = Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
+        let this = self.project();
+
+        let mut g = ReadToEndGuard {
+            len: this.buf.len(),
+            buf: this.buf,
+            next: MIN_READ_TO_END_GROW_SIZE,
+        };
+
+        loop {
+            if g.buf.capacity() - g.buf.len() < g.next {
+                g.buf.reserve(g.next);
+                unsafe {
+                    g.buf.set_len(g.buf.capacity());
+                }
+            }
+
+            let buf = &mut g.buf[g.len..];
+            match ready!(this.reader.poll_read(cx, buf)) {
+                Ok(0) => return Poll::Ready(Ok(g.len - *this.start)),
+                Ok(n) => {
+                    g.next = if n >= g.next {
+                        cmp::min(g.next.saturating_mul(2), MAX_READ_TO_END_GROW_SIZE)
+                    } else if n >= g.next / 2 {
+                        g.next
+                    } else {
+                        cmp::max(g.next.saturating_div(2), MIN_READ_TO_END_GROW_SIZE)
+                    };
+                    // We can't allow bogus values from read. If it is too large, the returned vec could have its length
+                    // set past its capacity, or if it overflows the vec could be shortened which could create an invalid
+                    // string if this is called via read_to_string.
+                    assert!(n <= buf.len());
+                    g.len += n;
+                }
+                Err(e) => return Poll::Ready(Err(e)),
+            }
+        }
+    }
+}
+
+const MIN_READ_TO_END_GROW_SIZE: usize = 8 * 1024;
+const MAX_READ_TO_END_GROW_SIZE: usize = 4 * 1024 * 1024;
+
+/// ReadToEndGuard makes sure that the buf length is maintained correctly.
+struct ReadToEndGuard<'a> {
+    buf: &'a mut Vec<u8>,
+    /// Store the real length of buf.
+    len: usize,
+    next: usize,
+}
+
+impl Drop for ReadToEndGuard<'_> {
+    /// # Safety
+    ///
+    /// We make sure that the length of buf is maintained correctly.
+    fn drop(&mut self) {
+        unsafe {
+            self.buf.set_len(self.len);
+        }
+    }
+}
+
 /// BlockingReader is a boxed dyn `BlockingRead`.
 pub type BlockingReader = Box<dyn BlockingRead>;
 
@@ -278,6 +364,46 @@ pub trait BlockingRead: Send + Sync {
 
     /// Iterating [`Bytes`] from underlying reader.
     fn next(&mut self) -> Option<Result<Bytes>>;
+
+    /// Read all data of current reader to the end of buf.
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+        let start_len = buf.len();
+        let mut g = ReadToEndGuard {
+            len: buf.len(),
+            buf,
+            next: MIN_READ_TO_END_GROW_SIZE,
+        };
+
+        loop {
+            if g.buf.capacity() - g.buf.len() < g.next {
+                g.buf.reserve(g.next);
+                unsafe {
+                    g.buf.set_len(g.buf.capacity());
+                }
+            }
+
+            let buf = &mut g.buf[g.len..];
+            match self.read(buf) {
+                Ok(0) => return Ok(g.len - start_len),
+                Ok(n) => {
+                    g.next = if n >= g.next {
+                        cmp::min(g.next.saturating_mul(2), MAX_READ_TO_END_GROW_SIZE)
+                    } else if n >= g.next / 2 {
+                        g.next
+                    } else {
+                        cmp::max(g.next.saturating_div(2), MIN_READ_TO_END_GROW_SIZE)
+                    };
+
+                    // We can't allow bogus values from read. If it is too large, the returned vec could have its length
+                    // set past its capacity, or if it overflows the vec could be shortened which could create an invalid
+                    // string if this is called via read_to_string.
+                    assert!(n <= buf.len());
+                    g.len += n;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
 }
 
 impl BlockingRead for () {

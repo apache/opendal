@@ -97,10 +97,7 @@ impl Accessor for DropboxBackend {
         let resp = self.core.dropbox_get(path, args).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
             _ => Err(parse_error(resp).await?),
         }
     }

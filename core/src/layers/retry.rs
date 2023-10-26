@@ -1164,7 +1164,7 @@ mod tests {
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
-                RpRead::new(13),
+                RpRead::new(),
                 MockReader {
                     attempt: self.attempt.clone(),
                     pos: 0,

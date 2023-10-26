@@ -98,31 +98,12 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 
 /// Reply for `read` operation.
 #[derive(Debug, Clone)]
-pub struct RpRead {
-    meta: Metadata,
-}
+pub struct RpRead {}
 
 impl RpRead {
     /// Create a new reply for `read`.
-    pub fn new(content_length: u64) -> Self {
-        RpRead {
-            meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
-        }
-    }
-
-    /// Create reply read with existing metadata.
-    pub fn with_metadata(meta: Metadata) -> Self {
-        RpRead { meta }
-    }
-
-    /// Get a ref of metadata.
-    pub fn metadata(&self) -> &Metadata {
-        &self.meta
-    }
-
-    /// Consume reply to get the meta.
-    pub fn into_metadata(self) -> Metadata {
-        self.meta
+    pub fn new() -> Self {
+        RpRead {}
     }
 }
 

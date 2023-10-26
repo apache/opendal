@@ -389,8 +389,7 @@ impl Accessor for GcsBackend {
         let resp = self.core.gcs_get_object(path, &args).await?;
 
         if resp.status().is_success() {
-            let meta = parse_into_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body()))
+            Ok((RpRead::new(), resp.into_body()))
         } else {
             Err(parse_error(resp).await?)
         }

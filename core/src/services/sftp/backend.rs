@@ -300,7 +300,7 @@ impl Accessor for SftpBackend {
         // - `oio::TokioReader::new(x)` makes it a `oio::TokioReader` which implements `oio::Read`.
         let r = oio::TokioReader::new(Box::pin(TokioCompatFile::new(f)));
 
-        Ok((RpRead::new(0), r))
+        Ok((RpRead::new(), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

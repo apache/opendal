@@ -327,7 +327,7 @@ impl Accessor for FsBackend {
         }
 
         let r = oio::TokioReader::new(f);
-        Ok((RpRead::new(0), r))
+        Ok((RpRead::new(), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -500,7 +500,7 @@ impl Accessor for FsBackend {
 
         let r = oio::StdReader::new(f);
 
-        Ok((RpRead::new(0), r))
+        Ok((RpRead::new(), r))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

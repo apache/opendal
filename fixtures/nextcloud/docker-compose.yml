@@ -25,8 +25,10 @@ services:
     volumes:
       - nextcloud:/var/www/html
     environment:
-      - WEBDAV_USERNAME=admin
-      - WEBDAV_PASSWORD=admin
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: admin
+      REDIS_HOST: redis
 
 volumes:
   nextcloud:

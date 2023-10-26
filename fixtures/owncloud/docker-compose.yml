@@ -19,14 +19,19 @@ version: '3.8'
 
 services:
   owncloud:
-    image: owncloud
+    image: owncloud/server
     ports:
-      - "8081:80"
+      - "8080:8080"
     volumes:
       - owncloud:/mnt/data
     environment:
-      - WEBDAV_USERNAME=admin
-      - WEBDAV_PASSWORD=admin
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin
+      OWNCLOUD_DOMAIN: localhost:8080
+      OWNCLOUD_TRUSTED_DOMAINS: localhost
+      HTTP_PORT: 8080
+      OWNCLOUD_REDIS_ENABLED: true
+      OWNCLOUD_REDIS_HOST: redis
 
 volumes:
   owncloud:

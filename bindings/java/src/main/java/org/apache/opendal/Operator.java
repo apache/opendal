@@ -106,7 +106,6 @@ public class Operator extends NativeObject {
 
     public final OperatorInfo info;
 
-
     /**
      * @see #of(String, Map, List)
      */

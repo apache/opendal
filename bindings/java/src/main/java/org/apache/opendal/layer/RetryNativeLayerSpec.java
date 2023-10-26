@@ -44,5 +44,6 @@ public class RetryNativeLayerSpec extends NativeLayerSpec {
         return makeNativeLayer(jitter, factor, minDelay.toNanos(), maxDelay.toNanos(), maxTimes);
     }
 
-    private static native long makeNativeLayer(boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
+    private static native long makeNativeLayer(
+            boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
 }

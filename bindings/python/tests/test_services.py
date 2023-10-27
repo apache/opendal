@@ -199,6 +199,18 @@ class AbstractTestSuite(ABC):
         await self.async_operator.delete(filename)
         with pytest.raises(FileNotFoundError):
             await self.operator.stat(filename)
+    
+    def test_capability(self):
+        cap = self.operator.capability()
+        assert cap is not None
+        assert cap.read is not None
+        assert cap.write
+    
+    def test_capability_exception(self):
+        cap = self.operator.capability()
+        assert cap is not None
+        with pytest.raises(AttributeError) as e_info:
+            cap.read_demo
 
 
 class TestS3(AbstractTestSuite):

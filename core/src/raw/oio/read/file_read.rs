@@ -48,6 +48,8 @@ pub struct FileReader<A: Accessor, R> {
 
     buf: oio::AdaptiveBuf,
     state: State<R>,
+    /// Do we need to reset our cursor?
+    seek_dirty: bool,
 }
 
 enum State<R> {
@@ -79,6 +81,7 @@ where
             cur: 0,
             buf: oio::AdaptiveBuf::default(),
             state: State::<R>::Idle,
+            seek_dirty: false,
         }
     }
 }
@@ -141,7 +144,7 @@ where
             SeekFrom::End(n) => {
                 let size =
                     size.expect("size should be set for calculate_position when seek with end");
-                if size as i64 + n < offset as i64 {
+                if size as i64 + n < 0 {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::InvalidInput,
                         "seek to a negative position is invalid",
@@ -210,7 +213,7 @@ where
             SeekFrom::End(n) => {
                 let size =
                     size.expect("size should be set for calculate_position when seek with end");
-                if size as i64 + n < offset as i64 {
+                if size as i64 + n < 0 {
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
                         "seek to a negative position is invalid",
@@ -307,15 +310,18 @@ where
                 if self.offset.is_none() {
                     (self.offset, self.size) = ready!(Self::poll_offset(cx, r, self.op.range()))?;
                 }
+
                 // Fetch size when seek end.
+                let current_offset = self.offset.unwrap() + self.cur;
                 if matches!(pos, SeekFrom::End(_)) && self.size.is_none() {
-                    let current_offset = self.offset.unwrap() + self.cur;
-
                     let size = ready!(r.poll_seek(cx, SeekFrom::End(0)))?;
-                    self.size = Some(size);
-
+                    self.size = Some(size - self.offset.unwrap());
+                    self.seek_dirty = true;
+                }
+                if self.seek_dirty {
                     // Reset cursor.
                     ready!(r.poll_seek(cx, SeekFrom::Start(current_offset)))?;
+                    self.seek_dirty = false;
                 }
 
                 let pos = ready!(Self::poll_seek_inner(
@@ -450,14 +456,16 @@ where
                     (self.offset, self.size) = Self::calculate_offset(r, self.op.range())?;
                 }
                 // Fetch size when seek end.
+                let current_offset = self.offset.unwrap() + self.cur;
                 if matches!(pos, SeekFrom::End(_)) && self.size.is_none() {
-                    let current_offset = self.offset.unwrap() + self.cur;
-
                     let size = r.seek(SeekFrom::End(0))?;
-                    self.size = Some(size);
-
+                    self.size = Some(size - self.offset.unwrap());
+                    self.seek_dirty = true;
+                }
+                if self.seek_dirty {
                     // Reset cursor.
                     r.seek(SeekFrom::Start(current_offset))?;
+                    self.seek_dirty = false;
                 }
 
                 let pos = Self::seek_inner(r, self.offset, self.size, self.cur, pos)?;

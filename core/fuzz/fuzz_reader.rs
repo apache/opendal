@@ -239,7 +239,8 @@ impl ReadChecker {
                     "{:x}",
                     Sha256::digest(&self.ranged_data[self.cur..self.cur + output.len()])
                 ),
-                "check next failed: output bs is different with expected bs",
+                "check next failed: output bs is different with expected bs, current: {}, output length: {}",
+                self.cur, output.len(),
             );
 
             // update the current position

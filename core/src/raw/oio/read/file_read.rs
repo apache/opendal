@@ -81,6 +81,49 @@ where
             state: State::<R>::Idle,
         }
     }
+
+    /// Calculate the actual position that we should seek to.
+    fn calculate_position(
+        offset: Option<u64>,
+        size: Option<u64>,
+        cur: u64,
+        pos: SeekFrom,
+    ) -> Result<SeekFrom> {
+        let offset = offset.expect("offset should be set for calculate_position");
+
+        match pos {
+            SeekFrom::Start(n) => {
+                // It's valid for user to seek outsides end of the file.
+                Ok(SeekFrom::Start(offset + n))
+            }
+            SeekFrom::End(n) => {
+                if let Some(size) = size {
+                    if size as i64 + n < 0 {
+                        return Err(Error::new(
+                            ErrorKind::InvalidInput,
+                            "seek to a negative position is invalid",
+                        )
+                        .with_context("position", format!("{pos:?}")));
+                    }
+                    // size is known, we can convert SeekFrom::End into SeekFrom::Start.
+                    Ok(SeekFrom::Start(offset + (size as i64 + n) as u64))
+                } else {
+                    // size unknown means we can forward seek end to underlying reader directly.
+                    Ok(SeekFrom::End(n))
+                }
+            }
+            SeekFrom::Current(n) => {
+                if cur as i64 + n < 0 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}")));
+                }
+                Ok(SeekFrom::Start(offset + (cur as i64 + n) as u64))
+            }
+        }
+    }
 }
 
 impl<A, R> FileReader<A, R>
@@ -96,6 +139,58 @@ where
         let op = self.op.clone().with_range(BytesRange::from(..));
 
         Box::pin(async move { acc.read(&path, op).await })
+    }
+
+    /// calculate_offset will make sure that the offset has been set.
+    fn poll_offset(
+        cx: &mut Context<'_>,
+        r: &mut R,
+        range: BytesRange,
+    ) -> Poll<Result<(Option<u64>, Option<u64>)>> {
+        let (offset, size) = match (range.offset(), range.size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = ready!(r.poll_seek(cx, SeekFrom::End(-(size as i64))))?;
+                (start, Some(size))
+            }
+            (Some(offset), None) => {
+                let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
+                (start, Some(size))
+            }
+        };
+
+        Poll::Ready(Ok((Some(offset), size)))
+    }
+}
+
+impl<A, R> FileReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    /// calculate_offset will make sure that the offset has been set.
+    fn calculate_offset(r: &mut R, range: BytesRange) -> Result<(Option<u64>, Option<u64>)> {
+        let (offset, size) = match (range.offset(), range.size()) {
+            (None, None) => (0, None),
+            (None, Some(size)) => {
+                let start = r.seek(SeekFrom::End(-(size as i64)))?;
+                (start, Some(size))
+            }
+            (Some(offset), None) => {
+                let start = r.seek(SeekFrom::Start(offset))?;
+                (start, None)
+            }
+            (Some(offset), Some(size)) => {
+                let start = r.seek(SeekFrom::Start(offset))?;
+                (start, Some(size))
+            }
+        };
+
+        Ok((Some(offset), size))
     }
 }
 
@@ -123,24 +218,9 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::End(size as i64)))?;
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = ready!(Self::poll_offset(cx, r, self.op.range()))?;
                 }
+
                 let size = if let Some(size) = self.size {
                     // Sanity check.
                     if self.cur >= size {
@@ -183,28 +263,13 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::End(-(size as i64))))?;
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = ready!(Self::poll_offset(cx, r, self.op.range()))?;
                 }
-                let pos = calculate_position(self.offset, self.size, self.cur, pos)?;
+
+                let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
                 let cur = ready!(r.poll_seek(cx, pos))?;
                 self.cur = cur - self.offset.unwrap();
-                Poll::Ready(Ok(cur))
+                Poll::Ready(Ok(self.cur))
             }
         }
     }
@@ -228,23 +293,7 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::End(size as i64)))?;
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = ready!(r.poll_seek(cx, SeekFrom::Start(offset)))?;
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = ready!(Self::poll_offset(cx, r, self.op.range()))?;
                 }
 
                 self.buf.reserve();
@@ -296,24 +345,9 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = r.seek(SeekFrom::End(size as i64))?;
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = r.seek(SeekFrom::Start(offset))?;
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = r.seek(SeekFrom::Start(offset))?;
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = Self::calculate_offset(r, self.op.range())?;
                 }
+
                 let size = if let Some(size) = self.size {
                     // Sanity check.
                     if self.cur >= size {
@@ -355,25 +389,10 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = r.seek(SeekFrom::End(-(size as i64)))?;
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = r.seek(SeekFrom::Start(offset))?;
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = r.seek(SeekFrom::Start(offset))?;
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = Self::calculate_offset(r, self.op.range())?;
                 }
-                let pos = calculate_position(self.offset, self.size, self.cur, pos)?;
+
+                let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
                 let cur = r.seek(pos)?;
                 self.cur = cur - self.offset.unwrap();
                 Ok(self.cur)
@@ -403,32 +422,10 @@ where
             State::Read(r) => {
                 // We should know where to start read the data.
                 if self.offset.is_none() {
-                    let (offset, size) = match (self.op.range().offset(), self.op.range().size()) {
-                        (None, None) => (0, None),
-                        (None, Some(size)) => {
-                            let start = match r.seek(SeekFrom::End(size as i64)) {
-                                Ok(v) => v,
-                                Err(err) => return Some(Err(err)),
-                            };
-                            (start, Some(size))
-                        }
-                        (Some(offset), None) => {
-                            let start = match r.seek(SeekFrom::Start(offset)) {
-                                Ok(v) => v,
-                                Err(err) => return Some(Err(err)),
-                            };
-                            (start, None)
-                        }
-                        (Some(offset), Some(size)) => {
-                            let start = match r.seek(SeekFrom::Start(offset)) {
-                                Ok(v) => v,
-                                Err(err) => return Some(Err(err)),
-                            };
-                            (start, Some(size))
-                        }
-                    };
-                    self.offset = Some(offset);
-                    self.size = size;
+                    (self.offset, self.size) = match Self::calculate_offset(r, self.op.range()) {
+                        Ok(v) => v,
+                        Err(err) => return Some(Err(err)),
+                    }
                 }
 
                 self.buf.reserve();
@@ -462,49 +459,6 @@ where
                     "It's invalid to go into State::Send for BlockingRead, please report this bug"
                 )
             }
-        }
-    }
-}
-
-/// Calculate the actual position that we should seek to.
-fn calculate_position(
-    offset: Option<u64>,
-    size: Option<u64>,
-    cur: u64,
-    pos: SeekFrom,
-) -> Result<SeekFrom> {
-    let offset = offset.expect("offset should be set for calculate_position");
-
-    match pos {
-        SeekFrom::Start(n) => {
-            // It's valid for user to seek outsides end of the file.
-            Ok(SeekFrom::Start(offset + n))
-        }
-        SeekFrom::End(n) => {
-            if let Some(size) = size {
-                if size as i64 + n < 0 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
-                }
-                // size is known, we can convert SeekFrom::End into SeekFrom::Start.
-                Ok(SeekFrom::Start(offset + (size as i64 + n) as u64))
-            } else {
-                // size unknown means we can forward seek end to underlying reader directly.
-                Ok(SeekFrom::End(n))
-            }
-        }
-        SeekFrom::Current(n) => {
-            if cur as i64 + n < 0 {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    "seek to a negative position is invalid",
-                )
-                .with_context("position", format!("{pos:?}")));
-            }
-            Ok(SeekFrom::Start(offset + (cur as i64 + n) as u64))
         }
     }
 }

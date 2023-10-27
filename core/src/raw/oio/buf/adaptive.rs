@@ -59,6 +59,12 @@ impl AdaptiveBuf {
 
     /// Returning the initialized part of the buffer.
     pub fn initialized_mut(&mut self) -> ReadBuf {
+        assert_eq!(
+            self.buffer.len(),
+            0,
+            "buffer must be empty before initialized_mut"
+        );
+
         let dst = self.buffer.spare_capacity_mut();
         let length = dst.len();
         let mut buf = ReadBuf::uninit(dst);

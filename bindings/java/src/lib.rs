@@ -215,9 +215,12 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
                 Ok(env
                     .call_static_method(
                         "java/time/Instant",
-                        "ofEpochMilli",
-                        "(J)Ljava/time/Instant;",
-                        &[JValue::Long(v.timestamp_millis())],
+                        "ofEpochSecond",
+                        "(JJ)Ljava/time/Instant;",
+                        &[
+                            JValue::Long(v.timestamp()),
+                            JValue::Long(v.timestamp_subsec_nanos() as jlong),
+                        ],
                     )?
                     .l()?)
             },

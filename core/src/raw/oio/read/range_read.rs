@@ -230,13 +230,13 @@ where
     R: oio::Read,
 {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        // Sanity check for normal cases.
+        if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
+            return Poll::Ready(Ok(0));
+        }
+
         match &mut self.state {
             State::Idle => {
-                // Sanity check for normal cases.
-                if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
-                    return Poll::Ready(Ok(0));
-                }
-
                 self.state = if self.offset.is_none() {
                     // Offset is none means we are doing tailing reading.
                     // we should stat first to get the correct offset.
@@ -300,6 +300,7 @@ where
             State::Idle => {
                 let (base, amt) = match pos {
                     SeekFrom::Start(n) => (0, n as i64),
+                    SeekFrom::Current(n) => (self.cur as i64, n),
                     SeekFrom::End(n) => {
                         if let Some(size) = self.size {
                             (size as i64, n)
@@ -308,7 +309,6 @@ where
                             return self.poll_seek(cx, pos);
                         }
                     }
-                    SeekFrom::Current(n) => (self.cur as i64, n),
                 };
 
                 let seek_pos = match base.checked_add(amt) {
@@ -359,13 +359,13 @@ where
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        // Sanity check for normal cases.
+        if self.cur >= self.size.unwrap_or(u64::MAX) {
+            return Poll::Ready(None);
+        }
+
         match &mut self.state {
             State::Idle => {
-                // Sanity check for normal cases.
-                if self.cur >= self.size.unwrap_or(u64::MAX) {
-                    return Poll::Ready(None);
-                }
-
                 self.state = if self.offset.is_none() {
                     // Offset is none means we are doing tailing reading.
                     // we should stat first to get the correct offset.
@@ -425,13 +425,13 @@ where
     R: oio::BlockingRead,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // Sanity check for normal cases.
+        if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
+            return Ok(0);
+        }
+
         match &mut self.state {
             State::Idle => {
-                // Sanity check for normal cases.
-                if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
-                    return Ok(0);
-                }
-
                 // Offset is none means we are doing tailing reading.
                 // we should stat first to get the correct offset.
                 if self.offset.is_none() {

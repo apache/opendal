@@ -16,7 +16,7 @@
 # under the License.
 
 name: azdls
-description: 'Behavior test for Azure azdls. This service is sponsored by @datafuse_labs.'
+description: 'Behavior test for Azure azdls. This service is sponsored by @Xuanwo.'
 
 runs:
   using: "composite"

@@ -44,6 +44,7 @@ enum ReadAction {
 
 #[derive(Debug, Clone)]
 struct FuzzInput {
+    path: String,
     size: usize,
     range: BytesRange,
     actions: Vec<ReadAction>,
@@ -109,6 +110,7 @@ impl Arbitrary<'_> for FuzzInput {
         }
 
         Ok(FuzzInput {
+            path: uuid::Uuid::new_v4().to_string(),
             size: total_size,
             range,
             actions,
@@ -221,12 +223,13 @@ impl ReadChecker {
 }
 
 async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
     let mut checker = ReadChecker::new(input.size, input.range);
-    op.write(&path, checker.raw_data.clone()).await?;
+    op.write(&input.path, checker.raw_data.clone()).await?;
 
-    let mut o = op.reader_with(&path).range(input.range.to_range()).await?;
+    let mut o = op
+        .reader_with(&input.path)
+        .range(input.range.to_range())
+        .await?;
 
     for action in input.actions {
         match action {
@@ -248,7 +251,6 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
         }
     }
 
-    op.delete(&path).await?;
     Ok(())
 }
 
@@ -261,7 +263,7 @@ fuzz_target!(|input: FuzzInput| {
         runtime.block_on(async {
             fuzz_reader(op, input.clone())
                 .await
-                .unwrap_or_else(|_| panic!("fuzz reader must succeed"));
+                .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
         })
     }
 });

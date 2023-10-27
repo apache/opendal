@@ -212,11 +212,17 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
         metadata.last_modified().map_or_else(
             || Ok::<JObject<'_>, error::Error>(JObject::null()),
             |v| {
-                Ok(env.new_object(
-                    "java/util/Date",
-                    "(J)V",
-                    &[JValue::Long(v.timestamp_millis())],
-                )?)
+                Ok(env
+                    .call_static_method(
+                        "java/time/Instant",
+                        "ofEpochSecond",
+                        "(JJ)Ljava/time/Instant;",
+                        &[
+                            JValue::Long(v.timestamp()),
+                            JValue::Long(v.timestamp_subsec_nanos() as jlong),
+                        ],
+                    )?
+                    .l()?)
             },
         )?
     } else {
@@ -268,7 +274,7 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
     let result = env
         .new_object(
             "org/apache/opendal/Metadata",
-            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
+            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;)V",
             &[
                 JValue::Int(mode as jint),
                 JValue::Long(content_length),

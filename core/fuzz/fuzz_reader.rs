@@ -182,6 +182,16 @@ impl ReadChecker {
                 0,
                 "check read failed: output must be empty if buf_size is 0"
             );
+            return;
+        }
+
+        if self.cur >= self.ranged_data.len() {
+            assert_eq!(
+                output.len(),
+                0,
+                "check read failed: cur outsides of ranged_data, output must be empty"
+            );
+            return;
         }
 
         if buf_size > 0 && output.len() == 0 {
@@ -189,6 +199,7 @@ impl ReadChecker {
                 self.cur >= self.ranged_data.len(),
                 "check read failed: no data read means cur must outsides of ranged_data",
             );
+            return;
         }
 
         let expected = &self.ranged_data[self.cur..self.cur + output.len()];

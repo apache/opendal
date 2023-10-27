@@ -175,7 +175,22 @@ impl ReadChecker {
         }
     }
 
-    fn check_read(&mut self, output: &[u8]) {
+    fn check_read(&mut self, buf_size: usize, output: &[u8]) {
+        if buf_size == 0 {
+            assert_eq!(
+                output.len(),
+                0,
+                "check read failed: output must be empty if buf_size is 0"
+            );
+        }
+
+        if buf_size > 0 && output.len() == 0 {
+            assert!(
+                self.cur >= self.ranged_data.len(),
+                "check read failed: no data read means cur must outsides of ranged_data",
+            );
+        }
+
         let expected = &self.ranged_data[self.cur..self.cur + output.len()];
 
         // Check the read result
@@ -259,7 +274,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
             ReadAction::Read { size } => {
                 let mut buf = vec![0; size];
                 let n = o.read(&mut buf).await?;
-                checker.check_read(&buf[..n]);
+                checker.check_read(size, &buf[..n]);
             }
 
             ReadAction::Seek(seek_from) => {

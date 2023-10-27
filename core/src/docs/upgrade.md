@@ -91,6 +91,22 @@ let mut w = op.writer_with("path/to/file").buffer(8 * 1024 * 1024).await?;
 
 If buffer is not specified, we will call underlying storage everytime we call `write`. Otherwise, we will make sure to call underlying storage when buffer is full or `close` is called.
 
+### RangeRead & RangeReader
+
+OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, please use `read_with().range()` or `reader_with().range()`.
+
+```diff
+- op.range_read(path, range_start..range_end).await?;
++ op.read_with(path).range(range_start..range_end).await?;
+```
+
+```diff
+- let reader = op.range_reader(path, range_start..range_end).await?;
++ let reader = op.reader_with(path).range(range_start..range_end).await?;
+```
+
+
+
 ## Raw API
 
 ### RFC-3017 Remove Write Copy From

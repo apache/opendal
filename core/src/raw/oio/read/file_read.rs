@@ -268,6 +268,13 @@ where
 
                 let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
                 let cur = ready!(r.poll_seek(cx, pos))?;
+                if cur < self.offset.unwrap() {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}"))));
+                }
                 self.cur = cur - self.offset.unwrap();
                 Poll::Ready(Ok(self.cur))
             }
@@ -394,6 +401,14 @@ where
 
                 let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
                 let cur = r.seek(pos)?;
+                if cur < self.offset.unwrap() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}")));
+                }
+
                 self.cur = cur - self.offset.unwrap();
                 Ok(self.cur)
             }

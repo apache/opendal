@@ -175,17 +175,8 @@ impl ReadChecker {
         }
     }
 
-    fn check_read(&mut self, n: usize, output: &[u8]) {
-        if n == 0 {
-            assert_eq!(
-                output.len(),
-                0,
-                "check read failed: output bs is not empty when read size is 0"
-            );
-            return;
-        }
-
-        let expected = &self.ranged_data[self.cur..self.cur + n];
+    fn check_read(&mut self, output: &[u8]) {
+        let expected = &self.ranged_data[self.cur..self.cur + output.len()];
 
         // Check the read result
         assert_eq!(
@@ -195,7 +186,7 @@ impl ReadChecker {
         );
 
         // Update the current position
-        self.cur += n;
+        self.cur += output.len();
     }
 
     fn check_seek(&mut self, seek_from: SeekFrom, output: Result<u64>) {
@@ -268,7 +259,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
             ReadAction::Read { size } => {
                 let mut buf = vec![0; size];
                 let n = o.read(&mut buf).await?;
-                checker.check_read(n, &buf[..n]);
+                checker.check_read(&buf[..n]);
             }
 
             ReadAction::Seek(seek_from) => {

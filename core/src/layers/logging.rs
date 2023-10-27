@@ -991,17 +991,20 @@ impl<R> Drop for LoggingReader<R> {
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        let buf_size = buf.len();
+
         match self.inner.poll_read(cx, buf) {
             Poll::Ready(res) => match res {
                 Ok(n) => {
                     self.read += n as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> data read {}B ",
+                        "service={} operation={} path={} read={} -> buf size: {}B, read {}B ",
                         self.ctx.scheme,
                         ReadOperation::Read,
                         self.path,
                         self.read,
+                        buf_size,
                         n
                     );
                     Poll::Ready(Ok(n))
@@ -1011,7 +1014,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            "service={} operation={} path={} read={} -> read failed: {}",
                             self.ctx.scheme,
                             ReadOperation::Read,
                             self.path,
@@ -1025,11 +1028,12 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read pending",
+                    "service={} operation={} path={} read={} -> buf size: {}B, read pending",
                     self.ctx.scheme,
                     ReadOperation::Read,
                     self.path,
-                    self.read
+                    self.read,
+                    buf_size
                 );
                 Poll::Pending
             }
@@ -1042,7 +1046,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                 Ok(n) => {
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> data seek to offset {n}",
+                        "service={} operation={} path={} read={} -> seek to {pos:?}, current offset {n}",
                         self.ctx.scheme,
                         ReadOperation::Seek,
                         self.path,
@@ -1055,7 +1059,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
                             self.ctx.scheme,
                             ReadOperation::Seek,
                             self.path,
@@ -1069,7 +1073,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data seek pending",
+                    "service={} operation={} path={} read={} -> seek to {pos:?} pending",
                     self.ctx.scheme,
                     ReadOperation::Seek,
                     self.path,
@@ -1087,7 +1091,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     self.read += bs.len() as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> data read {}B",
+                        "service={} operation={} path={} read={} -> next {}B",
                         self.ctx.scheme,
                         ReadOperation::Next,
                         self.path,
@@ -1101,7 +1105,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            "service={} operation={} path={} read={} -> next failed: {}",
                             self.ctx.scheme,
                             ReadOperation::Next,
                             self.path,
@@ -1116,7 +1120,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read pending",
+                    "service={} operation={} path={} read={} -> next pending",
                     self.ctx.scheme,
                     ReadOperation::Next,
                     self.path,

@@ -22,8 +22,6 @@ services:
     image: owncloud/server
     ports:
       - "8080:8080"
-    volumes:
-      - owncloud:/mnt/data
     environment:
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin
@@ -32,6 +30,16 @@ services:
       HTTP_PORT: 8080
       OWNCLOUD_REDIS_ENABLED: true
       OWNCLOUD_REDIS_HOST: redis
+    options: >-
+      --health-cmd "/usr/bin/healthcheck"
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 5
 
-volumes:
-  owncloud:
+  redis:
+    image: redis
+    options: >-
+      --health-cmd "redis-cli ping"
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 5

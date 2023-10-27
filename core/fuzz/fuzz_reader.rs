@@ -17,6 +17,7 @@
 
 #![no_main]
 
+use std::fmt::{Debug, Formatter};
 use std::io::SeekFrom;
 
 use bytes::Bytes;
@@ -35,19 +36,49 @@ mod utils;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum ReadAction {
     Read { size: usize },
     Seek(SeekFrom),
     Next,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct FuzzInput {
     path: String,
     size: usize,
     range: BytesRange,
     actions: Vec<ReadAction>,
+}
+
+impl Debug for FuzzInput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut actions = self.actions.clone();
+        // Remove all tailing Read(0) entry.
+        let mut pre = None;
+        let empty = ReadAction::Read { size: 0 };
+        actions.retain(|e| match &pre {
+            None => {
+                pre = Some(e.clone());
+                true
+            }
+            Some(entry) => {
+                if entry == &empty {
+                    false
+                } else {
+                    pre = Some(e.clone());
+                    true
+                }
+            }
+        });
+
+        f.debug_struct("FuzzInput")
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .field("range", &self.range.to_string())
+            .field("actions", &actions)
+            .finish()
+    }
 }
 
 impl Arbitrary<'_> for FuzzInput {
@@ -257,6 +288,11 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
 
 fuzz_target!(|input: FuzzInput| {
     let _ = dotenvy::dotenv();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     let runtime = tokio::runtime::Runtime::new().expect("init runtime must succeed");
 

@@ -16,15 +16,24 @@
 # under the License.
 
 version: '3.8'
-
 services:
-  memcached:
-    image: bitnami/memcached
-    environment:
-      # memcache's max item size is 1MiB, But opendal's behavior tests
-      # will produce larger file.
-      #
-      # Specify the setting here to make our test happy.
-      MEMCACHED_MAX_ITEM_SIZE: 16777216
+  etcd:
+    image: bitnami/etcd:latest
     ports:
-      - '11211:11211'
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
+      - ./server.pem:/opt/bitnami/etcd/conf/server.pem
+      - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
+      - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
+      - ./client.pem:/opt/bitnami/etcd/client.pem
+    environment:
+      ETCD_ROOT_PASSWORD: opendal
+      ETCD_NAME: etcd
+      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: https://etcd:2379
+      ETCD_MAX_REQUEST_BYTES: 10485760
+      ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
+      ETCD_KEY_FILE: /opt/bitnami/etcd/conf/server-key.pem
+      ETCD_CERT_FILE: /opt/bitnami/etcd/conf/server.pem

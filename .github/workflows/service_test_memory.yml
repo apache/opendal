@@ -37,21 +37,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  memory:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run behavior
-        env:
-          OPENDAL_TEST: memory
-
   python:
     runs-on: ubuntu-latest
     steps:

@@ -141,7 +141,7 @@ where
             SeekFrom::End(n) => {
                 let size =
                     size.expect("size should be set for calculate_position when seek with end");
-                if size as i64 + n < 0 {
+                if size as i64 + n < offset as i64 {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::InvalidInput,
                         "seek to a negative position is invalid",
@@ -210,7 +210,7 @@ where
             SeekFrom::End(n) => {
                 let size =
                     size.expect("size should be set for calculate_position when seek with end");
-                if size as i64 + n < 0 {
+                if size as i64 + n < offset as i64 {
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
                         "seek to a negative position is invalid",

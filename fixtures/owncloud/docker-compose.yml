@@ -30,16 +30,6 @@ services:
       HTTP_PORT: 8080
       OWNCLOUD_REDIS_ENABLED: true
       OWNCLOUD_REDIS_HOST: redis
-    options: >-
-      --health-cmd "/usr/bin/healthcheck"
-      --health-interval 10s
-      --health-timeout 5s
-      --health-retries 5
 
   redis:
     image: redis
-    options: >-
-      --health-cmd "redis-cli ping"
-      --health-interval 10s
-      --health-timeout 5s
-      --health-retries 5

@@ -251,6 +251,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
         }
     }
 
+    op.delete(&input.path).await?;
     Ok(())
 }
 

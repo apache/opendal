@@ -81,49 +81,6 @@ where
             state: State::<R>::Idle,
         }
     }
-
-    /// Calculate the actual position that we should seek to.
-    fn calculate_position(
-        offset: Option<u64>,
-        size: Option<u64>,
-        cur: u64,
-        pos: SeekFrom,
-    ) -> Result<SeekFrom> {
-        let offset = offset.expect("offset should be set for calculate_position");
-
-        match pos {
-            SeekFrom::Start(n) => {
-                // It's valid for user to seek outsides end of the file.
-                Ok(SeekFrom::Start(offset + n))
-            }
-            SeekFrom::End(n) => {
-                if let Some(size) = size {
-                    if size as i64 + n < 0 {
-                        return Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "seek to a negative position is invalid",
-                        )
-                        .with_context("position", format!("{pos:?}")));
-                    }
-                    // size is known, we can convert SeekFrom::End into SeekFrom::Start.
-                    Ok(SeekFrom::Start(offset + (size as i64 + n) as u64))
-                } else {
-                    // size unknown means we can forward seek end to underlying reader directly.
-                    Ok(SeekFrom::End(n))
-                }
-            }
-            SeekFrom::Current(n) => {
-                if cur as i64 + n < 0 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
-                }
-                Ok(SeekFrom::Start(offset + (cur as i64 + n) as u64))
-            }
-        }
-    }
 }
 
 impl<A, R> FileReader<A, R>
@@ -165,6 +122,49 @@ where
 
         Poll::Ready(Ok((Some(offset), size)))
     }
+
+    fn poll_seek_inner(
+        cx: &mut Context<'_>,
+        r: &mut R,
+        offset: Option<u64>,
+        size: Option<u64>,
+        cur: u64,
+        pos: SeekFrom,
+    ) -> Poll<Result<u64>> {
+        let offset = offset.expect("offset should be set for calculate_position");
+
+        match pos {
+            SeekFrom::Start(n) => {
+                // It's valid for user to seek outsides end of the file.
+                r.poll_seek(cx, SeekFrom::Start(offset + n))
+            }
+            SeekFrom::End(n) => {
+                let size =
+                    size.expect("size should be set for calculate_position when seek with end");
+                if size as i64 + n < 0 {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}"))));
+                }
+                // size is known, we can convert SeekFrom::End into SeekFrom::Start.
+                let pos = SeekFrom::Start(offset + (size as i64 + n) as u64);
+                r.poll_seek(cx, pos)
+            }
+            SeekFrom::Current(n) => {
+                if cur as i64 + n < 0 {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}"))));
+                }
+                let pos = SeekFrom::Start(offset + (cur as i64 + n) as u64);
+                r.poll_seek(cx, pos)
+            }
+        }
+    }
 }
 
 impl<A, R> FileReader<A, R>
@@ -191,6 +191,48 @@ where
         };
 
         Ok((Some(offset), size))
+    }
+
+    fn seek_inner(
+        r: &mut R,
+        offset: Option<u64>,
+        size: Option<u64>,
+        cur: u64,
+        pos: SeekFrom,
+    ) -> Result<u64> {
+        let offset = offset.expect("offset should be set for calculate_position");
+
+        match pos {
+            SeekFrom::Start(n) => {
+                // It's valid for user to seek outsides end of the file.
+                r.seek(SeekFrom::Start(offset + n))
+            }
+            SeekFrom::End(n) => {
+                let size =
+                    size.expect("size should be set for calculate_position when seek with end");
+                if size as i64 + n < 0 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}")));
+                }
+                // size is known, we can convert SeekFrom::End into SeekFrom::Start.
+                let pos = SeekFrom::Start(offset + (size as i64 + n) as u64);
+                r.seek(pos)
+            }
+            SeekFrom::Current(n) => {
+                if cur as i64 + n < 0 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "seek to a negative position is invalid",
+                    )
+                    .with_context("position", format!("{pos:?}")));
+                }
+                let pos = SeekFrom::Start(offset + (cur as i64 + n) as u64);
+                r.seek(pos)
+            }
+        }
     }
 }
 
@@ -265,17 +307,26 @@ where
                 if self.offset.is_none() {
                     (self.offset, self.size) = ready!(Self::poll_offset(cx, r, self.op.range()))?;
                 }
+                // Fetch size when seek end.
+                if matches!(pos, SeekFrom::End(_)) && self.size.is_none() {
+                    let current_offset = self.offset.unwrap() + self.cur;
 
-                let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
-                let cur = ready!(r.poll_seek(cx, pos))?;
-                if cur < self.offset.unwrap() {
-                    return Poll::Ready(Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}"))));
+                    let size = ready!(r.poll_seek(cx, SeekFrom::End(0)))?;
+                    self.size = Some(size);
+
+                    // Reset cursor.
+                    ready!(r.poll_seek(cx, SeekFrom::Start(current_offset)))?;
                 }
-                self.cur = cur - self.offset.unwrap();
+
+                let pos = ready!(Self::poll_seek_inner(
+                    cx,
+                    r,
+                    self.offset,
+                    self.size,
+                    self.cur,
+                    pos
+                ))?;
+                self.cur = pos - self.offset.unwrap();
                 Poll::Ready(Ok(self.cur))
             }
         }
@@ -398,18 +449,19 @@ where
                 if self.offset.is_none() {
                     (self.offset, self.size) = Self::calculate_offset(r, self.op.range())?;
                 }
+                // Fetch size when seek end.
+                if matches!(pos, SeekFrom::End(_)) && self.size.is_none() {
+                    let current_offset = self.offset.unwrap() + self.cur;
 
-                let pos = Self::calculate_position(self.offset, self.size, self.cur, pos)?;
-                let cur = r.seek(pos)?;
-                if cur < self.offset.unwrap() {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "seek to a negative position is invalid",
-                    )
-                    .with_context("position", format!("{pos:?}")));
+                    let size = r.seek(SeekFrom::End(0))?;
+                    self.size = Some(size);
+
+                    // Reset cursor.
+                    r.seek(SeekFrom::Start(current_offset))?;
                 }
 
-                self.cur = cur - self.offset.unwrap();
+                let pos = Self::seek_inner(r, self.offset, self.size, self.cur, pos)?;
+                self.cur = pos - self.offset.unwrap();
                 Ok(self.cur)
             }
             State::Send(_) => {

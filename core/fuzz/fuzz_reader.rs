@@ -54,23 +54,9 @@ struct FuzzInput {
 impl Debug for FuzzInput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut actions = self.actions.clone();
-        // Remove all tailing Read(0) entry.
-        let mut pre = None;
+        // Remove all Read(0) entry.
         let empty = ReadAction::Read { size: 0 };
-        actions.retain(|e| match &pre {
-            None => {
-                pre = Some(e.clone());
-                true
-            }
-            Some(entry) => {
-                if entry == &empty {
-                    false
-                } else {
-                    pre = Some(e.clone());
-                    true
-                }
-            }
-        });
+        actions.retain(|e| e != &empty);
 
         f.debug_struct("FuzzInput")
             .field("path", &self.path)
@@ -185,22 +171,18 @@ impl ReadChecker {
             return;
         }
 
-        if self.cur >= self.ranged_data.len() {
-            assert_eq!(
-                output.len(),
-                0,
-                "check read failed: cur outsides of ranged_data, output must be empty"
-            );
-            return;
-        }
-
-        if buf_size > 0 && output.len() == 0 {
+        if buf_size > 0 && output.is_empty() {
             assert!(
                 self.cur >= self.ranged_data.len(),
                 "check read failed: no data read means cur must outsides of ranged_data",
             );
             return;
         }
+
+        assert!(
+            self.cur + output.len() <= self.ranged_data.len(),
+            "check read failed: cur + output length must be less than ranged_data length, cur: {}, output: {}, ranged_data: {}",  self.cur, output.len(), self.ranged_data.len(),
+        );
 
         let expected = &self.ranged_data[self.cur..self.cur + output.len()];
 

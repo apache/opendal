@@ -26,7 +26,6 @@ runs:
       with:
         export-env: true
       env:
-        OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         OPENDAL_AZFILE_ACCOUNT_NAME: op://services/azfile/account_name
         OPENDAL_AZFILE_ENDPOINT: op://services/azfile/endpoint
         OPENDAL_AZFILE_ACCOUNT_KEY: op://services/azfile/account_key

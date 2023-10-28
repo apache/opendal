@@ -346,7 +346,7 @@ impl OssCore {
         let url_with_start_after = match start_after {
             Some(start_after) => {
                 let start_after = build_abs_path(&self.root, &start_after);
-                format!("{}&startOffset={}", url, percent_encode_path(&start_after))
+                format!("{}&start-after={}", url, percent_encode_path(&start_after))
             }
             None => url,
         };

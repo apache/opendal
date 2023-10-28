@@ -41,6 +41,7 @@ const X_MS_WRITE: &str = "x-ms-write";
 const X_MS_FILE_RENAME_SOURCE: &str = "x-ms-file-rename-source";
 const X_MS_CONTENT_LENGTH: &str = "x-ms-content-length";
 const X_MS_TYPE: &str = "x-ms-type";
+const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 
 pub struct AzfileCore {
     pub root: String,
@@ -290,6 +291,8 @@ impl AzfileCore {
         );
 
         req = req.header(X_MS_FILE_RENAME_SOURCE, &source_url);
+
+        req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
         let mut req = req
             .body(AsyncBody::Empty)

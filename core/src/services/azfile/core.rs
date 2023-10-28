@@ -262,7 +262,7 @@ impl AzfileCore {
                 "{}/{}/{}?restype=directory&comp=rename",
                 self.endpoint,
                 self.share_name,
-                percent_encode_path(&p)
+                percent_encode_path(&new_p)
             )
         } else {
             format!(
@@ -277,14 +277,19 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        let destination_url = format!(
+        // x-ms-file-rename-source specifies the file or directory to be renamed.
+        // the value must be a URL style path
+        // the official document does not mention the URL style path
+        // find the solution from the community FAQ and implementation of the Java-SDK
+        // ref: https://learn.microsoft.com/en-us/answers/questions/799611/azure-file-service-rest-api(rename)?page=1
+        let source_url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.share_name,
             percent_encode_path(&p)
         );
 
-        req = req.header(X_MS_FILE_RENAME_SOURCE, &destination_url);
+        req = req.header(X_MS_FILE_RENAME_SOURCE, &source_url);
 
         let mut req = req
             .body(AsyncBody::Empty)

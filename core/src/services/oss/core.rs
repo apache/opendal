@@ -327,10 +327,12 @@ impl OssCore {
         token: Option<&str>,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
+
         let url = format!(
             "{}/?list-type=2&delimiter={delimiter}&prefix={}{}{}",
             endpoint,
@@ -341,7 +343,15 @@ impl OssCore {
                 .unwrap_or_default(),
         );
 
-        let req = Request::get(&url)
+        let url_with_start_after = match start_after {
+            Some(start_after) => {
+                let start_after = build_abs_path(&self.root, &start_after);
+                format!("{}&startOffset={}", url, percent_encode_path(&start_after))
+            }
+            None => url,
+        };
+
+        let req = Request::get(&url_with_start_after)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -427,8 +437,9 @@ impl OssCore {
         token: Option<&str>,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_list_object_request(path, token, delimiter, limit)?;
+        let mut req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

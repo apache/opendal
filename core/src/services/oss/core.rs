@@ -15,10 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::time::Duration;
-
 use bytes::Bytes;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
@@ -36,6 +32,10 @@ use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+use std::time::Duration;
 
 use crate::raw::*;
 use crate::*;
@@ -332,26 +332,38 @@ impl OssCore {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
+        let mut url = format!("{}/?list-type=2", endpoint);
 
-        let url = format!(
-            "{}/?list-type=2&delimiter={delimiter}&prefix={}{}{}",
-            endpoint,
-            percent_encode_path(&p),
-            limit.map(|t| format!("&max-keys={t}")).unwrap_or_default(),
-            token
-                .map(|t| format!("&continuation-token={}", percent_encode_path(t)))
-                .unwrap_or_default(),
-        );
+        write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        // prefix
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(&p))
+                .expect("write into string must succeed");
+        }
 
-        let url_with_start_after = match start_after {
-            Some(start_after) => {
-                let start_after = build_abs_path(&self.root, &start_after);
-                format!("{}&start-after={}", url, percent_encode_path(&start_after))
-            }
-            None => url,
-        };
+        // max-key
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+        }
 
-        let req = Request::get(&url_with_start_after)
+        // continuation_token
+        if let Some(continuation_token) = token {
+            write!(
+                url,
+                "&continuation-token={}",
+                percent_encode_path(continuation_token)
+            )
+            .expect("write into string must succeed");
+        }
+
+        // start-after
+        if let Some(start_after) = start_after {
+            let start_after = build_abs_path(&self.root, &start_after);
+            write!(url, "&start-after={}", percent_encode_path(&start_after))
+                .expect("write into string must succeed");
+        }
+
+        let req = Request::get(&url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)

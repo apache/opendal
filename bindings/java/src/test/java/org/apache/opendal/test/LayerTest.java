@@ -17,8 +17,25 @@
  * under the License.
  */
 
-package org.apache.opendal;
+package org.apache.opendal.test;
 
-public abstract class NativeLayer {
-    protected abstract long layer(long operatorNativeHandle);
+import static org.assertj.core.api.Assertions.assertThat;
+import java.util.HashMap;
+import java.util.Map;
+import lombok.Cleanup;
+import org.apache.opendal.Layer;
+import org.apache.opendal.Operator;
+import org.apache.opendal.layer.RetryLayer;
+import org.junit.jupiter.api.Test;
+
+public class LayerTest {
+    @Test
+    void testOperatorWithRetryLayer() {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/opendal/");
+        final Layer retryLayer = RetryLayer.builder().build();
+        @Cleanup final Operator op = Operator.of("memory", conf);
+        @Cleanup final Operator layeredOp = op.layer(retryLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
 }

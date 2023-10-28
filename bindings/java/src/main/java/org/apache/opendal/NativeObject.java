@@ -69,6 +69,10 @@ public abstract class NativeObject implements AutoCloseable {
         disposeInternal(nativeHandle);
     }
 
+    private long getNativeHandle() {
+        return nativeHandle;
+    }
+
     /**
      * Deletes underlying native object pointer.
      *

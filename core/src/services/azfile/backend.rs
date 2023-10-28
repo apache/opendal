@@ -195,6 +195,7 @@ impl Builder for AzfileBuilder {
 
         let config_loader = AzureStorageConfig {
             account_name: Some(account_name),
+            account_key: self.account_key.clone(),
             sas_token: self.sas_token.clone(),
             ..Default::default()
         };
@@ -380,7 +381,7 @@ impl Accessor for AzfileBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::ACCEPTED => {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 resp.into_body().consume().await?;
                 Ok(RpDelete::default())
             }

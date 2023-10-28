@@ -38,7 +38,7 @@ use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
 const X_MS_WRITE: &str = "x-ms-write";
-const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
+const X_MS_FILE_RENAME_SOURCE: &str = "x-ms-file-rename-source";
 const X_MS_CONTENT_LENGTH: &str = "x-ms-content-length";
 const X_MS_TYPE: &str = "x-ms-type";
 
@@ -269,7 +269,7 @@ impl AzfileCore {
                 "{}/{}/{}?comp=rename",
                 self.endpoint,
                 self.share_name,
-                percent_encode_path(&p)
+                percent_encode_path(&new_p)
             )
         };
 
@@ -277,7 +277,14 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        req = req.header(X_MS_RENAME_SOURCE, percent_encode_path(&new_p));
+        let destination_url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.share_name,
+            percent_encode_path(&p)
+        );
+
+        req = req.header(X_MS_FILE_RENAME_SOURCE, &destination_url);
 
         let mut req = req
             .body(AsyncBody::Empty)

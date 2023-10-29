@@ -22,3 +22,6 @@ runs:
   using: "composite"
   steps:
     - name: Blank Setup
+      shell: bash
+      run: |
+        echo "Blank Setup"

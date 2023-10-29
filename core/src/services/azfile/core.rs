@@ -38,9 +38,10 @@ use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
 const X_MS_WRITE: &str = "x-ms-write";
-const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
+const X_MS_FILE_RENAME_SOURCE: &str = "x-ms-file-rename-source";
 const X_MS_CONTENT_LENGTH: &str = "x-ms-content-length";
 const X_MS_TYPE: &str = "x-ms-type";
+const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 
 pub struct AzfileCore {
     pub root: String,
@@ -111,7 +112,19 @@ impl AzfileCore {
 
         let mut req = Request::get(&url);
 
-        req = req.header(RANGE, range.to_header());
+        if !range.is_full() {
+            // azfile doesn't support read with suffix range.
+            //
+            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-file-service-operations
+            if range.offset().is_none() && range.size().is_some() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "azblob doesn't support read with suffix range",
+                ));
+            }
+
+            req = req.header(RANGE, range.to_header());
+        }
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -262,14 +275,14 @@ impl AzfileCore {
                 "{}/{}/{}?restype=directory&comp=rename",
                 self.endpoint,
                 self.share_name,
-                percent_encode_path(&p)
+                percent_encode_path(&new_p)
             )
         } else {
             format!(
                 "{}/{}/{}?comp=rename",
                 self.endpoint,
                 self.share_name,
-                percent_encode_path(&p)
+                percent_encode_path(&new_p)
             )
         };
 
@@ -277,7 +290,21 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        req = req.header(X_MS_RENAME_SOURCE, percent_encode_path(&new_p));
+        // x-ms-file-rename-source specifies the file or directory to be renamed.
+        // the value must be a URL style path
+        // the official document does not mention the URL style path
+        // find the solution from the community FAQ and implementation of the Java-SDK
+        // ref: https://learn.microsoft.com/en-us/answers/questions/799611/azure-file-service-rest-api(rename)?page=1
+        let source_url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.share_name,
+            percent_encode_path(&p)
+        );
+
+        req = req.header(X_MS_FILE_RENAME_SOURCE, &source_url);
+
+        req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
         let mut req = req
             .body(AsyncBody::Empty)

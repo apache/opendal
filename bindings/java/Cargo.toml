@@ -82,6 +82,7 @@ services-all = [
   "services-wasabi",
   "services-mongodb",
   "services-sqlite",
+  "services-azfile",
 ]
 
 # Default services provided by opendal.
@@ -129,6 +130,7 @@ services-wasabi = ["opendal/services-wasabi"]
 services-mysql = ["opendal/services-mysql"]
 services-mongodb = ["opendal/services-mongodb"]
 services-sqlite = ["opendal/services-sqlite"]
+services-azfile = ["opendal/services-azfile"]
 
 [dependencies]
 anyhow = "1.0.71"

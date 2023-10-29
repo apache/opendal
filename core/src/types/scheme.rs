@@ -165,6 +165,8 @@ impl Scheme {
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls,
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile,
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]

@@ -21,3 +21,4 @@ description: 'Behavior test for Mini Moka'
 runs:
   using: "composite"
   steps:
+    - name: Blank Setup

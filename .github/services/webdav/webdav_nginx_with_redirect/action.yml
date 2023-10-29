@@ -17,7 +17,7 @@
 # under the License.
 
 name: webdav_nginx_with_empty_password
-description: 'Behavior test for Webdav service using nginx with empty password'
+description: 'Behavior test for Webdav service using nginx with redirect'
 
 runs:
   using: "composite"

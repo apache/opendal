@@ -38,19 +38,28 @@ pub struct OssPager {
     path: String,
     delimiter: String,
     limit: Option<usize>,
+    /// Filter results to objects whose names are lexicographically
+    /// **equal to or after** startOffset
+    start_after: Option<String>,
 
     token: Option<String>,
     done: bool,
 }
 
 impl OssPager {
-    pub fn new(core: Arc<OssCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<OssCore>,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        start_after: Option<&str>,
+    ) -> Self {
         Self {
             core,
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
-
+            start_after: start_after.map(String::from),
             token: None,
 
             done: false,
@@ -72,6 +81,7 @@ impl oio::Page for OssPager {
                 self.token.as_deref(),
                 &self.delimiter,
                 self.limit,
+                self.start_after.clone(),
             )
             .await?;
 
@@ -99,6 +109,12 @@ impl oio::Page for OssPager {
 
         for object in output.contents {
             if object.key.ends_with('/') {
+                continue;
+            }
+
+            // exclude the inclusive start_after itself
+            let path = &build_rel_path(&self.core.root, &object.key);
+            if self.start_after.as_ref() == Some(path) {
                 continue;
             }
             let mut meta = Metadata::new(EntryMode::FILE);

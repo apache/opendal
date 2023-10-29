@@ -92,6 +92,11 @@ public class AsyncWriteTest extends BehaviorTestBase {
      */
     @Test
     public void testWriteFileWithNonAsciiName() {
+        // Supabase does not support non-ascii name.
+        if (op().info.scheme == "supabase") {
+            return;
+        }
+
         final String path = "❌😱中文.test";
         final byte[] content = generateBytes();
         op().write(path, content).join();

@@ -56,20 +56,13 @@ use blocking_rename::behavior_blocking_rename_tests;
 use blocking_write::behavior_blocking_write_tests;
 // External dependences
 use libtest_mimic::{Arguments, Trial};
-use once_cell::sync::Lazy;
+use opendal::raw::tests::init_test_service;
 use opendal::*;
-
-static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-});
 
 fn main() -> anyhow::Result<()> {
     let args = Arguments::from_args();
 
-    let op = if let Some(op) = init_service()? {
+    let op = if let Some(op) = init_test_service()? {
         op
     } else {
         return Ok(());

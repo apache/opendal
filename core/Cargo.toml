@@ -59,6 +59,14 @@ default = [
 # And doesn't have any other effects.
 docs = []
 
+# Build test utils or not.
+#
+# This features is used to control whether or not to build opendal's test utils.
+# And doesn't have any other effects.
+#
+# You should never enable this feature unless you are developing opendal.
+tests = ["dep:rand", "dep:sha2", "dep:dotenvy"]
+
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns"]
 
@@ -201,6 +209,7 @@ name = "oio"
 harness = false
 name = "behavior"
 path = "tests/behavior/main.rs"
+required-features = ["tests"]
 
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
@@ -286,6 +295,7 @@ tokio = "1.27"
 tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
+dotenvy = {  version = "0.15", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }

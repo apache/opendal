@@ -46,7 +46,7 @@ jobs:
       - name: Test persy
         shell: bash
         working-directory: core
-        run: cargo test behavior --features services-persy
+        run: cargo test behavior --features tests,services-persy
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

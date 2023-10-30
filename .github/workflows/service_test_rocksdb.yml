@@ -51,7 +51,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior --features services-rocksdb -j=1
+        run: cargo test behavior --features tests,services-rocksdb -j=1
         env:
           LD_LIBRARY_PATH: /tmp/rocksdb/lib:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_TEST: rocksdb

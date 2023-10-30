@@ -64,7 +64,7 @@ jobs:
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test behavior --features services-hdfs
+          cargo test behavior --features tests,services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           OPENDAL_TEST: hdfs
@@ -122,7 +122,7 @@ jobs:
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test behavior --features services-hdfs
+          cargo test behavior --features tests,services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.2.4"
           OPENDAL_TEST: hdfs

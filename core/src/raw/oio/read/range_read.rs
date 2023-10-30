@@ -267,13 +267,19 @@ where
                 self.poll_read(cx, buf)
             }
             State::SendRead(fut) => {
-                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                let (rp, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
                     // If read future returns an error, we should reset
                     // state to Idle so that we can retry it.
                     self.state = State::Idle;
                     err
                 })?;
 
+                // Set size if read returns size hint.
+                if let Some(size) = rp.size() {
+                    if self.size.is_none() {
+                        self.size = Some(size + self.cur);
+                    }
+                }
                 self.state = State::Read(r);
                 self.poll_read(cx, buf)
             }
@@ -391,13 +397,19 @@ where
                 self.poll_next(cx)
             }
             State::SendRead(fut) => {
-                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                let (rp, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
                     // If read future returns an error, we should reset
                     // state to Idle so that we can retry it.
                     self.state = State::Idle;
                     err
                 })?;
 
+                // Set size if read returns size hint.
+                if let Some(size) = rp.size() {
+                    if self.size.is_none() {
+                        self.size = Some(size + self.cur);
+                    }
+                }
                 self.state = State::Read(r);
                 self.poll_next(cx)
             }
@@ -441,7 +453,14 @@ where
                     self.fill_range(length)?;
                 }
 
-                let (_, r) = self.read_action()?;
+                let (rp, r) = self.read_action()?;
+                // Set size if read returns size hint.
+                if let Some(size) = rp.size() {
+                    if self.size.is_none() {
+                        self.size = Some(size + self.cur);
+                    }
+                }
+
                 self.state = State::Read(r);
                 self.read(buf)
             }

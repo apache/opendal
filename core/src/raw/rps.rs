@@ -98,12 +98,35 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 
 /// Reply for `read` operation.
 #[derive(Debug, Clone, Default)]
-pub struct RpRead {}
+pub struct RpRead {
+    /// Size is the size of the reader returned by this read operation.
+    ///
+    /// - `Some(size)` means the reader has at most size bytes.
+    /// - `None` means the reader has unknown size.
+    ///
+    /// It's ok to leave size as empty, but it's recommended to set size if possible. We will use
+    /// this size as hint to do some optimization like avoid an extra stat or read.
+    size: Option<u64>,
+}
 
 impl RpRead {
     /// Create a new reply for `read`.
     pub fn new() -> Self {
         RpRead::default()
+    }
+
+    /// Got the size of the reader returned by this read operation.
+    ///
+    /// - `Some(size)` means the reader has at most size bytes.
+    /// - `None` means the reader has unknown size.
+    pub fn size(&self) -> Option<u64> {
+        self.size
+    }
+
+    /// Set the size of the reader returned by this read operation.
+    pub fn with_size(mut self, size: Option<u64>) -> Self {
+        self.size = size;
+        self
     }
 }
 

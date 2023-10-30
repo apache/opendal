@@ -123,7 +123,10 @@ impl Accessor for GdriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
+            StatusCode::OK => {
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

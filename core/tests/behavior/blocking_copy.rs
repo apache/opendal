@@ -16,6 +16,7 @@
 // under the License.
 
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 
 use crate::*;
 
@@ -50,7 +51,10 @@ pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
@@ -137,7 +141,10 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
@@ -160,7 +167,10 @@ pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");

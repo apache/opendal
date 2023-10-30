@@ -39,6 +39,7 @@ def service_name():
     service_name = os.environ.get("OPENDAL_TEST")
     if service_name is None:
         pytest.skip("OPENDAL_TEST not set")
+    return service_name
 
 
 @pytest.fixture()

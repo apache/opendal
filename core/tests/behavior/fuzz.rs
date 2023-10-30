@@ -19,9 +19,8 @@ use std::io::SeekFrom;
 use std::vec;
 
 use anyhow::Result;
-use bytes::Bytes;
-use log::debug;
-use opendal::raw::oio::ReadExt;
+use opendal::raw::tests::{ReadAction, ReadChecker};
+use opendal::raw::BytesRange;
 
 use crate::*;
 
@@ -32,6 +31,32 @@ pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
         test_fuzz_pr_3395_case_1,
         test_fuzz_pr_3395_case_2
     )
+}
+
+async fn test_fuzz_read(
+    op: Operator,
+    size: usize,
+    range: impl Into<BytesRange>,
+    actions: &[ReadAction],
+) -> Result<()> {
+    let cap = op.info().full_capability();
+
+    if !(cap.read && cap.write & cap.read_with_range) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let mut checker = ReadChecker::new(size, range.into());
+
+    op.write(&path, checker.data())
+        .await
+        .expect("write must succeed");
+
+    let r = op.reader(&path).await.expect("reader must be created");
+
+    checker.check(r, actions).await;
+    Ok(())
 }
 
 /// This fuzz test is to reproduce <https://github.com/apache/incubator-opendal/issues/2717>.
@@ -72,28 +97,9 @@ pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
 /// is invalid for given range `1..2`. However, the actual behavior is we seek to `0`
 /// and results in a panic.
 pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let actions = [ReadAction::Seek(SeekFrom::End(-2))];
 
-    if !(cap.read && cap.write & cap.read_with_range) {
-        return Ok(());
-    }
-
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let content = gen_fixed_bytes(2);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(1..2).await?;
-
-    // Perform a seek
-    let result = r.seek(SeekFrom::End(-2)).await;
-    assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidInput);
-
-    Ok(())
+    test_fuzz_read(op, 2, .., &actions).await
 }
 
 /// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
@@ -122,50 +128,16 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
 ///                 -1,
 ///             ),
 ///         ),
-///         Read {
-///             size: 0,
-///         },
-///         Read {
-///             size: 0,
-///         },
 ///     ],
 /// }
 /// ```
 pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-
-    if !(cap.read && cap.write & cap.read_with_range) {
-        return Ok(());
-    }
-
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let content = gen_fixed_bytes(1);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(0..).await?;
-
-    let pos = r.seek(SeekFrom::Current(1)).await?;
-    assert_eq!(pos, 1);
-
-    let bs = r.next().await.transpose()?;
-    assert!(bs.is_none());
-
-    let pos = r.seek(SeekFrom::End(-1)).await?;
-    assert_eq!(pos, 0);
-
-    let mut buf = vec![0; 0];
-    let n = r.read(&mut buf).await?;
-    assert_eq!(n, 0);
-
-    let mut buf = vec![0; 0];
-    let n = r.read(&mut buf).await?;
-    assert_eq!(n, 0);
-
-    Ok(())
+    let actions = [
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(-1)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
 }
 
 /// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
@@ -195,44 +167,15 @@ pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
 ///                 0,
 ///             ),
 ///         ),
-///         Read {
-///             size: 0,
-///         },
 ///     ],
 /// }
 /// ```
 pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-
-    if !(cap.read && cap.write & cap.read_with_range) {
-        return Ok(());
-    }
-
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let content = gen_fixed_bytes(1);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(0..).await?;
-
-    let bs = r.next().await.transpose()?;
-    assert_eq!(bs, Some(Bytes::from(content.clone())));
-
-    let pos = r.seek(SeekFrom::Current(1)).await?;
-    assert_eq!(pos, 2);
-
-    let bs = r.next().await.transpose()?;
-    assert!(bs.is_none());
-
-    let pos = r.seek(SeekFrom::End(0)).await?;
-    assert_eq!(pos, 1);
-
-    let mut buf = vec![0; 0];
-    let n = r.read(&mut buf).await?;
-    assert_eq!(n, 0);
-
-    Ok(())
+    let actions = [
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(0)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
 }

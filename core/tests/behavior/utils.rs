@@ -15,13 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-use std::env;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::SeekFrom;
-use std::str::FromStr;
 use std::usize;
 
 use bytes::Bytes;
@@ -29,75 +26,13 @@ use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use log::debug;
-use opendal::layers::BlockingLayer;
-use opendal::layers::LoggingLayer;
-use opendal::layers::RetryLayer;
-use opendal::layers::TimeoutLayer;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
 
-use crate::RUNTIME;
-
-/// Init a service with given scheme.
-///
-/// - Load scheme from `OPENDAL_TEST`
-/// - Construct a new Operator with given root.
-/// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service() -> anyhow::Result<Option<Operator>> {
-    let _ = dotenvy::dotenv();
-
-    let scheme = if let Ok(v) = env::var("OPENDAL_TEST") {
-        v
-    } else {
-        return Ok(None);
-    };
-    let scheme = Scheme::from_str(&scheme).unwrap();
-
-    let prefix = format!("opendal_{scheme}_");
-
-    let mut cfg = env::vars()
-        .filter_map(|(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        })
-        .collect::<HashMap<String, String>>();
-
-    // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
-    let disable_random_root = env::var("OPENDAL_DISABLE_RANDOM_ROOT").unwrap_or_default() == "true";
-    if !disable_random_root {
-        let root = format!(
-            "{}{}/",
-            cfg.get("root").cloned().unwrap_or_else(|| "/".to_string()),
-            uuid::Uuid::new_v4()
-        );
-        cfg.insert("root".to_string(), root);
-    }
-
-    let op = Operator::via_map(scheme, cfg).expect("must succeed");
-
-    #[cfg(feature = "layers-chaos")]
-    let op = {
-        use opendal::layers::ChaosLayer;
-        op.layer(ChaosLayer::new(0.1))
-    };
-
-    let mut op = op
-        .layer(LoggingLayer::default().with_backtrace_output(true))
-        .layer(TimeoutLayer::new())
-        .layer(RetryLayer::new().with_max_times(4));
-
-    // Enable blocking layer if needed.
-    if !op.info().full_capability().blocking {
-        let _guard = RUNTIME.enter();
-        op = op.layer(BlockingLayer::create().expect("blocking layer must be created"))
-    }
-
-    Ok(Some(op))
-}
+use opendal::raw::tests::TEST_RUNTIME;
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
@@ -136,7 +71,7 @@ where
     F: FnOnce(Operator) -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<()>>,
 {
-    let handle = RUNTIME.handle().clone();
+    let handle = TEST_RUNTIME.handle().clone();
     let op = op.clone();
 
     Trial::test(format!("behavior::{name}"), move || {

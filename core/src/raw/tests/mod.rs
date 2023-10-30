@@ -15,11 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn test_file_write_on_full_disk() {
-        let data = [96u8; 1024 * 512]; // The writable was smaller than 512KB
-        op.write("/test", data.to_vec()).await.unwrap();
-    }
-}
+//! Utilities for opendal testing.
+
+mod read;
+pub use read::ReadAction;
+pub use read::ReadChecker;
+
+mod write;
+pub use write::WriteAction;
+pub use write::WriteChecker;
+
+mod utils;
+pub use utils::init_test_service;
+pub use utils::TEST_RUNTIME;

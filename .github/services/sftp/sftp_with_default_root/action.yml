@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: sftp-default-root
+name: sftp_with_default_root
 description: 'Behavior test for SFTP with default root'
 
 runs:

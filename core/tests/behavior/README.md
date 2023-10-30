@@ -27,23 +27,41 @@ Notice: If the env variables are not set, all behavior tests will be skipped by 
 Use `OPENDAL_TEST` to control which service to test:
 
 ```shell
-OPENDAL_TEST=fs cargo test behavior
+OPENDAL_TEST=fs cargo test behavior --features tests
 ```
 
 To run certain types of tests(such as `write`), we use `behavior::test_write`.
 
 ```shell
-OPENDAL_TEST=fs cargo test behavior::test_write
+OPENDAL_TEST=fs cargo test behavior::test_write --features tests
 ```
 
 You can also run specific test(such as `test_stat_dir`) for specific backend.
 
 ```shell
-OPENDAL_TEST=fs cargo test behavior::test_stat_dir
+OPENDAL_TEST=fs cargo test behavior::test_stat_dir --features tests
 ```
 
 ## Debug
 
-To debug a behavior test, you can use `RUST_LOG=debug RUST_BACKTRACE=full cargo test behavior -- --show-output` to print the log with backtrace.
+To debug a behavior test, you can:
+
+- Add env `RUST_LOG=debug` to enable logging
+- Add env `RUST_BACKTRACE=full` to enable the full backtrace
+- Add `--show-output` to show the whole output even when test succeeded.
+
+Take `memory` service as an example, the full command will be:
+
+```shell
+RUST_LOG=debug RUST_BACKTRACE=full OPENDAL_TEST=memory cargo test behavior --features tests -- --show-output
+```
+
+You use `export` to avoid set env every time:
+
+```shell
+export RUST_LOG=debug 
+export RUST_BACKTRACE=full 
+OPENDAL_TEST=memory cargo test behavior --features tests -- --show-output
+```
 
 For more details, please visit [cargo test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) or run the command `cargo test --help`.

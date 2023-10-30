@@ -57,7 +57,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior
+        run: cargo nextest run behavior --features tests
         env:
           OPENDAL_TEST: ghac
           OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true

@@ -59,6 +59,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior --features=services-supabase
+        run: cargo test behavior --features=tests,services-supabase
         env:
           OPENDAL_TEST: supabase

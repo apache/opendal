@@ -60,5 +60,4 @@ jobs:
         run: cargo nextest run behavior --features tests
         env:
           OPENDAL_TEST: ghac
-          OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

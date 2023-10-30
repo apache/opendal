@@ -44,6 +44,24 @@ OPENDAL_TEST=fs cargo test behavior::test_stat_dir --features tests
 
 ## Debug
 
-To debug a behavior test, you can use `RUST_LOG=debug RUST_BACKTRACE=full cargo test behavior --features tests -- --show-output` to print the log with backtrace.
+To debug a behavior test, you can:
+
+- Add env `RUST_LOG=debug` to enable logging
+- Add env `RUST_BACKTRACE=full` to enable the full backtrace
+- Add `--show-output` to show the whole output even when test succeeded.
+
+Take `memory` service as an example, the full command will be:
+
+```shell
+RUST_LOG=debug RUST_BACKTRACE=full OPENDAL_TEST=memory cargo test behavior --features tests -- --show-output
+```
+
+You use `export` to avoid set env every time:
+
+```shell
+export RUST_LOG=debug 
+export RUST_BACKTRACE=full 
+OPENDAL_TEST=memory cargo test behavior --features tests -- --show-output
+```
 
 For more details, please visit [cargo test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) or run the command `cargo test --help`.

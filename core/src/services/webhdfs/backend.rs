@@ -28,6 +28,7 @@ use log::debug;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;
+use super::error::parse_error_msg;
 use super::message::BooleanResp;
 use super::message::DirectoryListingWrapper;
 use super::message::FileStatusType;
@@ -468,6 +469,17 @@ impl Accessor for WebhdfsBackend {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
                 Ok((RpRead::new().with_size(size), resp.into_body()))
+            }
+            // WebHDFS will returns 403 when range is outside of the end.
+            StatusCode::FORBIDDEN => {
+                let (parts, body) = resp.into_parts();
+                let bs = body.bytes().await?;
+                let s = String::from_utf8_lossy(&bs);
+                if s.contains("out of the range") {
+                    Ok((RpRead::new(), IncomingAsyncBody::empty()))
+                } else {
+                    Err(parse_error_msg(parts, &s)?)
+                }
             }
             StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),

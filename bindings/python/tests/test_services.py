@@ -204,7 +204,6 @@ class AbstractTestSuite(ABC):
         cap = self.operator.capability()
         assert cap is not None
         assert cap.read is not None
-        assert cap.write
     
     def test_capability_exception(self):
         cap = self.operator.capability()

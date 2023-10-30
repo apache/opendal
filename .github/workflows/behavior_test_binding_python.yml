@@ -51,7 +51,9 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
-
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"

@@ -1091,7 +1091,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     self.read += bs.len() as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> next {}B",
+                        "service={} operation={} path={} read={} -> next returns {}B",
                         self.ctx.scheme,
                         ReadOperation::Next,
                         self.path,
@@ -1115,12 +1115,22 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     }
                     Poll::Ready(Some(Err(err)))
                 }
-                None => Poll::Ready(None),
+                None => {
+                    trace!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} read={} -> next returns None",
+                        self.ctx.scheme,
+                        ReadOperation::Next,
+                        self.path,
+                        self.read,
+                    );
+                    Poll::Ready(None)
+                }
             },
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> next pending",
+                    "service={} operation={} path={} read={} -> next returns pending",
                     self.ctx.scheme,
                     ReadOperation::Next,
                     self.path,

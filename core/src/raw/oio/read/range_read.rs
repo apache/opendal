@@ -276,7 +276,7 @@ where
 
                 // Set size if read returns size hint.
                 if let Some(size) = rp.size() {
-                    if self.size.is_none() {
+                    if size != 0 && self.size.is_none() {
                         self.size = Some(size + self.cur);
                     }
                 }
@@ -406,7 +406,7 @@ where
 
                 // Set size if read returns size hint.
                 if let Some(size) = rp.size() {
-                    if self.size.is_none() {
+                    if size != 0 && self.size.is_none() {
                         self.size = Some(size + self.cur);
                     }
                 }
@@ -454,9 +454,10 @@ where
                 }
 
                 let (rp, r) = self.read_action()?;
+
                 // Set size if read returns size hint.
                 if let Some(size) = rp.size() {
-                    if self.size.is_none() {
+                    if size != 0 && self.size.is_none() {
                         self.size = Some(size + self.cur);
                     }
                 }

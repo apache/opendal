@@ -195,6 +195,7 @@ impl Builder for AzfileBuilder {
 
         let config_loader = AzureStorageConfig {
             account_name: Some(account_name),
+            account_key: self.account_key.clone(),
             sas_token: self.sas_token.clone(),
             ..Default::default()
         };
@@ -289,6 +290,11 @@ impl Accessor for AzfileBackend {
                 Ok(RpCreateDir::default())
             }
             _ => {
+                // we cannot just check status code because 409 Conflict has two meaning:
+                // 1. If a directory by the same name is being deleted when Create Directory is called, the server returns status code 409 (Conflict)
+                // 2. If a directory or file with the same name already exists, the operation fails with status code 409 (Conflict).
+                // but we just need case 2 (already exists)
+                // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/create-directory
                 if resp
                     .headers()
                     .get("x-ms-error-code")
@@ -378,7 +384,7 @@ impl Accessor for AzfileBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::ACCEPTED => {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 resp.into_body().consume().await?;
                 Ok(RpDelete::default())
             }

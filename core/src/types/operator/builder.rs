@@ -159,6 +159,8 @@ impl Operator {
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile => Self::from_map::<services::Azfile>(map)?.finish(),
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
             #[cfg(feature = "services-cos")]

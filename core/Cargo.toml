@@ -130,7 +130,7 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
-services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
+services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -235,8 +235,6 @@ governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
 hrana-client-proto = { version = "0.2.1", optional = true }
 http = "0.2.9"
-hyper = "0.14"
-lazy-regex = { version = "3.0.1", optional = true }
 log = "0.4"
 madsim = { version = "0.2.21", optional = true }
 md-5 = "0.10"
@@ -294,18 +292,14 @@ criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 libtest-mimic = "0.6"
 minitrace = { version = "0.5", features = ["enable"] }
-minitrace-jaeger = "0.5"
 opentelemetry = { version = "0.20", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-jaeger = "0.18"
-paste = "1"
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.19"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

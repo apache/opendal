@@ -424,6 +424,8 @@ impl Accessor for OssBackend {
                 copy: true,
 
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
 
@@ -542,7 +544,13 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
+            OssPager::new(
+                self.core.clone(),
+                path,
+                args.delimiter(),
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 

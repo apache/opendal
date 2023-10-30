@@ -15,35 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test Core
-description: 'Test Core with given setup and service'
-inputs:
-  setup:
-    description: "The setup action for test"
-  service:
-    description: "The service to test"
-  feature:
-    description: "The feature to test"
+name: azdls
+description: 'Behavior test for Azure azdls. This service is sponsored by @Xuanwo.'
 
 runs:
   using: "composite"
   steps:
     - name: Setup
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+          OPENDAL_AZDLS_FILESYSTEM: op://services/azdls/filesystem
+          OPENDAL_AZDLS_ENDPOINT: op://services/azdls/endpoint
+          OPENDAL_AZDLS_ACCOUNT_NAME: op://services/azdls/account_name
+          OPENDAL_AZDLS_ACCOUNT_KEY: op://services/azdls/account_key
+    - name: Add extra settings
       shell: bash
       run: |
-        mkdir -p ./dynamic_test_core &&
-        cat <<EOF >./dynamic_test_core/action.yml
-        runs:
-          using: composite
-          steps:
-          - name: Setup Test Core
-            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-          - name: Run Test Core
-            shell: bash
-            working-directory: core
-            run: cargo nextest run behavior --features tests,${{ inputs.feature }}
-            env:
-              OPENDAL_TEST: ${{ inputs.service }}
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_AZDLS_ROOT=test/
         EOF
-    - name: Run
-      uses: ./dynamic_test_core

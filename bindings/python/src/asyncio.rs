@@ -46,6 +46,8 @@ use crate::Entry;
 use crate::Metadata;
 use crate::PresignedRequest;
 
+use crate::capability;
+
 /// `AsyncOperator` is the entry for all public async APIs
 ///
 /// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
@@ -248,6 +250,10 @@ impl AsyncOperator {
 
             Ok(res)
         })
+    }
+
+    pub fn capability(&self) -> PyResult<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
     }
 
     fn __repr__(&self) -> String {

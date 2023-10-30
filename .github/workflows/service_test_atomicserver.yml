@@ -46,7 +46,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test behavior --features services-atomicserver -j=1
+          cargo test behavior --features tests,services-atomicserver -j=1
         env:
           # TODO: enable test when we are ready.
           # OPENDAL_TEST: atomicserver

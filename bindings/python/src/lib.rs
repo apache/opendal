@@ -40,6 +40,7 @@ use pyo3::types::PyDict;
 use pyo3::AsPyPointer;
 
 mod asyncio;
+mod capability;
 mod layers;
 
 use crate::asyncio::*;
@@ -226,6 +227,10 @@ impl Operator {
                 .call()
                 .map_err(format_pyerr)?,
         ))
+    }
+
+    pub fn capability(&self) -> PyResult<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
     }
 
     fn __repr__(&self) -> String {
@@ -572,6 +577,7 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;
     m.add_class::<PresignedRequest>()?;
+    m.add_class::<capability::Capability>()?;
     m.add("Error", py.get_type::<Error>())?;
 
     let layers = layers::create_submodule(py)?;

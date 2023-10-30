@@ -63,6 +63,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior --features=services-wasabi
+        run: cargo nextest run behavior --features tests,services-wasabi
         env:
           OPENDAL_TEST: wasabi

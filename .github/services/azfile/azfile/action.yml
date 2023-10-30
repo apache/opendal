@@ -15,35 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test Core
-description: 'Test Core with given setup and service'
-inputs:
-  setup:
-    description: "The setup action for test"
-  service:
-    description: "The service to test"
-  feature:
-    description: "The feature to test"
+name: azfile
+description: 'Behavior test for Azfile'
 
 runs:
   using: "composite"
   steps:
     - name: Setup
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_AZFILE_ACCOUNT_NAME: op://services/azfile/account_name
+        OPENDAL_AZFILE_ENDPOINT: op://services/azfile/endpoint
+        OPENDAL_AZFILE_ACCOUNT_KEY: op://services/azfile/account_key
+        OPENDAL_AZFILE_SHARE_NAME: op://services/azfile/share_name
+
+    - name: Add extra settings
       shell: bash
       run: |
-        mkdir -p ./dynamic_test_core &&
-        cat <<EOF >./dynamic_test_core/action.yml
-        runs:
-          using: composite
-          steps:
-          - name: Setup Test Core
-            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-          - name: Run Test Core
-            shell: bash
-            working-directory: core
-            run: cargo nextest run behavior --features tests,${{ inputs.feature }}
-            env:
-              OPENDAL_TEST: ${{ inputs.service }}
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_AZFILE_ROOT=test/
         EOF
-    - name: Run
-      uses: ./dynamic_test_core

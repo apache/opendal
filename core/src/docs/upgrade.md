@@ -17,7 +17,7 @@ OpenDAL bumps it's MSRV to 1.67.0.
 
 ### Ghac Service Configuration
 
-- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create file, but it's could result in unexpected behavior when users create a file with content length `1`. So we remove it.
+- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it's could result in unexpected behavior when users create a file with content length `1`. So we remove it.
 
 # Upgrade to v0.41
 

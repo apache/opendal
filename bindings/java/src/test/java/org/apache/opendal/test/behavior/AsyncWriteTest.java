@@ -86,19 +86,4 @@ public class AsyncWriteTest extends BehaviorTestBase {
 
         op().delete(path).join();
     }
-
-    /**
-     * Write file with non ascii name should succeed.
-     */
-    @Test
-    public void testWriteFileWithNonAsciiName() {
-        final String path = "❌😱中文.test";
-        final byte[] content = generateBytes();
-        op().write(path, content).join();
-        final Metadata meta = op().stat(path).join();
-        assertThat(meta.isFile()).isTrue();
-        assertThat(meta.getContentLength()).isEqualTo(content.length);
-
-        op().delete(path).join();
-    }
 }

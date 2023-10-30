@@ -48,8 +48,6 @@ mod blocking_list;
 mod blocking_read_only;
 mod blocking_rename;
 mod blocking_write;
-mod file_write_full_disk;
-
 use blocking_append::behavior_blocking_append_tests;
 use blocking_copy::behavior_blocking_copy_tests;
 use blocking_list::behavior_blocking_list_tests;

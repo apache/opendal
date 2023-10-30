@@ -58,7 +58,7 @@ jobs:
         shell: bash
         timeout-minutes: 10
         working-directory: core
-        run: cargo nextest run behavior --features services-sftp
+        run: cargo nextest run behavior --features tests,services-sftp
         env:
           OPENDAL_TEST: sftp
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
@@ -92,7 +92,7 @@ jobs:
         shell: bash
         timeout-minutes: 10
         working-directory: core
-        run: cargo nextest run behavior --features services-sftp
+        run: cargo nextest run behavior --features tests,services-sftp
         env:
           OPENDAL_TEST: sftp
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222

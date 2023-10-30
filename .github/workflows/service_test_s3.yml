@@ -61,7 +61,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior
+        run: cargo nextest run behavior --features tests
         env:
           AWS_WEB_IDENTITY_TOKEN_FILE: tests/data/web_identity_token
           AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume

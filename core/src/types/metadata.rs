@@ -185,11 +185,6 @@ impl Metadata {
         self.content_length.unwrap_or_default()
     }
 
-    /// Fetch the raw content length.
-    pub(crate) fn content_length_raw(&self) -> Option<u64> {
-        self.content_length
-    }
-
     /// Set content length of this entry.
     pub fn set_content_length(&mut self, v: u64) -> &mut Self {
         self.content_length = Some(v);

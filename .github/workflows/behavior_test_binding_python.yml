@@ -52,6 +52,15 @@ jobs:
         shell: bash
         run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
 
+      - name: Build with maturin
+        shell: bash
+        working-directory: "bindings/python"
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install maturin[patchelf]
+          maturin develop -E test -F ${{ matrix.cases.feature }}
+
       - name: Test Core
         uses: ./.github/actions/behavior_test_binding_python
         with:

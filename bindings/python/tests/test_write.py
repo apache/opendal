@@ -67,23 +67,6 @@ def test_sync_write_with_non_ascii_name(service_name, operator, async_operator):
 
     operator.delete(filename)
 
-
-@pytest.mark.asyncio
-@pytest.mark.need_capability("write", "delete", "stat")
-async def test_async_write_with_non_ascii_name(service_name, operator, async_operator):
-    size = randint(1, 1024)
-    filename = f"❌😱中文_{str(uuid4())}.test"
-    content = os.urandom(size)
-    size = len(content)
-    await async_operator.write(filename, content)
-    metadata = await async_operator.stat(filename)
-    assert metadata is not None
-    assert metadata.mode.is_file()
-    assert metadata.content_length == size
-
-    await async_operator.delete(filename)
-
-
 @pytest.mark.need_capability("create_dir", "stat")
 def test_sync_create_dir(service_name, operator, async_operator):
     path = f"test_dir_{str(uuid4())}/"

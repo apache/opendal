@@ -36,7 +36,9 @@ def pytest_configure(config):
 
 @pytest.fixture()
 def service_name():
-    return os.environ.get("OPENDAL_TEST")
+    service_name = os.environ.get("OPENDAL_TEST")
+    if service_name is None:
+        pytest.skip("OPENDAL_TEST not set")
 
 
 @pytest.fixture()

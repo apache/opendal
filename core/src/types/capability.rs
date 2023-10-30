@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///

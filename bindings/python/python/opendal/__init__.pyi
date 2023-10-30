@@ -38,6 +38,7 @@ class Operator:
     def delete(self, path: str): ...
     def list(self, path: str) -> Iterable[Entry]: ...
     def scan(self, path: str) -> Iterable[Entry]: ...
+    def capability(self) -> Capability: ...
 
 class AsyncOperator:
     def __init__(self, scheme: str, **kwargs): ...
@@ -63,6 +64,7 @@ class AsyncOperator:
     async def presign_write(
         self, path: str, expire_second: int
     ) -> PresignedRequest: ...
+    def capability(self) -> Capability: ...
 
 class Reader:
     def read(self, size: Optional[int] = None) -> memoryview: ...
@@ -107,3 +109,52 @@ class PresignedRequest:
     def method(self) -> str: ...
     @property
     def headers(self) -> dict[str, str]: ...
+
+class Capability:
+    stat: bool
+    stat_with_if_match: bool
+    stat_with_if_none_match: bool
+
+    read: bool
+    read_can_seek: bool
+    read_can_next: bool
+    read_with_range: bool
+    read_with_if_match: bool
+    read_with_if_none_match: bool
+    read_with_override_cache_control: bool
+    read_with_override_content_disposition: bool
+    read_with_override_content_type: bool
+
+    write: bool
+    write_can_multi: bool
+    write_can_empty: bool
+    write_can_append: bool
+    write_with_content_type: bool
+    write_with_content_disposition: bool
+    write_with_cache_control: bool
+    write_multi_max_size: Optional[int]
+    write_multi_min_size: Optional[int]
+    write_multi_align_size: Optional[int]
+    write_total_max_size: Optional[int]
+
+    create_dir: bool
+    delete: bool
+    copy: bool
+    rename: bool
+
+    list: bool
+    list_with_limit: bool
+    list_with_start_after: bool
+    list_with_delimiter_slash: bool
+    list_without_delimiter: bool
+
+    presign: bool
+    presign_read: bool
+    presign_stat: bool
+    presign_write: bool
+
+    batch: bool
+    batch_delete: bool
+    batch_max_operations: Optional[int]
+
+    blocking: bool

@@ -24,7 +24,12 @@ runs:
     - name: Setup MySQL Server
       shell: bash
       working-directory: fixtures/mysql
-      run: docker-compose -f docker-compose.yml up -d
+      run: |
+        docker-compose -f docker-compose.yml up -d
+        while ! nc -z localhost 3306; do
+          echo "Waiting for port 3306 to be available..."
+          sleep 1
+        done
     - name: Setup
       shell: bash
       run: |

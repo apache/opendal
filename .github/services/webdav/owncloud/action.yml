@@ -23,8 +23,8 @@ runs:
   steps:
     - name: Setup owncloud
       shell: bash
-      working-directory: fixtures/owncloud
-      run: docker compose -f docker-compose.yml up -d
+      working-directory: fixtures/webdav
+      run: docker compose -f docker-compose-webdav-owncloud.yml up -d
     - name: Setup
       shell: bash
       run: |

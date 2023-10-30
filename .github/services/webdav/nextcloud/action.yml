@@ -23,8 +23,8 @@ runs:
   steps:
     - name: Setup nextcloud
       shell: bash
-      working-directory: fixtures/nextcloud
-      run: docker compose -f docker-compose.yml up -d
+      working-directory: fixtures/webdav
+      run: docker compose -f docker-compose-webdav-nextcloud.yml up -d
     - name: Setup
       shell: bash
       run: |

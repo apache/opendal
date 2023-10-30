@@ -17,6 +17,7 @@
 
 #![no_main]
 
+use std::fmt::{Debug, Formatter};
 use std::io::SeekFrom;
 
 use bytes::Bytes;
@@ -35,18 +36,35 @@ mod utils;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum ReadAction {
     Read { size: usize },
     Seek(SeekFrom),
     Next,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct FuzzInput {
+    path: String,
     size: usize,
     range: BytesRange,
     actions: Vec<ReadAction>,
+}
+
+impl Debug for FuzzInput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut actions = self.actions.clone();
+        // Remove all Read(0) entry.
+        let empty = ReadAction::Read { size: 0 };
+        actions.retain(|e| e != &empty);
+
+        f.debug_struct("FuzzInput")
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .field("range", &self.range.to_string())
+            .field("actions", &actions)
+            .finish()
+    }
 }
 
 impl Arbitrary<'_> for FuzzInput {
@@ -109,6 +127,7 @@ impl Arbitrary<'_> for FuzzInput {
         }
 
         Ok(FuzzInput {
+            path: uuid::Uuid::new_v4().to_string(),
             size: total_size,
             range,
             actions,
@@ -142,17 +161,30 @@ impl ReadChecker {
         }
     }
 
-    fn check_read(&mut self, n: usize, output: &[u8]) {
-        if n == 0 {
+    fn check_read(&mut self, buf_size: usize, output: &[u8]) {
+        if buf_size == 0 {
             assert_eq!(
                 output.len(),
                 0,
-                "check read failed: output bs is not empty when read size is 0"
+                "check read failed: output must be empty if buf_size is 0"
             );
             return;
         }
 
-        let expected = &self.ranged_data[self.cur..self.cur + n];
+        if buf_size > 0 && output.is_empty() {
+            assert!(
+                self.cur >= self.ranged_data.len(),
+                "check read failed: no data read means cur must outsides of ranged_data",
+            );
+            return;
+        }
+
+        assert!(
+            self.cur + output.len() <= self.ranged_data.len(),
+            "check read failed: cur + output length must be less than ranged_data length, cur: {}, output: {}, ranged_data: {}",  self.cur, output.len(), self.ranged_data.len(),
+        );
+
+        let expected = &self.ranged_data[self.cur..self.cur + output.len()];
 
         // Check the read result
         assert_eq!(
@@ -162,7 +194,7 @@ impl ReadChecker {
         );
 
         // Update the current position
-        self.cur += n;
+        self.cur += output.len();
     }
 
     fn check_seek(&mut self, seek_from: SeekFrom, output: Result<u64>) {
@@ -206,7 +238,8 @@ impl ReadChecker {
                     "{:x}",
                     Sha256::digest(&self.ranged_data[self.cur..self.cur + output.len()])
                 ),
-                "check next failed: output bs is different with expected bs",
+                "check next failed: output bs is different with expected bs, current: {}, output length: {}",
+                self.cur, output.len(),
             );
 
             // update the current position
@@ -221,19 +254,20 @@ impl ReadChecker {
 }
 
 async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
     let mut checker = ReadChecker::new(input.size, input.range);
-    op.write(&path, checker.raw_data.clone()).await?;
+    op.write(&input.path, checker.raw_data.clone()).await?;
 
-    let mut o = op.reader_with(&path).range(input.range.to_range()).await?;
+    let mut o = op
+        .reader_with(&input.path)
+        .range(input.range.to_range())
+        .await?;
 
     for action in input.actions {
         match action {
             ReadAction::Read { size } => {
                 let mut buf = vec![0; size];
                 let n = o.read(&mut buf).await?;
-                checker.check_read(n, &buf[..n]);
+                checker.check_read(size, &buf[..n]);
             }
 
             ReadAction::Seek(seek_from) => {
@@ -248,12 +282,17 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
         }
     }
 
-    op.delete(&path).await?;
+    op.delete(&input.path).await?;
     Ok(())
 }
 
 fuzz_target!(|input: FuzzInput| {
     let _ = dotenvy::dotenv();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     let runtime = tokio::runtime::Runtime::new().expect("init runtime must succeed");
 
@@ -261,7 +300,7 @@ fuzz_target!(|input: FuzzInput| {
         runtime.block_on(async {
             fuzz_reader(op, input.clone())
                 .await
-                .unwrap_or_else(|_| panic!("fuzz reader must succeed"));
+                .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
         })
     }
 });

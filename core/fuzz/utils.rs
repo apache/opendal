@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal::layers::{LoggingLayer, RetryLayer};
 use std::env;
 use std::str::FromStr;
 
@@ -44,5 +45,10 @@ pub fn init_service() -> Option<Operator> {
         })
         .collect();
 
-    Some(Operator::via_map(scheme, envs).unwrap_or_else(|_| panic!("init {} must succeed", scheme)))
+    Some(
+        Operator::via_map(scheme, envs)
+            .unwrap_or_else(|_| panic!("init {} must succeed", scheme))
+            .layer(LoggingLayer::default())
+            .layer(RetryLayer::default()),
+    )
 }

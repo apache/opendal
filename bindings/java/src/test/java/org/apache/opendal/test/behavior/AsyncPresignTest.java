@@ -129,6 +129,11 @@ public class AsyncPresignTest extends BehaviorTestBase {
         final ClassicRequestBuilder builder =
                 ClassicRequestBuilder.create(signedReq.getMethod()).setUri(signedReq.getUri());
         for (Map.Entry<String, String> entry : signedReq.getHeaders().entrySet()) {
+            // Skip content-length header, which is auto set by the http client.
+            // If the header is set, the request will throw exception: Content-Length header already present.
+            if (HttpHeaders.CONTENT_LENGTH.equalsIgnoreCase(entry.getKey())) {
+                continue;
+            }
             builder.addHeader(entry.getKey(), entry.getValue());
         }
         return builder;

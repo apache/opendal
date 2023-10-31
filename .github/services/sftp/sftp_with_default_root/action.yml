@@ -33,7 +33,7 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_SFTP_ENDPOINT=ssh://127.0.0.1:2222
         OPENDAL_SFTP_USER=foo
-        OPENDAL_SFTP_KEY=${{ github.workspace }}/fixture/sftp/test_ssh_key
+        OPENDAL_SFTP_KEY=${{ github.workspace }}/fixtures/sftp/test_ssh_key
         OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY=accept
         OPENDAL_DISABLE_RANDOM_ROOT=true
         EOF

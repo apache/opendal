@@ -18,7 +18,7 @@
 version: '3.8'
 
 services:
-  sftp:
+  sftp-with-default-root:
     image: atmoz/sftp
     ports:
       - "2222:22"

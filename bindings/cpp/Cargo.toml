@@ -24,17 +24,17 @@ edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-version.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [lib]
 crate-type = ["staticlib"]
 
 [dependencies]
-opendal.workspace = true
-cxx = "1.0"
 anyhow = "1.0"
 chrono = "0.4"
+cxx = "1.0"
+opendal.workspace = true
 
 [build-dependencies]
 cxx-build = "1.0"

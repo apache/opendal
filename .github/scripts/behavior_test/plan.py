@@ -213,6 +213,12 @@ def generate_binding_python_cases(
     cases: list[dict[str, str]], hint: Hint
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
+
+    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
+    #
+    # Sftp can't pass on python bindings, remove it for now.
+    cases = [v for v in cases if v["service"] != "sftp"]
+
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 
@@ -226,11 +232,6 @@ def generate_binding_python_cases(
 
     # Filter all cases that not shown un in changed files
     cases = [v for v in cases if v["service"] in hint.services]
-
-    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
-    #
-    # Sftp can't pass on python bindings, remove it for now.
-    cases = [v for v in cases if v["service"] != "sftp"]
     return cases
 
 

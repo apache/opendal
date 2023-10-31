@@ -26,26 +26,6 @@ runs:
       working-directory: fixtures/sftp
       run: |
         docker compose -f docker-compose-sftp.yml up -d --wait --wait-timeout 20
-        set +ex
-        username="foo"
-        server="127.0.0.1"
-        port=2222
-        know_hosts_strategy="no"
-        identity_file="${{ github.workspace }}/target/ssh/id_rsa"
-        while :; do
-            (
-              sftp -oPort=$port -o StrictHostKeyChecking=$know_hosts_strategy -o IdentityFile=$identity_file $username@$server << EOF
-              bye
-        EOF
-            ) 2>/dev/null
-            if [[ $? -eq 0 ]]; then
-                echo "SFTP is available, proceeding..."
-                break
-            else
-                echo "Waiting for SFTP to be available..."
-                sleep 1
-            fi
-        done
     - name: Setup
       shell: bash
       run: |

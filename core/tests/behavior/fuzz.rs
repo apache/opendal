@@ -25,7 +25,12 @@ use opendal::raw::BytesRange;
 use crate::*;
 
 pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
-    async_trials!(op, test_fuzz_issue_2717)
+    async_trials!(
+        op,
+        test_fuzz_issue_2717,
+        test_fuzz_pr_3395_case_1,
+        test_fuzz_pr_3395_case_2
+    )
 }
 
 async fn test_fuzz_read(
@@ -95,4 +100,82 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
     let actions = [ReadAction::Seek(SeekFrom::End(-2))];
 
     test_fuzz_read(op, 2, .., &actions).await
+}
+
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+///
+/// The simplified cases could be seen as:
+///
+/// ```
+/// FuzzInput {
+///     path: "06ae5d93-c0e9-43f2-ae5a-225cfaaa40a0",
+///     size: 1,
+///     range: BytesRange(
+///         Some(
+///             0,
+///         ),
+///         None,
+///     ),
+///     actions: [
+///         Seek(
+///             Current(
+///                 1,
+///             ),
+///         ),
+///         Next,
+///         Seek(
+///             End(
+///                 -1,
+///             ),
+///         ),
+///     ],
+/// }
+/// ```
+pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
+    let actions = [
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(-1)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
+}
+
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+///
+/// The simplified cases could be seen as:
+///
+/// ```
+/// FuzzInput {
+///     path: "e6056989-7c7c-4075-b975-5ae380884333",
+///     size: 1,
+///     range: BytesRange(
+///         Some(
+///             0,
+///         ),
+///         None,
+///     ),
+///     actions: [
+///         Next,
+///         Seek(
+///             Current(
+///                 1,
+///             ),
+///         ),
+///         Next,
+///         Seek(
+///             End(
+///                 0,
+///             ),
+///         ),
+///     ],
+/// }
+/// ```
+pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {
+    let actions = [
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(0)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
 }

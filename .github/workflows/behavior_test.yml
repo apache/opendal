@@ -102,6 +102,7 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
   test_binding_python:
     name: binding_python / ${{ matrix.os }}
     needs: [plan]

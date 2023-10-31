@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Read;
-
 use bytes::Bytes;
 
 use super::operator_functions::*;
+use crate::raw::oio::BlockingRead;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
@@ -339,22 +338,12 @@ impl BlockingOperator {
                     );
                 }
 
-                let (rp, mut s) = inner.blocking_read(&path, args)?;
-                let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
+                let (_, mut s) = inner.blocking_read(&path, args)?;
 
-                match s.read_to_end(&mut buffer) {
-                    Ok(n) => {
-                        buffer.truncate(n);
-                        Ok(buffer)
-                    }
-                    Err(err) => Err(
-                        Error::new(ErrorKind::Unexpected, "blocking read_with failed")
-                            .with_operation("BlockingOperator::read_with")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path)
-                            .set_source(err),
-                    ),
-                }
+                let mut buf = Vec::new();
+                s.read_to_end(&mut buf)?;
+
+                Ok(buf)
             },
         ))
     }

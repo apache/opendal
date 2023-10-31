@@ -27,7 +27,6 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
-
 [features]
 # Enable all opendal default feature by default.
 default = [
@@ -50,6 +49,7 @@ default = [
 services-all = [
   "default",
 
+  "services-azfile",
   "services-cacache",
   "services-dashmap",
   "services-dropbox",
@@ -82,20 +82,21 @@ services-all = [
 ]
 
 # Default services provided by opendal.
-services-azblob = [ "opendal/services-azblob" ]
-services-azdls = [ "opendal/services-azdls" ]
-services-cos = [ "opendal/services-cos" ]
-services-fs = [ "opendal/services-fs" ]
-services-gcs = [ "opendal/services-gcs" ]
-services-ghac = [ "opendal/services-ghac" ]
-services-http = [ "opendal/services-http" ]
-services-ipmfs = [ "opendal/services-ipmfs" ]
-services-memory = [ "opendal/services-memory" ]
-services-obs = [ "opendal/services-obs" ]
-services-oss = [ "opendal/services-oss" ]
-services-s3 = [ "opendal/services-s3" ]
-services-webdav = [ "opendal/services-webdav" ]
-services-webhdfs = [ "opendal/services-webhdfs" ]
+services-azblob = ["opendal/services-azblob"]
+services-azdls = ["opendal/services-azdls"]
+services-azfile = ["opendal/services-azfile"]
+services-cos = ["opendal/services-cos"]
+services-fs = ["opendal/services-fs"]
+services-gcs = ["opendal/services-gcs"]
+services-ghac = ["opendal/services-ghac"]
+services-http = ["opendal/services-http"]
+services-ipmfs = ["opendal/services-ipmfs"]
+services-memory = ["opendal/services-memory"]
+services-obs = ["opendal/services-obs"]
+services-oss = ["opendal/services-oss"]
+services-s3 = ["opendal/services-s3"]
+services-webdav = ["opendal/services-webdav"]
+services-webhdfs = ["opendal/services-webhdfs"]
 
 # Optional services provided by opendal.
 services-cacache = ["opendal/services-cacache"]
@@ -110,6 +111,8 @@ services-ipfs = ["opendal/services-ipfs"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
+services-mongodb = ["opendal/services-mongodb"]
+services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
@@ -119,13 +122,11 @@ services-redis-rustls = ["opendal/services-redis-rustls"]
 services-rocksdb = ["opendal/services-rocksdb"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
+services-sqlite = ["opendal/services-sqlite"]
 services-supabase = ["opendal/services-supabase"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
-services-mysql = ["opendal/services-mysql"]
-services-mongodb = ["opendal/services-mongodb"]
-services-sqlite = ["opendal/services-sqlite"]
 
 [lib]
 crate-type = ["cdylib"]

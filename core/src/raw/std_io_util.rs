@@ -15,18 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
+use crate::*;
 
-use crate::Error;
-use crate::ErrorKind;
-
-/// Parse all io related errors.
-pub fn parse_io_error(err: io::Error) -> Error {
-    use io::ErrorKind::*;
+/// Parse std io error into opendal::Error.
+///
+/// # TODO
+///
+/// Add `NotADirectory` and `IsADirectory` once they are stable.
+///
+/// ref: <https://github.com/rust-lang/rust/issues/86442>
+pub fn new_std_io_error(err: std::io::Error) -> Error {
+    use std::io::ErrorKind::*;
 
     let (kind, retryable) = match err.kind() {
         NotFound => (ErrorKind::NotFound, false),
         PermissionDenied => (ErrorKind::PermissionDenied, false),
+        AlreadyExists => (ErrorKind::AlreadyExists, false),
+        InvalidInput => (ErrorKind::InvalidInput, false),
+        Unsupported => (ErrorKind::Unsupported, false),
+
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
     };

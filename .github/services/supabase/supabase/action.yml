@@ -15,28 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: mysql
-description: 'Behavior test for mysql'
+name: supabase
+description: 'Behavior test for Supabase'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup MySQL Server
-      shell: bash
-      working-directory: fixtures/mysql
-      run: |
-        apt update && apt install -y mysql-client
-        docker-compose -f docker-compose.yml up -d
-        while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
-            echo "Waiting for MySQL..."
-            sleep 1
-        done
     - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
-        OPENDAL_MYSQL_TABLE=data
-        OPENDAL_MYSQL_KEY_FIELD=key
-        OPENDAL_MYSQL_VALUE_FIELD=data
-        EOF
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_SUPABASE_BUCKET: op://services/supabase/bucket
+        OPENDAL_SUPABASE_ENDPOINT: op://services/supabase/endpoint
+        OPENDAL_SUPABASE_KEY: op://services/supabase/key

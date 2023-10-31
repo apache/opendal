@@ -15,28 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: mysql
-description: 'Behavior test for mysql'
+name: dropbox
+description: 'Behavior test for dropbox'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup MySQL Server
-      shell: bash
-      working-directory: fixtures/mysql
-      run: |
-        apt update && apt install -y mysql-client
-        docker-compose -f docker-compose.yml up -d
-        while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
-            echo "Waiting for MySQL..."
-            sleep 1
-        done
-    - name: Setup
+    - name: Setup credentials
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_DROPBOX_ROOT: op://services/dropbox/root
+        OPENDAL_DROPBOX_REFRESH_TOKEN: op://services/dropbox/refresh_token
+        OPENDAL_DROPBOX_CLIENT_ID: op://services/dropbox/client_id
+        OPENDAL_DROPBOX_CLIENT_SECRET: op://services/dropbox/client_secret
+    - name: Setup test threads
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
-        OPENDAL_MYSQL_TABLE=data
-        OPENDAL_MYSQL_KEY_FIELD=key
-        OPENDAL_MYSQL_VALUE_FIELD=data
+        NEXTEST_TEST_THREADS=1
         EOF

@@ -15,28 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: mysql
-description: 'Behavior test for mysql'
+import pytest
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup MySQL Server
-      shell: bash
-      working-directory: fixtures/mysql
-      run: |
-        apt update && apt install -y mysql-client
-        docker-compose -f docker-compose.yml up -d
-        while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
-            echo "Waiting for MySQL..."
-            sleep 1
-        done
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
-        OPENDAL_MYSQL_TABLE=data
-        OPENDAL_MYSQL_KEY_FIELD=key
-        OPENDAL_MYSQL_VALUE_FIELD=data
-        EOF
+
+def test_capability(service_name, operator):
+    cap = operator.capability()
+    assert cap is not None
+    assert cap.read is not None
+
+
+def test_capability_exception(service_name, operator):
+    cap = operator.capability()
+    assert cap is not None
+    with pytest.raises(AttributeError) as e_info:
+        cap.read_demo

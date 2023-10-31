@@ -15,28 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: mysql
-description: 'Behavior test for mysql'
+name: sftp_with_default_root
+description: 'Behavior test for SFTP with default root'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup MySQL Server
+    - name: Setup sftp
       shell: bash
-      working-directory: fixtures/mysql
       run: |
-        apt update && apt install -y mysql-client
-        docker-compose -f docker-compose.yml up -d
-        while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
-            echo "Waiting for MySQL..."
-            sleep 1
-        done
+        mkdir -p target/ssh
+        ssh-keygen -t rsa -b 4096 -f target/ssh/id_rsa -q -N "" < /dev/null
+        tmpScript="$(mktemp)"
+        echo "sed -i -e 's#ForceCommand internal-sftp#ForceCommand internal-sftp -d /upload#' /etc/ssh/sshd_config" > "$tmpScript"
+        chmod +x "$tmpScript"
+        docker run \
+            -v "$tmpScript:/etc/sftp.d/change_root_dir" \
+            -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
+            --ulimit nofile=65536:65536 \
+            -p 2222:22 -d atmoz/sftp \
+            foo::::upload
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
-        OPENDAL_MYSQL_TABLE=data
-        OPENDAL_MYSQL_KEY_FIELD=key
-        OPENDAL_MYSQL_VALUE_FIELD=data
+        OPENDAL_SFTP_ENDPOINT=ssh://127.0.0.1:2222
+        OPENDAL_SFTP_USER=foo
+        OPENDAL_SFTP_KEY=${{ github.workspace }}/target/ssh/id_rsa
+        OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY=accept
+        OPENDAL_DISABLE_RANDOM_ROOT=true
         EOF

@@ -79,6 +79,7 @@ services-all = [
   "services-wasabi",
   "services-mongodb",
   "services-sqlite",
+  "services-azfile"
 ]
 
 # Default services provided by opendal.
@@ -99,6 +100,7 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 
 # Optional services provided by opendal.
+services-azfile = [ "opendal/services-azfile" ]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]

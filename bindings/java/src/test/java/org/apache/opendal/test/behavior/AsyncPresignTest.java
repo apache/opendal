@@ -28,11 +28,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.hc.client5.http.entity.EntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -65,15 +63,15 @@ public class AsyncPresignTest extends BehaviorTestBase {
                 op().presignWrite(path, Duration.ofSeconds(3600)).join();
 
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
-            final HttpEntity body = EntityBuilder.create().setBinary(content).build();
             final ClassicRequestBuilder builder =
-                    createRequestBuilder(signedReq).setEntity(body);
+                    createRequestBuilder(signedReq).setEntity(content, null);
 
             httpclient.execute(builder.build(), rsp -> rsp);
         }
 
         final Metadata meta = op().stat(path).join();
         assertEquals(content.length, meta.getContentLength());
+
         op().delete(path).join();
     }
 

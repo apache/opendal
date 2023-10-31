@@ -28,7 +28,7 @@ runs:
     - name: Setup
       shell: bash
       run: |
-        chmod 600 ${{ github.workspace }}/fixture/sftp/test_ssk_key
+        chmod 600 ${{ github.workspace }}/fixtures/sftp/test_ssk_key
 
         cat << EOF >> $GITHUB_ENV
         OPENDAL_SFTP_ENDPOINT=ssh://127.0.0.1:2222

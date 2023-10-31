@@ -26,7 +26,7 @@ runs:
       working-directory: fixtures/mysql
       run: |
         apt update && apt install -y mysql-client
-        docker compose -f docker-compose.yml up -d --wait --wait-timeout 20
+        docker compose -f docker-compose.yml up -d --wait
         while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
             echo "Waiting for MySQL..."
             sleep 1

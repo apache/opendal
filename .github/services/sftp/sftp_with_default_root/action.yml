@@ -24,7 +24,8 @@ runs:
     - name: Setup Sftp
       shell: bash
       working-directory: fixtures/sftp
-      run: docker-compose -f docker-compose-sftp-with-default-root.yml up -d
+      run: |
+        docker compose -f docker-compose-sftp-with-default-root.yml up -d --wait --wait-timeout 20
     - name: Setup
       shell: bash
       run: |

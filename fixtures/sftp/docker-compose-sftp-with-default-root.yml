@@ -19,14 +19,27 @@ version: '3.8'
 
 services:
   sftp-with-default-root:
-    image: atmoz/sftp
+    image: atmoz/sftp:debian
     ports:
       - "2222:22"
     volumes:
       - ./change_root_dir.sh:/etc/sftp.d/change_root_dir
       - ./test_ssh_key.pub:/home/foo/.ssh/keys/id_rsa.pub:ro
+      - ./test_ssh_key:/home/foo/.ssh/keys/id_rsa:ro
+      - ./health-check.sh:/health-check.sh
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     command: foo::::upload
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash",
+          "-c",
+          "/health-check.sh"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5

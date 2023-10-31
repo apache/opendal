@@ -24,7 +24,7 @@ runs:
     - name: Setup memcached server
       shell: bash
       working-directory: fixtures/memcached
-      run: docker-compose -f docker-compose-memcached.yml up -d
+      run: docker compose -f docker-compose-memcached.yml up -d --wait --wait-timeout 20
     - name: Setup
       shell: bash
       run: |

@@ -24,7 +24,7 @@ runs:
     - name: Setup azurite azblob service
       shell: bash
       working-directory: fixtures/azblob
-      run: docker-compose -f docker-compose-azurite.yml up -d
+      run: docker compose -f docker-compose-azurite.yml up -d --wait --wait-timeout 20
     - name: Setup test bucket
       shell: bash
       run: |

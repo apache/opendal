@@ -124,6 +124,10 @@ def calculate_hint(changed_files: list[str]) -> Hint:
         # binding java affected.
         if p.startswith("bindings/java/"):
             hint.binding_java = True
+            hint.all_service = True
+
+        # binding python affected.
+        if p.startswith("bindings/java/"):
             hint.binding_python = True
             hint.all_service = True
 

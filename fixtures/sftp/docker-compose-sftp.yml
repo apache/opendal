@@ -21,7 +21,7 @@ services:
   sftp:
     image: atmoz/sftp
     ports:
-      - 2222:22
+      - "2222:22"
     volumes:
       - ./test_ssh_key.pub:/home/foo/.ssh/keys/id_rsa.pub:ro
     ulimits:

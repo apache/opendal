@@ -28,5 +28,5 @@
 extend-exclude = [
   # Generated SSH Keys.
   "fixtures/sftp/test_ssh_key",
-  "fixtures/sftp/test_ssh_key.pub"
+  "fixtures/sftp/test_ssh_key.pub",
 ]

@@ -24,7 +24,7 @@ runs:
     - name: Setup Redis Cluster
       shell: bash
       working-directory: fixtures/redis
-      run: docker-compose -f docker-compose-redis-cluster.yml up -d
+      run: docker compose -f docker-compose-redis-cluster.yml up -d --wait --wait-timeout 20
     - name: Setup
       shell: bash
       run: |

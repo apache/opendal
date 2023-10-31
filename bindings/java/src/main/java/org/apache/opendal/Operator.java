@@ -173,17 +173,17 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignRead(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
         final long requestId = presignRead(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignWrite(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration) {
         final long requestId = presignWrite(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignStat(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration) {
         final long requestId = presignStat(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }

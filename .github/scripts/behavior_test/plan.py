@@ -124,6 +124,10 @@ def calculate_hint(changed_files: list[str]) -> Hint:
         # binding java affected.
         if p.startswith("bindings/java/"):
             hint.binding_java = True
+            hint.all_service = True
+
+        # binding python affected.
+        if p.startswith("bindings/python/"):
             hint.binding_python = True
             hint.all_service = True
 
@@ -209,6 +213,12 @@ def generate_binding_python_cases(
     cases: list[dict[str, str]], hint: Hint
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
+
+    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
+    #
+    # Sftp can't pass on python bindings, remove it for now.
+    cases = [v for v in cases if v["service"] != "sftp"]
+
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 

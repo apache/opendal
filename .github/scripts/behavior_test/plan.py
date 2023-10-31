@@ -222,6 +222,11 @@ def generate_binding_python_cases(
 
     # Filter all cases that not shown un in changed files
     cases = [v for v in cases if v["service"] in hint.services]
+
+    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
+    #
+    # Sftp can't pass on python bindings, remove it for now.
+    cases = [v for v in cases if v["service"] != "sftp"]
     return cases
 
 

@@ -19,25 +19,27 @@
 
 import { describe } from 'vitest'
 import { Operator } from '../../index.js'
-import { loadConfigFromEnv } from '../utils.mjs'
+import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '../utils.mjs'
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
 
 export function runner(testName, scheme) {
-    if (testName === null || testName === undefined) {
-        throw new Error('The scheme should not be `null` or `undefined`. ')
-    }
+  if (!scheme) {
+    console.warn('The scheme is empty. Test will be skipped.')
+    return
+  }
 
-    if (testName === '') {
-        return
-    }
+  const config = loadConfigFromEnv(scheme)
 
-    const config = loadConfigFromEnv(scheme)
-    const operator = scheme ? new Operator(scheme, config) : undefined
+  if (checkRandomRootEnabled()) {
+    config.root = generateRandomRoot(config.root)
+  }
 
-    describe.skipIf(!operator)(testName, () => {
-        AsyncIOTestRun(operator)
-        SyncIOTestRun(operator)
-    })
+  const operator = scheme ? new Operator(scheme, config) : null
+
+  describe.skipIf(!operator)(testName, () => {
+    AsyncIOTestRun(operator)
+    SyncIOTestRun(operator)
+  })
 }

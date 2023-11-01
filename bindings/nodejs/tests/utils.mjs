@@ -17,33 +17,40 @@
  * under the License.
  */
 
-const path = require('path')
+import crypto from 'node:crypto'
 
 export function generateBytes() {
-    const size = Math.floor(Math.random() * 1024) + 1
-    const content = []
+  const size = Math.floor(Math.random() * 1024) + 1
+  const content = []
 
-    for (let i = 0; i < size; i++) {
-        content.push(Math.floor(Math.random() * 256))
-    }
+  for (let i = 0; i < size; i++) {
+    content.push(Math.floor(Math.random() * 256))
+  }
 
-    return Buffer.from(content)
+  return Buffer.from(content)
 }
 
 export function loadTestSchemeFromEnv() {
-    require('dotenv').config({ path: path.resolve(__dirname, '../../../.env'), debug: true })
-    return process.env.OPENDAL_TEST
+  return process.env.OPENDAL_TEST
+}
+
+export function checkRandomRootEnabled() {
+  return process.env.OPENDAL_DISABLE_RANDOM_ROOT !== 'true'
+}
+
+export function generateRandomRoot(baseRoot) {
+  return `${baseRoot}/opendal_${crypto.randomUUID()}`
 }
 
 export function loadConfigFromEnv(scheme) {
-    if (!scheme) return {}
+  if (!scheme) return {}
 
-    const prefix = `opendal_${scheme}_`
+  const prefix = `opendal_${scheme}_`
 
-    return Object.fromEntries(
-        Object.entries(process.env)
-            .map(([key, value]) => [key.toLowerCase(), value])
-            .filter(([key]) => key.startsWith(prefix))
-            .map(([key, value]) => [key.replace(prefix, ''), value]),
-    )
+  return Object.fromEntries(
+    Object.entries(process.env)
+      .map(([key, value]) => [key.toLowerCase(), value])
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, value]) => [key.replace(prefix, ''), value]),
+  )
 }

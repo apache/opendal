@@ -28,25 +28,25 @@ inputs:
 runs:
   using: "composite"
   steps:
-      - name: Setup
-        shell: bash
-        run: |
-            mkdir -p ./dynamic_test_binding_nodejs &&
-            cat <<EOF >./dynamic_test_binding_nodejs/action.yml
-            runs:
-              using: composite
-              steps:
-              - name: Setup Test
-                uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-              - name: Run Test Binding NodeJS
-                shell: bash
-                working-directory: bindings/nodejs
-                run: |
-                    yarn build:debug
-                    yarn test
-                env:
-                  NAPI_FEATURES: ${{ inputs.feature }}
-                  OPENDAL_TEST: ${{ inputs.service }}
-            EOF
-      - name: Run
-        uses: ./dynamic_test_binding_nodejs
+    - name: Setup
+      shell: bash
+      run: |
+        mkdir -p ./dynamic_test_binding_nodejs &&
+        cat <<EOF >./dynamic_test_binding_nodejs/action.yml
+        runs:
+          using: composite
+          steps:
+          - name: Setup Test
+            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
+          - name: Run Test Binding NodeJS
+            shell: bash
+            working-directory: bindings/nodejs
+            run: |
+                yarn build:debug
+                yarn test
+            env:
+              NAPI_FEATURES: ${{ inputs.feature }}
+              OPENDAL_TEST: ${{ inputs.service }}
+        EOF
+    - name: Run
+      uses: ./dynamic_test_binding_nodejs

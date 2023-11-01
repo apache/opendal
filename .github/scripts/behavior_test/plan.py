@@ -50,9 +50,9 @@ def provided_cases() -> list[dict[str, str]]:
 
     # Check if this workflow needs to read secrets.
     #
-    # We will check if pattern `secrets.XXX` exist in content.
+    # We will check if pattern `op://services` exist in content.
     if not os.getenv("GITHUB_HAS_SECRETS") == "true":
-        cases[:] = [v for v in cases if "secrets" not in v["content"]]
+        cases[:] = [v for v in cases if "op://services" not in v["content"]]
 
     # Remove content from cases.
     cases = [

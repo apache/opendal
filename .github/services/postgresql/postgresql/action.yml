@@ -24,7 +24,7 @@ runs:
     - name: Setup PostgreSQL Server
       shell: bash
       working-directory: fixtures/postgresql
-      run: docker-compose -f docker-compose.yml up -d
+      run: docker compose -f docker-compose.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

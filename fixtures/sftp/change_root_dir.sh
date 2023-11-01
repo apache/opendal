@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,26 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: sftp_with_default_root
-description: 'Behavior test for SFTP with default root'
+set -e
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup Sftp
-      shell: bash
-      working-directory: fixtures/sftp
-      run: |
-        docker compose -f docker-compose-sftp-with-default-root.yml up -d --wait
-    - name: Setup
-      shell: bash
-      run: |
-        chmod 600 ${{ github.workspace }}/fixtures/sftp/test_ssh_key
-
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_SFTP_ENDPOINT=ssh://127.0.0.1:2222
-        OPENDAL_SFTP_USER=foo
-        OPENDAL_SFTP_KEY=${{ github.workspace }}/fixtures/sftp/test_ssh_key
-        OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY=accept
-        OPENDAL_DISABLE_RANDOM_ROOT=true
-        EOF
+sed -i -e 's#ForceCommand internal-sftp#ForceCommand internal-sftp -d /upload#' /etc/ssh/sshd_config

@@ -33,13 +33,7 @@ services:
         hard: 65536
     command: foo::::upload
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "bash",
-          "-c",
-          "/health-check.sh"
-        ]
+      test: ["CMD-SHELL", "bash", "-c", "/health-check.sh"]
       interval: 10s
       timeout: 10s
       retries: 5

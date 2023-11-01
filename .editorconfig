@@ -47,7 +47,7 @@ indent_size = 2
 [*.{ts,tsx}]
 indent_size = 2
 
-[*.{js,jsx}]
+[*.{mjs,js,jsx}]
 indent_size = 2
 
 [*.css]

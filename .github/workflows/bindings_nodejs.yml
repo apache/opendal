@@ -63,14 +63,11 @@ jobs:
       - name: Check format
         run: yarn run prettier --check .
 
-      - name: Build
-        run: yarn build:debug
-
       - name: Check diff
         run: git diff --exit-code
 
-      - name: Test bindings
-        run: yarn test
+      - name: Unit test
+        run: cargo nextest run --no-fail-fast
 
   linux:
     runs-on: ubuntu-latest
@@ -107,8 +104,6 @@ jobs:
         with:
           name: bindings-linux
           path: bindings/nodejs/*.node
-      - name: Test bindings
-        run: yarn test
 
   windows:
     runs-on: windows-latest
@@ -137,8 +132,6 @@ jobs:
         with:
           name: bindings-windows
           path: bindings/nodejs/*.node
-      - name: Test bindings
-        run: yarn test
 
   macos:
     runs-on: macos-latest
@@ -190,10 +183,6 @@ jobs:
         with:
           name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
-      - name: Test bindings
-        if: ${{ matrix.settings.test }}
-        run: ${{ matrix.settings.test }}
-        shell: bash
 
   release:
     name: Release

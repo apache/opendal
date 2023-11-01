@@ -188,6 +188,11 @@ impl Operator {
         self.0.stat(path).map_err(format_pyerr).map(Metadata)
     }
 
+    /// Copy src to dst.
+    pub fn copy(&self, source: &str, target: &str) -> PyResult<()> {
+        self.0.copy(source, target).map_err(format_pyerr)
+    }
+
     /// Create a dir at given path.
     ///
     /// # Notes

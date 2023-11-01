@@ -20,3 +20,6 @@ pub use chunked_bytes::ChunkedBytes;
 
 mod write_buf;
 pub use write_buf::WriteBuf;
+
+mod adaptive;
+pub use adaptive::AdaptiveBuf;

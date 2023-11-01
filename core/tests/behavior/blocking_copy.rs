@@ -16,6 +16,7 @@
 // under the License.
 
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 
 use crate::*;
 
@@ -41,7 +42,7 @@ pub fn behavior_blocking_copy_tests(op: &Operator) -> Vec<Trial> {
 /// Copy a file and test with stat.
 pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
@@ -50,7 +51,10 @@ pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
@@ -86,7 +90,7 @@ pub fn test_blocking_copy_source_dir(op: BlockingOperator) -> Result<()> {
 /// Copy to a dir should return an error.
 pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content)?;
 
@@ -107,7 +111,7 @@ pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
 /// Copy a file to self should return an error.
 pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _size) = gen_bytes();
+    let (source_content, _size) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content)?;
 
@@ -123,7 +127,7 @@ pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
 /// Copy to a nested path, parent path should be created successfully.
 pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
@@ -137,7 +141,10 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
@@ -147,12 +154,12 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
 /// Copy to a exist path should overwrite successfully.
 pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone())?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
     assert_ne!(source_content, target_content);
 
     op.write(&target_path, target_content)?;
@@ -160,7 +167,10 @@ pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
     op.copy(&source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");

@@ -20,7 +20,6 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 
-use super::error::parse_io_error;
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
@@ -49,7 +48,7 @@ impl oio::Page for FsPager<tokio::fs::ReadDir> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
-            let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
+            let de = match self.rd.next_entry().await.map_err(new_std_io_error)? {
                 Some(de) => de,
                 None => break,
             };
@@ -67,7 +66,7 @@ impl oio::Page for FsPager<tokio::fs::ReadDir> {
             // (no extra system calls needed), but some Unix platforms may
             // require the equivalent call to symlink_metadata to learn about
             // the target file type.
-            let file_type = de.file_type().await.map_err(parse_io_error)?;
+            let file_type = de.file_type().await.map_err(new_std_io_error)?;
 
             let d = if file_type.is_file() {
                 oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
@@ -91,7 +90,7 @@ impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
-                Some(de) => de.map_err(parse_io_error)?,
+                Some(de) => de.map_err(new_std_io_error)?,
                 None => break,
             };
 
@@ -108,7 +107,7 @@ impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
             // (no extra system calls needed), but some Unix platforms may
             // require the equivalent call to symlink_metadata to learn about
             // the target file type.
-            let file_type = de.file_type().map_err(parse_io_error)?;
+            let file_type = de.file_type().map_err(new_std_io_error)?;
 
             let d = if file_type.is_file() {
                 oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))

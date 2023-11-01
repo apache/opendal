@@ -18,8 +18,8 @@
 [default.extend-words]
 # Random strings.
 "Dum" = "Dum"
-"ba" = "ba"
 "Hel" = "Hel"
+"ba" = "ba"
 "hellow" = "hellow"
 # Showed up in examples.
 "thw" = "thw"

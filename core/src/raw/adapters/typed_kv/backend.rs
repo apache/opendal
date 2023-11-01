@@ -135,8 +135,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         let bs = self.apply_range(bs, args.range());
 
-        let length = bs.len();
-        Ok((RpRead::new(length as u64), oio::Cursor::from(bs)))
+        Ok((RpRead::new(), oio::Cursor::from(bs)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -149,7 +148,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok((RpRead::new(bs.len() as u64), oio::Cursor::from(bs)))
+        Ok((RpRead::new(), oio::Cursor::from(bs)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

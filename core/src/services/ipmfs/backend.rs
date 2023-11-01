@@ -112,10 +112,7 @@ impl Accessor for IpmfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
+            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
             _ => Err(parse_error(resp).await?),
         }
     }

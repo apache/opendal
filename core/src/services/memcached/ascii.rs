@@ -21,7 +21,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::TcpStream;
 
-use super::backend::parse_io_error;
+use crate::raw::*;
 use crate::*;
 
 pub struct Connection {
@@ -43,8 +43,8 @@ impl Connection {
         writer
             .write_all(&[b"get ", key.as_bytes(), b"\r\n"].concat())
             .await
-            .map_err(parse_io_error)?;
-        writer.flush().await.map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
 
         // Read response header
         let header = self.read_header().await?;
@@ -71,7 +71,7 @@ impl Connection {
         self.io
             .read_exact(&mut buffer)
             .await
-            .map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
 
         // Read the trailing header
         self.read_line().await?; // \r\n
@@ -85,10 +85,10 @@ impl Connection {
         self.io
             .write_all(header.as_bytes())
             .await
-            .map_err(parse_io_error)?;
-        self.io.write_all(val).await.map_err(parse_io_error)?;
-        self.io.write_all(b"\r\n").await.map_err(parse_io_error)?;
-        self.io.flush().await.map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
+        self.io.write_all(val).await.map_err(new_std_io_error)?;
+        self.io.write_all(b"\r\n").await.map_err(new_std_io_error)?;
+        self.io.flush().await.map_err(new_std_io_error)?;
 
         // Read response header
         let header = self.read_header().await?;
@@ -110,8 +110,8 @@ impl Connection {
         self.io
             .write_all(header.as_bytes())
             .await
-            .map_err(parse_io_error)?;
-        self.io.flush().await.map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
+        self.io.flush().await.map_err(new_std_io_error)?;
 
         // Read response header
         let header = self.read_header().await?;
@@ -132,8 +132,8 @@ impl Connection {
         self.io
             .write_all(b"version\r\n")
             .await
-            .map_err(parse_io_error)?;
-        self.io.flush().await.map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
+        self.io.flush().await.map_err(new_std_io_error)?;
 
         // Read response header
         let header = self.read_header().await?;
@@ -151,7 +151,7 @@ impl Connection {
     async fn read_line(&mut self) -> Result<&[u8]> {
         let Self { io, buf } = self;
         buf.clear();
-        io.read_until(b'\n', buf).await.map_err(parse_io_error)?;
+        io.read_until(b'\n', buf).await.map_err(new_std_io_error)?;
         if buf.last().copied() != Some(b'\n') {
             return Err(Error::new(
                 ErrorKind::ContentIncomplete,

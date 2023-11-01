@@ -16,6 +16,8 @@
 // under the License.
 
 use criterion::Criterion;
+use opendal::raw::tests::init_test_service;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Size;
@@ -23,7 +25,7 @@ use size::Size;
 use super::utils::*;
 
 pub fn bench(c: &mut Criterion) {
-    if let Some(op) = init_service() {
+    if let Some(op) = init_test_service().unwrap() {
         bench_write_once(c, op.info().scheme().into_static(), op.clone());
     }
 }
@@ -48,7 +50,7 @@ fn bench_write_once(c: &mut Criterion, name: &str, op: Operator) {
             size.to_string(),
             &(op.clone(), &path, content.clone()),
             |b, (op, path, content)| {
-                b.to_async(&*TOKIO).iter(|| async {
+                b.to_async(&*TEST_RUNTIME).iter(|| async {
                     op.write(path, content.clone()).await.unwrap();
                 })
             },

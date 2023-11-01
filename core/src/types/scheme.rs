@@ -52,6 +52,8 @@ pub enum Scheme {
     Etcd,
     /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
     Foundationdb,
+    /// [dbfs][crate::services::Dbfs]: DBFS backend support.
+    Dbfs,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -163,6 +165,8 @@ impl Scheme {
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls,
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile,
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]
@@ -279,6 +283,7 @@ impl FromStr for Scheme {
             "dashmap" => Ok(Scheme::Dashmap),
             "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
+            "dbfs" => Ok(Scheme::Dbfs),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "gdrive" => Ok(Scheme::Gdrive),
@@ -331,6 +336,7 @@ impl From<Scheme> for &'static str {
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",
+            Scheme::Dbfs => "dbfs",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",

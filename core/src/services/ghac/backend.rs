@@ -86,7 +86,6 @@ fn value_or_env(
 pub struct GhacBuilder {
     root: Option<String>,
     version: Option<String>,
-    enable_create_simulation: bool,
     endpoint: Option<String>,
     runtime_token: Option<String>,
 
@@ -114,18 +113,6 @@ impl GhacBuilder {
             self.version = Some(version.to_string())
         }
 
-        self
-    }
-
-    /// Enable create simulation for ghac service.
-    ///
-    /// ghac service doesn't support create empty files. By enabling
-    /// create simulation, we will create a 1 byte file to represent
-    /// empty file.
-    ///
-    /// As a side effect, we can't create file with only 1 byte anymore.
-    pub fn enable_create_simulation(&mut self) -> &mut Self {
-        self.enable_create_simulation = true;
         self
     }
 
@@ -175,9 +162,6 @@ impl Builder for GhacBuilder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("version").map(|v| builder.version(v));
-        map.get("enable_create_simulation")
-            .filter(|v| *v == "on" || *v == "true")
-            .map(|_| builder.enable_create_simulation());
 
         builder
     }
@@ -199,7 +183,6 @@ impl Builder for GhacBuilder {
 
         let backend = GhacBackend {
             root,
-            enable_create_simulation: self.enable_create_simulation,
 
             cache_url: value_or_env(self.endpoint.take(), ACTIONS_CACHE_URL, "Builder::build")?,
             catch_token: value_or_env(
@@ -229,7 +212,6 @@ impl Builder for GhacBuilder {
 pub struct GhacBackend {
     // root should end with "/"
     root: String,
-    enable_create_simulation: bool,
 
     cache_url: String,
     catch_token: String,
@@ -277,12 +259,6 @@ impl Accessor for GhacBackend {
         // ignore creation of dir.
         if path.ends_with('/') {
             return Ok(RpCreateDir::default());
-        }
-        if !self.enable_create_simulation {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "ghac service doesn't support create empty file",
-            ));
         }
 
         let req = self.ghac_reserve(path).await?;
@@ -351,9 +327,10 @@ impl Accessor for GhacBackend {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -404,12 +381,7 @@ impl Accessor for GhacBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-
-                // Hack for enable_create_simulation.
-                if self.enable_create_simulation && meta.content_length_raw() == Some(1) {
-                    meta.set_content_length(0);
-                }
+                let meta = parse_into_metadata(path, resp.headers())?;
 
                 Ok(RpStat::new(meta))
             }

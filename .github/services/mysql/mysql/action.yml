@@ -24,7 +24,13 @@ runs:
     - name: Setup MySQL Server
       shell: bash
       working-directory: fixtures/mysql
-      run: docker-compose -f docker-compose.yml up -d
+      run: |
+        apt update && apt install -y mysql-client
+        docker-compose -f docker-compose.yml up -d
+        while ! mysql -h localhost -P 3306 --protocol=tcp -u root -p'password' -e "SELECT 1"; do
+            echo "Waiting for MySQL..."
+            sleep 1
+        done
     - name: Setup
       shell: bash
       run: |

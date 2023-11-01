@@ -53,7 +53,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior
+        run: cargo nextest run behavior --features tests
         env:
           # TODO: enable test when we are ready.
           # OPENDAL_TEST: ipmfs

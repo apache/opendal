@@ -424,6 +424,8 @@ impl Accessor for OssBackend {
                 copy: true,
 
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
 
@@ -473,9 +475,10 @@ impl Accessor for OssBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -544,7 +547,13 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
+            OssPager::new(
+                self.core.clone(),
+                path,
+                args.delimiter(),
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 

@@ -54,7 +54,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().rename(sourcePath, targetPath);
 
         assertThatThrownBy(() -> blockingOp().stat(sourcePath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
         assertThat(blockingOp().stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
 
@@ -71,7 +71,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String targetPath = UUID.randomUUID().toString();
 
         assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 
     /**
@@ -85,7 +85,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().createDir(sourcePath);
 
         assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
     }
 
     /**
@@ -103,7 +103,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().createDir(targetPath);
 
         assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
         blockingOp().delete(sourcePath);
         blockingOp().delete(targetPath);
@@ -120,7 +120,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().write(sourcePath, sourceContent);
 
         assertThatThrownBy(() -> blockingOp().rename(sourcePath, sourcePath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsSameFile));
 
         blockingOp().delete(sourcePath);
     }
@@ -140,7 +140,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().rename(sourcePath, targetPath);
 
         assertThatThrownBy(() -> blockingOp().stat(sourcePath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
         assertThat(blockingOp().read(targetPath)).isEqualTo(sourceContent);
 
@@ -168,7 +168,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         blockingOp().rename(sourcePath, targetPath);
 
         assertThatThrownBy(() -> blockingOp().stat(sourcePath))
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
         assertThat(blockingOp().read(targetPath)).isEqualTo(sourceContent);
 

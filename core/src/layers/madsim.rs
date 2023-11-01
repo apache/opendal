@@ -191,10 +191,7 @@ impl LayeredAccessor for MadsimAccessor {
                 .downcast::<ReadResponse>()
                 .expect("fail to downcast response to ReadResponse");
             let content_length = resp.data.as_ref().map(|b| b.len()).unwrap_or(0);
-            Ok((
-                RpRead::new(content_length as u64),
-                MadsimReader { data: resp.data },
-            ))
+            Ok((RpRead::new(), MadsimReader { data: resp.data }))
         }
         #[cfg(not(madsim))]
         {
@@ -344,10 +341,6 @@ impl oio::Page for MadsimPager {
             "will be supported in the future",
         ))
     }
-}
-
-fn parse_io_error(e: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "madsim error")
 }
 
 /// A simulated server.This an experimental feature, docs are not ready yet.

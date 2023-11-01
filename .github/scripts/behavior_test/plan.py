@@ -22,6 +22,7 @@ import os
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
+from typing import Any
 
 # The path for current script.
 SCRIPT_PATH = Path(__file__).parent.absolute()
@@ -31,7 +32,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 PROJECT_DIR = GITHUB_DIR.parent
 
 
-def provided_cases():
+def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
 
     cases = [
@@ -74,6 +75,8 @@ class Hint:
     core: bool = field(default=False, init=False)
     # Is binding java affected?
     binding_java: bool = field(default=False, init=False)
+    # Is binding python affected?
+    binding_python: bool = field(default=False, init=False)
 
     # Should we run all services test?
     all_service: bool = field(default=False, init=False)
@@ -81,7 +84,7 @@ class Hint:
     services: set = field(default_factory=set, init=False)
 
 
-def calculate_hint(changed_files):
+def calculate_hint(changed_files: list[str]) -> Hint:
     hint = Hint()
 
     # Remove all files that ends with `.md`
@@ -95,12 +98,14 @@ def calculate_hint(changed_files):
         if p == ".github/workflows/behavior_test.yml":
             hint.core = True
             hint.binding_java = True
+            hint.binding_python = True
             hint.all_service = True
         if p == ".github/workflows/behavior_test_core.yml":
             hint.core = True
             hint.all_service = True
         if p == ".github/workflows/behavior_test_binding_java.yml":
             hint.binding_java = True
+            hint.binding_python = True
             hint.all_service = True
 
         # core affected
@@ -113,6 +118,7 @@ def calculate_hint(changed_files):
         ):
             hint.core = True
             hint.binding_java = True
+            hint.binding_python = True
             hint.all_service = True
 
         # binding java affected.
@@ -120,11 +126,17 @@ def calculate_hint(changed_files):
             hint.binding_java = True
             hint.all_service = True
 
+        # binding python affected.
+        if p.startswith("bindings/python/"):
+            hint.binding_python = True
+            hint.all_service = True
+
         # core service affected
         match = re.search(service_pattern, p)
         if match:
             hint.core = True
             hint.binding_java = True
+            hint.binding_python = True
             hint.services.add(match.group(1))
 
         # core test affected
@@ -132,6 +144,7 @@ def calculate_hint(changed_files):
         if match:
             hint.core = True
             hint.binding_java = True
+            hint.binding_python = True
             hint.services.add(match.group(1))
 
     return hint
@@ -154,7 +167,9 @@ def unique_cases(cases):
     return list(ucases.values())
 
 
-def generate_core_cases(cases, hint):
+def generate_core_cases(
+    cases: list[dict[str, str]], hint: Hint
+) -> list[dict[str, str]]:
     # Always run all tests if it is a push event.
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
@@ -172,7 +187,9 @@ def generate_core_cases(cases, hint):
     return cases
 
 
-def generate_binding_java_cases(cases, hint):
+def generate_binding_java_cases(
+    cases: list[dict[str, str]], hint: Hint
+) -> list[dict[str, str]]:
     cases = unique_cases(cases)
 
     # Always run all tests if it is a push event.
@@ -192,20 +209,49 @@ def generate_binding_java_cases(cases, hint):
     return cases
 
 
-def plan(changed_files):
+def generate_binding_python_cases(
+    cases: list[dict[str, str]], hint: Hint
+) -> list[dict[str, str]]:
+    cases = unique_cases(cases)
+
+    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
+    #
+    # Sftp can't pass on python bindings, remove it for now.
+    cases = [v for v in cases if v["service"] != "sftp"]
+
+    if os.getenv("GITHUB_IS_PUSH") == "true":
+        return cases
+
+    # Return empty if core is False
+    if not hint.binding_python:
+        return []
+
+    # Return all services if all_service is True
+    if hint.all_service:
+        return cases
+
+    # Filter all cases that not shown un in changed files
+    cases = [v for v in cases if v["service"] in hint.services]
+    return cases
+
+
+def plan(changed_files: list[str]) -> dict[str, Any]:
     cases = provided_cases()
     hint = calculate_hint(changed_files)
 
     core_cases = generate_core_cases(cases, hint)
     binding_java_cases = generate_binding_java_cases(cases, hint)
+    binding_python_cases = generate_binding_python_cases(cases, hint)
 
     jobs = {
         "components": {
             "core": False,
             "binding_java": False,
+            "binding_python": False,
         },
         "core": [],
         "binding_java": [],
+        "binding_python": [],
     }
 
     if len(core_cases) > 0:
@@ -227,6 +273,11 @@ def plan(changed_files):
         jobs["components"]["binding_java"] = True
         jobs["binding_java"].append(
             {"os": "ubuntu-latest", "cases": binding_java_cases}
+        )
+    if len(binding_python_cases) > 0:
+        jobs["components"]["binding_python"] = True
+        jobs["binding_python"].append(
+            {"os": "ubuntu-latest", "cases": binding_python_cases}
         )
 
     return jobs

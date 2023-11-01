@@ -26,6 +26,14 @@ import { run as MetaTestRun } from './meta.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
 
 export function runner(testName, scheme) {
+    if (testName === null || testName === undefined) {
+        throw new Error('The scheme should not be `null` or `undefined`. ')
+    }
+
+    if (testName) {
+        return
+    }
+
     const config = loadConfigFromEnv(scheme)
     const operator = scheme ? new Operator(scheme, config) : undefined
 

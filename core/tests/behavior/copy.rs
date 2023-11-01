@@ -16,6 +16,7 @@
 // under the License.
 
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 
 use crate::*;
 
@@ -42,7 +43,7 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
 /// Copy a file with ascii name and test contents.
 pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -51,7 +52,10 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
     op.copy(&source_path, &target_path).await?;
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
@@ -62,13 +66,16 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
 pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
     let source_path = "🐂🍺中文.docx";
     let target_path = "😈🐅Français.docx";
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(source_path, source_content.clone()).await?;
     op.copy(source_path, target_path).await?;
 
     let target_content = op.read(target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(source_path).await.expect("delete must succeed");
     op.delete(target_path).await.expect("delete must succeed");
@@ -106,7 +113,7 @@ pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
 /// Copy to a dir should return an error.
 pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes();
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, content).await?;
 
@@ -128,7 +135,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
 /// Copy a file to self should return an error.
 pub async fn test_copy_self(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes();
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, content).await?;
 
@@ -145,7 +152,7 @@ pub async fn test_copy_self(op: Operator) -> Result<()> {
 /// Copy to a nested path, parent path should be created successfully.
 pub async fn test_copy_nested(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -159,7 +166,10 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
     op.copy(&source_path, &target_path).await?;
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
@@ -169,12 +179,12 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 /// Copy to a exist path should overwrite successfully.
 pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
     assert_ne!(source_content, target_content);
 
     op.write(&target_path, target_content).await?;
@@ -182,7 +192,10 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
     op.copy(&source_path, &target_path).await?;
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");

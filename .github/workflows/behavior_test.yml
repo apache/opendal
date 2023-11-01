@@ -117,7 +117,7 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_nodejs:
-    name: binding_python / ${{ matrix.os }}
+    name: binding_nodejs / ${{ matrix.os }}
     needs: [plan]
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
     secrets: inherit

@@ -84,7 +84,6 @@ services-all = [
 # Default services provided by opendal.
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
-services-azfile = ["opendal/services-azfile"]
 services-cos = ["opendal/services-cos"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]
@@ -99,6 +98,7 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 
 # Optional services provided by opendal.
+services-azfile = ["opendal/services-azfile"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]

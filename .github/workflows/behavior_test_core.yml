@@ -62,8 +62,8 @@ jobs:
         if: runner.os == 'Linux'
         uses: 1password/load-secrets-action/configure@v1
         with:
-          connect-host: ${{ secrets.OP_CONNECT_HOST_TMP }}
-          connect-token: ${{ secrets.OP_CONNECT_TOKEN_TMP }}
+          connect-host: ${{ env.OP_CONNECT_HOST_TMP }}
+          connect-token: ${{ env.OP_CONNECT_TOKEN_TMP }}
 
       - name: Test Core
         uses: ./.github/actions/behavior_test_core

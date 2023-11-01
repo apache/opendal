@@ -52,6 +52,17 @@ jobs:
         shell: bash
         run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
 
+      # TODO: 1password is only supported on linux
+      #
+      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
+      - name: Setup service account token for 1password
+        if: runner.os == 'Linux'
+        uses: 1password/load-secrets-action@v1
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_CONNECT_HOST: op://services/1password/host
+          OP_CONNECT_TOKEN: op://services/1password/token
+
       - name: Test Core
         uses: ./.github/actions/behavior_test_core
         with:

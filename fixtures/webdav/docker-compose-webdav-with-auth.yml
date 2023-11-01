@@ -24,9 +24,14 @@ services:
       - "8080:80"
     volumes:
       - webdav-data:/data
+      - ./config:/config
     environment:
       - WEBDAV_USERNAME=bar
       - WEBDAV_PASSWORD=bar
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:81/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
 volumes:
   webdav-data:

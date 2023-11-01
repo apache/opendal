@@ -50,9 +50,9 @@ def provided_cases() -> list[dict[str, str]]:
 
     # Check if this workflow needs to read secrets.
     #
-    # We will check if pattern `secrets.XXX` exist in content.
+    # We will check if pattern `op://services` exist in content.
     if not os.getenv("GITHUB_HAS_SECRETS") == "true":
-        cases[:] = [v for v in cases if "secrets" not in v["content"]]
+        cases[:] = [v for v in cases if "op://services" not in v["content"]]
 
     # Remove content from cases.
     cases = [
@@ -213,11 +213,6 @@ def generate_binding_python_cases(
     cases: list[dict[str, str]], hint: Hint
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
-
-    # REMOVE ME after https://github.com/apache/incubator-opendal/issues/3429 addressed.
-    #
-    # Sftp can't pass on python bindings, remove it for now.
-    cases = [v for v in cases if v["service"] != "sftp"]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

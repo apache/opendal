@@ -24,7 +24,7 @@ runs:
     - name: Setup MongoDB Server
       shell: bash
       working-directory: fixtures/mongodb
-      run: docker-compose -f docker-compose-no-auth.yml up -d
+      run: docker compose -f docker-compose-no-auth.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

@@ -21,23 +21,20 @@ description: 'Behavior test for SFTP'
 runs:
   using: "composite"
   steps:
-    - name: Setup sftp
+    - name: Setup Sftp
       shell: bash
+      working-directory: fixtures/sftp
       run: |
-        mkdir -p target/ssh
-        ssh-keygen -t rsa -b 4096 -f target/ssh/id_rsa -q -N "" < /dev/null
-        docker run \
-            -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
-            --ulimit nofile=65536:65536 \
-            -p 2222:22 -d atmoz/sftp \
-            foo::::upload
+        docker compose -f docker-compose-sftp.yml up -d --wait
     - name: Setup
       shell: bash
       run: |
+        chmod 600 ${{ github.workspace }}/fixtures/sftp/test_ssh_key
+
         cat << EOF >> $GITHUB_ENV
         OPENDAL_SFTP_ENDPOINT=ssh://127.0.0.1:2222
         OPENDAL_SFTP_ROOT=/upload/sftp_test/
         OPENDAL_SFTP_USER=foo
-        OPENDAL_SFTP_KEY=${{ github.workspace }}/target/ssh/id_rsa
+        OPENDAL_SFTP_KEY=${{ github.workspace }}/fixtures/sftp/test_ssh_key
         OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY=accept
         EOF

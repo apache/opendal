@@ -141,7 +141,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.all_service = True
 
         # binding nodejs affected.
-        if p.startswith("bindings/python/"):
+        if p.startswith("bindings/nodejs/"):
             hint.binding_nodejs = True
             hint.all_service = True
 

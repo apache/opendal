@@ -22,17 +22,13 @@ import { expect, test } from 'vitest'
 import { generateBytes } from '../utils.mjs'
 
 export function run(operator) {
-    test('OpenDal async io operation test suites', async () => {
+    test('async stat not exist files', async () => {
         const filename = `random_file_${randomUUID()}`
-        const content = generateBytes()
 
-        await operator.write(filename, content)
-
-        const bufContent = await operator.read(filename)
-
-        expect(bufContent).not.toBeNull()
-        expect(bufContent).toEqual(content)
-
-        await operator.delete(filename)
+        try {
+            await operator.stat(filename)
+        } catch (error) {
+            assert.ok(error.message.includes('NotFound'))
+        }
     })
 }

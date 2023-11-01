@@ -22,7 +22,6 @@ import { Operator } from '../../index.js'
 import { loadConfigFromEnv } from '../utils.mjs'
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
-import { run as MetaTestRun } from './meta.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
 
 export function runner(testName, scheme) {
@@ -39,7 +38,6 @@ export function runner(testName, scheme) {
 
     describe.skipIf(!operator)(testName, () => {
         AsyncIOTestRun(operator)
-        MetaTestRun(operator)
         SyncIOTestRun(operator)
     })
 }

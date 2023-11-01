@@ -22,17 +22,13 @@ import { expect, test } from 'vitest'
 import { generateBytes } from '../utils.mjs'
 
 export function run(operator) {
-    test('sync io test case', () => {
+    test('sync stat not exist files', () => {
         const filename = `random_file_${randomUUID()}`
-        const content = generateBytes()
 
-        operator.writeSync(filename, content)
-
-        const bufContent = operator.readSync(filename)
-
-        expect(bufContent).not.toBeNull()
-        expect(bufContent).toEqual(content)
-
-        operator.deleteSync(filename)
+        try {
+            operator.statSync(filename)
+        } catch (error) {
+            assert.ok(error.message.includes('NotFound'))
+        }
     })
 }

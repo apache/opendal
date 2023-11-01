@@ -139,6 +139,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.12.2"
+tokio = "1"
 opendal.workspace = true
 
 [build-dependencies]

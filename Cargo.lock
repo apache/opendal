@@ -4326,6 +4326,7 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "opendal",
+ "tokio",
 ]
 
 [[package]]

@@ -30,7 +30,7 @@ export function runner(testName, scheme) {
         throw new Error('The scheme should not be `null` or `undefined`. ')
     }
 
-    if (!testName) {
+    if (testName === '') {
         return
     }
 

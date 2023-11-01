@@ -108,7 +108,6 @@ impl MongodbBuilder {
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
             self.key_field = Some(key_field.to_string());
-            self.key_field = Some(key_field.to_string());
         }
         self
     }

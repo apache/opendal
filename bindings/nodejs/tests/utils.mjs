@@ -31,8 +31,7 @@ export function generateBytes() {
 }
 
 export function loadTestSchemeFromEnv() {
-    const OPENDAL_TEST = process.env.OPENDAL_TEST
-    return OPENDAL_TEST
+    return process.env.OPENDAL_TEST
 }
 
 export function loadConfigFromEnv(scheme) {

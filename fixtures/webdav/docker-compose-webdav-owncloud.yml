@@ -31,10 +31,15 @@ services:
       OWNCLOUD_REDIS_ENABLED: true
       OWNCLOUD_REDIS_HOST: redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:81/health"]
-      interval: 3s
+      test: ["CMD", "/usr/bin/healthcheck"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

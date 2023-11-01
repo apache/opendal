@@ -74,12 +74,13 @@
       {
         "files": "./**/*.{js,ts,mjs}",
         "options": {
+          "arrowParens": "always",
+          "parser": "typescript",
           "printWidth": 120,
           "semi": false,
-          "trailingComma": "all",
           "singleQuote": true,
-          "arrowParens": "always",
-          "parser": "typescript"
+          "tabWidth": 2,
+          "trailingComma": "all"
         }
       }
     ]

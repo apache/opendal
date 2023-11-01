@@ -186,11 +186,10 @@ services-sqlite = ["dep:rusqlite", "dep:r2d2"]
 services-supabase = []
 services-tikv = ["tikv-client"]
 services-vercel-artifacts = []
-services-wasabi = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
-]
+# Deprecated
+# wasabi services support has been removed.
+# We will remove this feature in next version.
+services-wasabi = []
 services-webdav = []
 services-webhdfs = []
 

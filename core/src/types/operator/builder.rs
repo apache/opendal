@@ -233,8 +233,6 @@ impl Operator {
             Scheme::Tikv => Self::from_map::<services::Tikv>(map)?.finish(),
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
-            #[cfg(feature = "services-wasabi")]
-            Scheme::Wasabi => Self::from_map::<services::Wasabi>(map)?.finish(),
             #[cfg(feature = "services-webdav")]
             Scheme::Webdav => Self::from_map::<services::Webdav>(map)?.finish(),
             #[cfg(feature = "services-webhdfs")]

@@ -19,6 +19,10 @@ OpenDAL bumps it's MSRV to 1.67.0.
 
 - The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it's could result in unexpected behavior when users create a file with content length `1`. So we remove it.
 
+### Wasabi Service Removed
+
+`wasabi` service native support has been removed. Users who want to access wasabi can use our `s3` service instead.
+
 # Upgrade to v0.41
 
 There is no public API and raw API changes.

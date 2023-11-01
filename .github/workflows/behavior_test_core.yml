@@ -47,7 +47,7 @@ jobs:
       # TODO: 1password is only supported on linux
       #
       # Waiting for https://github.com/1Password/load-secrets-action/issues/46
-      - name: Setup service account token for 1password
+      - name: Setup 1Password Connect
         if: runner.os == 'Linux'
         uses: 1password/load-secrets-action@v1
         with:

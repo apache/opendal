@@ -164,11 +164,6 @@ mod supabase;
 #[cfg(feature = "services-supabase")]
 pub use supabase::Supabase;
 
-#[cfg(feature = "services-wasabi")]
-mod wasabi;
-#[cfg(feature = "services-wasabi")]
-pub use wasabi::Wasabi;
-
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]

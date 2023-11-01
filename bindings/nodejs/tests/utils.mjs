@@ -38,14 +38,11 @@ export function loadTestSchemeFromEnv() {
 export function loadConfigFromEnv(scheme) {
     if (!scheme) return {}
 
-    const openDalConfig = {}
     const prefix = `opendal_${scheme}_`
 
-    for (const key in process.env) {
-        if (key.startsWith(prefix)) {
-            openDalConfig[key] = process.env[key]
-        }
-    }
-
-    return openDalConfig
+    return Object.fromEntries(
+        Object.entries(process.env)
+            .map(([key, value]) => [key.toLowerCase(), value])
+            .filter(([key]) => key.startsWith(prefix))
+    )
 }

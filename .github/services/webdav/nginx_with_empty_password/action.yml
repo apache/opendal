@@ -24,7 +24,7 @@ runs:
     - name: Setup webdav in nginx_with_empty_password
       shell: bash
       working-directory: fixtures/webdav
-      run: docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
+      run: docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

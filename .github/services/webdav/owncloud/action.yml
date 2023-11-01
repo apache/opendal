@@ -24,7 +24,7 @@ runs:
     - name: Setup owncloud
       shell: bash
       working-directory: fixtures/webdav
-      run: docker compose -f docker-compose-webdav-owncloud.yml up -d
+      run: docker compose -f docker-compose-webdav-owncloud.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

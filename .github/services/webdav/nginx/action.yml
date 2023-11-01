@@ -24,7 +24,7 @@ runs:
     - name: Setup webdav in nginx
       shell: bash
       working-directory: fixtures/webdav
-      run: docker compose -f docker-compose-webdav.yml up -d
+      run: docker compose -f docker-compose-webdav.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

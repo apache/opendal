@@ -48,6 +48,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Setup node
         uses: actions/setup-node@v4
         with:

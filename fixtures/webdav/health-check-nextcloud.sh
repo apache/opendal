@@ -1,3 +1,4 @@
+# !/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.8'
+set +ex
 
-services:
-  nextcloud:
-    image: nextcloud
-    ports:
-      - "8080:80"
-    volumes:
-      - ./health-check-nextcloud.sh:/health-check.sh
-    environment:
-      SQLITE_DATABASE: nextcloud
-      NEXTCLOUD_ADMIN_USER: admin
-      NEXTCLOUD_ADMIN_PASSWORD: admin
-      REDIS_HOST: redis
-    healthcheck:
-      test: ["CMD-SHELL", "bash", "-c", "/health-check.sh"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis
+curl -sSf 'http://localhost/status.php' | grep '"installed":true' | grep '"maintenance":false' | grep '"needsDbUpgrade":false' || exit 1

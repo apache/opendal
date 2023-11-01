@@ -35,7 +35,7 @@ export function loadTestSchemeFromEnv() {
 }
 
 export function checkRandomRootEnabled() {
-  return process.env.OPENDAL_DISABLE_RANDOM_ROOT !== "true"
+  return process.env.OPENDAL_DISABLE_RANDOM_ROOT !== 'true'
 }
 
 export function generateRandomRoot(baseRoot) {

@@ -903,6 +903,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cache-padded"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "981520c98f422fcc584dc1a95c334e6953900b9106bc47a9839b81790009eb21"
+
+[[package]]
 name = "camino"
 version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3537,9 +3543,9 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "minitrace"
-version = "0.5.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "823c2c0be9db5d4a0497700a405a231c9db19e67a24f5fe1ef4e3fdaca6a9b7e"
+checksum = "907a42ce9b352d77449f86c1a6474a18ee5cd0f75d8eeffa4a80bfdf9825899e"
 dependencies = [
  "futures",
  "minitrace-macro",
@@ -3548,13 +3554,14 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "rand 0.8.5",
+ "rtrb",
 ]
 
 [[package]]
 name = "minitrace-macro"
-version = "0.5.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db3a906b1d9cacfe2174ad7c4139fccb441af566940559822103b79e5ea25f31"
+checksum = "a1b4f1e587d486a5fe6bfede00e0efc884aeec0f16976e366ba9ddf1d67506a9"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -5797,6 +5804,15 @@ dependencies = [
  "spki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rtrb"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99e704dd104faf2326a320140f70f0b736d607c1caa1b1748a6c568a79819109"
+dependencies = [
+ "cache-padded",
 ]
 
 [[package]]

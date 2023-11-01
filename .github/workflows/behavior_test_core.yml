@@ -47,10 +47,12 @@ jobs:
       # TODO: 1password is only supported on linux
       #
       # Waiting for https://github.com/1Password/load-secrets-action/issues/46
-      - name: Setup service account token for 1password
+      - name: Setup 1Password Connect
         if: runner.os == 'Linux'
-        shell: bash
-        run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          connect-host: ${{ secrets.OP_CONNECT_HOST }}
+          connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
       - name: Test Core
         uses: ./.github/actions/behavior_test_core

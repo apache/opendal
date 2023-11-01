@@ -44,18 +44,26 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: 1password is only supported on linux
-      #
-      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
-      - name: Setup 1Password Connect
+      # REMOVE ME after OP_CONNECT_HOST and OP_CONNECT_TOKEN has been added.
+      - name: Setup 1Password Connect Trick
         if: runner.os == 'Linux'
         uses: 1password/load-secrets-action@v1
         with:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OP_CONNECT_HOST: op://services/connect/host
-          OP_CONNECT_TOKEN: op://services/connect/token
+          OP_CONNECT_HOST_TMP: op://services/connect/host
+          OP_CONNECT_TOKEN_TMP: op://services/connect/token
+
+      # TODO: 1password is only supported on linux
+      #
+      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
+      - name: Setup 1Password Connect
+        if: runner.os == 'Linux'
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          connect-host: ${{ secrets.OP_CONNECT_HOST_TMP }}
+          connect-token: ${{ secrets.OP_CONNECT_TOKEN_TMP }}
 
       - name: Test Core
         uses: ./.github/actions/behavior_test_core

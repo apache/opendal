@@ -42,6 +42,6 @@ export function loadConfigFromEnv(scheme) {
     return Object.fromEntries(
         Object.entries(process.env)
             .map(([key, value]) => [key.toLowerCase(), value])
-            .filter(([key]) => key.startsWith(prefix))
+            .filter(([key]) => key.startsWith(prefix)),
     )
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import 'dotenv/config'
+const path = require('path')
 
 export function generateBytes() {
     const size = Math.floor(Math.random() * 1024) + 1
@@ -31,6 +31,7 @@ export function generateBytes() {
 }
 
 export function loadTestSchemeFromEnv() {
+    require('dotenv').config({ path: path.resolve(__dirname, '../../../.env'), debug: true })
     return process.env.OPENDAL_TEST
 }
 
@@ -42,6 +43,7 @@ export function loadConfigFromEnv(scheme) {
     return Object.fromEntries(
         Object.entries(process.env)
             .map(([key, value]) => [key.toLowerCase(), value])
-            .filter(([key]) => key.startsWith(prefix)),
+            .filter(([key]) => key.startsWith(prefix))
+            .map(([key, value]) => [key.replace(prefix, ''), value]),
     )
 }

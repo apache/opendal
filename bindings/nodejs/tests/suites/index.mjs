@@ -17,9 +17,27 @@
  * under the License.
  */
 
-/// <reference types="node" />
+import { describe } from 'vitest'
+import { Operator } from '../../index.js'
+import { loadConfigFromEnv } from '../utils.mjs'
 
-require('dotenv').config()
-const { Operator } = require('./generated.js')
+import { run as AsyncIOTestRun } from './async.suite.mjs'
+import { run as SyncIOTestRun } from './sync.suite.mjs'
 
-module.exports.Operator = Operator
+export function runner(testName, scheme) {
+    if (testName === null || testName === undefined) {
+        throw new Error('The scheme should not be `null` or `undefined`. ')
+    }
+
+    if (testName === '') {
+        return
+    }
+
+    const config = loadConfigFromEnv(scheme)
+    const operator = scheme ? new Operator(scheme, config) : undefined
+
+    describe.skipIf(!operator)(testName, () => {
+        AsyncIOTestRun(operator)
+        SyncIOTestRun(operator)
+    })
+}

@@ -17,9 +17,16 @@
  * under the License.
  */
 
-/// <reference types="node" />
+import { defineConfig } from 'vitest/config'
+import pkg from './package.json'
 
-require('dotenv').config()
-const { Operator } = require('./generated.js')
-
-module.exports.Operator = Operator
+export default defineConfig({
+  test: {
+    name: pkg.name,
+    cache: false,
+    globals: true,
+    environment: 'node',
+    dir: 'tests',
+    reporters: 'basic',
+  },
+})

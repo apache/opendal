@@ -17,9 +17,18 @@
  * under the License.
  */
 
-/// <reference types="node" />
+import { randomUUID } from 'node:crypto'
+import { expect, test } from 'vitest'
+import { generateBytes } from '../utils.mjs'
 
-require('dotenv').config()
-const { Operator } = require('./generated.js')
+export function run(operator) {
+    test('sync stat not exist files', () => {
+        const filename = `random_file_${randomUUID()}`
 
-module.exports.Operator = Operator
+        try {
+            operator.statSync(filename)
+        } catch (error) {
+            assert.ok(error.message.includes('NotFound'))
+        }
+    })
+}

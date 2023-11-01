@@ -24,6 +24,7 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+use napi::tokio;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -41,9 +42,19 @@ impl Operator {
             .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
-        opendal::Operator::via_map(scheme, options)
-            .map_err(format_napi_error)
-            .map(Operator)
+        let mut op = opendal::Operator::via_map(scheme, options).map_err(format_napi_error)?;
+
+        if !op.info().full_capability().blocking {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let _guard = handle.enter();
+                op = op.layer(
+                    opendal::layers::BlockingLayer::create()
+                        .expect("blocking layer must be created"),
+                );
+            }
+        }
+
+        Ok(Operator(op))
     }
 
     /// Get current path's metadata **without cache** directly.

@@ -17,9 +17,7 @@
  * under the License.
  */
 
-/// <reference types="node" />
+import { runner } from './suites/index.mjs'
+import { loadTestSchemeFromEnv } from './utils.mjs'
 
-require('dotenv').config()
-const { Operator } = require('./generated.js')
-
-module.exports.Operator = Operator
+runner('Behavior Test', loadTestSchemeFromEnv())

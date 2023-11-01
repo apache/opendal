@@ -77,6 +77,8 @@ class Hint:
     binding_java: bool = field(default=False, init=False)
     # Is binding python affected?
     binding_python: bool = field(default=False, init=False)
+    # Is binding nodejs affected?
+    binding_nodejs: bool = field(default=False, init=False)
 
     # Should we run all services test?
     all_service: bool = field(default=False, init=False)
@@ -99,13 +101,19 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             hint.binding_java = True
             hint.binding_python = True
+            hint.binding_nodejs = True
             hint.all_service = True
         if p == ".github/workflows/behavior_test_core.yml":
             hint.core = True
             hint.all_service = True
         if p == ".github/workflows/behavior_test_binding_java.yml":
             hint.binding_java = True
+            hint.all_service = True
+        if p == ".github/workflows/behavior_test_binding_python.yml":
             hint.binding_python = True
+            hint.all_service = True
+        if p == ".github/workflows/behavior_test_binding_nodejs.yml":
+            hint.binding_nodejs = True
             hint.all_service = True
 
         # core affected
@@ -119,6 +127,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             hint.binding_java = True
             hint.binding_python = True
+            hint.binding_nodejs = True
             hint.all_service = True
 
         # binding java affected.
@@ -131,12 +140,18 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_python = True
             hint.all_service = True
 
+        # binding nodejs affected.
+        if p.startswith("bindings/python/"):
+            hint.binding_nodejs = True
+            hint.all_service = True
+
         # core service affected
         match = re.search(service_pattern, p)
         if match:
             hint.core = True
             hint.binding_java = True
             hint.binding_python = True
+            hint.binding_nodejs = True
             hint.services.add(match.group(1))
 
         # core test affected
@@ -145,6 +160,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             hint.binding_java = True
             hint.binding_python = True
+            hint.binding_nodejs = True
             hint.services.add(match.group(1))
 
     return hint
@@ -230,6 +246,27 @@ def generate_binding_python_cases(
     return cases
 
 
+def generate_binding_nodejs_cases(
+    cases: list[dict[str, str]], hint: Hint
+) -> list[dict[str, str]]:
+    cases = unique_cases(cases)
+
+    if os.getenv("GITHUB_IS_PUSH") == "true":
+        return cases
+
+    # Return empty if core is False
+    if not hint.binding_nodejs:
+        return []
+
+    # Return all services if all_service is True
+    if hint.all_service:
+        return cases
+
+    # Filter all cases that not shown un in changed files
+    cases = [v for v in cases if v["service"] in hint.services]
+    return cases
+
+
 def plan(changed_files: list[str]) -> dict[str, Any]:
     cases = provided_cases()
     hint = calculate_hint(changed_files)
@@ -237,16 +274,19 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     core_cases = generate_core_cases(cases, hint)
     binding_java_cases = generate_binding_java_cases(cases, hint)
     binding_python_cases = generate_binding_python_cases(cases, hint)
+    binding_nodejs_cases = generate_binding_nodejs_cases(cases, hint)
 
     jobs = {
         "components": {
             "core": False,
             "binding_java": False,
             "binding_python": False,
+            "binding_nodejs": False,
         },
         "core": [],
         "binding_java": [],
         "binding_python": [],
+        "binding_nodejs": [],
     }
 
     if len(core_cases) > 0:
@@ -273,6 +313,11 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
         jobs["components"]["binding_python"] = True
         jobs["binding_python"].append(
             {"os": "ubuntu-latest", "cases": binding_python_cases}
+        )
+    if len(binding_nodejs_cases) > 0:
+        jobs["components"]["binding_nodejs"] = True
+        jobs["binding_nodejs"].append(
+            {"os": "ubuntu-latest", "cases": binding_nodejs_cases}
         )
 
     return jobs

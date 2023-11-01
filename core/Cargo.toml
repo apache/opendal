@@ -184,6 +184,7 @@ services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2"]
 services-supabase = []
+services-swift = ["dep:scraper"]
 services-tikv = ["tikv-client"]
 services-vercel-artifacts = []
 # Deprecated
@@ -282,6 +283,7 @@ reqwest = { version = "0.11.18", features = [
 ], default-features = false }
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
 rusqlite = { version = "0.29.0", optional = true, features = ["bundled"] }
+scraper = { version = "0.18.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = { version = "0.10", optional = true }

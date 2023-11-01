@@ -111,6 +111,8 @@ pub enum Scheme {
     Sled,
     /// [Supabase][crate::services::Supabase]: Supabase storage service
     Supabase,
+    /// [swift][crate::services::Swift]: Swift backend support.
+    Swift,
     /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
     VercelArtifacts,
     /// [webdav][crate::services::Webdav]: WebDAV support.
@@ -231,6 +233,8 @@ impl Scheme {
             Scheme::Sqlite,
             #[cfg(feature = "services-supabase")]
             Scheme::Supabase,
+            #[cfg(feature = "services-swift")]
+            Scheme::Swift,
             #[cfg(feature = "services-tikv")]
             Scheme::Tikv,
             #[cfg(feature = "services-vercel-artifacts")]
@@ -307,6 +311,7 @@ impl FromStr for Scheme {
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
+            "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
             "webdav" => Ok(Scheme::Webdav),
@@ -359,6 +364,7 @@ impl From<Scheme> for &'static str {
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",
+            Scheme::Swift => "swift",
             Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",

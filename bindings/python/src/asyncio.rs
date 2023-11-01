@@ -139,8 +139,7 @@ impl AsyncOperator {
         })
     }
 
-    /// Copy from `src` to `dst`.
-
+    /// Copy source to target.``
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,

@@ -16,12 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
 import json
 import os
 import re
-from pathlib import Path
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 # The path for current script.
@@ -141,7 +141,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.all_service = True
 
         # binding nodejs affected.
-        if p.startswith("bindings/python/"):
+        if p.startswith("bindings/nodejs/"):
             hint.binding_nodejs = True
             hint.all_service = True
 
@@ -203,30 +203,8 @@ def generate_core_cases(
     return cases
 
 
-def generate_binding_java_cases(
-    cases: list[dict[str, str]], hint: Hint
-) -> list[dict[str, str]]:
-    cases = unique_cases(cases)
-
-    # Always run all tests if it is a push event.
-    if os.getenv("GITHUB_IS_PUSH") == "true":
-        return cases
-
-    # Return empty if core is False
-    if not hint.binding_java:
-        return []
-
-    # Return all services if all_service is True
-    if hint.all_service:
-        return cases
-
-    # Filter all cases that not shown un in changed files
-    cases = [v for v in cases if v["service"] in hint.services]
-    return cases
-
-
-def generate_binding_python_cases(
-    cases: list[dict[str, str]], hint: Hint
+def generate_language_binding_cases(
+    cases: list[dict[str, str]], hint: Hint, language: str
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
 
@@ -234,28 +212,7 @@ def generate_binding_python_cases(
         return cases
 
     # Return empty if core is False
-    if not hint.binding_python:
-        return []
-
-    # Return all services if all_service is True
-    if hint.all_service:
-        return cases
-
-    # Filter all cases that not shown un in changed files
-    cases = [v for v in cases if v["service"] in hint.services]
-    return cases
-
-
-def generate_binding_nodejs_cases(
-    cases: list[dict[str, str]], hint: Hint
-) -> list[dict[str, str]]:
-    cases = unique_cases(cases)
-
-    if os.getenv("GITHUB_IS_PUSH") == "true":
-        return cases
-
-    # Return empty if core is False
-    if not hint.binding_nodejs:
+    if not getattr(hint, f"binding_{language}"):
         return []
 
     # Return all services if all_service is True
@@ -272,9 +229,9 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     hint = calculate_hint(changed_files)
 
     core_cases = generate_core_cases(cases, hint)
-    binding_java_cases = generate_binding_java_cases(cases, hint)
-    binding_python_cases = generate_binding_python_cases(cases, hint)
-    binding_nodejs_cases = generate_binding_nodejs_cases(cases, hint)
+    binding_java_cases = generate_language_binding_cases(cases, hint, "java")
+    binding_python_cases = generate_language_binding_cases(cases, hint, "python")
+    binding_nodejs_cases = generate_language_binding_cases(cases, hint, "nodejs")
 
     jobs = {
         "components": {

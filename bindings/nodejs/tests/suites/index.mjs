@@ -36,7 +36,7 @@ export function runner(testName, scheme) {
     config.root = generateRandomRoot(config.root)
   }
 
-  const operator = scheme ? new Operator(scheme, config) : undefined
+  const operator = scheme ? new Operator(scheme, config) : null
 
   describe.skipIf(!operator)(testName, () => {
     AsyncIOTestRun(operator)

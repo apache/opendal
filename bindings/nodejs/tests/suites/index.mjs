@@ -33,7 +33,7 @@ export function runner(testName, scheme) {
   const config = loadConfigFromEnv(scheme)
 
   if (checkRandomRootEnabled()) {
-    config.root = generateRandomRoot()
+    config.root = generateRandomRoot(config.root)
   }
 
   const operator = scheme ? new Operator(scheme, config) : undefined

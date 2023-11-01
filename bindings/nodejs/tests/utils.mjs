@@ -35,11 +35,11 @@ export function loadTestSchemeFromEnv() {
 }
 
 export function checkRandomRootEnabled() {
-  return process.env.OPENDAL_DISABLE_RANDOM_ROOT !== 'false'
+  return process.env.OPENDAL_DISABLE_RANDOM_ROOT === 'true'
 }
 
-export function generateRandomRoot() {
-  return `/opendal_${crypto.randomUUID()}`
+export function generateRandomRoot(baseRoot) {
+  return `${baseRoot}/opendal_${crypto.randomUUID()}`
 }
 
 export function loadConfigFromEnv(scheme) {

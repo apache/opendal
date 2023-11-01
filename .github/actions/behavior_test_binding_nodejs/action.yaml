@@ -41,8 +41,11 @@ runs:
               - name: Run Test Binding NodeJS
                 shell: bash
                 working-directory: bindings/nodejs
-                run: ./yarn test
+                run: |
+                    yarn build:debug
+                    yarn test
                 env:
+                  NAPI_FEATURES: ${{ inputs.feature }}
                   OPENDAL_TEST: ${{ inputs.service }}
             EOF
       - name: Run

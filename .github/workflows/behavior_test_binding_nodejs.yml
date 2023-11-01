@@ -47,10 +47,13 @@ jobs:
       # TODO: 1password is only supported on linux
       #
       # Waiting for https://github.com/1Password/load-secrets-action/issues/46
-      - name: Setup service account token for 1password
+      - name: Setup 1Password Connect
         if: runner.os == 'Linux'
-        shell: bash
-        run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          connect-host: ${{ secrets.OP_CONNECT_HOST }}
+          connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
+
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
@@ -60,16 +63,6 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Build
-        run: |
-          docker run \
-            -v ${{ github.workspace }}:/build \
-            -e NAPI_TARGET=x86_64-unknown-linux-gnu \
-            -w /build/bindings/nodejs \
-            ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
-            bash -c "yarn build"
-          # change owner to current user
-          sudo chown -R 1001:121 *.node
 
       - name: Test Core
         uses: ./.github/actions/behavior_test_binding_nodejs

@@ -60,8 +60,8 @@
     "node": ">= 10"
   },
   "scripts": {
-    "build": "napi build --platform --target \"${NAPI_TARGET:-}\" --release --js generated.js && node ./scripts/header.js",
-    "build:debug": "napi build --platform --target \"${NAPI_TARGET:-}\" --js generated.js && node ./scripts/header.js",
+    "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js && node ./scripts/header.js",
+    "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js && node ./scripts/header.js",
     "docs": "typedoc",
     "format": "prettier --write .",
     "test": "vitest",

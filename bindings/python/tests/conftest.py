@@ -17,10 +17,10 @@
 
 import os
 
-from dotenv import load_dotenv
 import pytest
-import opendal
+from dotenv import load_dotenv
 
+import opendal
 
 load_dotenv()
 pytest_plugins = ("pytest_asyncio",)

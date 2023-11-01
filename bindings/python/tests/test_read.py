@@ -16,8 +16,8 @@
 # under the License.
 
 import os
-from uuid import uuid4
 from random import randint
+from uuid import uuid4
 
 import pytest
 

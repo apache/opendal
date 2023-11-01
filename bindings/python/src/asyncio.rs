@@ -140,8 +140,13 @@ impl AsyncOperator {
     }
 
     /// Copy from `src` to `dst`.
-    
-    pub fn copy<'p>(&'p self, py: Python<'p>, source: String, target: String) -> PyResult<&'p PyAny> {
+
+    pub fn copy<'p>(
+        &'p self,
+        py: Python<'p>,
+        source: String,
+        target: String,
+    ) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)

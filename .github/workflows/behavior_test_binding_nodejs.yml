@@ -60,8 +60,10 @@ jobs:
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
+        working-directory: bindings/nodejs
         run: corepack enable
       - name: Install dependencies
+        working-directory: bindings/nodejs
         run: yarn install --immutable
 
       - name: Test Core

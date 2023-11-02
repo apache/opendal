@@ -15,12 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class ConcurrentLimitLayer:
-    def __init__(self, permits: int) -> None: ...
-
-class ImmutableIndexLayer:
-    def insert(self, key: str) -> None: ...
-
 class RetryLayer:
     def __init__(
         self,

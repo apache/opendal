@@ -25,7 +25,7 @@ use opendal::layers::RetryLayer;
 use opendal::Operator;
 
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayer_doLayer(
+pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer(
     _: JNIEnv,
     _: JClass,
     op: *mut Operator,

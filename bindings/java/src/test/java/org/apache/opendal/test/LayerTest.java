@@ -23,17 +23,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
-import org.apache.opendal.NativeLayer;
+import org.apache.opendal.Layer;
 import org.apache.opendal.Operator;
-import org.apache.opendal.layer.RetryNativeLayer;
+import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.Test;
 
-public class NativeLayerTest {
+public class LayerTest {
     @Test
     void testOperatorWithRetryLayer() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
-        final NativeLayer retryLayer = RetryNativeLayer.builder().build();
+        final Layer retryLayer = RetryLayer.builder().build();
         @Cleanup final Operator op = Operator.of("memory", conf);
         @Cleanup final Operator layeredOp = op.layer(retryLayer);
         assertThat(layeredOp.info).isNotNull();

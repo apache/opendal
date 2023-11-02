@@ -139,7 +139,7 @@ public class Operator extends NativeObject {
         return new Operator(nativeHandle, this.info);
     }
 
-    public Operator layer(NativeLayer layer) {
+    public Operator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
         return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
     }

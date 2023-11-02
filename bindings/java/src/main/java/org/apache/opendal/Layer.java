@@ -17,34 +17,8 @@
  * under the License.
  */
 
-package org.apache.opendal.layer;
+package org.apache.opendal;
 
-import java.time.Duration;
-import lombok.Builder;
-import org.apache.opendal.NativeLayer;
-
-@Builder
-public class RetryNativeLayer extends NativeLayer {
-
-    private final boolean jitter;
-
-    @Builder.Default
-    private final float factor = 2;
-
-    @Builder.Default
-    private final Duration minDelay = Duration.ofSeconds(1);
-
-    @Builder.Default
-    private final Duration maxDelay = Duration.ofSeconds(60);
-
-    @Builder.Default
-    private final long maxTimes = 3;
-
-    @Override
-    protected long layer(long op) {
-        return doLayer(op, jitter, factor, minDelay.toNanos(), maxDelay.toNanos(), maxTimes);
-    }
-
-    private static native long doLayer(
-            long nativeHandle, boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
+public abstract class Layer {
+    protected abstract long layer(long nativeOp);
 }

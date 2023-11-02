@@ -171,6 +171,14 @@ impl AsyncOperator {
         })
     }
 
+    /// Remove all file
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            this.remove_all(&path).await.map_err(format_pyerr)
+        })
+    }
+
     /// Create a dir at given path.
     ///
     /// # Notes

@@ -185,6 +185,12 @@ impl Operator {
     pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
         self.0.rename(source, target).map_err(format_pyerr)
     }
+
+    /// Remove all file
+    pub fn remove_all(&self, path: &str) -> PyResult<()> {
+        self.0.remove_all(path).map_err(format_pyerr)
+    }
+
     /// Create a dir at given path.
     ///
     /// # Notes

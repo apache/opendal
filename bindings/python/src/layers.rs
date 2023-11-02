@@ -54,7 +54,7 @@ impl RetryLayer {
         jitter: bool,
         max_delay: Option<f64>,
         min_delay: Option<f64>,
-    ) -> PyResult<(Self, Layer)> {
+    ) -> PyResult<PyClassInitializer<Self>> {
         let mut retry = od::layers::RetryLayer::default();
         if let Some(max_times) = max_times {
             retry = retry.with_max_times(max_times);
@@ -73,8 +73,10 @@ impl RetryLayer {
         }
 
         let retry_layer = Self(retry);
+        let class = PyClassInitializer::from(Layer(Box::new(retry_layer.clone())))
+            .add_subclass(retry_layer);
 
-        Ok((retry_layer.clone(), Layer(Box::new(retry_layer))))
+        Ok(class)
     }
 }
 

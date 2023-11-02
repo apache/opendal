@@ -47,33 +47,6 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        // Swift doesn't support create directory directly.
-
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::put(&url);
-
-        req = req.header("X-Auth-Token", &self.token);
-        req = req.header("Content-Length", "0");
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-
-        // Ok(Response::new(IncomingAsyncBody::empty()))
-    }
-
     pub async fn swift_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -125,14 +98,12 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_create_file(
+    pub async fn swift_create_object(
         &self,
         path: &str,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        let p = build_abs_path(&self.root, path);
 
         let url = format!(
             "{}/v1/{}/{}/{}",
@@ -145,6 +116,10 @@ impl SwiftCore {
         let mut req = Request::put(&url);
 
         req = req.header("X-Auth-Token", &self.token);
+
+        if p.ends_with('/') {
+            req = req.header("Content-Length", "0");
+        }
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

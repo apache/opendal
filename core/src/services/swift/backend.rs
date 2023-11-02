@@ -244,7 +244,10 @@ impl Accessor for SwiftBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.swift_create_dir(path).await?;
+        let resp = self
+            .core
+            .swift_create_object(path, AsyncBody::Empty)
+            .await?;
 
         let status = resp.status();
 

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
-use http::header::CONTENT_LENGTH;
 use http::Request;
 use http::Response;
 use serde_json::json;
@@ -129,15 +128,13 @@ impl SwiftCore {
     pub async fn swift_create_file(
         &self,
         path: &str,
-        append: bool,
-        offset: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
-        let mut url = format!(
+        let url = format!(
             "{}/v1/{}/{}/{}",
             self.endpoint,
             self.account,
@@ -145,20 +142,9 @@ impl SwiftCore {
             percent_encode_path(&p)
         );
 
-        // append data to an existing DLO, where the offset is the final size after appending.
-        if append && offset > 0 {
-            url.push_str(format!("/{}", offset).as_str());
-        }
-
         let mut req = Request::put(&url);
 
         req = req.header("X-Auth-Token", &self.token);
-
-        // create the manifest file for DLO if not exist.
-        if append && offset == 0 {
-            req = req.header("X-Object-Manifest", format!("{}/{}", self.container, &p));
-            req = req.header(CONTENT_LENGTH, "0");
-        }
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

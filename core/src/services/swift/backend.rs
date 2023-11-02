@@ -28,7 +28,6 @@ use super::core::SwiftCore;
 use super::error::parse_error;
 use super::pager::SwiftPager;
 use super::writer::SwiftWriter;
-use super::writer::SwiftWriters;
 use crate::raw::*;
 use crate::*;
 
@@ -215,7 +214,7 @@ pub struct SwiftBackend {
 impl Accessor for SwiftBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = SwiftWriters;
+    type Writer = oio::OneShotWriter<SwiftWriter>;
     type BlockingWriter = ();
     type Pager = SwiftPager;
     type BlockingPager = ();
@@ -232,35 +231,16 @@ impl Accessor for SwiftBackend {
                 read_with_range: true,
 
                 write: true,
-                write_can_append: true,
                 create_dir: true,
                 delete: true,
                 rename: true,
 
-                copy: true,
                 list: true,
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
         am
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        // Swift doesn't support copy directory directly. We will copy and delete.
-        let resp = self.core.swift_copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                self.core.swift_delete(from).await?;
-
-                Ok(RpRename::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -291,15 +271,9 @@ impl Accessor for SwiftBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
 
-        // if append is true, then we will use dynamic large object (DLO) to write.
-        // Reference: https://docs.openstack.org/swift/latest/overview_large_objects.html#module-swift.common.middleware.dlo
-        let w = if args.append() {
-            SwiftWriters::Two(oio::AppendObjectWriter::new(w))
-        } else {
-            SwiftWriters::One(oio::OneShotWriter::new(w))
-        };
+        let w = oio::OneShotWriter::new(writer);
 
         return Ok((RpWrite::default(), w));
     }

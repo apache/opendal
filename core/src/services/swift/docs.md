@@ -10,7 +10,7 @@ This service can be used to:
 - [x] create_dir
 - [x] delete
 - [x] copy
-- [x] rename
+- [ ] ~~rename~~
 - [x] list
 - [ ] ~~scan~~
 - [ ] ~~presign~~

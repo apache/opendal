@@ -181,6 +181,10 @@ impl Operator {
         self.0.copy(source, target).map_err(format_pyerr)
     }
 
+    /// Rename filename.
+    pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
+        self.0.rename(source, target).map_err(format_pyerr)
+    }
     /// Create a dir at given path.
     ///
     /// # Notes

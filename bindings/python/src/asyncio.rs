@@ -158,6 +158,19 @@ impl AsyncOperator {
         })
     }
 
+    /// Rename filename
+    pub fn rename<'p>(
+        &'p self,
+        py: Python<'p>,
+        source: String,
+        target: String,
+    ) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            this.rename(&source, &target).await.map_err(format_pyerr)
+        })
+    }
+
     /// Create a dir at given path.
     ///
     /// # Notes

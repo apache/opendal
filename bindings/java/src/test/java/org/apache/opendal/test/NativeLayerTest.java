@@ -17,35 +17,25 @@
  * under the License.
  */
 
-package org.apache.opendal.layer;
+package org.apache.opendal.test;
 
-import java.time.Duration;
-import lombok.Builder;
-import org.apache.opendal.Layer;
+import static org.assertj.core.api.Assertions.assertThat;
+import java.util.HashMap;
+import java.util.Map;
+import lombok.Cleanup;
+import org.apache.opendal.NativeLayer;
 import org.apache.opendal.Operator;
+import org.apache.opendal.layer.RetryNativeLayer;
+import org.junit.jupiter.api.Test;
 
-@Builder
-public class RetryLayer extends Layer {
-
-    private final boolean jitter;
-
-    @Builder.Default
-    private final float factor = 2;
-
-    @Builder.Default
-    private final Duration minDelay = Duration.ofSeconds(1);
-
-    @Builder.Default
-    private final Duration maxDelay = Duration.ofSeconds(60);
-
-    @Builder.Default
-    private final long maxTimes = 3;
-
-    @Override
-    protected Operator layer(Operator op) {
-        return doLayer(op, jitter, factor, minDelay.toNanos(), maxDelay.toNanos(), maxTimes);
+public class NativeLayerTest {
+    @Test
+    void testOperatorWithRetryLayer() {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/opendal/");
+        final NativeLayer retryLayer = RetryNativeLayer.builder().build();
+        @Cleanup final Operator op = Operator.of("memory", conf);
+        @Cleanup final Operator layeredOp = op.layer(retryLayer);
+        assertThat(layeredOp.info).isNotNull();
     }
-
-    private static native Operator doLayer(
-            Operator nativeHandle, boolean jitter, float factor, long minDelay, long maxDelay, long maxTimes);
 }

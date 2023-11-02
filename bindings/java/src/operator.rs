@@ -721,30 +721,3 @@ fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'lo
         )?
         .l()?)
 }
-
-pub(crate) fn get_operator<'local>(
-    env: &mut JNIEnv<'local>,
-    op: JObject<'local>,
-) -> Result<&'local mut Operator> {
-    let op = env
-        .call_method(op, "getNativeHandle", "()J", &[])
-        .expect("get_operator_call_method")
-        .j()
-        .expect("get_operator_j()");
-    Ok(unsafe { &mut *(op as *mut Operator) })
-}
-
-pub(crate) fn make_operator<'local>(
-    env: &mut JNIEnv<'local>,
-    op: Operator,
-) -> Result<JObject<'local>> {
-    let info = make_operator_info(env, op.info())?;
-    Ok(env.new_object(
-        "org/apache/opendal/Operator",
-        "(JLorg/apache/opendal/OperatorInfo;)V",
-        &[
-            JValue::Long(Box::into_raw(Box::new(op)) as jlong),
-            JValue::Object(&info),
-        ],
-    )?)
-}

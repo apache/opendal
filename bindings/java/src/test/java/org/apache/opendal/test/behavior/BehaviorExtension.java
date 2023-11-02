@@ -29,7 +29,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Operator;
-import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.RetryNativeLayer;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -57,7 +57,7 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
             }
 
             @Cleanup final Operator op = Operator.of(scheme, config);
-            this.operator = op.layer(RetryLayer.builder().build());
+            this.operator = op.layer(RetryNativeLayer.builder().build());
             this.blockingOperator = this.operator.blocking();
 
             this.testName = String.format("%s(%s)", context.getDisplayName(), scheme);

@@ -17,45 +17,25 @@
 
 use std::time::Duration;
 
-use jni::objects::{JClass, JObject};
-use jni::sys::{jboolean, jfloat, jlong, jobject};
+use jni::objects::JClass;
+use jni::sys::{jboolean, jfloat, jlong};
 use jni::JNIEnv;
 
 use opendal::layers::RetryLayer;
-
-use crate::operator::{get_operator, make_operator};
-use crate::Result;
+use opendal::Operator;
 
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
-    mut env: JNIEnv<'local>,
+pub extern "system" fn Java_org_apache_opendal_layer_RetryNativeLayer_doLayer(
+    _: JNIEnv,
     _: JClass,
-    op: JObject<'local>,
+    op: *mut Operator,
     jitter: jboolean,
     factor: jfloat,
     min_delay: jlong,
     max_delay: jlong,
     max_times: jlong,
-) -> jobject {
-    intern_retry_layer(
-        &mut env, op, jitter, factor, min_delay, max_delay, max_times,
-    )
-    .unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JObject::default().into_raw()
-    })
-}
-
-fn intern_retry_layer<'local>(
-    env: &mut JNIEnv<'local>,
-    op: JObject<'local>,
-    jitter: jboolean,
-    factor: jfloat,
-    min_delay: jlong,
-    max_delay: jlong,
-    max_times: jlong,
-) -> Result<jobject> {
-    let op = get_operator(env, op)?;
+) -> jlong {
+    let op = unsafe { &*op };
     let mut retry = RetryLayer::new();
     retry = retry.with_factor(factor);
     retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
@@ -66,6 +46,5 @@ fn intern_retry_layer<'local>(
     if max_times >= 0 {
         retry = retry.with_max_times(max_times as usize);
     }
-    let op = op.clone().layer(retry);
-    Ok(make_operator(env, op)?.into_raw())
+    Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
 }

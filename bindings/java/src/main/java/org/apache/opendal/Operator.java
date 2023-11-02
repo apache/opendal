@@ -139,8 +139,9 @@ public class Operator extends NativeObject {
         return new Operator(nativeHandle, this.info);
     }
 
-    public Operator layer(Layer layer) {
-        return layer.layer(this);
+    public Operator layer(NativeLayer layer) {
+        final long nativeHandle = layer.layer(this.nativeHandle);
+        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {

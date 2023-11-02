@@ -57,8 +57,8 @@ pub struct AsyncOperator(od::Operator);
 #[pymethods]
 impl AsyncOperator {
     #[new]
-    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
-    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *,  **map))]
+    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -71,7 +71,13 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, layers, false)?))
+        Ok(AsyncOperator(build_operator(scheme, map, false)?))
+    }
+
+    /// Add new layers upon existing operator
+    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+        let op = layer.0.layer(self.0.clone());
+        Ok(Self(op))
     }
 
     /// Read the whole path into bytes.

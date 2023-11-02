@@ -82,25 +82,9 @@ impl From<Vec<u8>> for Buffer {
     }
 }
 
-fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
-    for layer in layers {
-        match layer {
-            layers::Layer::Retry(layers::RetryLayer(inner)) => op = op.layer(inner),
-            layers::Layer::ImmutableIndex(layers::ImmutableIndexLayer(inner)) => {
-                op = op.layer(inner)
-            }
-            layers::Layer::ConcurrentLimit(layers::ConcurrentLimitLayer(inner)) => {
-                op = op.layer(inner)
-            }
-        }
-    }
-    Ok(op)
-}
-
 fn build_operator(
     scheme: od::Scheme,
     map: HashMap<String, String>,
-    layers: Vec<layers::Layer>,
     blocking: bool,
 ) -> PyResult<od::Operator> {
     let mut op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
@@ -110,7 +94,7 @@ fn build_operator(
         op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
     }
 
-    add_layers(op, layers)
+    Ok(op)
 }
 
 /// `Operator` is the entry for all public blocking APIs
@@ -122,8 +106,8 @@ struct Operator(od::BlockingOperator);
 #[pymethods]
 impl Operator {
     #[new]
-    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
-    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *, **map))]
+    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -136,9 +120,13 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(
-            build_operator(scheme, map, layers, true)?.blocking(),
-        ))
+        Ok(Operator(build_operator(scheme, map, true)?.blocking()))
+    }
+
+    /// Add new layers upon existing operator
+    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+        let op = layer.0.layer(self.0.clone().into());
+        Ok(Self(op.blocking()))
     }
 
     /// Read the whole path into bytes.
@@ -585,11 +573,11 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<capability::Capability>()?;
     m.add("Error", py.get_type::<Error>())?;
 
-    let layers = layers::create_submodule(py)?;
-    m.add_submodule(layers)?;
+    let layers_module = layers::create_submodule(py)?;
+    m.add_submodule(layers_module)?;
     py.import("sys")?
         .getattr("modules")?
-        .set_item("opendal.layers", layers)?;
+        .set_item("opendal.layers", layers_module)?;
 
     Ok(())
 }

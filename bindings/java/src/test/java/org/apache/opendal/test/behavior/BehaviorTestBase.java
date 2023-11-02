@@ -20,6 +20,8 @@
 package org.apache.opendal.test.behavior;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Random;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Operator;
@@ -53,5 +55,24 @@ public abstract class BehaviorTestBase {
         final byte[] content = new byte[size];
         random.nextBytes(content);
         return content;
+    }
+
+    /**
+     * Calculate SHA256 digest of input bytes
+     *
+     * @param input input bytes
+     * @return SHA256 digest string
+     * @throws NoSuchAlgorithmException
+     */
+    public static String sha256Digest(final byte[] input) throws NoSuchAlgorithmException {
+        final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        final byte[] hash = digest.digest(input);
+        final StringBuilder hexString = new StringBuilder();
+        for (int i = 0; i < hash.length; i++) {
+            final String hex = Integer.toHexString(0xff & hash[i]);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 }

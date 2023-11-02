@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -319,37 +318,38 @@ impl Accessor for FtpBackend {
         return Ok(RpCreateDir::default());
     }
 
+    /// TODO: migrate to FileReader maybe?
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (Box<dyn AsyncRead + Send + Unpin>, _) = match (br.offset(), br.size()) {
+        let r: Box<dyn AsyncRead + Send + Unpin> = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);
-                (Box::new(ds), min(size, meta.size() as u64 - offset))
+                Box::new(ds)
             }
             (Some(offset), None) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64 - offset)
+                Box::new(ds)
             }
             (None, Some(size)) => {
                 ftp_stream
                     .resume_transfer((meta.size() as u64 - size) as usize)
                     .await?;
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), size)
+                Box::new(ds)
             }
             (None, None) => {
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64)
+                Box::new(ds)
             }
         };
 
-        Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
+        Ok((RpRead::new(), FtpReader::new(r, ftp_stream)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -159,6 +159,8 @@ impl Operator {
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile => Self::from_map::<services::Azfile>(map)?.finish(),
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
             #[cfg(feature = "services-cos")]
@@ -231,8 +233,6 @@ impl Operator {
             Scheme::Tikv => Self::from_map::<services::Tikv>(map)?.finish(),
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
-            #[cfg(feature = "services-wasabi")]
-            Scheme::Wasabi => Self::from_map::<services::Wasabi>(map)?.finish(),
             #[cfg(feature = "services-webdav")]
             Scheme::Webdav => Self::from_map::<services::Webdav>(map)?.finish(),
             #[cfg(feature = "services-webhdfs")]

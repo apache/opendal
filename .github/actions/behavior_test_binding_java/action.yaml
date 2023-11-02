@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test Core
+name: Test Binding Java
 description: 'Test Core with given setup and service'
 inputs:
   setup:

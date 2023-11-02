@@ -18,6 +18,5 @@
 mod backend;
 pub use backend::HdfsBuilder as Hdfs;
 
-mod error;
 mod pager;
 mod writer;

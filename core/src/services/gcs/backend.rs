@@ -389,8 +389,10 @@ impl Accessor for GcsBackend {
         let resp = self.core.gcs_get_object(path, &args).await?;
 
         if resp.status().is_success() {
-            let meta = parse_into_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body()))
+            let size = parse_content_length(resp.headers())?;
+            Ok((RpRead::new().with_size(size), resp.into_body()))
+        } else if resp.status() == StatusCode::RANGE_NOT_SATISFIABLE {
+            Ok((RpRead::new(), IncomingAsyncBody::empty()))
         } else {
             Err(parse_error(resp).await?)
         }

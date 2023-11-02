@@ -113,8 +113,6 @@ pub enum Scheme {
     Supabase,
     /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
     VercelArtifacts,
-    /// [wasabi][crate::services::Wasabi]: Wasabi service
-    Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
@@ -165,6 +163,8 @@ impl Scheme {
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls,
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile,
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]
@@ -235,8 +235,6 @@ impl Scheme {
             Scheme::Tikv,
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts,
-            #[cfg(feature = "services-wasabi")]
-            Scheme::Wasabi,
             #[cfg(feature = "services-webdav")]
             Scheme::Webdav,
             #[cfg(feature = "services-webhdfs")]
@@ -311,7 +309,6 @@ impl FromStr for Scheme {
             "supabase" => Ok(Scheme::Supabase),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
-            "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
@@ -364,7 +361,6 @@ impl From<Scheme> for &'static str {
             Scheme::Supabase => "supabase",
             Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::Oss => "oss",
-            Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",

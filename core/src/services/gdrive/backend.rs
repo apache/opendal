@@ -118,25 +118,14 @@ impl Accessor for GdriveBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        // We need to request for metadata and body separately here.
-        // Request for metadata first to check if the file exists.
-        let resp = self.core.gdrive_stat(path).await?;
+        let resp = self.core.gdrive_get(path).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let meta = self.parse_metadata(body)?;
-
-                let resp = self.core.gdrive_get(path).await?;
-
-                let status = resp.status();
-
-                match status {
-                    StatusCode::OK => Ok((RpRead::with_metadata(meta), resp.into_body())),
-                    _ => Err(parse_error(resp).await?),
-                }
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }

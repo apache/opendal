@@ -46,6 +46,8 @@ use crate::Entry;
 use crate::Metadata;
 use crate::PresignedRequest;
 
+use crate::capability;
+
 /// `AsyncOperator` is the entry for all public async APIs
 ///
 /// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
@@ -55,8 +57,8 @@ pub struct AsyncOperator(od::Operator);
 #[pymethods]
 impl AsyncOperator {
     #[new]
-    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
-    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *,  **map))]
+    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -69,7 +71,13 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, layers, false)?))
+        Ok(AsyncOperator(build_operator(scheme, map, false)?))
+    }
+
+    /// Add new layers upon existing operator
+    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+        let op = layer.0.layer(self.0.clone());
+        Ok(Self(op))
     }
 
     /// Read the whole path into bytes.
@@ -134,6 +142,19 @@ impl AsyncOperator {
             let res: Metadata = this.stat(&path).await.map_err(format_pyerr).map(Metadata)?;
 
             Ok(res)
+        })
+    }
+
+    /// Copy source to target.``
+    pub fn copy<'p>(
+        &'p self,
+        py: Python<'p>,
+        source: String,
+        target: String,
+    ) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            this.copy(&source, &target).await.map_err(format_pyerr)
         })
     }
 
@@ -248,6 +269,10 @@ impl AsyncOperator {
 
             Ok(res)
         })
+    }
+
+    pub fn capability(&self) -> PyResult<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
     }
 
     fn __repr__(&self) -> String {

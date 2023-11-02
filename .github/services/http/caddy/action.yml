@@ -24,7 +24,7 @@ runs:
     - name: Setup http in caddy
       shell: bash
       working-directory: fixtures/http
-      run: docker-compose -f docker-compose-caddy.yml up -d
+      run: docker compose -f docker-compose-caddy.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

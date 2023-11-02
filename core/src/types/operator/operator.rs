@@ -20,15 +20,13 @@ use std::time::Duration;
 use bytes::Buf;
 use bytes::Bytes;
 use futures::stream;
-use futures::AsyncReadExt;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::raw::oio::WriteExt;
+use crate::raw::oio::{ReadExt, WriteExt};
 use crate::raw::*;
 use crate::*;
 
@@ -368,32 +366,11 @@ impl Operator {
                         .with_context("path", &path));
                     }
 
-                    let br = args.range();
-                    let (rp, mut s) = inner.read(&path, args).await?;
+                    let (_, mut s) = inner.read(&path, args).await?;
+                    let mut buf = Vec::new();
+                    s.read_to_end(&mut buf).await?;
 
-                    let length = rp.into_metadata().content_length() as usize;
-                    let mut buffer = Vec::with_capacity(length);
-
-                    let dst = buffer.spare_capacity_mut();
-                    let mut buf = ReadBuf::uninit(dst);
-
-                    // Safety: the input buffer is created with_capacity(length).
-                    unsafe { buf.assume_init(length) };
-
-                    // TODO: use native read api
-                    s.read_exact(buf.initialized_mut()).await.map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "read from storage")
-                            .with_operation("read")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path)
-                            .with_context("range", br.to_string())
-                            .set_source(err)
-                    })?;
-
-                    // Safety: read_exact makes sure this buffer has been filled.
-                    unsafe { buffer.set_len(length) }
-
-                    Ok(buffer)
+                    Ok(buf)
                 };
 
                 Box::pin(fut)

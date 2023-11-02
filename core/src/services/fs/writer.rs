@@ -28,7 +28,6 @@ use futures::FutureExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
-use super::error::parse_io_error;
 use crate::raw::*;
 use crate::*;
 
@@ -64,7 +63,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 
         Pin::new(f)
             .poll_write_vectored(cx, &bs.vectored_chunk())
-            .map_err(parse_io_error)
+            .map_err(new_std_io_error)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -79,13 +78,13 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             let tmp_path = self.tmp_path.clone();
             let target_path = self.target_path.clone();
             self.fut = Some(Box::pin(async move {
-                f.flush().await.map_err(parse_io_error)?;
-                f.sync_all().await.map_err(parse_io_error)?;
+                f.flush().await.map_err(new_std_io_error)?;
+                f.sync_all().await.map_err(new_std_io_error)?;
 
                 if let Some(tmp_path) = &tmp_path {
                     tokio::fs::rename(tmp_path, &target_path)
                         .await
-                        .map_err(parse_io_error)?;
+                        .map_err(new_std_io_error)?;
                 }
 
                 Ok(())
@@ -107,7 +106,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
                 if let Some(tmp_path) = &tmp_path {
                     tokio::fs::remove_file(tmp_path)
                         .await
-                        .map_err(parse_io_error)
+                        .map_err(new_std_io_error)
                 } else {
                     Err(Error::new(
                         ErrorKind::Unsupported,
@@ -124,15 +123,15 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         f.write_vectored(&bs.vectored_chunk())
-            .map_err(parse_io_error)
+            .map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {
         if let Some(f) = self.f.take() {
-            f.sync_all().map_err(parse_io_error)?;
+            f.sync_all().map_err(new_std_io_error)?;
 
             if let Some(tmp_path) = &self.tmp_path {
-                std::fs::rename(tmp_path, &self.target_path).map_err(parse_io_error)?;
+                std::fs::rename(tmp_path, &self.target_path).map_err(new_std_io_error)?;
             }
         }
 

@@ -320,28 +320,18 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             .with_label_values(&labels)
             .start_timer();
 
-        let read_res = self
-            .inner
-            .read(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    self.stats
-                        .bytes_total
-                        .with_label_values(&labels)
-                        .observe(rp.metadata().content_length() as f64);
-                    (
-                        rp,
-                        PrometheusMetricWrapper::new(
-                            r,
-                            Operation::Read,
-                            self.stats.clone(),
-                            self.scheme,
-                            &path.to_string(),
-                        ),
-                    )
-                })
-            })
-            .await;
+        let read_res = self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                PrometheusMetricWrapper::new(
+                    r,
+                    Operation::Read,
+                    self.stats.clone(),
+                    self.scheme,
+                    &path.to_string(),
+                ),
+            )
+        });
         timer.observe_duration();
         read_res.map_err(|e| {
             self.stats.increment_errors_total(Operation::Read, e.kind());
@@ -546,10 +536,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             .with_label_values(&labels)
             .start_timer();
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
-            self.stats
-                .bytes_total
-                .with_label_values(&labels)
-                .observe(rp.metadata().content_length() as f64);
             (
                 rp,
                 PrometheusMetricWrapper::new(

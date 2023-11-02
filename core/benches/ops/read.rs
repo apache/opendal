@@ -18,6 +18,8 @@
 use criterion::Criterion;
 use futures::io;
 use futures::AsyncReadExt;
+use opendal::raw::tests::init_test_service;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Size;
@@ -25,7 +27,7 @@ use size::Size;
 use super::utils::*;
 
 pub fn bench(c: &mut Criterion) {
-    if let Some(op) = init_service() {
+    if let Some(op) = init_test_service().unwrap() {
         bench_read_full(c, op.info().scheme().into_static(), op.clone());
         bench_read_part(c, op.info().scheme().into_static(), op.clone());
         bench_read_parallel(c, op.info().scheme().into_static(), op.clone());
@@ -49,7 +51,7 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
 
         group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
         group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
-            b.to_async(&*TOKIO).iter(|| async {
+            b.to_async(&*TEST_RUNTIME).iter(|| async {
                 let r = op
                     .reader_with(path)
                     .range(0..=size.bytes() as u64)
@@ -84,7 +86,7 @@ fn bench_read_part(c: &mut Criterion, name: &str, op: Operator) {
 
         group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
         group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
-            b.to_async(&*TOKIO).iter(|| async {
+            b.to_async(&*TEST_RUNTIME).iter(|| async {
                 let r = op.reader_with(path).range(offset..).await.unwrap();
                 io::copy(r, &mut io::sink()).await.unwrap();
             })
@@ -119,7 +121,7 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
                 format!("{}x{}", parallel, size.to_string()),
                 &(op.clone(), &path, buf.clone()),
                 |b, (op, path, buf)| {
-                    b.to_async(&*TOKIO).iter(|| async {
+                    b.to_async(&*TEST_RUNTIME).iter(|| async {
                         let futures = (0..parallel)
                             .map(|_| async {
                                 let mut buf = buf.clone();

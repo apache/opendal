@@ -200,32 +200,9 @@ impl Accessor for DbfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut meta = Metadata::new(EntryMode::FILE);
-
-        if let Some(length) = args.range().size() {
-            meta.set_content_length(length);
-        } else {
-            let stat_resp = self.core.dbfs_get_status(path).await?;
-            meta = parse_into_metadata(path, stat_resp.headers())?;
-            let decoded_response =
-                serde_json::from_slice::<DbfsStatus>(&stat_resp.into_body().bytes().await?)
-                    .map_err(new_json_deserialize_error)?;
-            meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
-                decoded_response.modification_time,
-            )?);
-            meta.set_mode(if decoded_response.is_dir {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            });
-            if !decoded_response.is_dir {
-                meta.set_content_length(decoded_response.file_size as u64);
-            }
-        }
-
         let op = DbfsReader::new(self.core.clone(), args, path.to_string());
 
-        Ok((RpRead::with_metadata(meta), op))
+        Ok((RpRead::new(), op))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

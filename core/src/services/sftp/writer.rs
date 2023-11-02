@@ -45,11 +45,14 @@ impl oio::Write for SftpWriter {
         self.file
             .as_mut()
             .poll_write(cx, bs.chunk())
-            .map_err(parse_io_error)
+            .map_err(new_std_io_error)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.file.as_mut().poll_shutdown(cx).map_err(parse_io_error)
+        self.file
+            .as_mut()
+            .poll_shutdown(cx)
+            .map_err(new_std_io_error)
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
@@ -60,6 +63,6 @@ impl oio::Write for SftpWriter {
     }
 }
 
-fn parse_io_error(err: std::io::Error) -> Error {
+fn new_std_io_error(err: std::io::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "read from sftp").set_source(err)
 }

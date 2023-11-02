@@ -27,20 +27,24 @@ mod into_streamable_read;
 pub use into_streamable_read::into_streamable_read;
 pub use into_streamable_read::StreamableReader;
 
-mod into_seekable_read_by_range;
-pub use into_seekable_read_by_range::into_seekable_read_by_range;
-pub use into_seekable_read_by_range::ByRangeSeekableReader;
+mod range_read;
+pub use range_read::RangeReader;
 
-mod into_read_from_file;
-pub use into_read_from_file::into_read_from_file;
-pub use into_read_from_file::FromFileReader;
+mod file_read;
+pub use file_read::FileReader;
 
 mod into_read_from_stream;
 pub use into_read_from_stream::into_read_from_stream;
 pub use into_read_from_stream::FromStreamReader;
 
-mod cloneable_read;
-pub use cloneable_read::into_cloneable_reader_within_std;
-pub use cloneable_read::into_cloneable_reader_within_tokio;
-pub use cloneable_read::CloneableReaderWithinStd;
-pub use cloneable_read::CloneableReaderWithinTokio;
+mod futures_read;
+pub use futures_read::FuturesReader;
+
+mod tokio_read;
+pub use tokio_read::TokioReader;
+
+mod std_read;
+pub use std_read::StdReader;
+
+mod lazy_read;
+pub use lazy_read::LazyReader;

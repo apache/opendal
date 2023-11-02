@@ -52,7 +52,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior --features services-redb -j=1
+        run: cargo test behavior --features tests,services-redb -j=1
         env:
           OPENDAL_TEST: redb
           OPENDAL_REDB_ROOT: /

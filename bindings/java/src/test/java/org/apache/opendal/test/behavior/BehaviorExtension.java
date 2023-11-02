@@ -25,6 +25,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.opendal.BlockingOperator;
@@ -54,6 +55,12 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
                 if (key.startsWith(prefix)) {
                     config.put(key.substring(prefix.length()), entry.getValue());
                 }
+            }
+
+            // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
+            if (!Boolean.parseBoolean(dotenv.get("OPENDAL_DISABLE_RANDOM_ROOT"))) {
+                final String root = config.getOrDefault("root", "/") + UUID.randomUUID() + "/";
+                config.put("root", root);
             }
 
             @Cleanup final Operator op = Operator.of(scheme, config);

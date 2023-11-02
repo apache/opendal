@@ -15,6 +15,14 @@ OpenDAL bumps it's MSRV to 1.67.0.
 - The `write_min_size` option has been deprecated and replaced by `BufferedWriter`, also introduced in version 0.40.
 - A new setting, `allow_anonymous`, has been added. Since v0.41, OSS will now return an error if credential loading fails. Enabling `allow_anonymous` to fallback to request without credentials.
 
+### Ghac Service Configuration
+
+- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it's could result in unexpected behavior when users create a file with content length `1`. So we remove it.
+
+### Wasabi Service Removed
+
+`wasabi` service native support has been removed. Users who want to access wasabi can use our `s3` service instead.
+
 # Upgrade to v0.41
 
 There is no public API and raw API changes.
@@ -90,6 +98,22 @@ let mut w = op.writer_with("path/to/file").buffer(8 * 1024 * 1024).await?;
 ```
 
 If buffer is not specified, we will call underlying storage everytime we call `write`. Otherwise, we will make sure to call underlying storage when buffer is full or `close` is called.
+
+### RangeRead and RangeReader
+
+OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, please use `read_with().range()` or `reader_with().range()`.
+
+```diff
+- op.range_read(path, range_start..range_end).await?;
++ op.read_with(path).range(range_start..range_end).await?;
+```
+
+```diff
+- let reader = op.range_reader(path, range_start..range_end).await?;
++ let reader = op.reader_with(path).range(range_start..range_end).await?;
+```
+
+
 
 ## Raw API
 

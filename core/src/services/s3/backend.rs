@@ -42,8 +42,8 @@ use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
+use super::writer::S3Writers;
 use crate::raw::*;
-use crate::services::s3::writer::S3Writers;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.

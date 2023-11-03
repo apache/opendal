@@ -127,7 +127,7 @@ impl oio::Page for S3Pager {
             let mut meta = Metadata::new(EntryMode::FILE);
 
             if let Some(etag) = &object.etag {
-                meta.set_etag(&etag);
+                meta.set_etag(etag);
                 meta.set_content_md5(etag.trim_matches('"'));
             }
             meta.set_content_length(object.size);

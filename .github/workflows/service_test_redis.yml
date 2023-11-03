@@ -61,7 +61,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior --features tests,services-redis-rustls
+        run: cargo nextest run behavior --features tests,services-redis
         env:
           OPENDAL_TEST: redis
           OPENDAL_REDIS_ENDPOINT: rediss://localhost:6379
@@ -94,7 +94,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior --features tests,services-redis-rustls
+        run: cargo nextest run behavior --features tests,services-redis
         env:
           OPENDAL_TEST: redis
           OPENDAL_REDIS_CLUSTER_ENDPOINTS: rediss://127.0.0.1:6380/,rediss://127.0.0.1:6381/,rediss://127.0.0.1:6382/,rediss://127.0.0.1:6383/,rediss://127.0.0.1:6384/,rediss://127.0.0.1:6385/

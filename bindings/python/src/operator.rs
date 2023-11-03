@@ -20,10 +20,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use pyo3::exceptions::PyValueError;
-use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
-use pyo3::AsPyPointer;
 use pyo3_asyncio::tokio::future_into_py;
 
 use crate::*;
@@ -77,24 +75,27 @@ impl Operator {
         Ok(Self(op.blocking()))
     }
 
-    /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        let buffer = self
-            .0
-            .read(path)
-            .map_err(format_pyerr)
-            .map(Buffer::from)?
-            .into_py(py);
-        let memoryview =
-            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
-        Ok(memoryview)
+    /// Open a file-like reader for the given path.
+    pub fn open(&self, path: String, mode: String) -> PyResult<File> {
+        let this = self.0.clone();
+
+        if mode == "rb" {
+            let r = this.reader(&path).map_err(format_pyerr)?;
+            Ok(File::new_reader(r))
+        } else if mode == "wb" {
+            let w = this.writer(&path).map_err(format_pyerr)?;
+            Ok(File::new_writer(w))
+        } else {
+            Err(Error::new_err(format!(
+                "OpenDAL doesn't support mode: {mode}"
+            )))
+        }
     }
 
-    /// Open a file-like reader for the given path.
-    pub fn open_reader(&self, path: &str) -> PyResult<Reader> {
-        let r = self.0.reader(path).map_err(format_pyerr)?;
-
-        Ok(Reader::new(r))
+    /// Read the whole path into bytes.
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
+        let buffer = self.0.read(path).map_err(format_pyerr)?;
+        Buffer::new(buffer).into_memory_view_ref(py)
     }
 
     /// Write bytes into given path.
@@ -232,26 +233,32 @@ impl AsyncOperator {
         Ok(Self(op))
     }
 
+    /// Open a file-like reader for the given path.
+    pub fn open<'p>(&'p self, py: Python<'p>, path: String, mode: String) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+
+        future_into_py(py, async move {
+            if mode == "rb" {
+                let r = this.reader(&path).await.map_err(format_pyerr)?;
+                Ok(AsyncFile::new_reader(r))
+            } else if mode == "wb" {
+                let w = this.writer(&path).await.map_err(format_pyerr)?;
+                Ok(AsyncFile::new_writer(w))
+            } else {
+                Err(Error::new_err(format!(
+                    "OpenDAL doesn't support mode: {mode}"
+                )))
+            }
+        })
+    }
+
     /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
-            Python::with_gil(|py| {
-                let buffer = Buffer::from(res).into_py(py);
-                unsafe {
-                    PyObject::from_owned_ptr_or_err(
-                        py,
-                        ffi::PyMemoryView_FromObject(buffer.as_ptr()),
-                    )
-                }
-            })
+            Python::with_gil(|py| Buffer::new(res).into_memory_view(py))
         })
-    }
-
-    /// Open a file-like reader for the given path.
-    pub fn open_reader(&self, path: String) -> PyResult<AsyncReader> {
-        Ok(AsyncReader::new(self.0.clone(), path))
     }
 
     /// Write bytes into given path.

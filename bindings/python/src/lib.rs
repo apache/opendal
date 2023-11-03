@@ -33,8 +33,8 @@ mod metadata;
 pub use metadata::*;
 mod operator;
 pub use operator::*;
-mod reader;
-pub use reader::*;
+mod file;
+pub use file::*;
 mod utils;
 pub use utils::*;
 
@@ -72,9 +72,11 @@ pub use utils::*;
 #[pymodule]
 fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
-    m.add_class::<Reader>()?;
     m.add_class::<AsyncOperator>()?;
-    m.add_class::<AsyncReader>()?;
+
+    m.add_class::<File>()?;
+    m.add_class::<AsyncFile>()?;
+
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;

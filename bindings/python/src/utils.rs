@@ -37,6 +37,30 @@ pub struct Buffer {
     inner: Vec<u8>,
 }
 
+impl Buffer {
+    pub fn new(inner: Vec<u8>) -> Self {
+        Buffer { inner }
+    }
+
+    /// Consume self to build a memory view
+    pub fn into_memory_view(self, py: Python) -> PyResult<Py<PyAny>> {
+        let buffer = self.into_py(py);
+
+        unsafe {
+            PyObject::from_owned_ptr_or_err(py, ffi::PyMemoryView_FromObject(buffer.as_ptr()))
+        }
+    }
+
+    /// Consume self to build a memory view ref.
+    pub fn into_memory_view_ref(self, py: Python) -> PyResult<&PyAny> {
+        let buffer = self.into_py(py);
+        let view =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+
+        Ok(view)
+    }
+}
+
 #[pymethods]
 impl Buffer {
     unsafe fn __getbuffer__(
@@ -57,12 +81,6 @@ impl Buffer {
             return Err(PyErr::fetch(slf.py()));
         }
         Ok(())
-    }
-}
-
-impl From<Vec<u8>> for Buffer {
-    fn from(inner: Vec<u8>) -> Self {
-        Self { inner }
     }
 }
 

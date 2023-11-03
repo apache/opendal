@@ -138,7 +138,7 @@ mod tests {
                     "bytes": 147,
                     "hash": "5e6b5b70b0426b1cc1968003e1afa5ad",
                     "name": "test.txt",
-                    "content_type": "multipart/form-data;boundary=------------------------25004a866ee9c0cb",
+                    "content_type": "text/plain",
                     "last_modified": "2023-11-01T03:00:23.147480"
                 }
             ]

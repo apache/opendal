@@ -82,6 +82,7 @@ services-all = [
   "services-mongodb",
   "services-sqlite",
   "services-azfile",
+  "services-libsql",
 ]
 
 # Default services provided by opendal.
@@ -129,6 +130,8 @@ services-supabase = ["opendal/services-supabase"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-libsql = ["opendal/services-libsql"]
+
 
 [dependencies]
 anyhow = "1.0.71"

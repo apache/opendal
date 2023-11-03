@@ -78,6 +78,7 @@ services-all = [
   "services-wasabi",
   "services-mongodb",
   "services-sqlite",
+  "services-libsql"
 ]
 
 # Default services provided by opendal.
@@ -125,6 +126,7 @@ services-supabase = ["opendal/services-supabase"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-libsql = ["opendal/services-libsql"]
 
 [lib]
 crate-type = ["cdylib"]

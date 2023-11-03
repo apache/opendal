@@ -232,7 +232,6 @@ jobs:
             services-postgresql
             services-redb
             services-redis
-            services-redis-rustls
             # TODO: we need to find ways to using pre-install rocksdb library
             # services-rocksdb
             services-s3

@@ -171,9 +171,8 @@ services-oss = [
 services-persy = ["dep:persy"]
 services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
 services-redb = ["dep:redb"]
-services-redis = ["dep:redis"]
+services-redis = ["dep:redis", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
-services-redis-rustls = ["services-redis", "redis?/tokio-rustls-comp"]
 services-rocksdb = ["dep:rocksdb"]
 services-s3 = [
   "dep:reqsign",

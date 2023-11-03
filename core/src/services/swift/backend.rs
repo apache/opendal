@@ -68,7 +68,7 @@ impl SwiftBuilder {
     /// - `http://192.168.66.88:8080`
     ///
     /// If user inputs endpoint without scheme, we will
-    /// prepend `http://` to it.
+    /// prepend `https://` to it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
             None

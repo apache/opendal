@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     output = basedir / 'target' / 'bindings'
     Path(output).mkdir(exist_ok=True, parents=True)
-    cmd += ['--target-dir', output]
+    cmd += ['--target-dir', str(output)]
 
     print('$ ' + subprocess.list2cmdline(cmd))
     subprocess.run(cmd, cwd=basedir, check=True)

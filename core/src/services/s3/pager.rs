@@ -126,8 +126,10 @@ impl oio::Page for S3Pager {
 
             let mut meta = Metadata::new(EntryMode::FILE);
 
-            meta.set_etag(&object.etag);
-            meta.set_content_md5(object.etag.trim_matches('"'));
+            if let Some(etag) = &object.etag {
+                meta.set_etag(&etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
             meta.set_content_length(object.size);
 
             // object.last_modified provides more precious time that contains
@@ -168,7 +170,7 @@ struct OutputContent {
     size: u64,
     last_modified: String,
     #[serde(rename = "ETag")]
-    etag: String,
+    etag: Option<String>,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]

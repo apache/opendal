@@ -17,9 +17,10 @@
 
 use std::time::Duration;
 
-use ::opendal as od;
 use opendal::Operator;
 use pyo3::prelude::*;
+
+use crate::*;
 
 pub trait PythonLayer: Send + Sync {
     fn layer(&self, op: Operator) -> Operator;
@@ -30,7 +31,7 @@ pub struct Layer(pub Box<dyn PythonLayer>);
 
 #[pyclass(module = "opendal.layers", extends=Layer)]
 #[derive(Clone)]
-pub struct RetryLayer(od::layers::RetryLayer);
+pub struct RetryLayer(ocore::layers::RetryLayer);
 
 impl PythonLayer for RetryLayer {
     fn layer(&self, op: Operator) -> Operator {
@@ -55,7 +56,7 @@ impl RetryLayer {
         max_delay: Option<f64>,
         min_delay: Option<f64>,
     ) -> PyResult<PyClassInitializer<Self>> {
-        let mut retry = od::layers::RetryLayer::default();
+        let mut retry = ocore::layers::RetryLayer::default();
         if let Some(max_times) = max_times {
             retry = retry.with_max_times(max_times);
         }

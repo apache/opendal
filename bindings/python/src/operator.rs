@@ -16,52 +16,204 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::io::SeekFrom;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
-use ::opendal as od;
-use futures::TryStreamExt;
-use pyo3::exceptions::PyIOError;
-use pyo3::exceptions::PyNotImplementedError;
-use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBytes, PyDict};
 use pyo3::AsPyPointer;
 use pyo3_asyncio::tokio::future_into_py;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncSeekExt;
-use tokio::sync::Mutex;
 
-use crate::build_operator;
-use crate::build_opwrite;
-use crate::format_pyerr;
-use crate::layers;
-use crate::Buffer;
-use crate::Entry;
-use crate::Metadata;
-use crate::PresignedRequest;
+use crate::*;
 
-use crate::capability;
+fn build_operator(
+    scheme: ocore::Scheme,
+    map: HashMap<String, String>,
+    blocking: bool,
+) -> PyResult<ocore::Operator> {
+    let mut op = ocore::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    if blocking && !op.info().full_capability().blocking {
+        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let _guard = runtime.enter();
+        op = op
+            .layer(ocore::layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
+
+    Ok(op)
+}
+
+/// `Operator` is the entry for all public blocking APIs
+///
+/// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
+#[pyclass(module = "opendal")]
+pub struct Operator(ocore::BlockingOperator);
+
+#[pymethods]
+impl Operator {
+    #[new]
+    #[pyo3(signature = (scheme, *, **map))]
+    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+        let scheme = ocore::Scheme::from_str(scheme)
+            .map_err(|err| {
+                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
+                    .set_source(err)
+            })
+            .map_err(format_pyerr)?;
+        let map = map
+            .map(|v| {
+                v.extract::<HashMap<String, String>>()
+                    .expect("must be valid hashmap")
+            })
+            .unwrap_or_default();
+
+        Ok(Operator(build_operator(scheme, map, true)?.blocking()))
+    }
+
+    /// Add new layers upon existing operator
+    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+        let op = layer.0.layer(self.0.clone().into());
+        Ok(Self(op.blocking()))
+    }
+
+    /// Read the whole path into bytes.
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
+        let buffer = self
+            .0
+            .read(path)
+            .map_err(format_pyerr)
+            .map(Buffer::from)?
+            .into_py(py);
+        let memoryview =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+        Ok(memoryview)
+    }
+
+    /// Open a file-like reader for the given path.
+    pub fn open_reader(&self, path: &str) -> PyResult<Reader> {
+        let r = self.0.reader(path).map_err(format_pyerr)?;
+
+        Ok(Reader::new(r))
+    }
+
+    /// Write bytes into given path.
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
+        let opwrite = build_opwrite(kwargs)?;
+        let mut write = self.0.write_with(path, bs).append(opwrite.append());
+        if let Some(buffer) = opwrite.buffer() {
+            write = write.buffer(buffer);
+        }
+        if let Some(content_type) = opwrite.content_type() {
+            write = write.content_type(content_type);
+        }
+        if let Some(content_disposition) = opwrite.content_disposition() {
+            write = write.content_disposition(content_disposition);
+        }
+        if let Some(cache_control) = opwrite.cache_control() {
+            write = write.cache_control(cache_control);
+        }
+
+        write.call().map_err(format_pyerr)
+    }
+
+    /// Get current path's metadata **without cache** directly.
+    pub fn stat(&self, path: &str) -> PyResult<Metadata> {
+        self.0.stat(path).map_err(format_pyerr).map(Metadata::new)
+    }
+
+    /// Copy source to target.
+    pub fn copy(&self, source: &str, target: &str) -> PyResult<()> {
+        self.0.copy(source, target).map_err(format_pyerr)
+    }
+
+    /// Rename filename.
+    pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
+        self.0.rename(source, target).map_err(format_pyerr)
+    }
+
+    /// Remove all file
+    pub fn remove_all(&self, path: &str) -> PyResult<()> {
+        self.0.remove_all(path).map_err(format_pyerr)
+    }
+
+    /// Create a dir at given path.
+    ///
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create dir is always recursive, works like `mkdir -p`
+    pub fn create_dir(&self, path: &str) -> PyResult<()> {
+        self.0.create_dir(path).map_err(format_pyerr)
+    }
+
+    /// Delete given path.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    pub fn delete(&self, path: &str) -> PyResult<()> {
+        self.0.delete(path).map_err(format_pyerr)
+    }
+
+    /// List current dir path.
+    pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
+        let l = self.0.lister(path).map_err(format_pyerr)?;
+        Ok(BlockingLister::new(l))
+    }
+
+    /// List dir in flat way.
+    pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
+        let l = self
+            .0
+            .lister_with(path)
+            .delimiter("")
+            .call()
+            .map_err(format_pyerr)?;
+        Ok(BlockingLister::new(l))
+    }
+
+    pub fn capability(&self) -> PyResult<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
+    }
+
+    fn __repr__(&self) -> String {
+        let info = self.0.info();
+        let name = info.name();
+        if name.is_empty() {
+            format!("Operator(\"{}\", root=\"{}\")", info.scheme(), info.root())
+        } else {
+            format!(
+                "Operator(\"{}\", root=\"{}\", name=\"{name}\")",
+                info.scheme(),
+                info.root()
+            )
+        }
+    }
+}
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///
 /// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
-pub struct AsyncOperator(od::Operator);
+pub struct AsyncOperator(ocore::Operator);
 
 #[pymethods]
 impl AsyncOperator {
     #[new]
     #[pyo3(signature = (scheme, *,  **map))]
     pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
-        let scheme = od::Scheme::from_str(scheme)
+        let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
-                od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
+                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
+                    .set_source(err)
             })
             .map_err(format_pyerr)?;
         let map = map
@@ -99,10 +251,7 @@ impl AsyncOperator {
 
     /// Open a file-like reader for the given path.
     pub fn open_reader(&self, path: String) -> PyResult<AsyncReader> {
-        Ok(AsyncReader::new(ReaderState::Init {
-            operator: self.0.clone(),
-            path,
-        }))
+        Ok(AsyncReader::new(self.0.clone(), path))
     }
 
     /// Write bytes into given path.
@@ -139,7 +288,11 @@ impl AsyncOperator {
     pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
-            let res: Metadata = this.stat(&path).await.map_err(format_pyerr).map(Metadata)?;
+            let res: Metadata = this
+                .stat(&path)
+                .await
+                .map_err(format_pyerr)
+                .map(Metadata::new)?;
 
             Ok(res)
         })
@@ -315,187 +468,83 @@ impl AsyncOperator {
     }
 }
 
-enum ReaderState {
-    Init {
-        operator: od::Operator,
-        path: String,
-    },
-    Open(od::Reader),
-    Closed,
-}
+/// recognize OpWrite-equivalent options passed as python dict
+pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpWrite> {
+    use ocore::raw::OpWrite;
+    let mut op = OpWrite::new();
 
-impl ReaderState {
-    async fn reader(&mut self) -> PyResult<&mut od::Reader> {
-        let reader = match self {
-            ReaderState::Init { operator, path } => {
-                let reader = operator.reader(path).await.map_err(format_pyerr)?;
-                *self = ReaderState::Open(reader);
-                if let ReaderState::Open(ref mut reader) = self {
-                    reader
-                } else {
-                    unreachable!()
-                }
-            }
-            ReaderState::Open(ref mut reader) => reader,
-            ReaderState::Closed => {
-                return Err(PyValueError::new_err("I/O operation on closed file."));
-            }
-        };
-        Ok(reader)
+    let dict = if let Some(kwargs) = kwargs {
+        kwargs
+    } else {
+        return Ok(op);
+    };
+
+    if let Some(append) = dict.get_item("append") {
+        let v = append
+            .extract::<bool>()
+            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
+        op = op.with_append(v);
     }
 
-    fn close(&mut self) {
-        *self = ReaderState::Closed;
-    }
-}
-
-/// A file-like async reader.
-/// Can be used as an async context manager.
-#[pyclass(module = "opendal")]
-pub struct AsyncReader(Arc<Mutex<ReaderState>>);
-
-impl AsyncReader {
-    fn new(reader: ReaderState) -> Self {
-        Self(Arc::new(Mutex::new(reader)))
-    }
-}
-
-#[pymethods]
-impl AsyncReader {
-    /// Read and return size bytes, or if size is not given, until EOF.
-    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
-        let reader = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = reader.lock().await;
-            let reader = state.reader().await?;
-            let buffer = match size {
-                Some(size) => {
-                    let mut buffer = vec![0; size];
-                    reader
-                        .read_exact(&mut buffer)
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    buffer
-                }
-                None => {
-                    let mut buffer = Vec::new();
-                    reader
-                        .read_to_end(&mut buffer)
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    buffer
-                }
-            };
-            Python::with_gil(|py| {
-                let buffer = Buffer::from(buffer).into_py(py);
-                unsafe {
-                    PyObject::from_owned_ptr_or_err(
-                        py,
-                        ffi::PyMemoryView_FromObject(buffer.as_ptr()),
-                    )
-                }
-            })
-        })
+    if let Some(buffer) = dict.get_item("buffer") {
+        let v = buffer
+            .extract::<usize>()
+            .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
+        op = op.with_buffer(v);
     }
 
-    /// `AsyncReader` doesn't support write.
-    /// Raises a `NotImplementedError` if called.
-    pub fn write<'p>(&'p mut self, py: Python<'p>, _bs: &'p [u8]) -> PyResult<&'p PyAny> {
-        future_into_py::<_, PyObject>(py, async move {
-            Err(PyNotImplementedError::new_err(
-                "AsyncReader does not support write",
-            ))
-        })
-    }
-
-    /// Change the stream position to the given byte offset.
-    /// offset is interpreted relative to the position indicated by `whence`.
-    /// The default value for whence is `SEEK_SET`. Values for `whence` are:
-    ///
-    /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
-    /// * `SEEK_CUR` or `1` – current stream position; offset may be negative
-    /// * `SEEK_END` or `2` – end of the stream; offset is usually negative
-    ///
-    /// Return the new absolute position.
-    #[pyo3(signature = (pos, whence = 0))]
-    pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<&'p PyAny> {
-        let whence = match whence {
-            0 => SeekFrom::Start(pos as u64),
-            1 => SeekFrom::Current(pos),
-            2 => SeekFrom::End(pos),
-            _ => return Err(PyValueError::new_err("invalid whence")),
-        };
-        let reader = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = reader.lock().await;
-            let reader = state.reader().await?;
-            let ret = reader
-                .seek(whence)
-                .await
-                .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| ret.into_py(py)))
-        })
-    }
-
-    /// Return the current stream position.
-    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
-        let reader = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = reader.lock().await;
-            let reader = state.reader().await?;
-            let pos = reader
-                .stream_position()
-                .await
-                .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| pos.into_py(py)))
-        })
-    }
-
-    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let slf = slf.into_py(py);
-        future_into_py(py, async move { Ok(slf) })
-    }
-
-    fn __aexit__<'a>(
-        &self,
-        py: Python<'a>,
-        _exc_type: &'a PyAny,
-        _exc_value: &'a PyAny,
-        _traceback: &'a PyAny,
-    ) -> PyResult<&'a PyAny> {
-        let reader = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = reader.lock().await;
-            state.close();
-            Ok(())
-        })
-    }
-}
-
-#[pyclass(module = "opendal")]
-struct AsyncLister(Arc<Mutex<od::Lister>>);
-
-impl AsyncLister {
-    fn new(lister: od::Lister) -> Self {
-        Self(Arc::new(Mutex::new(lister)))
-    }
-}
-
-#[pymethods]
-impl AsyncLister {
-    fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<Self> {
-        slf
-    }
-    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
-        let lister = slf.0.clone();
-        let fut = future_into_py(slf.py(), async move {
-            let mut lister = lister.lock().await;
-            let entry = lister.try_next().await.map_err(format_pyerr)?;
-            match entry {
-                Some(entry) => Ok(Python::with_gil(|py| Entry(entry).into_py(py))),
-                None => Err(PyStopAsyncIteration::new_err("stream exhausted")),
-            }
+    if let Some(content_type) = dict.get_item("content_type") {
+        let v = content_type.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_type must be str, got {}", err))
         })?;
-        Ok(Some(fut.into()))
+        op = op.with_content_type(v.as_str());
+    }
+
+    if let Some(content_disposition) = dict.get_item("content_disposition") {
+        let v = content_disposition.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+        })?;
+        op = op.with_content_disposition(v.as_str());
+    }
+
+    if let Some(cache_control) = dict.get_item("cache_control") {
+        let v = cache_control.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("cache_control must be str, got {}", err))
+        })?;
+        op = op.with_cache_control(v.as_str());
+    }
+
+    Ok(op)
+}
+
+#[pyclass(module = "opendal")]
+pub struct PresignedRequest(ocore::raw::PresignedRequest);
+
+#[pymethods]
+impl PresignedRequest {
+    /// Return the URL of this request.
+    #[getter]
+    pub fn url(&self) -> String {
+        self.0.uri().to_string()
+    }
+
+    /// Return the HTTP method of this request.
+    #[getter]
+    pub fn method(&self) -> &str {
+        self.0.method().as_str()
+    }
+
+    /// Return the HTTP headers of this request.
+    #[getter]
+    pub fn headers(&self) -> PyResult<HashMap<&str, &str>> {
+        let mut headers = HashMap::new();
+        for (k, v) in self.0.header().iter() {
+            let k = k.as_str();
+            let v = v.to_str().map_err(|err| Error::new_err(err.to_string()))?;
+            if headers.insert(k, v).is_some() {
+                return Err(Error::new_err("duplicate header"));
+            }
+        }
+        Ok(headers)
     }
 }

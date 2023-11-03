@@ -491,6 +491,10 @@ typedef struct opendal_operator_info {
   struct OperatorInfo *inner;
 } opendal_operator_info;
 
+/**
+ * \brief Capability is used to describe what operations are supported
+ * by current Operator.
+ */
 typedef struct opendal_capability {
   /**
    * If operator supports stat.
@@ -1148,9 +1152,22 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
 /**
  * \brief Get information of underlying accessor.
  *
- * TODO: Example
+ * # Example
+ *
+ * ```C
+ * /// suppose you have a memory-backed opendal_operator* named op
+ * char *scheme;
+ * opendal_operator_info *info = opendal_operator_info_new(op);
+ *
+ * scheme = opendal_operator_info_get_scheme(info);
+ * assert(!strcmp(scheme, "memory"));
+ *
+ * /// free the heap memory
+ * free(scheme);
+ * opendal_operator_info_free(info);
+ * ```
  */
-struct opendal_operator_info opendal_operator_info(const struct opendal_operator *op);
+struct opendal_operator_info *opendal_operator_info_new(const struct opendal_operator *op);
 
 /**
  * \brief Free the heap-allocated opendal_operator_info
@@ -1158,22 +1175,22 @@ struct opendal_operator_info opendal_operator_info(const struct opendal_operator
 void opendal_operator_info_free(struct opendal_operator_info *ptr);
 
 /**
- * \brief Return the operator's scheme, i.e. service
+ * \brief Return the nul-terminated operator's scheme, i.e. service
  *
  * \note: The string is on heap, remember to free it
  */
 char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
 
 /**
- * \brief Return the operator's working root path
+ * \brief Return the nul-terminated operator's working root path
  *
  * \note: The string is on heap, remember to free it
  */
 char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 
 /**
- * \brief Return the operator backend's name, could be empty if underlying backend has no
- * namespace concept
+ * \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
+ * namespace concept.
  *
  * \note: The string is on heap, remember to free it
  */
@@ -1185,7 +1202,7 @@ char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 struct opendal_capability opendal_operator_info_get_full_capability(const struct opendal_operator_info *self);
 
 /**
- * \brief Return the operator's full capability
+ * \brief Return the operator's native capability
  */
 struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 

@@ -28,6 +28,8 @@ pub struct opendal_operator_info {
     pub inner: *mut core::OperatorInfo,
 }
 
+/// \brief Capability is used to describe what operations are supported
+/// by current Operator.
 #[repr(C)]
 pub struct opendal_capability {
     /// If operator supports stat.
@@ -143,15 +145,28 @@ pub struct opendal_capability {
 impl opendal_operator_info {
     /// \brief Get information of underlying accessor.
     ///
-    /// TODO: Example
+    /// # Example
+    ///
+    /// ```C
+    /// /// suppose you have a memory-backed opendal_operator* named op
+    /// char *scheme;
+    /// opendal_operator_info *info = opendal_operator_info_new(op);
+    ///
+    /// scheme = opendal_operator_info_get_scheme(info);
+    /// assert(!strcmp(scheme, "memory"));
+    ///
+    /// /// free the heap memory
+    /// free(scheme);
+    /// opendal_operator_info_free(info);
+    /// ```
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info(op: *const opendal_operator) -> Self {
+    pub unsafe extern "C" fn opendal_operator_info_new(op: *const opendal_operator) -> *mut Self {
         let op = (*op).as_ref();
         let info = op.info();
 
-        Self {
+        Box::into_raw(Box::new(Self {
             inner: Box::into_raw(Box::new(info)),
-        }
+        }))
     }
 
     /// \brief Free the heap-allocated opendal_operator_info
@@ -163,7 +178,7 @@ impl opendal_operator_info {
         }
     }
 
-    /// \brief Return the operator's scheme, i.e. service
+    /// \brief Return the nul-terminated operator's scheme, i.e. service
     ///
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
@@ -174,7 +189,7 @@ impl opendal_operator_info {
             .into_raw()
     }
 
-    /// \brief Return the operator's working root path
+    /// \brief Return the nul-terminated operator's working root path
     ///
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
@@ -185,8 +200,8 @@ impl opendal_operator_info {
             .into_raw()
     }
 
-    /// \brief Return the operator backend's name, could be empty if underlying backend has no
-    /// namespace concept
+    /// \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
+    /// namespace concept.
     ///
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
@@ -206,7 +221,7 @@ impl opendal_operator_info {
         cap.into()
     }
 
-    /// \brief Return the operator's full capability
+    /// \brief Return the operator's native capability
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_native_capability(
         &self,

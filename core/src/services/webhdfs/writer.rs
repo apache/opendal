@@ -43,15 +43,12 @@ impl oio::OneShotWrite for WebhdfsWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let bs = bs.bytes(bs.remaining());
 
-        let req = self
-            .backend
-            .webhdfs_create_object_request(
-                &self.path,
-                Some(bs.len()),
-                &self.op,
-                AsyncBody::Bytes(bs),
-            )
-            .await?;
+        let req = self.backend.webhdfs_create_object_request(
+            &self.path,
+            Some(bs.len()),
+            &self.op,
+            AsyncBody::Bytes(bs),
+        )?;
 
         let resp = self.backend.client.send(req).await?;
 

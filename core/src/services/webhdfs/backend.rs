@@ -198,7 +198,7 @@ impl WebhdfsBackend {
     /// create object or make a directory
     ///
     /// TODO: we should split it into mkdir and create
-    pub async fn webhdfs_create_object_request(
+    pub fn webhdfs_create_object_request(
         &self,
         path: &str,
         size: Option<usize>,
@@ -430,9 +430,12 @@ impl Accessor for WebhdfsBackend {
 
     /// Create a file or directory
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let req = self
-            .webhdfs_create_object_request(path, Some(0), &OpWrite::default(), AsyncBody::Empty)
-            .await?;
+        let req = self.webhdfs_create_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         let resp = self.client.send(req).await?;
 

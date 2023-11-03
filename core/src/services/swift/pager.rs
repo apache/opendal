@@ -28,14 +28,16 @@ use crate::*;
 pub struct SwiftPager {
     core: Arc<SwiftCore>,
     path: String,
+    delimiter: String,
     done: bool,
 }
 
 impl SwiftPager {
-    pub fn new(core: Arc<SwiftCore>, path: String) -> Self {
+    pub fn new(core: Arc<SwiftCore>, path: String, delimiter: String) -> Self {
         Self {
             core,
             path,
+            delimiter,
             done: false,
         }
     }
@@ -48,7 +50,7 @@ impl oio::Page for SwiftPager {
             return Ok(None);
         }
 
-        let response = self.core.swift_list(&self.path).await?;
+        let response = self.core.swift_list(&self.path, &self.delimiter).await?;
 
         let status_code = response.status();
 

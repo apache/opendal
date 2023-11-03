@@ -17,10 +17,8 @@
 
 use std::fmt::Debug;
 
-use bytes::Bytes;
 use http::Request;
 use http::Response;
-use serde_json::json;
 
 use crate::raw::*;
 use crate::*;
@@ -41,7 +39,6 @@ impl Debug for SwiftCore {
             .field("endpoint", &self.endpoint)
             .field("account", &self.account)
             .field("container", &self.container)
-            .field("token", &self.token)
             .finish_non_exhaustive()
     }
 }
@@ -62,29 +59,29 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let request_body = &json!({
-            "path": percent_encode_path(&p),
-            "recursive": true,
-        });
-
-        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
+        let body = AsyncBody::Empty;
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn swift_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn swift_list(
+        &self,
+        path: &str,
+        delimiter: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
         let url = format!(
-            "{}/v1/{}/{}/?prefix={}&delimiter=/&format=json",
+            "{}/v1/{}/{}/?prefix={}&delimiter={}&format=json",
             self.endpoint,
             self.account,
             self.container,
-            percent_encode_path(&p)
+            percent_encode_path(&p),
+            delimiter
         );
 
         let mut req = Request::get(&url);
@@ -126,11 +123,9 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn swift_read(&self, path: &str, arg: OpRead) -> Result<Response<IncomingAsyncBody>> {
+        let range = arg.range();
+
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -147,21 +142,8 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let range = match (range.offset(), range.size()) {
-            (Some(offset), Some(size)) => {
-                format!("bytes={}-{}", offset, offset + size - 1)
-            }
-            (Some(offset), None) => {
-                format!("bytes={}-", offset)
-            }
-            (None, Some(size)) => {
-                format!("bytes=-{}", size)
-            }
-            _ => "".to_string(),
-        };
-
-        if !range.is_empty() {
-            req = req.header("Range", &range);
+        if !range.is_full() {
+            req = req.header("Range", &range.to_header());
         }
 
         let req = req

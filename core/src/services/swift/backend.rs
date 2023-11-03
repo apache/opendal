@@ -31,14 +31,12 @@ use super::writer::SwiftWriter;
 use crate::raw::*;
 use crate::*;
 
-const SWIFT_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:8080";
-
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
     endpoint: Option<String>,
-    account_name: Option<String>,
+    account: Option<String>,
     container: Option<String>,
     root: Option<String>,
     token: Option<String>,
@@ -50,7 +48,7 @@ impl Debug for SwiftBuilder {
 
         ds.field("root", &self.root);
         ds.field("endpoint", &self.endpoint);
-        ds.field("account_name", &self.account_name);
+        ds.field("account", &self.account);
         ds.field("container", &self.container);
 
         if self.token.is_some() {
@@ -63,7 +61,6 @@ impl Debug for SwiftBuilder {
 
 impl SwiftBuilder {
     /// Set the remote address of this backend
-    /// default to `http://127.0.0.1:8080`
     ///
     /// Endpoints should be full uri, e.g.
     ///
@@ -84,8 +81,8 @@ impl SwiftBuilder {
     /// Set account of this backend.
     ///
     /// It is required. e.g. `TEST_account`
-    pub fn account_name(&mut self, account: &str) -> &mut Self {
-        self.account_name = if account.is_empty() {
+    pub fn account(&mut self, account: &str) -> &mut Self {
+        self.account = if account.is_empty() {
             None
         } else {
             Some(account.trim_end_matches('/').to_string())
@@ -135,7 +132,7 @@ impl Builder for SwiftBuilder {
         let mut builder = SwiftBuilder::default();
 
         map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("account_name").map(|v| builder.account_name(v));
+        map.get("account").map(|v| builder.account(v));
         map.get("container").map(|v| builder.container(v));
         map.get("token").map(|v| builder.token(v));
 
@@ -154,14 +151,19 @@ impl Builder for SwiftBuilder {
                 if endpoint.starts_with("http") {
                     endpoint
                 } else {
-                    format!("http://{endpoint}")
+                    format!("https://{endpoint}")
                 }
             }
-            None => SWIFT_DEFAULT_ENDPOINT.to_string(),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "missing endpoint for Swift",
+                ));
+            }
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        let account = match self.account_name.take() {
+        let account = match self.account.take() {
             Some(account) => account,
             None => {
                 return Err(Error::new(
@@ -261,11 +263,10 @@ impl Accessor for SwiftBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let range = args.range();
-        let resp = self.core.swift_read(path, range).await?;
+        let resp = self.core.swift_read(path, args).await?;
 
         match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
                 let size = parse_content_length(resp.headers())?;
                 Ok((RpRead::new().with_size(size), resp.into_body()))
             }
@@ -327,8 +328,12 @@ impl Accessor for SwiftBackend {
         }
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = SwiftPager::new(self.core.clone(), path.to_string());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let op = SwiftPager::new(
+            self.core.clone(),
+            path.to_string(),
+            args.delimiter().to_string(),
+        );
 
         Ok((RpList::default(), op))
     }

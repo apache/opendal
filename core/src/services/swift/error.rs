@@ -15,15 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::Response;
 use http::StatusCode;
-use scraper::Html;
+use quick_xml::de;
+use serde::Deserialize;
 
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    h1: String,
+    p: String,
+}
 
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
@@ -54,17 +62,10 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 }
 
 fn parse_error_response(resp: &Bytes) -> String {
-    let html = Html::parse_document(match std::str::from_utf8(resp) {
-        Ok(s) => s,
-        Err(_) => return String::from_utf8_lossy(resp).to_string(),
-    });
-    let p_selector = scraper::Selector::parse("p").unwrap();
-    let msg = html
-        .select(&p_selector)
-        .next()
-        .map(|p| p.inner_html())
-        .unwrap_or_else(|| String::from_utf8_lossy(resp).to_string());
-    msg
+    return match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
+        Ok(swift_err) => swift_err.p,
+        Err(_) => String::from_utf8_lossy(resp).into_owned(),
+    };
 }
 
 #[cfg(test)]

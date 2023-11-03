@@ -207,6 +207,11 @@ mod tests {
     <Size>100</Size>
     <StorageClass>STANDARD</StorageClass>
   </Contents>
+  <Contents>
+    <Key>photos/2008</Key>
+    <LastModified>2016-05-30T23:51:29.000Z</LastModified>
+    <Size>42</Size>
+  </Contents>
 
   <CommonPrefixes>
     <Prefix>photos/2006/February/</Prefix>
@@ -234,15 +239,21 @@ mod tests {
                 OutputContent {
                     key: "photos/2006".to_string(),
                     size: 56,
-                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
                 },
                 OutputContent {
                     key: "photos/2007".to_string(),
                     size: 100,
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
-                }
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                },
+                OutputContent {
+                    key: "photos/2008".to_string(),
+                    size: 42,
+                    last_modified: "2016-05-30T23:51:29.000Z".to_string(),
+                    etag: None,
+                },
             ]
         )
     }

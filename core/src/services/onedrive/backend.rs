@@ -55,7 +55,7 @@ impl Debug for OnedriveBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("OneDriveBackend");
         de.field("root", &self.root);
-        de.field("access_token", &self.access_token);
+        de.field("access_token", &"<redacted>");
         de.finish()
     }
 }

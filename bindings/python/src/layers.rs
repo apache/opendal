@@ -79,10 +79,3 @@ impl RetryLayer {
         Ok(class)
     }
 }
-
-pub fn create_submodule(py: Python) -> PyResult<&PyModule> {
-    let submod = PyModule::new(py, "layers")?;
-    submod.add_class::<Layer>()?;
-    submod.add_class::<RetryLayer>()?;
-    Ok(submod)
-}

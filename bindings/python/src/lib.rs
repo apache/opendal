@@ -583,7 +583,10 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<capability::Capability>()?;
     m.add("Error", py.get_type::<Error>())?;
 
-    let layers_module = layers::create_submodule(py)?;
+    // Layer module
+    let layers_module = PyModule::new(py, "layers")?;
+    layers_module.add_class::<layers::Layer>()?;
+    layers_module.add_class::<layers::RetryLayer>()?;
     m.add_submodule(layers_module)?;
     py.import("sys")?
         .getattr("modules")?

@@ -184,6 +184,7 @@ services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2"]
 services-supabase = []
+services-swift = []
 services-tikv = ["tikv-client"]
 services-vercel-artifacts = []
 # Deprecated

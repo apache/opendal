@@ -248,3 +248,8 @@ pub use self::mongodb::Mongodb;
 mod dbfs;
 #[cfg(feature = "services-dbfs")]
 pub use self::dbfs::Dbfs;
+
+#[cfg(feature = "services-swift")]
+mod swift;
+#[cfg(feature = "services-swift")]
+pub use self::swift::Swift;

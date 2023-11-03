@@ -1,3 +1,4 @@
+# !/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,12 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class RetryLayer:
-    def __init__(
-        self,
-        max_times: int | None = None,
-        factor: float | None = None,
-        jitter: bool = False,
-        max_delay: float | None = None,
-        min_delay: float | None = None,
-    ) -> None: ...
+set +ex
+
+curl -sSf 'http://localhost/status.php' | grep '"installed":true' | grep '"maintenance":false' | grep '"needsDbUpgrade":false' || exit 1

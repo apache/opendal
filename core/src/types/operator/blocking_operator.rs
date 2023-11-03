@@ -1140,3 +1140,9 @@ impl BlockingOperator {
         ))
     }
 }
+
+impl From<BlockingOperator> for Operator {
+    fn from(v: BlockingOperator) -> Self {
+        Operator::from_inner(v.accessor).with_limit(v.limit)
+    }
+}

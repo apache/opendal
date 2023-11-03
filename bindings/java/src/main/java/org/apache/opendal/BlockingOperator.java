@@ -39,7 +39,7 @@ public class BlockingOperator extends NativeObject {
      * and see what config options each service supports.
      *
      * @param schema the name of the underneath service to access data from.
-     * @param map a map of properties to construct the underneath operator.
+     * @param map    a map of properties to construct the underneath operator.
      */
     public static BlockingOperator of(String schema, Map<String, String> map) {
         try (final Operator operator = Operator.of(schema, map)) {
@@ -54,7 +54,6 @@ public class BlockingOperator extends NativeObject {
 
     /**
      * @return the cloned blocking operator.
-     *
      * @see Operator#duplicate()
      */
     public BlockingOperator duplicate() {

@@ -15,12 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class RetryLayer:
-    def __init__(
-        self,
-        max_times: int | None = None,
-        factor: float | None = None,
-        jitter: bool = False,
-        max_delay: float | None = None,
-        min_delay: float | None = None,
-    ) -> None: ...
+name: owncloud
+description: "Behavior test for owncloud"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup owncloud
+      shell: bash
+      working-directory: fixtures/webdav
+      run: docker compose -f docker-compose-webdav-owncloud.yml up -d --wait
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_WEBDAV_ENDPOINT=http://127.0.0.1:8080/remote.php/webdav/
+        OPENDAL_WEBDAV_USERNAME=admin
+        OPENDAL_WEBDAV_PASSWORD=admin
+        EOF

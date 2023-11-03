@@ -120,7 +120,7 @@ public class Operator extends NativeObject {
         return new Operator(nativeHandle, info);
     }
 
-    Operator(long nativeHandle, OperatorInfo info) {
+    private Operator(long nativeHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
     }
@@ -137,6 +137,11 @@ public class Operator extends NativeObject {
     public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
         return new Operator(nativeHandle, this.info);
+    }
+
+    public Operator layer(Layer layer) {
+        final long nativeHandle = layer.layer(this.nativeHandle);
+        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {

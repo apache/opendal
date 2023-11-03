@@ -43,6 +43,8 @@ pub use metadata::opendal_metadata;
 mod operator;
 pub use operator::opendal_operator;
 
+mod operator_info;
+
 mod result;
 pub use result::opendal_result_is_exist;
 pub use result::opendal_result_list;

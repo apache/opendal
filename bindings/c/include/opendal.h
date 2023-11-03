@@ -208,6 +208,11 @@ typedef struct HashMap_String__String HashMap_String__String;
 typedef struct Metadata Metadata;
 
 /**
+ * Metadata for operator, users can use this metadata to get information of operator.
+ */
+typedef struct OperatorInfo OperatorInfo;
+
+/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -295,7 +300,7 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
- * \brief Carries all metadata associated with a path.
+ * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
  * with our provided API, e.g. opendal_metadata_content_length().
@@ -477,6 +482,195 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief Metadata for **operator**, users can use this metadata to get information
+ * of operator.
+ */
+typedef struct opendal_operator_info {
+  struct OperatorInfo *inner;
+} opendal_operator_info;
+
+typedef struct opendal_capability {
+  /**
+   * If operator supports stat.
+   */
+  bool stat;
+  /**
+   * If operator supports stat with if match.
+   */
+  bool stat_with_if_match;
+  /**
+   * If operator supports stat with if none match.
+   */
+  bool stat_with_if_none_match;
+  /**
+   * If operator supports read.
+   */
+  bool read;
+  /**
+   * If operator supports seek on returning reader.
+   */
+  bool read_can_seek;
+  /**
+   * If operator supports next on returning reader.
+   */
+  bool read_can_next;
+  /**
+   * If operator supports read with range.
+   */
+  bool read_with_range;
+  /**
+   * If operator supports read with if match.
+   */
+  bool read_with_if_match;
+  /**
+   * If operator supports read with if none match.
+   */
+  bool read_with_if_none_match;
+  /**
+   * if operator supports read with override cache control.
+   */
+  bool read_with_override_cache_control;
+  /**
+   * if operator supports read with override content disposition.
+   */
+  bool read_with_override_content_disposition;
+  /**
+   * if operator supports read with override content type.
+   */
+  bool read_with_override_content_type;
+  /**
+   * If operator supports write.
+   */
+  bool write;
+  /**
+   * If operator supports write can be called in multi times.
+   */
+  bool write_can_multi;
+  /**
+   * If operator supports write with empty content.
+   */
+  bool write_can_empty;
+  /**
+   * If operator supports write by append.
+   */
+  bool write_can_append;
+  /**
+   * If operator supports write with content type.
+   */
+  bool write_with_content_type;
+  /**
+   * If operator supports write with content disposition.
+   */
+  bool write_with_content_disposition;
+  /**
+   * If operator supports write with cache control.
+   */
+  bool write_with_cache_control;
+  /**
+   * write_multi_max_size is the max size that services support in write_multi.
+   *
+   * For example, AWS S3 supports 5GiB as max in write_multi.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_max_size;
+  /**
+   * write_multi_min_size is the min size that services support in write_multi.
+   *
+   * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_min_size;
+  /**
+   * write_multi_align_size is the align size that services required in write_multi.
+   *
+   * For example, Google GCS requires align size to 256KiB in write_multi.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_align_size;
+  /**
+   * write_total_max_size is the max size that services support in write_total.
+   *
+   * For example, Cloudflare D1 supports 1MB as max in write_total.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_total_max_size;
+  /**
+   * If operator supports create dir.
+   */
+  bool create_dir;
+  /**
+   * If operator supports delete.
+   */
+  bool delete_;
+  /**
+   * If operator supports copy.
+   */
+  bool copy;
+  /**
+   * If operator supports rename.
+   */
+  bool rename;
+  /**
+   * If operator supports list.
+   */
+  bool list;
+  /**
+   * If backend supports list with limit.
+   */
+  bool list_with_limit;
+  /**
+   * If backend supports list with start after.
+   */
+  bool list_with_start_after;
+  /**
+   * If backend support list with using slash as delimiter.
+   */
+  bool list_with_delimiter_slash;
+  /**
+   * If backend supports list without delimiter.
+   */
+  bool list_without_delimiter;
+  /**
+   * If operator supports presign.
+   */
+  bool presign;
+  /**
+   * If operator supports presign read.
+   */
+  bool presign_read;
+  /**
+   * If operator supports presign stat.
+   */
+  bool presign_stat;
+  /**
+   * If operator supports presign write.
+   */
+  bool presign_write;
+  /**
+   * If operator supports batch.
+   */
+  bool batch;
+  /**
+   * If operator supports batch delete.
+   */
+  bool batch_delete;
+  /**
+   * The max operations that operator supports in batch.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t batch_max_operations;
+  /**
+   * If operator supports blocking.
+   */
+  bool blocking;
+} opendal_capability;
 
 /**
  * \brief The is the result type returned by opendal_reader_read().
@@ -950,6 +1144,50 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  */
 struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Get information of underlying accessor.
+ *
+ * TODO: Example
+ */
+struct opendal_operator_info opendal_operator_info(const struct opendal_operator *op);
+
+/**
+ * \brief Free the heap-allocated opendal_operator_info
+ */
+void opendal_operator_info_free(struct opendal_operator_info *ptr);
+
+/**
+ * \brief Return the operator's scheme, i.e. service
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator's working root path
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator backend's name, could be empty if underlying backend has no
+ * namespace concept
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator's full capability
+ */
+struct opendal_capability opendal_operator_info_get_full_capability(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator's full capability
+ */
+struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes

@@ -35,6 +35,7 @@ def test_sync_read(service_name, operator, async_operator):
 
     operator.delete(filename)
 
+
 @pytest.mark.need_capability("read", "write", "delete")
 def test_sync_reader(service_name, operator, async_operator):
     size = randint(1, 1024)
@@ -49,6 +50,7 @@ def test_sync_reader(service_name, operator, async_operator):
 
     operator.delete(filename)
 
+
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
 async def test_async_read(service_name, operator, async_operator):
@@ -62,6 +64,7 @@ async def test_async_read(service_name, operator, async_operator):
     assert read_content == content
 
     await async_operator.delete(filename)
+
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
@@ -78,6 +81,7 @@ async def test_async_reader(service_name, operator, async_operator):
 
     await async_operator.delete(filename)
 
+
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
 async def test_async_reader_without_context(service_name, operator, async_operator):
@@ -93,6 +97,7 @@ async def test_async_reader_without_context(service_name, operator, async_operat
     await reader.close()
 
     await async_operator.delete(filename)
+
 
 @pytest.mark.need_capability("read", "write", "delete", "stat")
 def test_sync_read_stat(service_name, operator, async_operator):

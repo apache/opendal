@@ -35,6 +35,19 @@ def test_sync_read(service_name, operator, async_operator):
 
     operator.delete(filename)
 
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    operator.write(filename, content)
+
+    with operator.open(filename, "rb") as reader:
+        read_content = reader.read()
+        assert read_content is not None
+        assert read_content == content
+
+    operator.delete(filename)
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
@@ -50,6 +63,36 @@ async def test_async_read(service_name, operator, async_operator):
 
     await async_operator.delete(filename)
 
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    await async_operator.write(filename, content)
+
+    async with await async_operator.open(filename, "rb") as reader:
+        read_content = await reader.read()
+        assert read_content is not None
+        assert read_content == content
+
+    await async_operator.delete(filename)
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_without_context(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    await async_operator.write(filename, content)
+
+    reader = await async_operator.open(filename, "rb")
+    read_content = await reader.read()
+    assert read_content is not None
+    assert read_content == content
+    await reader.close()
+
+    await async_operator.delete(filename)
 
 @pytest.mark.need_capability("read", "write", "delete", "stat")
 def test_sync_read_stat(service_name, operator, async_operator):

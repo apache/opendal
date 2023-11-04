@@ -136,3 +136,7 @@ export OPENDAL_REDIS_ROOT=/
 export OPENDAL_REDIS_DB=0
 ./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

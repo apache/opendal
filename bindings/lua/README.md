@@ -64,3 +64,7 @@ $ busted -o gtest test/opendal_test.lua
 [==========] 2 tests from 1 test file ran. (3.54 ms total)
 [  PASSED  ] 2 tests.
 ```
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

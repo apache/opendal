@@ -102,3 +102,7 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

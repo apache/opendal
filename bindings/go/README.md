@@ -55,3 +55,7 @@ For benchmark
 ```shell
 go test -bench=. -tags dynamic .
 ```
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

@@ -82,3 +82,7 @@ cd incubator-opendal/bindings/php
 composer install
 composer test
 ```
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

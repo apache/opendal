@@ -39,3 +39,7 @@ Please refer to the bindings listed above or which are already released for more
 ## Contributing
 
 We welcome contributions to OpenDAL. Please refer to [CONTRIBUTING.md](../../CONTRIBUTING.md) for the contributing guidelines.
+
+## License
+
+[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

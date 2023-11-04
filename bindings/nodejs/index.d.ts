@@ -394,6 +394,8 @@ export class Operator {
    * ```
    */
   presignStat(path: string, expires: number): Promise<PresignedRequest>
+  /** Add a layer to this operator. */
+  layer(layer: object): this
 }
 export class Entry {
   /** Return the path of this entry. */
@@ -435,3 +437,16 @@ export class Lister {
 export class BlockingLister {
   next(): Entry | null
 }
+/**
+ * A layer that will retry the request if it fails.
+ * It will retry with exponential backoff.
+ *
+ * ## Parameters
+ *
+ * - `jitter`<bool>: Whether to add jitter to the backoff.
+ * - `max_times`<number>: The maximum number of times to retry.
+ * - `factor`<number>: The exponential factor to use.
+ * - `max_delay`<number>: The maximum delay between retries. The unit is microsecond.
+ * - `min_delay`<number>: The minimum delay between retries. The unit is microsecond.
+ */
+export class RetryLayer { }

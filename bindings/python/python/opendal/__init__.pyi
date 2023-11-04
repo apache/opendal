@@ -17,6 +17,8 @@
 
 from typing import AsyncIterable, Iterable, Optional
 
+from opendal.layers import Layer
+
 class Error(Exception): ...
 
 class Operator:
@@ -28,11 +30,11 @@ class Operator:
         self,
         path: str,
         bs: bytes,
-        append: bool = None,
-        buffer: int = None,
-        content_type: str = None,
-        content_disposition: str = None,
-        cache_control: str = None,
+        append: Optional[bool] = None,
+        buffer: Optional[int] = None,
+        content_type: Optional[str] = None,
+        content_disposition: Optional[str] = None,
+        cache_control: Optional[str] = None,
     ): ...
     def stat(self, path: str) -> Metadata: ...
     def create_dir(self, path: str): ...
@@ -53,11 +55,11 @@ class AsyncOperator:
         self,
         path: str,
         bs: bytes,
-        append: bool = None,
-        buffer: int = None,
-        content_type: str = None,
-        content_disposition: str = None,
-        cache_control: str = None,
+        append: Optional[bool] = None,
+        buffer: Optional[int] = None,
+        content_type: Optional[str] = None,
+        content_disposition: Optional[str] = None,
+        cache_control: Optional[str] = None,
     ): ...
     async def stat(self, path: str) -> Metadata: ...
     async def create_dir(self, path: str): ...

@@ -17,47 +17,107 @@
 
 use pyo3::prelude::*;
 
+/// Capability is used to describe what operations are supported
+/// by current Operator.
 #[pyclass(get_all, module = "opendal")]
 pub struct Capability {
+    /// If operator supports stat.
     pub stat: bool,
+    /// If operator supports stat with if match.
     pub stat_with_if_match: bool,
+    /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
+
+    /// If operator supports read.
     pub read: bool,
+    /// If operator supports seek on returning reader.
     pub read_can_seek: bool,
+    /// If operator supports next on returning reader.
     pub read_can_next: bool,
+    /// If operator supports read with range.
     pub read_with_range: bool,
+    /// If operator supports read with if match.
     pub read_with_if_match: bool,
+    /// If operator supports read with if none match.
     pub read_with_if_none_match: bool,
+    /// if operator supports read with override cache control.
     pub read_with_override_cache_control: bool,
+    /// if operator supports read with override content disposition.
     pub read_with_override_content_disposition: bool,
+    /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
+
+    /// If operator supports write.
     pub write: bool,
+    /// If operator supports write can be called in multi times.
     pub write_can_multi: bool,
+    /// If operator supports write with empty content.
     pub write_can_empty: bool,
+    /// If operator supports write by append.
     pub write_can_append: bool,
+    /// If operator supports write with content type.
     pub write_with_content_type: bool,
+    /// If operator supports write with content disposition.
     pub write_with_content_disposition: bool,
+    /// If operator supports write with cache control.
     pub write_with_cache_control: bool,
+    /// write_multi_max_size is the max size that services support in write_multi.
+    ///
+    /// For example, AWS S3 supports 5GiB as max in write_multi.
     pub write_multi_max_size: Option<usize>,
+    /// write_multi_min_size is the min size that services support in write_multi.
+    ///
+    /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
     pub write_multi_min_size: Option<usize>,
+    /// write_multi_align_size is the align size that services required in write_multi.
+    ///
+    /// For example, Google GCS requires align size to 256KiB in write_multi.
     pub write_multi_align_size: Option<usize>,
+    /// write_total_max_size is the max size that services support in write_total.
+    ///
+    /// For example, Cloudflare D1 supports 1MB as max in write_total.
     pub write_total_max_size: Option<usize>,
+
+    /// If operator supports create dir.
     pub create_dir: bool,
+
+    /// If operator supports delete.
     pub delete: bool,
+
+    /// If operator supports copy.
     pub copy: bool,
+
+    /// If operator supports rename.
     pub rename: bool,
+
+    /// If operator supports list.
     pub list: bool,
+    /// If backend supports list with limit.
     pub list_with_limit: bool,
+    /// If backend supports list with start after.
     pub list_with_start_after: bool,
+    /// If backend support list with using slash as delimiter.
     pub list_with_delimiter_slash: bool,
+    /// If backend supports list without delimiter.
     pub list_without_delimiter: bool,
+
+    /// If operator supports presign.
     pub presign: bool,
+    /// If operator supports presign read.
     pub presign_read: bool,
+    /// If operator supports presign stat.
     pub presign_stat: bool,
+    /// If operator supports presign write.
     pub presign_write: bool,
+
+    /// If operator supports batch.
     pub batch: bool,
+    /// If operator supports batch delete.
     pub batch_delete: bool,
+    /// The max operations that operator supports in batch.
     pub batch_max_operations: Option<usize>,
+
+    /// If operator supports blocking.
     pub blocking: bool,
 }
 

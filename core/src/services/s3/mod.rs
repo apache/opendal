@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::S3Builder as S3;
+pub use backend::S3Config;
 
 mod core;
 mod error;

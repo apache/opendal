@@ -27,3 +27,22 @@ Open a file for reading in async way:
 async with await op.open(filename, "rb") as r:
     content = await r.read()
 ```
+
+## Breaking change for Errors
+
+We remove the old error classes and provide a couple of Exception based class for the error handling.
+
+1. `opendal.Error` is removed, use `opendal.exceptions.Unknown` instead.
+2. `opendal.exceptions.Unexpected` is added.
+3. `opendal.exceptions.Unsupported` is added.
+4. `opendal.exceptions.ConfigInvalid` is added.
+5. `opendal.exceptions.NotFound` is added.
+6. `opendal.exceptions.PermissionDenied` is added.
+7. `opendal.exceptions.IsADirectory` is added.
+8. `opendal.exceptions.NotADirectory` is added.
+9. `opendal.exceptions.AlreadyExists` is added.
+10. `opendal.exceptions.IsSameFile` is added.
+11. `opendal.exceptions.ConditionNotMatch` is added.
+12. `opendal.exceptions.ContentTruncated` is added.
+13. `opendal.exceptions.ContentIncomplete` is added.
+14. `opendal.exceptions.InvalidInput` is added.

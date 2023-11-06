@@ -20,7 +20,7 @@ from random import randint
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import IsADirectoryError, IsSameFileError, NotFoundError
+from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,7 @@ async def test_async_copy(service_name, operator, async_operator):
 async def test_async_copy_non_exist(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(NotFoundError) as e_info:
+    with pytest.raises(NotFound) as e_info:
         await async_operator.copy(source_path, target_path)
 
 
@@ -53,7 +53,7 @@ async def test_async_copy_source_directory(service_name, operator, async_operato
     source_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(source_path)
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(IsADirectoryError) as e_info:
+    with pytest.raises(IsADirectory) as e_info:
         await async_operator.copy(source_path, target_path)
 
 
@@ -65,7 +65,7 @@ async def test_async_copy_target_directory(service_name, operator, async_operato
     await async_operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(target_path)
-    with pytest.raises(IsADirectoryError) as e_info:
+    with pytest.raises(IsADirectory) as e_info:
         await async_operator.copy(source_path, target_path)
     await async_operator.delete(source_path)
     await async_operator.delete(target_path)
@@ -77,7 +77,7 @@ async def test_async_copy_self(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    with pytest.raises(IsSameFileError) as e_info:
+    with pytest.raises(IsSameFile) as e_info:
         await async_operator.copy(source_path, source_path)
     await async_operator.delete(source_path)
 

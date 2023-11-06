@@ -15,72 +15,72 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class Error(Exception):
-    """OpenDAL unrelated errors"""
+class Unknown(Exception):
+    """Unknown error"""
 
     pass
 
-class UnexpectedError(Exception):
+class Unexpected(Exception):
     """Unexpected errors"""
 
     pass
 
-class UnsupportedError(Exception):
+class Unsupported(Exception):
     """Unsupported operation"""
 
     pass
 
-class ConfigInvalidError(Exception):
+class ConfigInvalid(Exception):
     """Config is invalid"""
 
     pass
 
-class NotFoundError(Exception):
+class NotFound(Exception):
     """Not found"""
 
     pass
 
-class PermissionDeniedError(Exception):
+class PermissionDenied(Exception):
     """Permission denied"""
 
     pass
 
-class IsADirectoryError(Exception):
+class IsADirectory(Exception):
     """Is a directory"""
 
     pass
 
-class NotADirectoryError(Exception):
+class NotADirectory(Exception):
     """Not a directory"""
 
     pass
 
-class AlreadyExistsError(Exception):
+class AlreadyExists(Exception):
     """Already exists"""
 
     pass
 
-class IsSameFileError(Exception):
+class IsSameFile(Exception):
     """Is same file"""
 
     pass
 
-class ConditionNotMatchError(Exception):
+class ConditionNotMatch(Exception):
     """Condition not match"""
 
     pass
 
-class ContentTruncatedError(Exception):
+class ContentTruncated(Exception):
     """Content truncated"""
 
     pass
 
-class ContentIncompleteError(Exception):
+class ContentIncomplete(Exception):
     """Content incomplete"""
 
     pass
 
-class InvalidInputError(Exception):
+class InvalidInput(Exception):
     """Invalid input"""
 
     pass

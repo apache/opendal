@@ -95,32 +95,20 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
         .set_item("opendal.layers", layers_module)?;
 
     let exception_module = PyModule::new(py, "exceptions")?;
-    exception_module.add("Error", py.get_type::<Error>())?;
-    exception_module.add("UnexpectedError", py.get_type::<UnexpectedError>())?;
-    exception_module.add("UnsupportedError", py.get_type::<UnsupportedError>())?;
-    exception_module.add("ConfigInvalidError", py.get_type::<ConfigInvalidError>())?;
-    exception_module.add("NotFoundError", py.get_type::<NotFoundError>())?;
-    exception_module.add(
-        "PermissionDeniedError",
-        py.get_type::<PermissionDeniedError>(),
-    )?;
-    exception_module.add("IsADirectoryError", py.get_type::<IsADirectoryError>())?;
-    exception_module.add("NotADirectoryError", py.get_type::<NotADirectoryError>())?;
-    exception_module.add("AlreadyExistsError", py.get_type::<AlreadyExistsError>())?;
-    exception_module.add("IsSameFileError", py.get_type::<IsSameFileError>())?;
-    exception_module.add(
-        "ConditionNotMatchError",
-        py.get_type::<ConditionNotMatchError>(),
-    )?;
-    exception_module.add(
-        "ContentTruncatedError",
-        py.get_type::<ContentTruncatedError>(),
-    )?;
-    exception_module.add(
-        "ContentIncompleteError",
-        py.get_type::<ContentIncompleteError>(),
-    )?;
-    exception_module.add("InvalidInputError", py.get_type::<InvalidInputError>())?;
+    exception_module.add("Unknown", py.get_type::<Unknown>())?;
+    exception_module.add("Unexpected", py.get_type::<UnexpectedError>())?;
+    exception_module.add("Unsupported", py.get_type::<UnsupportedError>())?;
+    exception_module.add("ConfigInvalid", py.get_type::<ConfigInvalidError>())?;
+    exception_module.add("NotFound", py.get_type::<NotFoundError>())?;
+    exception_module.add("PermissionDenied", py.get_type::<PermissionDeniedError>())?;
+    exception_module.add("IsADirectory", py.get_type::<IsADirectoryError>())?;
+    exception_module.add("NotADirectory", py.get_type::<NotADirectoryError>())?;
+    exception_module.add("AlreadyExists", py.get_type::<AlreadyExistsError>())?;
+    exception_module.add("IsSameFile", py.get_type::<IsSameFileError>())?;
+    exception_module.add("ConditionNotMatch", py.get_type::<ConditionNotMatchError>())?;
+    exception_module.add("ContentTruncated", py.get_type::<ContentTruncatedError>())?;
+    exception_module.add("ContentIncomplete", py.get_type::<ContentIncompleteError>())?;
+    exception_module.add("InvalidInput", py.get_type::<InvalidInputError>())?;
     m.add_submodule(exception_module)?;
     py.import("sys")?
         .getattr("modules")?

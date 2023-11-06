@@ -20,7 +20,7 @@ from random import randint
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import NotFoundError
+from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
@@ -85,7 +85,7 @@ def test_sync_delete(service_name, operator, async_operator):
     size = len(content)
     operator.write(filename, content)
     operator.delete(filename)
-    with pytest.raises(NotFoundError):
+    with pytest.raises(NotFound):
         operator.stat(filename)
 
 
@@ -98,5 +98,5 @@ async def test_async_delete(service_name, operator, async_operator):
     size = len(content)
     await async_operator.write(filename, content)
     await async_operator.delete(filename)
-    with pytest.raises(NotFoundError):
+    with pytest.raises(NotFound):
         await operator.stat(filename)

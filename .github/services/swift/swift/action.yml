@@ -31,8 +31,8 @@ runs:
       shell: bash
       run: |
         token=$(curl -i -H 'X-Storage-User: test:tester' -H 'X-Storage-Pass: testing' http://127.0.0.1:8080/auth/v1.0 | grep X-Auth-Token | head -n1 | awk '{print $2}')
-        echo "OPENDAL_SWIFT_TOKEN=${{ token }}" >> $GITHUB_ENV
         curl --location --request PUT 'http://127.0.0.1:8080/v1/AUTH_test/testing' --header "X-Auth-Token: $token"
+        echo -e "OPENDAL_SWIFT_TOKEN=$token" >> $GITHUB_ENV
 
     - name: Setup environment variables
       shell: bash

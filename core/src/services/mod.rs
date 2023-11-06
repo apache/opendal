@@ -147,6 +147,8 @@ pub use self::rocksdb::Rocksdb;
 #[cfg(feature = "services-s3")]
 mod s3;
 #[cfg(feature = "services-s3")]
+pub use s3::S3Config;
+#[cfg(feature = "services-s3")]
 pub use s3::S3;
 
 #[cfg(feature = "services-sftp")]

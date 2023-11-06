@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class Unknown(Exception):
-    """Unknown error"""
-
-    pass
-
 class Unexpected(Exception):
     """Unexpected errors"""
 

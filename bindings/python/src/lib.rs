@@ -95,7 +95,6 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
         .set_item("opendal.layers", layers_module)?;
 
     let exception_module = PyModule::new(py, "exceptions")?;
-    exception_module.add("Unknown", py.get_type::<Unknown>())?;
     exception_module.add("Unexpected", py.get_type::<UnexpectedError>())?;
     exception_module.add("Unsupported", py.get_type::<UnsupportedError>())?;
     exception_module.add("ConfigInvalid", py.get_type::<ConfigInvalidError>())?;

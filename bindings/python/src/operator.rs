@@ -549,9 +549,9 @@ impl PresignedRequest {
             let k = k.as_str();
             let v = v
                 .to_str()
-                .map_err(|err| Unknown::new_err(err.to_string()))?;
+                .map_err(|err| UnexpectedError::new_err(err.to_string()))?;
             if headers.insert(k, v).is_some() {
-                return Err(Unknown::new_err("duplicate header"));
+                return Err(UnexpectedError::new_err("duplicate header"));
             }
         }
         Ok(headers)

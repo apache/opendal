@@ -63,12 +63,6 @@ create_exception!(
     "Content incomplete"
 );
 create_exception!(opendal, InvalidInputError, PyException, "Invalid input");
-create_exception!(
-    opendal,
-    Unknown,
-    PyException,
-    "OpenDAL Python binding unknown error"
-);
 
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
     use ocore::ErrorKind::*;
@@ -86,6 +80,6 @@ pub fn format_pyerr(err: ocore::Error) -> PyErr {
         ContentTruncated => ContentTruncatedError::new_err(err.to_string()),
         ContentIncomplete => ContentIncompleteError::new_err(err.to_string()),
         InvalidInput => InvalidInputError::new_err(err.to_string()),
-        _ => Unknown::new_err(err.to_string()),
+        _ => UnexpectedError::new_err(err.to_string()),
     }
 }

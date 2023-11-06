@@ -24,24 +24,22 @@ runs:
     - name: Setup Swift service
       shell: bash
       working-directory: fixtures/swift
-      run: docker compose -f docker-compose-swift.yml up -d --wait
-    - name: create test token
+      run: |
+        docker compose -f docker-compose-swift.yml up -d --wait
+
+    - name: Create test token and setup test container
       shell: bash
       run: |
         token=$(curl -i -H 'X-Storage-User: test:tester' -H 'X-Storage-Pass: testing' http://127.0.0.1:8080/auth/v1.0 | grep X-Auth-Token | head -n1 | awk '{print $2}')
         echo "OPENDAL_SWIFT_TOKEN=$token" >> $GITHUB_ENV
-    - name: Setup test container
-      shell: bash
-      run: |
         curl --location --request PUT 'http://127.0.0.1:8080/v1/AUTH_test/testing' --header "X-Auth-Token: $OPENDAL_SWIFT_TOKEN"
-    - name: Setup
+
+    - name: Setup environment variables
       shell: bash
       run: |
-        cat << EOF >> $GITHUB_ENV
-        RUST_BACKTRACE=full
-        RUST_LOG=debug
-        OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080
-        OPENDAL_SWIFT_ACCOUNT=AUTH_test
-        OPENDAL_SWIFT_CONTAINER=testing
-        OPENDAL_SWIFT_ROOT=/
-        EOF
+        echo "RUST_BACKTRACE=full" >> $GITHUB_ENV
+        echo "RUST_LOG=debug" >> $GITHUB_ENV
+        echo "OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080" >> $GITHUB_ENV
+        echo "OPENDAL_SWIFT_ACCOUNT=AUTH_test" >> $GITHUB_ENV
+        echo "OPENDAL_SWIFT_CONTAINER=testing" >> $GITHUB_ENV
+        echo "OPENDAL_SWIFT_ROOT=/" >> $GITHUB_ENV

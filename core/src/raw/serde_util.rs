@@ -313,6 +313,8 @@ mod tests {
         bool_value: bool,
         bool_option_value_none: Option<bool>,
         bool_option_value_some: Option<bool>,
+        bool_value_with_on: bool,
+        bool_value_with_off: bool,
 
         string_value: String,
         string_option_value_none: Option<String>,
@@ -339,6 +341,8 @@ mod tests {
         map.insert("bool_value", "true");
         map.insert("bool_option_value_none", "");
         map.insert("bool_option_value_some", "false");
+        map.insert("bool_value_with_on", "on");
+        map.insert("bool_value_with_off", "off");
         map.insert("string_value", "hello");
         map.insert("string_option_value_none", "");
         map.insert("string_option_value_some", "hello");
@@ -366,6 +370,8 @@ mod tests {
                 bool_value: true,
                 bool_option_value_none: None,
                 bool_option_value_some: Some(false),
+                bool_value_with_on: true,
+                bool_value_with_off: false,
                 string_value: "hello".to_string(),
                 string_option_value_none: None,
                 string_option_value_some: Some("hello".to_string()),

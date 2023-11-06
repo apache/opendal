@@ -24,6 +24,7 @@ use std::fmt::{Debug, Formatter};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
+use crate::raw::new_std_io_error;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
@@ -39,7 +40,6 @@ pub struct GridFsBuilder {
 impl Debug for GridFsBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GridFsBuilder")
-            .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)
@@ -155,10 +155,7 @@ impl Builder for GridFsBuilder {
             Some(v) => v.clone(),
             None => "fs".to_string(),
         };
-        let chunk_size = match self.chunk_size {
-            Some(v) => v,
-            None => 255,
-        };
+        let chunk_size = self.chunk_size.unwrap_or(255);
 
         Ok(GridFsBackend::new(Adapter {
             connection_string: conn,
@@ -184,7 +181,6 @@ pub struct Adapter {
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Adapter")
-            .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)
@@ -269,8 +265,8 @@ impl kv::Adapter for Adapter {
         upload_stream
             .write_all(value)
             .await
-            .map_err(parse_io_error)?;
-        upload_stream.close().await.map_err(parse_io_error)?;
+            .map_err(new_std_io_error)?;
+        upload_stream.close().await.map_err(new_std_io_error)?;
 
         Ok(())
     }
@@ -292,8 +288,4 @@ impl kv::Adapter for Adapter {
 
 fn parse_mongodb_error(err: mongodb::error::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err)
-}
-
-fn parse_io_error(err: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "io error").set_source(err)
 }

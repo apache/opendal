@@ -202,49 +202,49 @@ jobs:
         shell: bash
         run: |
           FEATURES=(
-            # services-azblob
-            # services-azdls
-            # services-cacache
-            # services-cos
-            # services-dashmap
-            # services-dropbox
-            # services-etcd
+            services-azblob
+            services-azdls
+            services-cacache
+            services-cos
+            services-dashmap
+            services-dropbox
+            services-etcd
             # FIXME this requires a preinstalled fdb library
             # services-foundationdb
-            # services-fs
-            # services-ftp
-            # services-gcs
-            # services-gdrive
-            # services-ghac
+            services-fs
+            services-ftp
+            services-gcs
+            services-gdrive
+            services-ghac
             # FIXME how to support HDFS services in other platforms?
             # services-hdfs
-            # services-http
-            # services-ipfs
-            # services-ipmfs
-            # services-memcached
-            # services-memory
-            # services-mini-moka
-            # services-moka
-            # services-obs
-            # services-onedrive
-            # services-oss
-            # services-persy
-            # services-postgresql
-            # services-redb
-            # services-redis
+            services-http
+            services-ipfs
+            services-ipmfs
+            services-memcached
+            services-memory
+            services-mini-moka
+            services-moka
+            services-obs
+            services-onedrive
+            services-oss
+            services-persy
+            services-postgresql
+            services-redb
+            services-redis
             # TODO: we need to find ways to using pre-install rocksdb library
             # services-rocksdb
-            # services-s3
+            services-s3
             # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/incubator-opendal/issues/2963
             # services-sftp
-            # services-sled
+            services-sled
             services-swift
-            # services-supabase
-            # services-tikv
-            # services-vercel-artifacts
-            # services-wasabi
-            # services-webdav
-            # services-webhdfs
+            services-supabase
+            services-tikv
+            services-vercel-artifacts
+            services-wasabi
+            services-webdav
+            services-webhdfs
           )
           cargo build --features "${FEATURES[*]}"
 

@@ -37,9 +37,9 @@ runs:
     - name: Setup environment variables
       shell: bash
       run: |
-        echo "RUST_BACKTRACE=full" >> $GITHUB_ENV
-        echo "RUST_LOG=debug" >> $GITHUB_ENV
-        echo "OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080" >> $GITHUB_ENV
-        echo "OPENDAL_SWIFT_ACCOUNT=AUTH_test" >> $GITHUB_ENV
-        echo "OPENDAL_SWIFT_CONTAINER=testing" >> $GITHUB_ENV
-        echo "OPENDAL_SWIFT_ROOT=/" >> $GITHUB_ENV
+          cat << EOF >> $GITHUB_ENV
+          OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080
+          OPENDAL_SWIFT_ACCOUNT=AUTH_test
+          OPENDAL_SWIFT_CONTAINER=testing
+          OPENDAL_SWIFT_ROOT=/
+          EOF

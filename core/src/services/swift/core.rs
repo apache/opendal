@@ -58,6 +58,7 @@ impl SwiftCore {
         let mut req = Request::delete(&url);
 
         req = req.header("X-Auth-Token", &self.token);
+        eprintln!("X-Auth-Token: {}", &self.token);
 
         let body = AsyncBody::Empty;
 

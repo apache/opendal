@@ -230,12 +230,25 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let bucket = self.get_bucket().await?;
-        let mut destination = Vec::new();
-        bucket
-            .download_to_futures_0_3_writer_by_name(path, &mut destination, None)
+        let filter = doc! { "filename": path };
+        let options = GridFsFindOptions::builder().limit(Some(1)).build();
+        let mut cursor = bucket
+            .find(filter, options)
             .await
             .map_err(parse_mongodb_error)?;
-        Ok(Some(destination))
+
+        match cursor.next().await {
+            Some(doc) => {
+                let mut destination = Vec::new();
+                let file_id = doc.map_err(parse_mongodb_error)?.id;
+                bucket
+                    .download_to_futures_0_3_writer(file_id, &mut destination)
+                    .await
+                    .map_err(parse_mongodb_error)?;
+                Ok(Some(destination))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

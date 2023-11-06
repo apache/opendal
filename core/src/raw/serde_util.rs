@@ -112,11 +112,12 @@ impl<'de> Deserializer<'de> for Pair {
     where
         V: Visitor<'de>,
     {
-        match self.1.parse::<bool>() {
-            Ok(val) => val.into_deserializer().deserialize_bool(visitor),
-            Err(e) => Err(de::Error::custom(format_args!(
+        match self.1.to_lowercase().as_str() {
+            "true" | "on" => true.into_deserializer().deserialize_bool(visitor),
+            "false" | "off" => false.into_deserializer().deserialize_bool(visitor),
+            _ => Err(de::Error::custom(format_args!(
                 "parse config '{}' with value '{}' failed for {:?}",
-                self.0, self.1, e
+                self.0, self.1, "invalid bool value"
             ))),
         }
     }

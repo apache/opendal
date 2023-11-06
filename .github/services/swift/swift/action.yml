@@ -43,5 +43,5 @@ runs:
         OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080
         OPENDAL_SWIFT_ACCOUNT=AUTH_test
         OPENDAL_SWIFT_CONTAINER=testing
-        OPENDAL_SWIFT_ROOT=test:tester
+        OPENDAL_SWIFT_ROOT=/
         EOF

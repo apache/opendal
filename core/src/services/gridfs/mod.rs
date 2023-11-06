@@ -16,4 +16,4 @@
 // under the License.
 
 mod backend;
-pub use backend::GridFsBuilder as GridFs;
+pub use backend::GridFsBuilder as Gridfs;

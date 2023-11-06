@@ -184,7 +184,7 @@ impl Operator {
             #[cfg(feature = "services-ghac")]
             Scheme::Ghac => Self::from_map::<services::Ghac>(map)?.finish(),
             #[cfg(feature = "services-gridfs")]
-            Scheme::GridFs => Self::from_map::<services::GridFs>(map)?.finish(),
+            Scheme::Gridfs => Self::from_map::<services::Gridfs>(map)?.finish(),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
             #[cfg(feature = "services-http")]

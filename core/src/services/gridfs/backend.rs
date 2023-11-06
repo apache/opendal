@@ -140,7 +140,7 @@ impl Builder for GridFsBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::InvalidInput, "connection_string is required")
-                        .with_context("service", Scheme::GridFs),
+                        .with_context("service", Scheme::Gridfs),
                 )
             }
         };
@@ -148,7 +148,7 @@ impl Builder for GridFsBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::InvalidInput, "database is required")
-                    .with_context("service", Scheme::GridFs))
+                    .with_context("service", Scheme::Gridfs))
             }
         };
         let bucket = match &self.bucket.clone() {
@@ -214,7 +214,7 @@ impl Adapter {
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
-            Scheme::GridFs,
+            Scheme::Gridfs,
             &format!("{}/{}", self.database, self.bucket),
             Capability {
                 read: true,

@@ -28,12 +28,12 @@ This service can be used to:
 
 ```rust
 use anyhow::Result;
-use opendal::services::GridFs;
+use opendal::services::Gridfs;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = GridFs::default();
+    let mut builder = Gridfs::default();
     builder.root("/");
     builder.connection_string("mongodb://myUser:myPassword@localhost:27017/myAuthDB");
     builder.database("your_database");

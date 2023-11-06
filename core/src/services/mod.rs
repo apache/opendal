@@ -72,7 +72,7 @@ pub use ghac::Ghac;
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
 #[cfg(feature = "services-gridfs")]
-pub use gridfs::GridFs;
+pub use gridfs::Gridfs;
 
 #[cfg(feature = "services-hdfs")]
 mod hdfs;

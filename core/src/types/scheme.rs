@@ -127,6 +127,8 @@ pub enum Scheme {
     Azfile,
     /// [mongodb](crate::services::mongodb): MongoDB Services
     Mongodb,
+    /// [gridfs](crate::services::gridfs): MongoDB GridFs Services
+    GridFs,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -288,6 +290,7 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             "gdrive" => Ok(Scheme::Gdrive),
             "ghac" => Ok(Scheme::Ghac),
+            "gridfs" => Ok(Scheme::GridFs),
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
             "ftp" | "ftps" => Ok(Scheme::Ftp),
@@ -340,6 +343,7 @@ impl From<Scheme> for &'static str {
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",
+            Scheme::GridFs => "gridfs",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
             Scheme::Foundationdb => "foundationdb",

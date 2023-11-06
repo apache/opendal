@@ -15,18 +15,48 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
 use std::io::SeekFrom;
 use std::vec;
 
 use anyhow::Result;
-use futures::AsyncSeekExt;
-use log::debug;
+use opendal::raw::tests::{ReadAction, ReadChecker};
+use opendal::raw::BytesRange;
 
 use crate::*;
 
 pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
-    async_trials!(op, test_fuzz_issue_2717)
+    async_trials!(
+        op,
+        test_fuzz_issue_2717,
+        test_fuzz_pr_3395_case_1,
+        test_fuzz_pr_3395_case_2
+    )
+}
+
+async fn test_fuzz_read(
+    op: Operator,
+    size: usize,
+    range: impl Into<BytesRange>,
+    actions: &[ReadAction],
+) -> Result<()> {
+    let cap = op.info().full_capability();
+
+    if !(cap.read && cap.write & cap.read_with_range) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let mut checker = ReadChecker::new(size, range.into());
+
+    op.write(&path, checker.data())
+        .await
+        .expect("write must succeed");
+
+    let r = op.reader(&path).await.expect("reader must be created");
+
+    checker.check(r, actions).await;
+    Ok(())
 }
 
 /// This fuzz test is to reproduce <https://github.com/apache/incubator-opendal/issues/2717>.
@@ -67,26 +97,85 @@ pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
 /// is invalid for given range `1..2`. However, the actual behavior is we seek to `0`
 /// and results in a panic.
 pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let actions = [ReadAction::Seek(SeekFrom::End(-2))];
 
-    if !(cap.read && cap.write & cap.read_with_range) {
-        return Ok(());
-    }
+    test_fuzz_read(op, 2, .., &actions).await
+}
 
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let content = gen_fixed_bytes(2);
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+///
+/// The simplified cases could be seen as:
+///
+/// ```
+/// FuzzInput {
+///     path: "06ae5d93-c0e9-43f2-ae5a-225cfaaa40a0",
+///     size: 1,
+///     range: BytesRange(
+///         Some(
+///             0,
+///         ),
+///         None,
+///     ),
+///     actions: [
+///         Seek(
+///             Current(
+///                 1,
+///             ),
+///         ),
+///         Next,
+///         Seek(
+///             End(
+///                 -1,
+///             ),
+///         ),
+///     ],
+/// }
+/// ```
+pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
+    let actions = [
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(-1)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
+}
 
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(1..2).await?;
-
-    // Perform a seek
-    let result = r.seek(SeekFrom::End(-2)).await;
-    assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidInput);
-
-    Ok(())
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+///
+/// The simplified cases could be seen as:
+///
+/// ```
+/// FuzzInput {
+///     path: "e6056989-7c7c-4075-b975-5ae380884333",
+///     size: 1,
+///     range: BytesRange(
+///         Some(
+///             0,
+///         ),
+///         None,
+///     ),
+///     actions: [
+///         Next,
+///         Seek(
+///             Current(
+///                 1,
+///             ),
+///         ),
+///         Next,
+///         Seek(
+///             End(
+///                 0,
+///             ),
+///         ),
+///     ],
+/// }
+/// ```
+pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {
+    let actions = [
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::Current(1)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(0)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
 }

@@ -20,6 +20,8 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,7 +39,7 @@ public class BlockingOperator extends NativeObject {
      * and see what config options each service supports.
      *
      * @param schema the name of the underneath service to access data from.
-     * @param map a map of properties to construct the underneath operator.
+     * @param map    a map of properties to construct the underneath operator.
      */
     public static BlockingOperator of(String schema, Map<String, String> map) {
         try (final Operator operator = Operator.of(schema, map)) {
@@ -52,7 +54,6 @@ public class BlockingOperator extends NativeObject {
 
     /**
      * @return the cloned blocking operator.
-     *
      * @see Operator#duplicate()
      */
     public BlockingOperator duplicate() {
@@ -92,6 +93,14 @@ public class BlockingOperator extends NativeObject {
         rename(nativeHandle, sourcePath, targetPath);
     }
 
+    public void removeAll(String path) {
+        removeAll(nativeHandle, path);
+    }
+
+    public List<Entry> list(String path) {
+        return Arrays.asList(list(nativeHandle, path));
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -110,4 +119,8 @@ public class BlockingOperator extends NativeObject {
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 
     private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native void removeAll(long nativeHandle, String path);
+
+    private static native Entry[] list(long nativeHandle, String path);
 }

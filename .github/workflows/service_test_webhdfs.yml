@@ -70,7 +70,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior
+        run: cargo test behavior --features tests
         env:
           OPENDAL_TEST: webhdfs
           OPENDAL_WEBHDFS_ROOT: /
@@ -109,7 +109,7 @@ jobs:
       - name: Test with disable_list_batch
         shell: bash
         working-directory: core
-        run: cargo test behavior
+        run: cargo test behavior --features tests
         env:
           OPENDAL_TEST: webhdfs
           OPENDAL_WEBHDFS_ROOT: /

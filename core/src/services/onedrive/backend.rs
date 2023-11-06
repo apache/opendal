@@ -55,7 +55,7 @@ impl Debug for OnedriveBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("OneDriveBackend");
         de.field("root", &self.root);
-        de.field("access_token", &self.access_token);
+        de.field("access_token", &"<redacted>");
         de.finish()
     }
 }
@@ -94,10 +94,9 @@ impl Accessor for OnedriveBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
-
             _ => Err(parse_error(resp).await?),
         }
     }

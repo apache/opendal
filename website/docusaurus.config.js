@@ -183,7 +183,7 @@ const config = {
               },
               {
                 label: 'Events',
-                to: 'https://www.apache.org/events/current-event'
+                to: 'https://www.apache.org/events/current-event.html'
               },
               {
                 label: 'Privacy',

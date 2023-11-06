@@ -33,7 +33,12 @@ version.workspace = true
 default = ["frontends-webdav", "frontends-s3"]
 
 frontends-s3 = []
-frontends-webdav = ["dep:dav-server", "dep:dav-server-opendalfs", "dep:bytes", "dep:futures-util"]
+frontends-webdav = [
+  "dep:dav-server",
+  "dep:dav-server-opendalfs",
+  "dep:bytes",
+  "dep:futures-util",
+]
 
 [dependencies]
 anyhow = "1"
@@ -55,7 +60,7 @@ tokio = { version = "1.27", features = [
   "rt-multi-thread",
   "io-std",
 ] }
-toml = "0.7.3"
+toml = "0.8.6"
 tower = "0.4"
 tower-http = { version = "0.4", features = ["trace"] }
 tracing = "0.1"

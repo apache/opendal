@@ -27,6 +27,107 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
+[features]
+# Enable all opendal default feature by default.
+default = [
+  "services-azblob",
+  "services-azdls",
+  "services-cos",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+]
+
+services-all = [
+  "default",
+
+  "services-azfile",
+  "services-cacache",
+  "services-dashmap",
+  "services-dropbox",
+  "services-etcd",
+  # FIXME this requires a preinstalled fdb library
+  # "services-foundationdb",
+  "services-ftp",
+  "services-gdrive",
+  # FIXME how to support HDFS services in bindings?
+  # "services-hdfs",
+  "services-ipfs",
+  "services-memcached",
+  "services-mini-moka",
+  "services-moka",
+  "services-onedrive",
+  "services-persy",
+  "services-postgresql",
+  "services-mysql",
+  "services-redb",
+  "services-redis",
+  "services-rocksdb",
+  "services-sled",
+  "services-supabase",
+  "services-tikv",
+  "services-vercel-artifacts",
+  "services-wasabi",
+  "services-mongodb",
+  "services-sqlite",
+  "services-libsql"
+]
+
+# Default services provided by opendal.
+services-azblob = ["opendal/services-azblob"]
+services-azdls = ["opendal/services-azdls"]
+services-cos = ["opendal/services-cos"]
+services-fs = ["opendal/services-fs"]
+services-gcs = ["opendal/services-gcs"]
+services-ghac = ["opendal/services-ghac"]
+services-http = ["opendal/services-http"]
+services-ipmfs = ["opendal/services-ipmfs"]
+services-memory = ["opendal/services-memory"]
+services-obs = ["opendal/services-obs"]
+services-oss = ["opendal/services-oss"]
+services-s3 = ["opendal/services-s3"]
+services-webdav = ["opendal/services-webdav"]
+services-webhdfs = ["opendal/services-webhdfs"]
+
+# Optional services provided by opendal.
+services-azfile = ["opendal/services-azfile"]
+services-cacache = ["opendal/services-cacache"]
+services-dashmap = ["opendal/services-dashmap"]
+services-dropbox = ["opendal/services-dropbox"]
+services-etcd = ["opendal/services-etcd"]
+services-foundationdb = ["opendal/services-foundationdb"]
+services-ftp = ["opendal/services-ftp"]
+services-gdrive = ["opendal/services-gdrive"]
+services-hdfs = ["opendal/services-hdfs"]
+services-ipfs = ["opendal/services-ipfs"]
+services-memcached = ["opendal/services-memcached"]
+services-mini-moka = ["opendal/services-mini-moka"]
+services-moka = ["opendal/services-moka"]
+services-mongodb = ["opendal/services-mongodb"]
+services-mysql = ["opendal/services-mysql"]
+services-onedrive = ["opendal/services-onedrive"]
+services-persy = ["opendal/services-persy"]
+services-postgresql = ["opendal/services-postgresql"]
+services-redb = ["opendal/services-redb"]
+services-redis = ["opendal/services-redis"]
+services-rocksdb = ["opendal/services-rocksdb"]
+services-sftp = ["opendal/services-sftp"]
+services-sled = ["opendal/services-sled"]
+services-sqlite = ["opendal/services-sqlite"]
+services-supabase = ["opendal/services-supabase"]
+services-tikv = ["opendal/services-tikv"]
+services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
+services-wasabi = ["opendal/services-wasabi"]
+services-libsql = ["opendal/services-libsql"]
+
 [lib]
 crate-type = ["cdylib"]
 doc = false

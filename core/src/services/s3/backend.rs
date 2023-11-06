@@ -42,8 +42,8 @@ use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
+use super::writer::S3Writers;
 use crate::raw::*;
-use crate::services::s3::writer::S3Writers;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -970,9 +970,10 @@ impl Accessor for S3Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),
         }
     }

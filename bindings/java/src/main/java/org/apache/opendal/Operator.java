@@ -21,7 +21,10 @@ package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -117,7 +120,7 @@ public class Operator extends NativeObject {
         return new Operator(nativeHandle, info);
     }
 
-    Operator(long nativeHandle, OperatorInfo info) {
+    private Operator(long nativeHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
     }
@@ -134,6 +137,11 @@ public class Operator extends NativeObject {
     public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
         return new Operator(nativeHandle, this.info);
+    }
+
+    public Operator layer(Layer layer) {
+        final long nativeHandle = layer.layer(this.nativeHandle);
+        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {
@@ -170,17 +178,17 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignRead(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
         final long requestId = presignRead(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignWrite(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration) {
         final long requestId = presignWrite(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> presignStat(String path, Duration duration) {
+    public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration) {
         final long requestId = presignStat(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
@@ -203,6 +211,17 @@ public class Operator extends NativeObject {
     public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
         final long requestId = rename(nativeHandle, sourcePath, targetPath);
         return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<Void> removeAll(String path) {
+        final long requestId = removeAll(nativeHandle, path);
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<List<Entry>> list(String path) {
+        final long requestid = list(nativeHandle, path);
+        final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
+        return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
 
     @Override
@@ -237,4 +256,8 @@ public class Operator extends NativeObject {
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 
     private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long removeAll(long nativeHandle, String path);
+
+    private static native long list(long nativeHandle, String path);
 }

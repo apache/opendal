@@ -47,8 +47,8 @@ pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
 /// Test append to a file must success.
 pub async fn test_append_create_append(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    let (content_one, size_one) = gen_bytes();
-    let (content_two, size_two) = gen_bytes();
+    let (content_one, size_one) = gen_bytes(op.info().full_capability());
+    let (content_two, size_two) = gen_bytes(op.info().full_capability());
 
     op.write_with(&path, content_one.clone())
         .append(true)
@@ -74,7 +74,7 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
 /// Test append to a directory path must fail.
 pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
-    let (content, _) = gen_bytes();
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let res = op.write_with(&path, content).append(true).await;
     assert!(res.is_err());
@@ -90,7 +90,7 @@ pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes();
+    let (content, _) = gen_bytes(op.info().full_capability());
 
     let target_cache_control = "no-cache, no-store, max-age=300";
     op.write_with(&path, content)
@@ -117,7 +117,7 @@ pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     let target_content_type = "application/json";
     op.write_with(&path, content)
@@ -145,7 +145,7 @@ pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
+    let (content, size) = gen_bytes(op.info().full_capability());
 
     let target_content_disposition = "attachment; filename=\"filename.jpg\"";
     op.write_with(&path, content)

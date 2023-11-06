@@ -19,10 +19,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use crate::error::Error;
 use jni::objects::JObject;
-use jni::objects::JString;
-use jni::objects::{JMap, JValue};
+use jni::objects::JValue;
 use jni::sys::jboolean;
 use jni::sys::jint;
 use jni::sys::jlong;
@@ -32,14 +30,18 @@ use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
+use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
 mod blocking_operator;
+mod convert;
 mod error;
+mod layer;
 mod operator;
 mod utility;
 
@@ -99,36 +101,6 @@ unsafe fn get_global_runtime<'local>() -> &'local Runtime {
     RUNTIME.get_unchecked()
 }
 
-fn usize_to_jlong(n: Option<usize>) -> jlong {
-    // usize is always >= 0, so we can use -1 to identify the empty value.
-    n.map_or(-1, |v| v as jlong)
-}
-
-fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
-    let map = JMap::from_env(env, params)?;
-    let mut iter = map.iter(env)?;
-
-    let mut result: HashMap<String, String> = HashMap::new();
-    while let Some(e) = iter.next(env)? {
-        let k = JString::from(e.0);
-        let v = JString::from(e.1);
-        result.insert(env.get_string(&k)?.into(), env.get_string(&v)?.into());
-    }
-
-    Ok(result)
-}
-
-fn hashmap_to_jmap<'a>(env: &mut JNIEnv<'a>, map: &HashMap<String, String>) -> Result<JObject<'a>> {
-    let map_object = env.new_object("java/util/HashMap", "()V", &[])?;
-    let jmap = env.get_map(&map_object)?;
-    for (k, v) in map {
-        let key = env.new_string(k)?;
-        let value = env.new_string(v)?;
-        jmap.put(env, &key, &value)?;
-    }
-    Ok(map_object)
-}
-
 fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Result<JObject<'a>> {
     let method = env.new_string(req.method().as_str())?;
     let uri = env.new_string(req.uri().to_string())?;
@@ -143,7 +115,7 @@ fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Re
         }
         map
     };
-    let headers = hashmap_to_jmap(env, &headers)?;
+    let headers = convert::hashmap_to_jmap(env, &headers)?;
     let result = env.new_object(
         "org/apache/opendal/PresignedRequest",
         "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V",
@@ -201,9 +173,9 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.write_with_content_type as jboolean),
             JValue::Bool(cap.write_with_content_disposition as jboolean),
             JValue::Bool(cap.write_with_cache_control as jboolean),
-            JValue::Long(usize_to_jlong(cap.write_multi_max_size)),
-            JValue::Long(usize_to_jlong(cap.write_multi_min_size)),
-            JValue::Long(usize_to_jlong(cap.write_multi_align_size)),
+            JValue::Long(convert::usize_to_jlong(cap.write_multi_max_size)),
+            JValue::Long(convert::usize_to_jlong(cap.write_multi_min_size)),
+            JValue::Long(convert::usize_to_jlong(cap.write_multi_align_size)),
             JValue::Bool(cap.create_dir as jboolean),
             JValue::Bool(cap.delete as jboolean),
             JValue::Bool(cap.copy as jboolean),
@@ -219,7 +191,7 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.presign_write as jboolean),
             JValue::Bool(cap.batch as jboolean),
             JValue::Bool(cap.batch_delete as jboolean),
-            JValue::Long(usize_to_jlong(cap.batch_max_operations)),
+            JValue::Long(convert::usize_to_jlong(cap.batch_max_operations)),
             JValue::Bool(cap.blocking as jboolean),
         ],
     )?;
@@ -233,31 +205,80 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
         EntryMode::Unknown => 2,
     };
 
-    let last_modified = metadata.last_modified().map_or_else(
-        || Ok::<JObject<'_>, Error>(JObject::null()),
-        |v| {
-            Ok(env.new_object(
-                "java/util/Date",
-                "(J)V",
-                &[JValue::Long(v.timestamp_millis())],
-            )?)
-        },
-    )?;
+    let metakey = metadata.metakey();
 
-    let cache_control = string_to_jstring(env, metadata.cache_control())?;
-    let content_disposition = string_to_jstring(env, metadata.content_disposition())?;
-    let content_md5 = string_to_jstring(env, metadata.content_md5())?;
-    let content_type = string_to_jstring(env, metadata.content_type())?;
-    let etag = string_to_jstring(env, metadata.etag())?;
-    let version = string_to_jstring(env, metadata.version())?;
+    let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
+
+    let last_modified = if contains_metakey(Metakey::LastModified) {
+        metadata.last_modified().map_or_else(
+            || Ok::<JObject<'_>, error::Error>(JObject::null()),
+            |v| {
+                Ok(env
+                    .call_static_method(
+                        "java/time/Instant",
+                        "ofEpochSecond",
+                        "(JJ)Ljava/time/Instant;",
+                        &[
+                            JValue::Long(v.timestamp()),
+                            JValue::Long(v.timestamp_subsec_nanos() as jlong),
+                        ],
+                    )?
+                    .l()?)
+            },
+        )?
+    } else {
+        JObject::null()
+    };
+
+    let cache_control = if contains_metakey(Metakey::CacheControl) {
+        convert::string_to_jstring(env, metadata.cache_control())?
+    } else {
+        JObject::null()
+    };
+
+    let content_disposition = if contains_metakey(Metakey::ContentDisposition) {
+        convert::string_to_jstring(env, metadata.content_disposition())?
+    } else {
+        JObject::null()
+    };
+
+    let content_md5 = if contains_metakey(Metakey::ContentMd5) {
+        convert::string_to_jstring(env, metadata.content_md5())?
+    } else {
+        JObject::null()
+    };
+
+    let content_type = if contains_metakey(Metakey::ContentType) {
+        convert::string_to_jstring(env, metadata.content_type())?
+    } else {
+        JObject::null()
+    };
+
+    let etag = if contains_metakey(Metakey::Etag) {
+        convert::string_to_jstring(env, metadata.etag())?
+    } else {
+        JObject::null()
+    };
+
+    let version = if contains_metakey(Metakey::Version) {
+        convert::string_to_jstring(env, metadata.version())?
+    } else {
+        JObject::null()
+    };
+
+    let content_length = if contains_metakey(Metakey::ContentLength) {
+        metadata.content_length() as jlong
+    } else {
+        -1
+    };
 
     let result = env
         .new_object(
             "org/apache/opendal/Metadata",
-            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
+            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;)V",
             &[
                 JValue::Int(mode as jint),
-                JValue::Long(metadata.content_length() as jlong),
+                JValue::Long(content_length),
                 JValue::Object(&content_disposition),
                 JValue::Object(&content_md5),
                 JValue::Object(&content_type),
@@ -270,18 +291,13 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
     Ok(result)
 }
 
-fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {
-    s.map_or_else(
-        || Ok(JObject::null()),
-        |v| Ok(env.new_string(v.to_string())?.into()),
-    )
-}
+fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
+    let path = env.new_string(entry.path())?;
+    let metadata = make_metadata(env, entry.metadata().to_owned())?;
 
-/// # Safety
-///
-/// The caller must guarantee that the Object passed in is an instance
-/// of `java.lang.String`, passing in anything else will lead to undefined behavior.
-fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
-    let res = unsafe { env.get_string_unchecked(s)? };
-    Ok(res.into())
+    Ok(env.new_object(
+        "org/apache/opendal/Entry",
+        "(Ljava/lang/String;Lorg/apache/opendal/Metadata;)V",
+        &[JValue::Object(&path), JValue::Object(&metadata)],
+    )?)
 }

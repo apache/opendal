@@ -587,10 +587,10 @@ impl Accessor for AzblobBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
             }
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
             _ => Err(parse_error(resp).await?),
         }
     }

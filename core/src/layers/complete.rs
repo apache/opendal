@@ -27,13 +27,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::into_flat_page;
-use crate::raw::oio::into_hierarchy_page;
-use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
 use crate::raw::oio::FlatPager;
 use crate::raw::oio::HierarchyPager;
+use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
+use crate::raw::oio::{into_flat_page, FileReader};
+use crate::raw::oio::{into_hierarchy_page, LazyReader};
 use crate::raw::*;
 use crate::*;
 
@@ -116,10 +116,10 @@ use crate::*;
 pub struct CompleteLayer;
 
 impl<A: Accessor> Layer<A> for CompleteLayer {
-    type LayeredAccessor = CompleteReaderAccessor<A>;
+    type LayeredAccessor = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        CompleteReaderAccessor {
+        CompleteAccessor {
             meta: inner.info(),
             inner: Arc::new(inner),
         }
@@ -127,18 +127,18 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
 }
 
 /// Provide complete wrapper for backend.
-pub struct CompleteReaderAccessor<A: Accessor> {
+pub struct CompleteAccessor<A: Accessor> {
     meta: AccessorInfo,
     inner: Arc<A>,
 }
 
-impl<A: Accessor> Debug for CompleteReaderAccessor<A> {
+impl<A: Accessor> Debug for CompleteAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> CompleteReaderAccessor<A> {
+impl<A: Accessor> CompleteAccessor<A> {
     fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
         let scheme = self.meta.scheme();
         let op = op.into();
@@ -162,41 +162,24 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
-        let range = args.range();
-        let (rp, r) = self.inner.read(path, args).await?;
-        let content_length = rp.metadata().content_length();
-
         match (seekable, streamable) {
-            (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
+            (true, true) => {
+                let r = LazyReader::new(self.inner.clone(), path, args);
+                Ok((RpRead::new(), CompleteReader::AlreadyComplete(r)))
+            }
             (true, false) => {
-                let r = oio::into_streamable_read(r, 256 * 1024);
-                Ok((rp, CompleteReader::NeedStreamable(r)))
+                let r = FileReader::new(self.inner.clone(), path, args);
+
+                Ok((RpRead::new(), CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self.inner.stat(path, OpStat::new()).await?.into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
+                let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
-                    Ok((rp, CompleteReader::NeedSeekable(r)))
+                    Ok((RpRead::new(), CompleteReader::NeedSeekable(r)))
                 } else {
                     let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((rp, CompleteReader::NeedBoth(r)))
+                    Ok((RpRead::new(), CompleteReader::NeedBoth(r)))
                 }
             }
         }
@@ -215,44 +198,23 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
-        let range = args.range();
-        let (rp, r) = self.inner.blocking_read(path, args)?;
-        let content_length = rp.metadata().content_length();
-
         match (seekable, streamable) {
-            (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
+            (true, true) => {
+                let r = LazyReader::new(self.inner.clone(), path, args);
+                Ok((RpRead::new(), CompleteReader::AlreadyComplete(r)))
+            }
             (true, false) => {
-                let r = oio::into_streamable_read(r, 256 * 1024);
-                Ok((rp, CompleteReader::NeedStreamable(r)))
+                let r = FileReader::new(self.inner.clone(), path, args);
+                Ok((RpRead::new(), CompleteReader::NeedStreamable(r)))
             }
             _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self
-                            .inner
-                            .blocking_stat(path, OpStat::new())?
-                            .into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
+                let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
-                    Ok((rp, CompleteReader::NeedSeekable(r)))
+                    Ok((RpRead::new(), CompleteReader::NeedSeekable(r)))
                 } else {
                     let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((rp, CompleteReader::NeedBoth(r)))
+                    Ok((RpRead::new(), CompleteReader::NeedBoth(r)))
                 }
             }
         }
@@ -351,7 +313,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
+impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
@@ -459,8 +421,8 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
         self.inner.stat(path, args).await.map(|v| {
             v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
             })
         })
     }
@@ -561,8 +523,8 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
         self.inner.blocking_stat(path, args).map(|v| {
             v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
             })
         })
     }
@@ -587,10 +549,10 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 }
 
 pub enum CompleteReader<A: Accessor, R> {
-    AlreadyComplete(R),
-    NeedSeekable(ByRangeSeekableReader<A, R>),
-    NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeSeekableReader<A, R>>),
+    AlreadyComplete(LazyReader<A, R>),
+    NeedSeekable(RangeReader<A, R>),
+    NeedStreamable(FileReader<A, R>),
+    NeedBoth(StreamableReader<RangeReader<A, R>>),
 }
 
 impl<A, R> oio::Read for CompleteReader<A, R>
@@ -829,7 +791,7 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(0), Box::new(())))
+            Ok((RpRead::new(), Box::new(oio::Cursor::new())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

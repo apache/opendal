@@ -24,7 +24,7 @@ runs:
     - name: Setup Dragonfly Server
       shell: bash
       working-directory: fixtures/redis
-      run: docker-compose -f docker-compose-dragonfly.yml up -d
+      run: docker compose -f docker-compose-dragonfly.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

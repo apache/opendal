@@ -164,11 +164,6 @@ mod supabase;
 #[cfg(feature = "services-supabase")]
 pub use supabase::Supabase;
 
-#[cfg(feature = "services-wasabi")]
-mod wasabi;
-#[cfg(feature = "services-wasabi")]
-pub use wasabi::Wasabi;
-
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]
@@ -248,3 +243,13 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+
+#[cfg(feature = "services-dbfs")]
+mod dbfs;
+#[cfg(feature = "services-dbfs")]
+pub use self::dbfs::Dbfs;
+
+#[cfg(feature = "services-swift")]
+mod swift;
+#[cfg(feature = "services-swift")]
+pub use self::swift::Swift;

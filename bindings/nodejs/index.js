@@ -19,6 +19,7 @@
 
 /// <reference types="node" />
 
+require('dotenv').config()
 const { Operator } = require('./generated.js')
 
 module.exports.Operator = Operator

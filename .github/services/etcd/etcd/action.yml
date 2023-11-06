@@ -24,7 +24,7 @@ runs:
     - name: Setup etcd cluster
       shell: bash
       working-directory: fixtures/etcd
-      run: docker-compose -f docker-compose-stanlone.yml up -d
+      run: docker compose -f docker-compose-standalone.yml up -d --wait
     - name: Setup
       shell: bash
       run: |

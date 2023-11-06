@@ -52,6 +52,8 @@ pub enum Scheme {
     Etcd,
     /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
     Foundationdb,
+    /// [dbfs][crate::services::Dbfs]: DBFS backend support.
+    Dbfs,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -109,10 +111,10 @@ pub enum Scheme {
     Sled,
     /// [Supabase][crate::services::Supabase]: Supabase storage service
     Supabase,
+    /// [swift][crate::services::Swift]: Swift backend support.
+    Swift,
     /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
     VercelArtifacts,
-    /// [wasabi][crate::services::Wasabi]: Wasabi service
-    Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
@@ -163,6 +165,8 @@ impl Scheme {
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
             Scheme::Azdls,
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile,
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]
@@ -229,12 +233,12 @@ impl Scheme {
             Scheme::Sqlite,
             #[cfg(feature = "services-supabase")]
             Scheme::Supabase,
+            #[cfg(feature = "services-swift")]
+            Scheme::Swift,
             #[cfg(feature = "services-tikv")]
             Scheme::Tikv,
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts,
-            #[cfg(feature = "services-wasabi")]
-            Scheme::Wasabi,
             #[cfg(feature = "services-webdav")]
             Scheme::Webdav,
             #[cfg(feature = "services-webhdfs")]
@@ -279,6 +283,7 @@ impl FromStr for Scheme {
             "dashmap" => Ok(Scheme::Dashmap),
             "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
+            "dbfs" => Ok(Scheme::Dbfs),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "gdrive" => Ok(Scheme::Gdrive),
@@ -306,9 +311,9 @@ impl FromStr for Scheme {
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
+            "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
-            "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
@@ -331,6 +336,7 @@ impl From<Scheme> for &'static str {
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",
+            Scheme::Dbfs => "dbfs",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",
@@ -358,9 +364,9 @@ impl From<Scheme> for &'static str {
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",
+            Scheme::Swift => "swift",
             Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::Oss => "oss",
-            Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",

@@ -29,6 +29,10 @@ services:
       # the following volume is used to redirect 81 port to 80 port
       # ./config/nginx/http.conf will be appended to the default nginx.conf
       - ./config:/config
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:81/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
 volumes:
   webdav-data:

@@ -24,8 +24,8 @@ edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-version.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

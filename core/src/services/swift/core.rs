@@ -57,8 +57,7 @@ impl SwiftCore {
 
         let mut req = Request::delete(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
-        eprintln!("X-Auth-Token: {}", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
 
         let body = AsyncBody::Empty;
 
@@ -87,7 +86,7 @@ impl SwiftCore {
 
         let mut req = Request::get(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
 
         let req = req
             .body(AsyncBody::Empty)
@@ -113,7 +112,7 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
 
         if p.ends_with('/') {
             req = req.header("Content-Length", "0");
@@ -141,7 +140,7 @@ impl SwiftCore {
 
         let mut req = Request::get(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
 
         if !range.is_full() {
             req = req.header("Range", &range.to_header());
@@ -183,7 +182,7 @@ impl SwiftCore {
         // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
         let mut req = Request::put(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
         req = req.header("X-Copy-From", percent_encode_path(&src_p));
 
         // if use PUT method, we need to set the content-length to 0.
@@ -209,7 +208,7 @@ impl SwiftCore {
 
         let mut req = Request::head(&url);
 
-        req = req.header("X-Auth-Token", &self.token);
+        req = req.header("X-Auth-Token", &self.token.trim_end().to_string());
 
         let req = req
             .body(AsyncBody::Empty)

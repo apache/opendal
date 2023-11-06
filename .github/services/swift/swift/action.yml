@@ -32,11 +32,14 @@ runs:
       run: |
         token=$(curl -i -H 'X-Storage-User: test:tester' -H 'X-Storage-Pass: testing' http://127.0.0.1:8080/auth/v1.0 | grep X-Auth-Token | head -n1 | awk '{print $2}')
         curl --location --request PUT 'http://127.0.0.1:8080/v1/AUTH_test/testing' --header "X-Auth-Token: $token"
+        echo "OPENDAL_SWIFT_TOKEN=$(echo "$token" | tr -d '[:space:]')" >> $GITHUB_ENV
 
+    - name: Set environment variables
+      shell: bash
+      run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080
         OPENDAL_SWIFT_ACCOUNT=AUTH_test
         OPENDAL_SWIFT_CONTAINER=testing
         OPENDAL_SWIFT_ROOT=/
-        OPENDAL_SWIFT_TOKEN=$(echo "$token" | tr -d '[:space:]')
         EOF

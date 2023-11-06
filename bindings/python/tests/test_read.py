@@ -20,6 +20,7 @@ from random import randint
 from uuid import uuid4
 
 import pytest
+from opendal.exceptions import IsADirectoryError, IsSameFileError, NotFoundError
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -134,12 +135,12 @@ async def test_async_read_stat(service_name, operator, async_operator):
 
 @pytest.mark.need_capability("read")
 def test_sync_read_not_exists(service_name, operator, async_operator):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(NotFoundError):
         operator.read(str(uuid4()))
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read")
 async def test_async_read_not_exists(service_name, operator, async_operator):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(NotFoundError):
         await async_operator.read(str(uuid4()))

@@ -20,6 +20,7 @@ from random import randint
 from uuid import uuid4
 
 import pytest
+from opendal.exceptions import IsADirectoryError, IsSameFileError, NotFoundError
 
 
 @pytest.mark.need_capability("read", "write", "copy")
@@ -40,7 +41,7 @@ def test_sync_copy(service_name, operator, async_operator):
 def test_sync_copy_non_exist(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Exception) as e_info:
+    with pytest.raises(NotFoundError) as e_info:
         operator.copy(source_path, target_path)
 
 
@@ -49,7 +50,7 @@ def test_sync_copy_source_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Exception) as e_info:
+    with pytest.raises(IsADirectoryError) as e_info:
         operator.copy(source_path, target_path)
 
 
@@ -60,7 +61,7 @@ def test_sync_copy_target_directory(service_name, operator, async_operator):
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(target_path)
-    with pytest.raises(Exception) as e_info:
+    with pytest.raises(IsADirectoryError) as e_info:
         operator.copy(source_path, target_path)
     operator.delete(source_path)
     operator.delete(target_path)
@@ -71,7 +72,7 @@ def test_sync_copy_self(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    with pytest.raises(Exception) as e_info:
+    with pytest.raises(IsSameFileError) as e_info:
         operator.copy(source_path, source_path)
     operator.delete(source_path)
 

@@ -51,10 +51,10 @@ use serde::Deserialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct FtpConfig {
-    endpoint: Option<String>,
-    root: Option<String>,
-    user: Option<String>,
-    password: Option<String>,
+    pub endpoint: Option<String>,
+    pub root: Option<String>,
+    pub user: Option<String>,
+    pub password: Option<String>,
 }
 
 impl Debug for FtpConfig {

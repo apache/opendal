@@ -25,7 +25,7 @@ LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
 
 LIBS=-lopendal_c -lgtest -lpthread
 
-VALGRIND=valgrind --error-exitcode=1 --leak-check=full -- 
+VALGRIND=valgrind --error-exitcode=1 --leak-check=full --
 
 .PHONY: all
 all: build test examples
@@ -46,9 +46,11 @@ test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(CXX) tests/error_msg.cpp -o $(OBJ_DIR)/error_msg $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/opinfo.cpp -o $(OBJ_DIR)/opinfo $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
 	$(OBJ_DIR)/list
 	$(OBJ_DIR)/error_msg
+	$(OBJ_DIR)/opinfo
 
 .PHONY: test_memory_leak
 memory_leak:

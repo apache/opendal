@@ -17,7 +17,7 @@
 
 use ::opendal as core;
 
-/// \brief Carries all metadata associated with a path.
+/// \brief Carries all metadata associated with a **path**.
 ///
 /// The metadata of the "thing" under a path. Please **only** use the opendal_metadata
 /// with our provided API, e.g. opendal_metadata_content_length().

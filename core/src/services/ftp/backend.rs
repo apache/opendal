@@ -51,9 +51,13 @@ use serde::Deserialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct FtpConfig {
+    /// endpoint of this backend
     pub endpoint: Option<String>,
+    /// root of this backend
     pub root: Option<String>,
+    /// user of this backend
     pub user: Option<String>,
+    /// password of this backend
     pub password: Option<String>,
 }
 

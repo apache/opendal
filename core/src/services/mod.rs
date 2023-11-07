@@ -231,7 +231,9 @@ pub use self::mysql::Mysql;
 #[cfg(feature = "services-sqlite")]
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
-pub use self::sqlite::Sqlite;
+pub use sqlite::Sqlite;
+#[cfg(feature = "services-sqlite")]
+pub use sqlite::SqliteConfig;
 
 #[cfg(feature = "services-d1")]
 mod d1;

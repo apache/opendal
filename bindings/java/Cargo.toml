@@ -83,6 +83,7 @@ services-all = [
   "services-sqlite",
   "services-azfile",
   "services-libsql",
+  "services-swift",
 ]
 
 # Default services provided by opendal.
@@ -131,6 +132,7 @@ services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 services-libsql = ["opendal/services-libsql"]
+services-swift = ["opendal/services-swift"]
 
 
 [dependencies]

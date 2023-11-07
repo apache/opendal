@@ -86,8 +86,13 @@ impl Accessor for DropboxBackend {
             let bytes = resp.into_body().bytes().await?;
             let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
                 .map_err(new_json_deserialize_error)?;
-            if let "folder" = decoded_response.tag.as_str() {
-                return Ok(RpCreateDir::default());
+            match decoded_response.tag.as_str() {
+                "folder" => return Ok(RpCreateDir::default()),
+                "file" => return Err(Error::new(
+                    ErrorKind::NotADirectory,
+                    &format!("it's not a directory {}", path),
+                )),
+                _ => ()
             }
         }
 

@@ -29,10 +29,9 @@ use crate::*;
 fn build_operator(
     scheme: ocore::Scheme,
     map: HashMap<String, String>,
-    blocking: bool,
 ) -> PyResult<ocore::Operator> {
     let mut op = ocore::Operator::via_map(scheme, map).map_err(format_pyerr)?;
-    if blocking && !op.info().full_capability().blocking {
+    if !op.info().full_capability().blocking {
         let runtime = pyo3_asyncio::tokio::get_runtime();
         let _guard = runtime.enter();
         op = op
@@ -66,7 +65,7 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map, true)?.blocking()))
+        Ok(Operator(build_operator(scheme, map)?.blocking()))
     }
 
     /// Add new layers upon existing operator
@@ -185,6 +184,10 @@ impl Operator {
         Ok(capability::Capability::new(self.0.info().full_capability()))
     }
 
+    pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
+        Ok(AsyncOperator(self.0.clone().into()))
+    }
+
     fn __repr__(&self) -> String {
         let info = self.0.info();
         let name = info.name();
@@ -224,7 +227,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, false)?))
+        Ok(AsyncOperator(build_operator(scheme, map)?))
     }
 
     /// Add new layers upon existing operator
@@ -454,6 +457,10 @@ impl AsyncOperator {
 
     pub fn capability(&self) -> PyResult<capability::Capability> {
         Ok(capability::Capability::new(self.0.info().full_capability()))
+    }
+
+    pub fn to_operator(&self) -> PyResult<Operator> {
+        Ok(Operator(self.0.clone().blocking()))
     }
 
     fn __repr__(&self) -> String {

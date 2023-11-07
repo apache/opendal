@@ -26,9 +26,9 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
-use crate::*;
 use crate::raw::*;
 use crate::services::dropbox::error::DropboxErrorResponse;
+use crate::*;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
@@ -88,11 +88,13 @@ impl Accessor for DropboxBackend {
                 .map_err(new_json_deserialize_error)?;
             match decoded_response.tag.as_str() {
                 "folder" => return Ok(RpCreateDir::default()),
-                "file" => return Err(Error::new(
-                    ErrorKind::NotADirectory,
-                    &format!("it's not a directory {}", path),
-                )),
-                _ => ()
+                "file" => {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        &format!("it's not a directory {}", path),
+                    ));
+                }
+                _ => (),
             }
         }
 
@@ -198,7 +200,7 @@ impl Accessor for DropboxBackend {
                 ErrorKind::Unsupported,
                 "dropbox services only allow delete up to 1000 keys at once",
             )
-                .with_context("length", ops.len().to_string()));
+            .with_context("length", ops.len().to_string()));
         }
 
         let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();

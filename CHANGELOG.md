@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [v0.42.0] - 2023-11-07
+## [v0.42.0](https://github.com/apache/incubator-opendal/releases/tag/v0.42.0) - 2023-11-07
 
 ### Added
 * feat(binding/java): add `rename` support by @G-XD in https://github.com/apache/incubator-opendal/pull/3238

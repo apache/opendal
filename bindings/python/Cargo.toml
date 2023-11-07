@@ -73,6 +73,7 @@ services-all = [
   "services-rocksdb",
   "services-sled",
   "services-supabase",
+  "services-swift",
   "services-tikv",
   "services-vercel-artifacts",
   "services-wasabi",
@@ -123,6 +124,7 @@ services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-supabase = ["opendal/services-supabase"]
+services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]

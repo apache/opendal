@@ -235,7 +235,6 @@ impl Accessor for SwiftBackend {
                 write: true,
                 create_dir: true,
                 delete: true,
-                rename: true,
 
                 list: true,
                 list_with_delimiter_slash: true,

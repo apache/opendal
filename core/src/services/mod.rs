@@ -58,6 +58,8 @@ pub use fs::Fs;
 mod ftp;
 #[cfg(feature = "services-ftp")]
 pub use ftp::Ftp;
+#[cfg(feature = "services-ftp")]
+pub use ftp::FtpConfig;
 
 #[cfg(feature = "services-gcs")]
 mod gcs;

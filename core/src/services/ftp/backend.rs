@@ -44,21 +44,38 @@ use crate::raw::*;
 use crate::services::ftp::writer::FtpWriters;
 use crate::*;
 
-/// FTP and FTPS services support.
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct FtpBuilder {
+use serde::Deserialize;
+/// Config for Ftpservices support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct FtpConfig {
     endpoint: Option<String>,
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
 }
 
-impl Debug for FtpBuilder {
+impl Debug for FtpConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
+        f.debug_struct("FtpConfig")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
+
+/// FTP and FTPS services support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct FtpBuilder {
+    config: FtpConfig,
+}
+
+impl Debug for FtpBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FtpBuilder")
+            .field("config", &self.config)
             .finish()
     }
 }
@@ -66,7 +83,7 @@ impl Debug for FtpBuilder {
 impl FtpBuilder {
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -77,7 +94,7 @@ impl FtpBuilder {
 
     /// set root path for ftp backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -88,7 +105,7 @@ impl FtpBuilder {
 
     /// set user for ftp backend.
     pub fn user(&mut self, user: &str) -> &mut Self {
-        self.user = if user.is_empty() {
+        self.config.user = if user.is_empty() {
             None
         } else {
             Some(user.to_string())
@@ -99,7 +116,7 @@ impl FtpBuilder {
 
     /// set password for ftp backend.
     pub fn password(&mut self, password: &str) -> &mut Self {
-        self.password = if password.is_empty() {
+        self.config.password = if password.is_empty() {
             None
         } else {
             Some(password.to_string())
@@ -115,7 +132,7 @@ impl Builder for FtpBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
             Some(v) => v,
         };
@@ -149,14 +166,14 @@ impl Builder for FtpBuilder {
             }
         };
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
 
-        let user = match &self.user {
+        let user = match &self.config.user {
             None => "".to_string(),
             Some(v) => v.clone(),
         };
 
-        let password = match &self.password {
+        let password = match &self.config.password {
             None => "".to_string(),
             Some(v) => v.clone(),
         };

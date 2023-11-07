@@ -45,6 +45,7 @@ use crate::services::ftp::writer::FtpWriters;
 use crate::*;
 
 use serde::Deserialize;
+
 /// Config for Ftpservices support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -191,14 +192,10 @@ impl Builder for FtpBuilder {
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = FtpBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("user").map(|v| builder.user(v));
-        map.get("password").map(|v| builder.password(v));
-
-        builder
+        FtpBuilder {
+            config: FtpConfig::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+        }
     }
 }
 

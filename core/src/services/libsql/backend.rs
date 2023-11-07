@@ -28,6 +28,7 @@ use hrana_client_proto::pipeline::{
 use hrana_client_proto::Error as PipelineError;
 use hrana_client_proto::{Stmt, StmtResult, Value};
 use http::{Request, Uri};
+use serde::Deserialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -35,9 +36,11 @@ use crate::*;
 
 use super::error::parse_error;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct LibsqlBuilder {
+// Config for Libsqlservices support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct LibsqlConfig {
     connection_string: Option<String>,
     auth_token: Option<String>,
 
@@ -47,7 +50,7 @@ pub struct LibsqlBuilder {
     root: Option<String>,
 }
 
-impl Debug for LibsqlBuilder {
+impl Debug for LibsqlConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("LibsqlBuilder");
         ds.field("connection_string", &self.connection_string)
@@ -59,7 +62,23 @@ impl Debug for LibsqlBuilder {
         if self.auth_token.is_some() {
             ds.field("auth_token", &"<redacted>");
         }
+
         ds.finish()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct LibsqlBuilder {
+    config: LibsqlConfig,
+}
+
+impl Debug for LibsqlBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("LibsqlBuilder");
+
+        d.field("config", &self.config);
+        d.finish()
     }
 }
 
@@ -79,7 +98,7 @@ impl LibsqlBuilder {
     /// - `libsql://example.com/db`
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -89,7 +108,7 @@ impl LibsqlBuilder {
     /// default: no authentication token
     pub fn auth_token(&mut self, auth_token: &str) -> &mut Self {
         if !auth_token.is_empty() {
-            self.auth_token = Some(auth_token.to_owned());
+            self.config.auth_token = Some(auth_token.to_owned());
         }
         self
     }
@@ -99,7 +118,7 @@ impl LibsqlBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string());
+            self.config.root = Some(root.to_string());
         }
         self
     }
@@ -107,7 +126,7 @@ impl LibsqlBuilder {
     /// Set the table name of the libsql service to read/write.
     pub fn table(&mut self, table: &str) -> &mut Self {
         if !table.is_empty() {
-            self.table = Some(table.to_string());
+            self.config.table = Some(table.to_string());
         }
         self
     }
@@ -117,7 +136,7 @@ impl LibsqlBuilder {
     /// Default to `key` if not specified.
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
-            self.key_field = Some(key_field.to_string());
+            self.config.key_field = Some(key_field.to_string());
         }
         self
     }
@@ -127,7 +146,7 @@ impl LibsqlBuilder {
     /// Default to `value` if not specified.
     pub fn value_field(&mut self, value_field: &str) -> &mut Self {
         if !value_field.is_empty() {
-            self.value_field = Some(value_field.to_string());
+            self.config.value_field = Some(value_field.to_string());
         }
         self
     }
@@ -138,37 +157,33 @@ impl Builder for LibsqlBuilder {
     type Accessor = LibsqlBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = LibsqlBuilder::default();
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("auth_token").map(|v| builder.auth_token(v));
-        map.get("table").map(|v| builder.table(v));
-        map.get("key_field").map(|v| builder.key_field(v));
-        map.get("value_field").map(|v| builder.value_field(v));
-        map.get("root").map(|v| builder.root(v));
-        builder
+        let config = LibsqlConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+
+        LibsqlBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let conn = self.get_connection_string()?;
 
-        let table = match self.table.clone() {
+        let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Libsql))
             }
         };
-        let key_field = match self.key_field.clone() {
+        let key_field = match self.config.key_field.clone() {
             Some(v) => v,
             None => "key".to_string(),
         };
-        let value_field = match self.value_field.clone() {
+        let value_field = match self.config.value_field.clone() {
             Some(v) => v,
             None => "value".to_string(),
         };
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -182,7 +197,7 @@ impl Builder for LibsqlBuilder {
         Ok(LibsqlBackend::new(Adapter {
             client,
             connection_string: conn,
-            auth_token: self.auth_token.clone(),
+            auth_token: self.config.auth_token.clone(),
             table,
             key_field,
             value_field,
@@ -193,10 +208,10 @@ impl Builder for LibsqlBuilder {
 
 impl LibsqlBuilder {
     fn get_connection_string(&self) -> Result<String> {
-        let connection_string = self
-            .connection_string
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "connection_string is empty"))?;
+        let connection_string =
+            self.config.connection_string.clone().ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
+            })?;
 
         let ep_url = connection_string
             .replace("libsql://", "https://")

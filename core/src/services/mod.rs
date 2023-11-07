@@ -215,6 +215,7 @@ pub use self::foundationdb::Foundationdb;
 mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
+#[cfg(feature = "services-postgresql")]
 pub use self::postgresql::PostgresqlConfig;
 
 #[cfg(feature = "services-atomicserver")]

@@ -52,7 +52,7 @@ pub struct LibsqlConfig {
 
 impl Debug for LibsqlConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("LibsqlBuilder");
+        let mut ds = f.debug_struct("LibsqlConfig");
         ds.field("connection_string", &self.connection_string)
             .field("table", &self.table)
             .field("key_field", &self.key_field)

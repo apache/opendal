@@ -43,7 +43,7 @@ use crate::*;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
-/// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
+/// Config for Redis services support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]

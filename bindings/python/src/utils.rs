@@ -17,19 +17,9 @@
 
 use std::os::raw::c_int;
 
-use pyo3::create_exception;
-use pyo3::exceptions::PyException;
-use pyo3::exceptions::PyFileExistsError;
-use pyo3::exceptions::PyFileNotFoundError;
-use pyo3::exceptions::PyNotImplementedError;
-use pyo3::exceptions::PyPermissionError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::AsPyPointer;
-
-use crate::*;
-
-create_exception!(opendal, Error, PyException, "OpenDAL related errors");
 
 /// A bytes-like object that implements buffer protocol.
 #[pyclass(module = "opendal")]
@@ -81,16 +71,5 @@ impl Buffer {
             return Err(PyErr::fetch(slf.py()));
         }
         Ok(())
-    }
-}
-
-pub fn format_pyerr(err: ocore::Error) -> PyErr {
-    use ocore::ErrorKind::*;
-    match err.kind() {
-        NotFound => PyFileNotFoundError::new_err(err.to_string()),
-        AlreadyExists => PyFileExistsError::new_err(err.to_string()),
-        PermissionDenied => PyPermissionError::new_err(err.to_string()),
-        Unsupported => PyNotImplementedError::new_err(err.to_string()),
-        _ => Error::new_err(err.to_string()),
     }
 }

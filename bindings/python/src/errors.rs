@@ -20,49 +20,25 @@ use pyo3::exceptions::PyException;
 
 use crate::*;
 
-create_exception!(opendal, UnexpectedError, PyException, "Unexpected errors");
-create_exception!(
-    opendal,
-    UnsupportedError,
-    PyException,
-    "Unsupported operation"
-);
-create_exception!(
-    opendal,
-    ConfigInvalidError,
-    PyException,
-    "Config is invalid"
-);
-create_exception!(opendal, NotFoundError, PyException, "Not found");
-create_exception!(
-    opendal,
-    PermissionDeniedError,
-    PyException,
-    "Permission denied"
-);
-create_exception!(opendal, IsADirectoryError, PyException, "Is a directory");
-create_exception!(opendal, NotADirectoryError, PyException, "Not a directory");
-create_exception!(opendal, AlreadyExistsError, PyException, "Already exists");
-create_exception!(opendal, IsSameFileError, PyException, "Is same file");
+create_exception!(opendal, Error, PyException, "OpenDAL Base Exception");
+create_exception!(opendal, UnexpectedError, Error, "Unexpected errors");
+create_exception!(opendal, UnsupportedError, Error, "Unsupported operation");
+create_exception!(opendal, ConfigInvalidError, Error, "Config is invalid");
+create_exception!(opendal, NotFoundError, Error, "Not found");
+create_exception!(opendal, PermissionDeniedError, Error, "Permission denied");
+create_exception!(opendal, IsADirectoryError, Error, "Is a directory");
+create_exception!(opendal, NotADirectoryError, Error, "Not a directory");
+create_exception!(opendal, AlreadyExistsError, Error, "Already exists");
+create_exception!(opendal, IsSameFileError, Error, "Is same file");
 create_exception!(
     opendal,
     ConditionNotMatchError,
-    PyException,
+    Error,
     "Condition not match"
 );
-create_exception!(
-    opendal,
-    ContentTruncatedError,
-    PyException,
-    "Content truncated"
-);
-create_exception!(
-    opendal,
-    ContentIncompleteError,
-    PyException,
-    "Content incomplete"
-);
-create_exception!(opendal, InvalidInputError, PyException, "Invalid input");
+create_exception!(opendal, ContentTruncatedError, Error, "Content truncated");
+create_exception!(opendal, ContentIncompleteError, Error, "Content incomplete");
+create_exception!(opendal, InvalidInputError, Error, "Invalid input");
 
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
     use ocore::ErrorKind::*;

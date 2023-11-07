@@ -32,10 +32,12 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-/// TiKV backend builder
-#[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
-pub struct TikvBuilder {
+
+/// Config for Mysql services support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct TikvConfig {
     /// network address of the TiKV service.
     endpoints: Option<Vec<String>>,
     /// whether using insecure connection to TiKV
@@ -48,25 +50,45 @@ pub struct TikvBuilder {
     key_path: Option<String>,
 }
 
+impl Debug for TiKVConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("TikvConfig");
+
+        d.field("endpoints", &self.endpoints)
+            .field("insecure", &self.insecure)
+            .field("ca_path", &self.ca_path)
+            .field("cert_path", &self.cert_path)
+            .field("key_path", &self.key_path)
+            .finish()
+    }
+}
+
+/// TiKV backend builder
+#[doc = include_str!("docs.md")]
+#[derive(Clone, Default)]
+pub struct TikvBuilder {
+    config: TikvConfig,
+}
+
 impl TikvBuilder {
     /// Set the network address of the TiKV service.
     pub fn endpoints(&mut self, endpoints: Vec<String>) -> &mut Self {
         if !endpoints.is_empty() {
-            self.endpoints = Some(endpoints)
+            self.config.endpoints = Some(endpoints)
         }
         self
     }
 
     /// Set the insecure connection to TiKV.
     pub fn insecure(&mut self) -> &mut Self {
-        self.insecure = true;
+        self.config.insecure = true;
         self
     }
 
     /// Set the certificate authority file path.
     pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
         if !ca_path.is_empty() {
-            self.ca_path = Some(ca_path.to_string())
+            self.config.ca_path = Some(ca_path.to_string())
         }
         self
     }
@@ -74,7 +96,7 @@ impl TikvBuilder {
     /// Set the certificate file path.
     pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
         if !cert_path.is_empty() {
-            self.cert_path = Some(cert_path.to_string())
+            self.config.cert_path = Some(cert_path.to_string())
         }
         self
     }
@@ -82,7 +104,7 @@ impl TikvBuilder {
     /// Set the key file path.
     pub fn key_path(&mut self, key_path: &str) -> &mut Self {
         if !key_path.is_empty() {
-            self.key_path = Some(key_path.to_string())
+            self.config.key_path = Some(key_path.to_string())
         }
         self
     }
@@ -93,23 +115,14 @@ impl Builder for TikvBuilder {
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = TikvBuilder::default();
+        let config = Tikv::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("endpoints")
-            .map(|v| v.split(',').map(|s| s.to_owned()).collect::<Vec<String>>())
-            .map(|v| builder.endpoints(v));
-        map.get("insecure")
-            .filter(|v| *v == "on" || *v == "true")
-            .map(|_| builder.insecure());
-        map.get("ca_path").map(|v| builder.ca_path(v));
-        map.get("cert_path").map(|v| builder.cert_path(v));
-        map.get("key_path").map(|v| builder.key_path(v));
-
-        builder
+        TikvBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoints = self.endpoints.take().ok_or_else(|| {
+        let endpoints = self.config.endpoints.take().ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "endpoints is required but not set",
@@ -117,8 +130,8 @@ impl Builder for TikvBuilder {
             .with_context("service", Scheme::Tikv)
         })?;
 
-        if self.insecure
-            && (self.ca_path.is_some() || self.key_path.is_some() || self.cert_path.is_some())
+        if self.config.insecure
+            && (self.config.ca_path.is_some() || self.config.key_path.is_some() || self.config.cert_path.is_some())
         {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
@@ -130,10 +143,10 @@ impl Builder for TikvBuilder {
         Ok(Backend::new(Adapter {
             client: OnceCell::new(),
             endpoints,
-            insecure: self.insecure,
-            ca_path: self.ca_path.clone(),
-            cert_path: self.cert_path.clone(),
-            key_path: self.key_path.clone(),
+            insecure: self.config.insecure,
+            ca_path: self.config.ca_path.clone(),
+            cert_path: self.config.cert_path.clone(),
+            key_path: self.config.key_path.clone(),
         }))
     }
 }

@@ -215,8 +215,6 @@ pub use self::foundationdb::Foundationdb;
 mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::PostgresqlConfig;
 
 #[cfg(feature = "services-atomicserver")]
 mod atomicserver;
@@ -227,13 +225,13 @@ pub use self::atomicserver::Atomicserver;
 mod mysql;
 #[cfg(feature = "services-mysql")]
 pub use self::mysql::Mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::MysqlConfig;
 
 #[cfg(feature = "services-sqlite")]
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
-pub use sqlite::Sqlite;
-#[cfg(feature = "services-sqlite")]
-pub use sqlite::SqliteConfig;
+pub use self::sqlite::Sqlite;
 
 #[cfg(feature = "services-d1")]
 mod d1;

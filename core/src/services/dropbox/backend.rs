@@ -82,19 +82,18 @@ impl Accessor for DropboxBackend {
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         // Check if the folder already exists.
         let resp = self.core.dropbox_get_metadata(path).await?;
-        if let StatusCode::OK = resp.status() {
+        if StatusCode::OK == resp.status() {
             let bytes = resp.into_body().bytes().await?;
             let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
                 .map_err(new_json_deserialize_error)?;
-            match decoded_response.tag.as_str() {
-                "folder" => return Ok(RpCreateDir::default()),
-                "file" => {
-                    return Err(Error::new(
-                        ErrorKind::NotADirectory,
-                        &format!("it's not a directory {}", path),
-                    ));
-                }
-                _ => (),
+            if "folder" == decoded_response.tag {
+                return Ok(RpCreateDir::default());
+            }
+            if "file" == decoded_response.tag {
+                return Err(Error::new(
+                    ErrorKind::NotADirectory,
+                    &format!("it's not a directory {}", path),
+                ));
             }
         }
 

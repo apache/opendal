@@ -26,7 +26,7 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         RUST_TEST_THREADS=1
-        OPENDAL_PERSY_DATAFILE=${{ runner.temp }}/test.persy
+        OPENDAL_PERSY_DATAFILE=/tmp/test.persy
         OPENDAL_PERSY_SEGMENT=data
         OPENDAL_PERSY_INDEX=index
         EOF

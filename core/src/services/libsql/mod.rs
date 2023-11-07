@@ -17,5 +17,6 @@
 
 mod backend;
 pub use backend::LibsqlBuilder as Libsql;
+pub use backend::LibsqlConfig;
 
 mod error;

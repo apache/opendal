@@ -44,22 +44,22 @@ pub struct SqliteConfig {
     /// - `file://data.db`
     ///
     /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
-    connection_string: Option<String>,
+    pub connection_string: Option<String>,
 
     /// Set the table name of the sqlite service to read/write.
-    table: Option<String>,
+    pub table: Option<String>,
     /// Set the key field name of the sqlite service to read/write.
     ///
     /// Default to `key` if not specified.
-    key_field: Option<String>,
+    pub key_field: Option<String>,
     /// Set the value field name of the sqlite service to read/write.
     ///
     /// Default to `value` if not specified.
-    value_field: Option<String>,
+    pub value_field: Option<String>,
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    root: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for SqliteConfig {

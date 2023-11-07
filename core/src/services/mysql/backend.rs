@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use mysql_async::prelude::*;
@@ -43,7 +42,7 @@ pub struct MysqlConfig {
 }
 
 impl Debug for MysqlConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("MysqlConfig");
 
         if self.connection_string.is_some() {
@@ -66,7 +65,7 @@ pub struct MysqlBuilder {
 
 impl Debug for MysqlBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut d = f;
+        let mut d = f.debug_struct("MysqlBuilder");
 
         d.field("config", &self.config).finish()
     }

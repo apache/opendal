@@ -144,11 +144,13 @@ impl Builder for HttpBuilder {
     type Accessor = HttpBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = HttpBuilder::default();
-        builder.config = HttpConfig::deserialize(ConfigDeserializer::new(map))
+        let config = HttpConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
-        builder
+        HttpBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

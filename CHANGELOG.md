@@ -68,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * refactor: Introduce OpenDAL Workflow Planner by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3258
 * refactor(bindings/C): Implement error with error message by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3250
 * refactor(oay): import dav-server-opendalfs by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3285
-* refactor(bindings/java): explict error handling by @tisonkun in https://github.com/apache/incubator-opendal/pull/3288
+* refactor(bindings/java): explicit error handling by @tisonkun in https://github.com/apache/incubator-opendal/pull/3288
 * refactor(services/gdrive): Extract folder search logic by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3234
 * refactor(core): use `list_with` in `Operator::list` by @G-XD in https://github.com/apache/incubator-opendal/pull/3305
 * refactor(!): Bump and update MSRV to 1.67 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3316

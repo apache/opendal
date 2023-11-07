@@ -28,7 +28,7 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for PostGresQL services support.
+/// Config for Mysql services support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]

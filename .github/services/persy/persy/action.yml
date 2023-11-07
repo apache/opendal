@@ -25,10 +25,8 @@ runs:
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        RUST_BACKTRACE=full
-        RUST_LOG=debug
         RUST_TEST_THREADS=1
-        OPENDAL_PERSY_DATAFILE=./test.persy
+        OPENDAL_PERSY_DATAFILE=${{ runner.temp }}/test.persy
         OPENDAL_PERSY_SEGMENT=data
         OPENDAL_PERSY_INDEX=index
         EOF

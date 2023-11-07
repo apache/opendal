@@ -127,7 +127,7 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_last_modified_ms(&self) -> i64 {
         let mtime = unsafe { (*self.inner).last_modified() };
         match mtime {
-            None => return -1,
+            None => -1,
             Some(time) => time.timestamp_millis(),
         }
     }

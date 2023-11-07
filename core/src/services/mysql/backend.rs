@@ -22,14 +22,17 @@ use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
+use serde::Deserialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct MysqlBuilder {
+/// Config for Mysql services support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct MysqlConfig {
     connection_string: Option<String>,
 
     table: Option<String>,
@@ -38,15 +41,33 @@ pub struct MysqlBuilder {
     root: Option<String>,
 }
 
-impl Debug for MysqlBuilder {
+impl Debug for MysqlConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MysqlBuilder")
-            .field("connection_string", &self.connection_string)
+        let mut d = f.debug_struct("MysqlConfig");
+
+        if self.connection_string.is_some() {
+            d.field("connection_string", &"<redacted>");
+        }
+
+        d.field("root", &self.root)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .field("root", &self.root)
             .finish()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct MysqlBuilder {
+    config: MysqlConfig,
+}
+
+impl Debug for MysqlBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("MysqlBuilder");
+
+        d.field("config", &self.config).finish()
     }
 }
 
@@ -68,7 +89,7 @@ impl MysqlBuilder {
     ///
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -78,7 +99,7 @@ impl MysqlBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string());
+            self.config.root = Some(root.to_string());
         }
         self
     }
@@ -86,7 +107,7 @@ impl MysqlBuilder {
     /// Set the table name of the mysql service to read/write.
     pub fn table(&mut self, table: &str) -> &mut Self {
         if !table.is_empty() {
-            self.table = Some(table.to_string());
+            self.config.table = Some(table.to_string());
         }
         self
     }
@@ -96,7 +117,7 @@ impl MysqlBuilder {
     /// Default to `key` if not specified.
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
-            self.key_field = Some(key_field.to_string());
+            self.config.key_field = Some(key_field.to_string());
         }
         self
     }
@@ -106,7 +127,7 @@ impl MysqlBuilder {
     /// Default to `value` if not specified.
     pub fn value_field(&mut self, value_field: &str) -> &mut Self {
         if !value_field.is_empty() {
-            self.value_field = Some(value_field.to_string());
+            self.config.value_field = Some(value_field.to_string());
         }
         self
     }
@@ -117,18 +138,14 @@ impl Builder for MysqlBuilder {
     type Accessor = MySqlBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = MysqlBuilder::default();
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("table").map(|v| builder.table(v));
-        map.get("key_field").map(|v| builder.key_field(v));
-        map.get("value_field").map(|v| builder.value_field(v));
-        map.get("root").map(|v| builder.root(v));
-        builder
+        let config = MysqlConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+
+        MysqlBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let conn = match self.connection_string.clone() {
+        let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {
                 return Err(
@@ -144,23 +161,24 @@ impl Builder for MysqlBuilder {
                 .set_source(err)
         })?;
 
-        let table = match self.table.clone() {
+        let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Mysql))
             }
         };
-        let key_field = match self.key_field.clone() {
+        let key_field = match self.config.key_field.clone() {
             Some(v) => v,
             None => "key".to_string(),
         };
-        let value_field = match self.value_field.clone() {
+        let value_field = match self.config.value_field.clone() {
             Some(v) => v,
             None => "value".to_string(),
         };
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -245,8 +263,8 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let query = format!(
-            "INSERT INTO `{}` (`{}`, `{}`) 
-            VALUES (:path, :value) 
+            "INSERT INTO `{}` (`{}`, `{}`)
+            VALUES (:path, :value)
             ON DUPLICATE KEY UPDATE `{}` = VALUES({})",
             self.table, self.key_field, self.value_field, self.value_field, self.value_field
         );

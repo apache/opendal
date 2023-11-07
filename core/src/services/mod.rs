@@ -234,6 +234,8 @@ pub use self::atomicserver::Atomicserver;
 mod mysql;
 #[cfg(feature = "services-mysql")]
 pub use self::mysql::Mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::MysqlConfig;
 
 #[cfg(feature = "services-sqlite")]
 mod sqlite;

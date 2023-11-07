@@ -20,7 +20,7 @@ from random import randint
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import IsADirectory, IsSameFile, NotFound
+from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability("read", "write", "delete")

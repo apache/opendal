@@ -16,7 +16,6 @@
 # under the License.
 
 import os
-from random import randint
 from uuid import uuid4
 
 import pytest
@@ -44,6 +43,6 @@ async def test_async_remove_all(service_name, operator, async_operator):
     await async_operator.remove_all(f"{parent}/x/")
     for path in excepted:
         if not path.endswith("/"):
-            with pytest.raises(NotFound) as e_info:
+            with pytest.raises(NotFound) :
                 await async_operator.read(f"{parent}/{path}")
     await async_operator.remove_all(f"{parent}/")

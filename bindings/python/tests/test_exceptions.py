@@ -15,17 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+import inspect
+
+from opendal import exceptions
+from opendal.exceptions import Error
 
 
-def test_capability(service_name, operator):
-    cap = operator.capability()
-    assert cap is not None
-    assert cap.read is not None
-
-
-def test_capability_exception(service_name, operator):
-    cap = operator.capability()
-    assert cap is not None
-    with pytest.raises(AttributeError) :
-        cap.read_demo
+def test_exceptions():
+    for name, obj in inspect.getmembers(exceptions):
+        if inspect.isclass(obj):
+            assert issubclass(obj, Error)

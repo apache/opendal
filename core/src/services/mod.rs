@@ -78,6 +78,8 @@ pub use hdfs::Hdfs;
 mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::Http;
+#[cfg(feature = "services-http")]
+pub use self::http::HttpConfig;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;

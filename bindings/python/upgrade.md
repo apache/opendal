@@ -1,4 +1,4 @@
-# Unreleased
+# Upgrade to v0.42
 
 ## Breaking change for layers
 

@@ -58,7 +58,7 @@ This is a call for a discussion to release Apache OpenDAL(incubating) version ${
 
 The change lists about this release:
 
-https://github.com/apache/incubator-opendal/compare/v0.39.0...main
+https://github.com/apache/incubator-opendal/compare/v${opendal_last_version}...main
 
 Please leave your comments here about this release plan. We will bump the version in the repo and start the release process after the discussion.
 
@@ -74,7 +74,7 @@ Start a tracking issue on GitHub for the upcoming release to track all tasks tha
 Title:
 
 ```
-Tracking issuses of OpenDAL ${opendal_version} Release
+Tracking issues of OpenDAL ${opendal_version} Release
 ```
 
 Content:

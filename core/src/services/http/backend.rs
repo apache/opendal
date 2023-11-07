@@ -39,11 +39,11 @@ use serde::Deserialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct HttpConfig {
-    endpoint: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    token: Option<String>,
-    root: Option<String>,
+    pub endpoint: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub token: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for HttpConfig {

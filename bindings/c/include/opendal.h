@@ -773,6 +773,21 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
 
 /**
+ * \brief Return the last_modified of the metadata
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.error == NULL);
+ *
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_last_modified(meta) != -1);
+ * ```
+ */
+int64_t opendal_metadata_last_modified(const struct opendal_metadata *self);
+
+/**
  * \brief Free the heap-allocated operator pointed by opendal_operator.
  *
  * Please only use this for a pointer pointing at a valid opendal_operator.
@@ -1148,6 +1163,44 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  */
 struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blockingly create the directory in `path`.
+ *
+ * Create the directory in `path` blockingly by `op_ptr`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param path The designated directory you want to create
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // create your directory
+ * opendal_error *error = opendal_operator_create_dir(ptr, "/testdir/");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_create_dir(const struct opendal_operator *op,
+                                                  const char *path);
 
 /**
  * \brief Get information of underlying accessor.

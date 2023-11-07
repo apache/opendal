@@ -111,4 +111,24 @@ impl opendal_metadata {
         // The use-after-free is undefined behavior
         unsafe { (*self.inner).is_dir() }
     }
+
+    /// \brief Return the last_modified of the metadata
+    ///
+    /// # Example
+    /// ```C
+    /// // ... previously you wrote "Hello, World!" to path "/testpath"
+    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// assert(s.error == NULL);
+    ///
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_last_modified(meta) != -1);
+    /// ```
+    #[no_mangle]
+    pub extern "C" fn opendal_metadata_last_modified(&self) -> i64 {
+        let mtime = unsafe { (*self.inner).last_modified() };
+        match mtime {
+            None => return -1,
+            Some(time) => time.timestamp(),
+        }
+    }
 }

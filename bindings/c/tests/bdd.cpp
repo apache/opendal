@@ -77,7 +77,11 @@ TEST_F(OpendalBddTest, FeatureTest)
 
     // The blocking file "test" content length must be 13
     EXPECT_EQ(opendal_metadata_content_length(meta), 13);
+
+    // the blocking file "test" last modified time must not be -1
+    EXPECT_FALSE(opendal_metadata_last_modified(meta) != -1);
     opendal_metadata_free(meta);
+
 
     // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
@@ -111,6 +115,16 @@ TEST_F(OpendalBddTest, FeatureTest)
     EXPECT_EQ(error, nullptr);
 
     opendal_bytes_free(r.data);
+
+    // The directory "tmpdir/" should exist and should be a directory
+    error = opendal_operator_create_dir(this->p, "tmpdir/");
+    EXPECT_EQ(error, nullptr);
+    auto stat = opendal_operator_stat(this->p, "tempdir/");
+    EXPECT_EQ(stat.error, nullptr);
+    EXPECT_TRUE(opendal_metadata_is_dir(stat.meta));
+    EXPECT_FALSE(opendal_metadata_is_file(stat.meta));
+    error = opendal_operator_delete(this->p, "tempdir/");
+    EXPECT_EQ(error, nullptr);
 }
 
 int main(int argc, char** argv)

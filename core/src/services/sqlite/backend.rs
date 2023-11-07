@@ -21,31 +21,72 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use rusqlite::{params, Connection};
+use serde::Deserialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
+/// Config for Sqlite support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct SqliteConfig {
+    /// Set the connection_string of the sqlite service.
+    ///
+    /// This connection string is used to connect to the sqlite service. There are url based formats:
+    ///
+    /// ## Url
+    ///
+    /// This format resembles the url format of the sqlite client. The format is: file://[path]?flag
+    ///
+    /// - `file://data.db`
+    ///
+    /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
+    connection_string: Option<String>,
+
+    /// Set the table name of the sqlite service to read/write.
+    table: Option<String>,
+    /// Set the key field name of the sqlite service to read/write.
+    ///
+    /// Default to `key` if not specified.
+    key_field: Option<String>,
+    /// Set the value field name of the sqlite service to read/write.
+    ///
+    /// Default to `value` if not specified.
+    value_field: Option<String>,
+    /// set the working directory, all operations will be performed under it.
+    ///
+    /// default: "/"
+    root: Option<String>,
+}
+
+impl Debug for SqliteConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("SqliteConfig");
+
+        d.field("connection_string", &self.connection_string)
+            .field("table", &self.table)
+            .field("key_field", &self.key_field)
+            .field("value_field", &self.value_field)
+            .field("root", &self.root);
+
+        d.finish_non_exhaustive()
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SqliteBuilder {
-    connection_string: Option<String>,
-
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    config: SqliteConfig,
 }
 
 impl Debug for SqliteBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("SqliteBuilder");
-        ds.field("connection_string", &self.connection_string);
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.field("root", &self.root);
+
+        ds.field("cofig", &self.config);
         ds.finish()
     }
 }
@@ -64,7 +105,7 @@ impl SqliteBuilder {
     /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -74,7 +115,7 @@ impl SqliteBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -82,7 +123,7 @@ impl SqliteBuilder {
     /// Set the table name of the sqlite service to read/write.
     pub fn table(&mut self, table: &str) -> &mut Self {
         if !table.is_empty() {
-            self.table = Some(table.to_string());
+            self.config.table = Some(table.to_string());
         }
         self
     }
@@ -92,7 +133,7 @@ impl SqliteBuilder {
     /// Default to `key` if not specified.
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
-            self.key_field = Some(key_field.to_string());
+            self.config.key_field = Some(key_field.to_string());
         }
         self
     }
@@ -102,7 +143,7 @@ impl SqliteBuilder {
     /// Default to `value` if not specified.
     pub fn value_field(&mut self, value_field: &str) -> &mut Self {
         if !value_field.is_empty() {
-            self.value_field = Some(value_field.to_string());
+            self.config.value_field = Some(value_field.to_string());
         }
         self
     }
@@ -113,18 +154,14 @@ impl Builder for SqliteBuilder {
     type Accessor = SqliteBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = SqliteBuilder::default();
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("table").map(|v| builder.table(v));
-        map.get("key_field").map(|v| builder.key_field(v));
-        map.get("value_field").map(|v| builder.value_field(v));
-        map.get("root").map(|v| builder.root(v));
-        builder
+        let config = SqliteConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+
+        SqliteBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let connection_string = match self.connection_string.clone() {
+        let connection_string = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(
@@ -134,23 +171,24 @@ impl Builder for SqliteBuilder {
                 .with_context("service", Scheme::Sqlite))
             }
         };
-        let table = match self.table.clone() {
+        let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Postgresql))
             }
         };
-        let key_field = match self.key_field.clone() {
+        let key_field = match self.config.key_field.clone() {
             Some(v) => v,
             None => "key".to_string(),
         };
-        let value_field = match self.value_field.clone() {
+        let value_field = match self.config.value_field.clone() {
             Some(v) => v,
             None => "value".to_string(),
         };
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),

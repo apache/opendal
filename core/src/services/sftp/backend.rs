@@ -38,6 +38,36 @@ use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
 
+use serde::Deserialize;
+
+/// Config for Sftpservices support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct SftpConfig {
+    /// endpoint of this backend
+    pub endpoint: Option<String>,
+    /// root of this backend
+    pub root: Option<String>,
+    /// user of this backend
+    pub user: Option<String>,
+    /// key of this backend
+    pub key: Option<String>,
+    /// known_hosts_strategy of this backend
+    pub known_hosts_strategy: Option<String>,
+    /// enable_copy of this backend
+    pub enable_copy: bool,
+}
+
+impl Debug for SftpConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SftpConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
+
 /// SFTP services support. (only works on unix)
 ///
 /// If you are interested in working on windows, please refer to [this](https://github.com/apache/incubator-opendal/issues/2963) issue.
@@ -50,19 +80,13 @@ use crate::*;
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SftpBuilder {
-    endpoint: Option<String>,
-    root: Option<String>,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: Option<String>,
-    enable_copy: bool,
+    config: SftpConfig,
 }
 
 impl Debug for SftpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
+        f.debug_struct("SftpBuilder")
+            .field("config", &self.config)
             .finish()
     }
 }
@@ -70,7 +94,7 @@ impl Debug for SftpBuilder {
 impl SftpBuilder {
     /// set endpoint for sftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -82,7 +106,7 @@ impl SftpBuilder {
     /// set root path for sftp backend.
     /// It uses the default directory set by the remote `sftp-server` as default.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -93,7 +117,7 @@ impl SftpBuilder {
 
     /// set user for sftp backend.
     pub fn user(&mut self, user: &str) -> &mut Self {
-        self.user = if user.is_empty() {
+        self.config.user = if user.is_empty() {
             None
         } else {
             Some(user.to_string())
@@ -104,7 +128,7 @@ impl SftpBuilder {
 
     /// set key path for sftp backend.
     pub fn key(&mut self, key: &str) -> &mut Self {
-        self.key = if key.is_empty() {
+        self.config.key = if key.is_empty() {
             None
         } else {
             Some(key.to_string())
@@ -119,7 +143,7 @@ impl SftpBuilder {
     /// - Accept
     /// - Add
     pub fn known_hosts_strategy(&mut self, strategy: &str) -> &mut Self {
-        self.known_hosts_strategy = if strategy.is_empty() {
+        self.config.known_hosts_strategy = if strategy.is_empty() {
             None
         } else {
             Some(strategy.to_string())
@@ -131,7 +155,7 @@ impl SftpBuilder {
     /// set enable_copy for sftp backend.
     /// It requires the server supports copy-file extension.
     pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
-        self.enable_copy = enable_copy;
+        self.config.enable_copy = enable_copy;
 
         self
     }
@@ -143,23 +167,24 @@ impl Builder for SftpBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("sftp backend build started: {:?}", &self);
-        let endpoint = match self.endpoint.clone() {
+        let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
         };
 
-        let user = match self.user.clone() {
+        let user = match self.config.user.clone() {
             Some(v) => v,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "user is empty")),
         };
 
         let root = self
+            .config
             .root
             .clone()
             .map(|r| normalize_root(r.as_str()))
             .unwrap_or_default();
 
-        let known_hosts_strategy = match &self.known_hosts_strategy {
+        let known_hosts_strategy = match &self.config.known_hosts_strategy {
             Some(v) => {
                 let v = v.to_lowercase();
                 if v == "strict" {
@@ -184,24 +209,18 @@ impl Builder for SftpBuilder {
             endpoint,
             root,
             user,
-            key: self.key.clone(),
+            key: self.config.key.clone(),
             known_hosts_strategy,
-            copyable: self.enable_copy,
+            copyable: self.config.enable_copy,
             client: tokio::sync::OnceCell::new(),
         })
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = SftpBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("user").map(|v| builder.user(v));
-        map.get("key").map(|v| builder.key(v));
-        map.get("known_hosts_strategy")
-            .map(|v| builder.known_hosts_strategy(v));
-
-        builder
+        SftpBuilder {
+            config: SftpConfig::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+        }
     }
 }
 

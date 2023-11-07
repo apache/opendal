@@ -168,6 +168,8 @@ pub use s3::S3;
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::Sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::SftpConfig;
 
 #[cfg(feature = "services-sled")]
 mod sled;

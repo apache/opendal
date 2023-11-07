@@ -26,9 +26,9 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
+use crate::*;
 use crate::raw::*;
 use crate::services::dropbox::error::DropboxErrorResponse;
-use crate::*;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
@@ -80,9 +80,17 @@ impl Accessor for DropboxBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        if self.stat(path, OpStat::default()).await.is_ok() {
-            return Ok(RpCreateDir::default());
+        // Check if the folder already exists.
+        let resp = self.core.dropbox_get_metadata(path).await?;
+        if let StatusCode::OK = resp.status() {
+            let bytes = resp.into_body().bytes().await?;
+            let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
+                .map_err(new_json_deserialize_error)?;
+            if let "folder" = decoded_response.tag.as_str() {
+                return Ok(RpCreateDir::default());
+            }
         }
+
         let resp = self.core.dropbox_create_folder(path).await?;
         let status = resp.status();
         match status {
@@ -185,7 +193,7 @@ impl Accessor for DropboxBackend {
                 ErrorKind::Unsupported,
                 "dropbox services only allow delete up to 1000 keys at once",
             )
-            .with_context("length", ops.len().to_string()));
+                .with_context("length", ops.len().to_string()));
         }
 
         let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();

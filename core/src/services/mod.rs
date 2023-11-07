@@ -69,6 +69,11 @@ mod ghac;
 #[cfg(feature = "services-ghac")]
 pub use ghac::Ghac;
 
+#[cfg(feature = "services-gridfs")]
+mod gridfs;
+#[cfg(feature = "services-gridfs")]
+pub use gridfs::Gridfs;
+
 #[cfg(feature = "services-hdfs")]
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
@@ -95,6 +100,8 @@ pub use ipmfs::Ipmfs;
 mod libsql;
 #[cfg(feature = "services-libsql")]
 pub use libsql::Libsql;
+#[cfg(feature = "services-libsql")]
+pub use libsql::LibsqlConfig;
 
 #[cfg(feature = "services-memcached")]
 mod memcached;
@@ -139,7 +146,9 @@ pub use self::persy::Persy;
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::Redis;
+pub use redis::Redis;
+#[cfg(feature = "services-redis")]
+pub use redis::RedisConfig;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;
@@ -229,6 +238,8 @@ pub use self::atomicserver::Atomicserver;
 mod mysql;
 #[cfg(feature = "services-mysql")]
 pub use self::mysql::Mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::MysqlConfig;
 
 #[cfg(feature = "services-sqlite")]
 mod sqlite;

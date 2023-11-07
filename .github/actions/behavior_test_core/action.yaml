@@ -41,7 +41,7 @@ runs:
           - name: Run Test Core
             shell: bash
             working-directory: core
-            run: cargo nextest run behavior --features tests,${{ inputs.feature }}
+            run: cargo test behavior --features tests,${{ inputs.feature }}
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

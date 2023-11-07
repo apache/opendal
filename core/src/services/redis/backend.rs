@@ -33,6 +33,7 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
+use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -42,10 +43,11 @@ use crate::*;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
-/// [Redis](https://redis.io/) services support.
-#[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
-pub struct RedisBuilder {
+/// Config for Redis services support.
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct RedisConfig {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
     ///
     /// default is "tcp://127.0.0.1:6379"
@@ -74,24 +76,42 @@ pub struct RedisBuilder {
     default_ttl: Option<Duration>,
 }
 
-impl Debug for RedisBuilder {
+impl Debug for RedisConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-        ds.field("db", &self.db.to_string());
-        ds.field("root", &self.root);
+        let mut d = f.debug_struct("RedisConfig");
+
+        d.field("db", &self.db.to_string());
+        d.field("root", &self.root);
         if let Some(endpoint) = self.endpoint.clone() {
-            ds.field("endpoint", &endpoint);
+            d.field("endpoint", &endpoint);
         }
         if let Some(cluster_endpoints) = self.cluster_endpoints.clone() {
-            ds.field("cluster_endpoints", &cluster_endpoints);
+            d.field("cluster_endpoints", &cluster_endpoints);
         }
         if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
+            d.field("username", &username);
         }
         if self.password.is_some() {
-            ds.field("password", &"<redacted>");
+            d.field("password", &"<redacted>");
         }
-        ds.finish()
+
+        d.finish_non_exhaustive()
+    }
+}
+
+/// [Redis](https://redis.io/) services support.
+#[doc = include_str!("docs.md")]
+#[derive(Clone, Default)]
+pub struct RedisBuilder {
+    config: RedisConfig,
+}
+
+impl Debug for RedisBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("RedisBuilder");
+
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -104,7 +124,7 @@ impl RedisBuilder {
     /// - "unix" or "redis+unix": unix socket connection
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_owned());
+            self.config.endpoint = Some(endpoint.to_owned());
         }
         self
     }
@@ -118,7 +138,7 @@ impl RedisBuilder {
     /// - "unix" or "redis+unix": unix socket connection
     pub fn cluster_endpoints(&mut self, cluster_endpoints: &str) -> &mut Self {
         if !cluster_endpoints.is_empty() {
-            self.cluster_endpoints = Some(cluster_endpoints.to_owned());
+            self.config.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
         self
     }
@@ -128,7 +148,7 @@ impl RedisBuilder {
     /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
-            self.username = Some(username.to_owned());
+            self.config.username = Some(username.to_owned());
         }
         self
     }
@@ -138,7 +158,7 @@ impl RedisBuilder {
     /// default: no password
     pub fn password(&mut self, password: &str) -> &mut Self {
         if !password.is_empty() {
-            self.password = Some(password.to_owned());
+            self.config.password = Some(password.to_owned());
         }
         self
     }
@@ -147,7 +167,7 @@ impl RedisBuilder {
     ///
     /// default: 0
     pub fn db(&mut self, db: i64) -> &mut Self {
-        self.db = db;
+        self.config.db = db;
         self
     }
 
@@ -155,7 +175,7 @@ impl RedisBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
-        self.default_ttl = Some(ttl);
+        self.config.default_ttl = Some(ttl);
         self
     }
 
@@ -164,7 +184,7 @@ impl RedisBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -175,38 +195,31 @@ impl Builder for RedisBuilder {
     type Accessor = RedisBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = RedisBuilder::default();
+        let config = RedisConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("cluster_endpoints")
-            .map(|v| builder.cluster_endpoints(v));
-        map.get("username").map(|v| builder.username(v));
-        map.get("password").map(|v| builder.password(v));
-        map.get("db")
-            .map(|v| v.parse::<i64>().map(|v| builder.db(v)));
-
-        builder
+        RedisBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
 
-        if let Some(endpoints) = self.cluster_endpoints.clone() {
+        if let Some(endpoints) = self.config.cluster_endpoints.clone() {
             let mut cluster_endpoints: Vec<ConnectionInfo> = Vec::default();
             for endpoint in endpoints.split(',') {
                 cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
             }
             let mut client_builder = ClusterClientBuilder::new(cluster_endpoints);
-            if let Some(username) = &self.username {
+            if let Some(username) = &self.config.username {
                 client_builder = client_builder.username(username.clone());
             }
-            if let Some(password) = &self.password {
+            if let Some(password) = &self.config.password {
                 client_builder = client_builder.password(password.clone());
             }
             let client = client_builder.build()?;
@@ -218,11 +231,12 @@ impl Builder for RedisBuilder {
                 client: None,
                 cluster_client: Some(client),
                 conn,
-                default_ttl: self.default_ttl,
+                default_ttl: self.config.default_ttl,
             })
             .with_root(&root))
         } else {
             let endpoint = self
+                .config
                 .endpoint
                 .clone()
                 .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
@@ -231,8 +245,8 @@ impl Builder for RedisBuilder {
                 Client::open(self.get_connection_info(endpoint.clone())?).map_err(|e| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
                         .with_context("service", Scheme::Redis)
-                        .with_context("endpoint", self.endpoint.as_ref().unwrap())
-                        .with_context("db", self.db.to_string())
+                        .with_context("endpoint", self.config.endpoint.as_ref().unwrap())
+                        .with_context("db", self.config.db.to_string())
                         .set_source(e)
                 })?;
 
@@ -242,7 +256,7 @@ impl Builder for RedisBuilder {
                 client: Some(client),
                 cluster_client: None,
                 conn,
-                default_ttl: self.default_ttl,
+                default_ttl: self.config.default_ttl,
             })
             .with_root(&root))
         }
@@ -293,9 +307,9 @@ impl RedisBuilder {
         };
 
         let redis_info = RedisConnectionInfo {
-            db: self.db,
-            username: self.username.clone(),
-            password: self.password.clone(),
+            db: self.config.db,
+            username: self.config.username.clone(),
+            password: self.config.password.clone(),
         };
 
         Ok(ConnectionInfo {

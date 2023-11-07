@@ -39,7 +39,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          need-nextest: true
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}

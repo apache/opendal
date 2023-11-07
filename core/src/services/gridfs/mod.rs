@@ -16,7 +16,4 @@
 // under the License.
 
 mod backend;
-pub use backend::LibsqlBuilder as Libsql;
-pub use backend::LibsqlConfig;
-
-mod error;
+pub use backend::GridFsBuilder as Gridfs;

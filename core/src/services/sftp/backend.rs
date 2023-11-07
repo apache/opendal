@@ -45,12 +45,12 @@ use serde::Deserialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct SftpConfig {
-    endpoint: Option<String>,
-    root: Option<String>,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: Option<String>,
-    enable_copy: bool,
+    pub endpoint: Option<String>,
+    pub root: Option<String>,
+    pub user: Option<String>,
+    pub key: Option<String>,
+    pub known_hosts_strategy: Option<String>,
+    pub enable_copy: bool,
 }
 
 impl Debug for SftpConfig {

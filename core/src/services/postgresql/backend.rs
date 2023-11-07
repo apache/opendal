@@ -57,8 +57,11 @@ impl Debug for PostgresqlConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("PostgresqlConfig");
 
+        if self.connection_string.is_some() {
+            d.field("connection_string", &"<redacted>");
+        }
+
         d.field("root", &self.root)
-            .field("connection_string", &self.connection_string)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)

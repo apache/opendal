@@ -628,3 +628,53 @@ pub unsafe extern "C" fn opendal_operator_list(
         },
     }
 }
+
+/// \brief Blockingly create the directory in `path`.
+///
+/// Create the directory in `path` blockingly by `op_ptr`.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
+///
+/// @param ptr The opendal_operator created previously
+/// @param path The designated directory you want to create
+/// @see opendal_operator
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named ptr for example
+///
+/// // create your directory
+/// opendal_error *error = opendal_operator_create_dir(ptr, "/testdir/");
+///
+/// // Assert that this succeeds
+/// assert(error == NULL);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_create_dir(
+    op: *const opendal_operator,
+    path: *const c_char,
+) -> *mut opendal_error {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+
+    let op = (*op).as_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.create_dir(path) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}

@@ -137,7 +137,9 @@ pub use self::persy::Persy;
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::Redis;
+pub use redis::Redis;
+#[cfg(feature = "services-redis")]
+pub use redis::RedisConfig;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;

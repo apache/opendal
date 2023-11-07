@@ -112,7 +112,7 @@ impl opendal_metadata {
         unsafe { (*self.inner).is_dir() }
     }
 
-    /// \brief Return the last_modified of the metadata
+    /// \brief Return the last_modified of the metadata, in milliseconds
     ///
     /// # Example
     /// ```C
@@ -121,14 +121,14 @@ impl opendal_metadata {
     /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
-    /// assert(opendal_metadata_last_modified(meta) != -1);
+    /// assert(opendal_metadata_last_modified_ms(meta) != -1);
     /// ```
     #[no_mangle]
-    pub extern "C" fn opendal_metadata_last_modified(&self) -> i64 {
+    pub extern "C" fn opendal_metadata_last_modified_ms(&self) -> i64 {
         let mtime = unsafe { (*self.inner).last_modified() };
         match mtime {
             None => return -1,
-            Some(time) => time.timestamp(),
+            Some(time) => time.timestamp_millis(),
         }
     }
 }

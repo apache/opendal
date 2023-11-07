@@ -79,7 +79,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     EXPECT_EQ(opendal_metadata_content_length(meta), 13);
 
     // the blocking file "test" last modified time must not be -1
-    EXPECT_FALSE(opendal_metadata_last_modified(meta) != -1);
+    EXPECT_FALSE(opendal_metadata_last_modified_ms(meta) != -1);
     opendal_metadata_free(meta);
 
 
@@ -119,11 +119,12 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The directory "tmpdir/" should exist and should be a directory
     error = opendal_operator_create_dir(this->p, "tmpdir/");
     EXPECT_EQ(error, nullptr);
-    auto stat = opendal_operator_stat(this->p, "tempdir/");
+    auto stat = opendal_operator_stat(this->p, "tmpdir/");
     EXPECT_EQ(stat.error, nullptr);
     EXPECT_TRUE(opendal_metadata_is_dir(stat.meta));
     EXPECT_FALSE(opendal_metadata_is_file(stat.meta));
-    error = opendal_operator_delete(this->p, "tempdir/");
+    opendal_metadata_free(stat.meta);
+    error = opendal_operator_delete(this->p, "tmpdir/");
     EXPECT_EQ(error, nullptr);
 }
 

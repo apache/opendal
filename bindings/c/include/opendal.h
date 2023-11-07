@@ -773,7 +773,7 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
 
 /**
- * \brief Return the last_modified of the metadata
+ * \brief Return the last_modified of the metadata, in milliseconds
  *
  * # Example
  * ```C
@@ -782,10 +782,10 @@ bool opendal_metadata_is_dir(const struct opendal_metadata *self);
  * assert(s.error == NULL);
  *
  * opendal_metadata *meta = s.meta;
- * assert(opendal_metadata_last_modified(meta) != -1);
+ * assert(opendal_metadata_last_modified_ms(meta) != -1);
  * ```
  */
-int64_t opendal_metadata_last_modified(const struct opendal_metadata *self);
+int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator.

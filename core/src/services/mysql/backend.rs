@@ -141,7 +141,7 @@ impl Builder for MysqlBuilder {
         let config = MysqlConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
-        MyqlBuilder { config }
+        MysqlBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

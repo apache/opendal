@@ -36,7 +36,7 @@ use crate::*;
 
 use super::error::parse_error;
 
-// Config for Libsqlservices support.
+/// Config for Libsqlservices support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]

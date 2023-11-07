@@ -45,11 +45,17 @@ use serde::Deserialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct SftpConfig {
+    /// endpoint of this backend
     pub endpoint: Option<String>,
+    /// root of this backend
     pub root: Option<String>,
+    /// user of this backend
     pub user: Option<String>,
+    /// key of this backend
     pub key: Option<String>,
+    /// known_hosts_strategy of this backend
     pub known_hosts_strategy: Option<String>,
+    /// enable_copy of this backend
     pub enable_copy: bool,
 }
 

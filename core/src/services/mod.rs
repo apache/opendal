@@ -93,6 +93,8 @@ pub use ipmfs::Ipmfs;
 mod libsql;
 #[cfg(feature = "services-libsql")]
 pub use libsql::Libsql;
+#[cfg(feature = "services-libsql")]
+pub use libsql::LibsqlConfig;
 
 #[cfg(feature = "services-memcached")]
 mod memcached;

@@ -16,10 +16,10 @@
 # under the License.
 
 import os
-from random import randint
 from uuid import uuid4
 
 import pytest
+from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability("read", "write", "delete", "list", "blocking")
@@ -42,6 +42,6 @@ def test_sync_remove_all(service_name, operator, async_operator):
     operator.remove_all(f"{parent}/x/")
     for path in excepted:
         if not path.endswith("/"):
-            with pytest.raises(FileNotFoundError) as e_info:
+            with pytest.raises(NotFound) :
                 operator.read(f"{parent}/{path}")
     operator.remove_all(f"{parent}/")

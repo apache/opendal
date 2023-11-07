@@ -86,7 +86,7 @@ impl Operator {
             let w = this.writer(&path).map_err(format_pyerr)?;
             Ok(File::new_writer(w))
         } else {
-            Err(Error::new_err(format!(
+            Err(UnsupportedError::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
             )))
         }
@@ -245,7 +245,7 @@ impl AsyncOperator {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
                 Ok(AsyncFile::new_writer(w))
             } else {
-                Err(Error::new_err(format!(
+                Err(UnsupportedError::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"
                 )))
             }
@@ -547,9 +547,11 @@ impl PresignedRequest {
         let mut headers = HashMap::new();
         for (k, v) in self.0.header().iter() {
             let k = k.as_str();
-            let v = v.to_str().map_err(|err| Error::new_err(err.to_string()))?;
+            let v = v
+                .to_str()
+                .map_err(|err| UnexpectedError::new_err(err.to_string()))?;
             if headers.insert(k, v).is_some() {
-                return Err(Error::new_err("duplicate header"));
+                return Err(UnexpectedError::new_err("duplicate header"));
             }
         }
         Ok(headers)

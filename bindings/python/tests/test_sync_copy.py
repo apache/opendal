@@ -16,86 +16,83 @@
 # under the License.
 
 import os
+from random import randint
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import Error, IsADirectory, IsSameFile, NotFound
+from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_file(service_name, operator, async_operator):
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}"
-    operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
-        operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
-    assert operator.read(target_path) == content
-    operator.delete(target_path)
+    operator.copy(source_path, target_path)
+    read_content = operator.read(target_path)
+    assert read_content is not None
+    assert read_content == content
     operator.delete(source_path)
+    operator.delete(target_path)
 
 
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_non_exists_file(service_name, operator, async_operator):
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_non_exist(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Error) as e_info:
-        operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, NotFound)
+    with pytest.raises(NotFound) as e_info:
+        operator.copy(source_path, target_path)
 
 
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_directory(service_name, operator, async_operator):
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_source_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Error) as e_info:
-        operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, IsADirectory)
+    with pytest.raises(IsADirectory) as e_info:
+        operator.copy(source_path, target_path)
 
 
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_file_to_directory(service_name, operator, async_operator):
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_target_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/"
-    with pytest.raises(Error) as e_info:
-        operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, IsADirectory)
+    operator.create_dir(target_path)
+    with pytest.raises(IsADirectory) as e_info:
+        operator.copy(source_path, target_path)
     operator.delete(source_path)
-
-
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_self(service_name, operator, async_operator):
-    source_path = f"random_file_{str(uuid4())}"
-    content = os.urandom(1024)
-    operator.write(source_path, content)
-    with pytest.raises(Error) as e_info:
-        operator.rename(source_path, source_path)
-    assert isinstance(e_info.value, IsSameFile)
-    operator.delete(source_path)
-
-
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_nested(service_name, operator, async_operator):
-    source_path = f"random_file_{str(uuid4())}"
-    content = os.urandom(1024)
-    operator.write(source_path, content)
-    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
-    operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
-        operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
-    assert operator.read(target_path) == content
     operator.delete(target_path)
+
+
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_self(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    content = os.urandom(1024)
+    operator.write(source_path, content)
+    with pytest.raises(IsSameFile) as e_info:
+        operator.copy(source_path, source_path)
     operator.delete(source_path)
 
 
-@pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_overwrite(service_name, operator, async_operator):
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_nested(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
+    content = os.urandom(1024)
+    operator.write(source_path, content)
+    operator.copy(source_path, target_path)
+    target_content = operator.read(target_path)
+    assert target_content is not None
+    assert target_content == content
+    operator.delete(source_path)
+    operator.delete(target_path)
+
+
+@pytest.mark.need_capability("read", "write", "copy")
+def test_sync_copy_overwrite(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
     source_content = os.urandom(1024)
@@ -103,10 +100,9 @@ def test_sync_rename_overwrite(service_name, operator, async_operator):
     assert source_content != target_content
     operator.write(source_path, source_content)
     operator.write(target_path, target_content)
-    operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
-        operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
-    assert operator.read(target_path) == source_content
-    operator.delete(target_path)
+    operator.copy(source_path, target_path)
+    target_content = operator.read(target_path)
+    assert target_content is not None
+    assert target_content == source_content
     operator.delete(source_path)
+    operator.delete(target_path)

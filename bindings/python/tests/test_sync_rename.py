@@ -16,10 +16,11 @@
 # under the License.
 
 import os
+from random import randint
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import Error, IsADirectory, IsSameFile, NotFound
+from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 
 @pytest.mark.need_capability("read", "write", "rename")
@@ -29,9 +30,8 @@ def test_sync_rename_file(service_name, operator, async_operator):
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}"
     operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(NotFound) as e_info:
         operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
     assert operator.read(target_path) == content
     operator.delete(target_path)
     operator.delete(source_path)
@@ -41,9 +41,8 @@ def test_sync_rename_file(service_name, operator, async_operator):
 def test_sync_rename_non_exists_file(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(NotFound) as e_info:
         operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, NotFound)
 
 
 @pytest.mark.need_capability("read", "write", "rename")
@@ -51,9 +50,8 @@ def test_sync_rename_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(IsADirectory) as e_info:
         operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, IsADirectory)
 
 
 @pytest.mark.need_capability("read", "write", "rename")
@@ -62,9 +60,8 @@ def test_sync_rename_file_to_directory(service_name, operator, async_operator):
     content = os.urandom(1024)
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/"
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(IsADirectory) as e_info:
         operator.rename(source_path, target_path)
-    assert isinstance(e_info.value, IsADirectory)
     operator.delete(source_path)
 
 
@@ -73,9 +70,8 @@ def test_sync_rename_self(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(IsSameFile) as e_info:
         operator.rename(source_path, source_path)
-    assert isinstance(e_info.value, IsSameFile)
     operator.delete(source_path)
 
 
@@ -86,9 +82,8 @@ def test_sync_rename_nested(service_name, operator, async_operator):
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(NotFound) as e_info:
         operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
     assert operator.read(target_path) == content
     operator.delete(target_path)
     operator.delete(source_path)
@@ -104,9 +99,8 @@ def test_sync_rename_overwrite(service_name, operator, async_operator):
     operator.write(source_path, source_content)
     operator.write(target_path, target_content)
     operator.rename(source_path, target_path)
-    with pytest.raises(Error) as e_info:
+    with pytest.raises(NotFound) as e_info:
         operator.read(source_path)
-    assert isinstance(e_info.value, NotFound)
     assert operator.read(target_path) == source_content
     operator.delete(target_path)
     operator.delete(source_path)

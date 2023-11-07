@@ -32,7 +32,7 @@ async with await op.open(filename, "rb") as r:
 
 We remove the old error classes and provide a couple of Exception based class for the error handling.
 
-1. `opendal.Error` is based class for all the exceptions now.
+1. `opendal.Error` is removed, use `opendal.exceptions.Unexpected` instead.
 2. `opendal.exceptions.Unexpected` is added.
 3. `opendal.exceptions.Unsupported` is added.
 4. `opendal.exceptions.ConfigInvalid` is added.

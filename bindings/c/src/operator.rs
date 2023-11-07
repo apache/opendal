@@ -678,3 +678,47 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
         Err(e) => opendal_error::new(e),
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_rename(
+    op: *const opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    if src.is_null() {
+        panic!("The source path given is pointing at NULL");
+    }
+    if dest.is_null() {
+        panic!("The destination path given is pointing at NULL");
+    }
+
+    let op = (*op).as_ref();
+    let src = unsafe { std::ffi::CStr::from_ptr(src).to_str().unwrap() };
+    let dest = unsafe { std::ffi::CStr::from_ptr(dest).to_str().unwrap() };
+    match op.rename(src, dest) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy(
+    op: *const opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    if src.is_null() {
+        panic!("The source path given is pointing at NULL");
+    }
+    if dest.is_null() {
+        panic!("The destination path given is pointing at NULL");
+    }
+
+    let op = (*op).as_ref();
+    let src = unsafe { std::ffi::CStr::from_ptr(src).to_str().unwrap() };
+    let dest = unsafe { std::ffi::CStr::from_ptr(dest).to_str().unwrap() };
+    match op.copy(src, dest) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}

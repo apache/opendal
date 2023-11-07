@@ -1202,6 +1202,14 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
 struct opendal_error *opendal_operator_create_dir(const struct opendal_operator *op,
                                                   const char *path);
 
+struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
+                                              const char *src,
+                                              const char *dest);
+
+struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
+                                            const char *src,
+                                            const char *dest);
+
 /**
  * \brief Get information of underlying accessor.
  *

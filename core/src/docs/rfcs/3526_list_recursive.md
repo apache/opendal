@@ -1,6 +1,6 @@
 - Proposal Name: `list_recursive`
 - Start Date: 2023-11-08
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#3526](https://github.com/apache/incubator-opendal/pull/3526)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

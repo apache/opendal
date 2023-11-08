@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: gridfs_with_no_auth
-description: 'Behavior test for gridfs with no auth'
+name: gridfs
+description: 'Behavior test for gridfs'
 
 runs:
   using: "composite"

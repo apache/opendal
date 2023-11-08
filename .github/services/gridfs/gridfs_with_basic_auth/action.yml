@@ -29,7 +29,7 @@ runs:
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_GRIDFS_CONNECTION_STRING=mongodb://127.0.0.1:27017
+        OPENDAL_GRIDFS_CONNECTION_STRING=mongodb://root:example@127.0.0.1:27017/admin
         OPENDAL_GRIDFS_DATABASE=opendal
         OPENDAL_GRIDFS_BUCKET=fs
         EOF

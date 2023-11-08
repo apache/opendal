@@ -135,6 +135,10 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 - [Milvus](https://github.com/milvus-io/milvus): A cloud-native vector database, storage for next generation AI applications
 
+### Java Binding
+
+- [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)

@@ -48,31 +48,31 @@ pub struct EtcdConfig {
     /// e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792"
     ///
     /// default is "http://127.0.0.1:2379"
-    endpoints: Option<String>,
+    pub endpoints: Option<String>,
     /// the username to connect etcd service.
     ///
     /// default is None
-    username: Option<String>,
+    pub username: Option<String>,
     /// the password for authentication
     ///
     /// default is None
-    password: Option<String>,
+    pub password: Option<String>,
     /// the working directory of the etcd service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
     /// certificate authority file path
     ///
     /// default is None
-    ca_path: Option<String>,
+    pub ca_path: Option<String>,
     /// cert path
     ///
     /// default is None
-    cert_path: Option<String>,
+    pub cert_path: Option<String>,
     /// key path
     ///
     /// default is None
-    key_path: Option<String>,
+    pub key_path: Option<String>,
 }
 
 impl Debug for EtcdConfig {

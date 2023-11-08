@@ -70,7 +70,8 @@ Run some tests:
 
 ```shell
 maturin develop -E test
-OPENDAL_MEMORY_TEST=on pytest -vk TestMemory
+# To run `test_write.py` and use `fs` operator
+OPENDAL_TEST=fs opendal_fs_root=/tmp pytest -vk test_write
 ```
 
 Build API docs:

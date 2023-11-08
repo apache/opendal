@@ -33,7 +33,7 @@ runs:
         sudo cp ssl/ca.crt /usr/local/share/ca-certificates
         sudo update-ca-certificates
 
-        docker-compose -f docker-compose-redis-cluster-tls.yml up -d
+        docker-compose -f docker-compose-redis-cluster-tls.yml up -d --wait
 
     - name: Setup Rust toolchain
       uses: ./.github/actions/setup

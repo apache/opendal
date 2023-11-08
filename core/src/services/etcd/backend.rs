@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use serde::Deserialize;
 use bb8::PooledConnection;
 use bb8::RunError;
 use etcd_client::Certificate;
@@ -37,10 +38,11 @@ use crate::*;
 
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
-/// [Etcd](https://etcd.io/) services support.
-#[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
-pub struct EtcdBuilder {
+/// Config for Tikv services support.
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct EtcdConfig {
     /// network address of the Etcd services.
     /// If use https, must set TLS options: `ca_path`, `cert_path`, `key_path`.
     /// e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792"
@@ -73,9 +75,10 @@ pub struct EtcdBuilder {
     key_path: Option<String>,
 }
 
-impl Debug for EtcdBuilder {
+impl Debug for EtcdConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("EtcdConfig");
+
         ds.field("root", &self.root);
         if let Some(endpoints) = self.endpoints.clone() {
             ds.field("endpoints", &endpoints);
@@ -86,6 +89,31 @@ impl Debug for EtcdBuilder {
         if self.password.is_some() {
             ds.field("password", &"<redacted>");
         }
+        if let Some(ca_path) = self.ca_path.clone() {
+            ds.field("ca_path", &ca_path);
+        }
+        if let Some(cert_path) = self.cert_path.clone() {
+            ds.field("cert_path", &cert_path);
+        }
+        if let Some(key_path) = self.key_path.clone() {
+            ds.field("key_path", &key_path);
+        }
+       ds.finish()
+    }
+}
+
+/// [Etcd](https://etcd.io/) services support.
+#[doc = include_str!("docs.md")]
+#[derive(Clone, Default)]
+pub struct EtcdBuilder {
+    config: EtcdConfig,
+}
+
+impl Debug for EtcdBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+
+        ds.field("config", &self.config);
         ds.finish()
     }
 }
@@ -96,7 +124,7 @@ impl EtcdBuilder {
     /// default: "http://127.0.0.1:2379"
     pub fn endpoints(&mut self, endpoints: &str) -> &mut Self {
         if !endpoints.is_empty() {
-            self.endpoints = Some(endpoints.to_owned());
+            self.config.endpoints = Some(endpoints.to_owned());
         }
         self
     }
@@ -106,7 +134,7 @@ impl EtcdBuilder {
     /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
-            self.username = Some(username.to_owned());
+            self.config.username = Some(username.to_owned());
         }
         self
     }
@@ -116,7 +144,7 @@ impl EtcdBuilder {
     /// default: no password
     pub fn password(&mut self, password: &str) -> &mut Self {
         if !password.is_empty() {
-            self.password = Some(password.to_owned());
+            self.config.password = Some(password.to_owned());
         }
         self
     }
@@ -126,7 +154,7 @@ impl EtcdBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -136,7 +164,7 @@ impl EtcdBuilder {
     /// default is None
     pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
         if !ca_path.is_empty() {
-            self.ca_path = Some(ca_path.to_string())
+            self.config.ca_path = Some(ca_path.to_string())
         }
         self
     }
@@ -146,7 +174,7 @@ impl EtcdBuilder {
     /// default is None
     pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
         if !cert_path.is_empty() {
-            self.cert_path = Some(cert_path.to_string())
+            self.config.cert_path = Some(cert_path.to_string())
         }
         self
     }
@@ -156,7 +184,7 @@ impl EtcdBuilder {
     /// default is None
     pub fn key_path(&mut self, key_path: &str) -> &mut Self {
         if !key_path.is_empty() {
-            self.key_path = Some(key_path.to_string())
+            self.config.key_path = Some(key_path.to_string())
         }
         self
     }
@@ -181,19 +209,17 @@ impl Builder for EtcdBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoints = self
-            .endpoints
-            .clone()
+        let endpoints = self.config.endpoints.clone()
             .unwrap_or_else(|| DEFAULT_ETCD_ENDPOINTS.to_string());
 
         let endpoints: Vec<String> = endpoints.split(',').map(|s| s.to_string()).collect();
 
         let mut options = ConnectOptions::new();
 
-        if self.ca_path.is_some() && self.cert_path.is_some() && self.key_path.is_some() {
-            let ca = self.load_pem(self.ca_path.clone().unwrap().as_str())?;
-            let key = self.load_pem(self.key_path.clone().unwrap().as_str())?;
-            let cert = self.load_pem(self.cert_path.clone().unwrap().as_str())?;
+        if self.config.ca_path.is_some() && self.config.cert_path.is_some() && self.config.key_path.is_some() {
+            let ca = self.load_pem(self.config.ca_path.clone().unwrap().as_str())?;
+            let key = self.load_pem(self.config.key_path.clone().unwrap().as_str())?;
+            let cert = self.load_pem(self.config.cert_path.clone().unwrap().as_str())?;
 
             let tls_options = TlsOptions::default()
                 .ca_certificate(Certificate::from_pem(ca))
@@ -201,13 +227,12 @@ impl Builder for EtcdBuilder {
             options = options.with_tls(tls_options);
         }
 
-        if let Some(username) = self.username.clone() {
-            options = options.with_user(username, self.password.clone().unwrap_or("".to_string()));
+        if let Some(username) = self.config.username.clone() {
+            options = options.with_user(username, self.config.password.clone().unwrap_or("".to_string()));
         }
 
         let root = normalize_root(
-            self.root
-                .clone()
+            self.config.root.clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );

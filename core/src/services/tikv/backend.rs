@@ -173,7 +173,7 @@ impl Debug for Adapter {
         let mut ds = f.debug_struct("Adapter");
 
         ds.field("endpoints", &self.endpoints);
-        ds.finish();
+        ds.finish()
     }
 }
 

@@ -182,7 +182,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore: Bump to v0.42.0 to start release process by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3509
 * chore: Remove not released packages while releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3519
 
-
 ## [v0.41.0] - 2023-10-08
 
 ### Added

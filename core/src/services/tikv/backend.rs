@@ -178,7 +178,6 @@ pub struct Adapter {
 
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter");
         let mut ds = f.debug_struct("Adapter");
 
         ds.field("endpoints", &self.endpoints);

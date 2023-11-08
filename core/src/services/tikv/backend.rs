@@ -40,15 +40,15 @@ use crate::*;
 #[non_exhaustive]
 pub struct TikvConfig {
     /// network address of the TiKV service.
-    endpoints: Option<Vec<String>>,
+    pub endpoints: Option<Vec<String>>,
     /// whether using insecure connection to TiKV
-    insecure: bool,
+    pub insecure: bool,
     /// certificate authority file path
-    ca_path: Option<String>,
+    pub ca_path: Option<String>,
     /// cert path
-    cert_path: Option<String>,
+    pub cert_path: Option<String>,
     /// key path
-    key_path: Option<String>,
+    pub key_path: Option<String>,
 }
 
 impl Debug for TikvConfig {

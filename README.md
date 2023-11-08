@@ -129,10 +129,15 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
 - [Pants](https://github.com/pantsbuild/pants): A fast, scalable, user-friendly build system for codebases of all sizes.
+- [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 
 ### C Binding
 
 - [Milvus](https://github.com/milvus-io/milvus): A cloud-native vector database, storage for next generation AI applications
+
+### Java Binding
+
+- [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 
 ## License
 

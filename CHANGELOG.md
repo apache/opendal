@@ -62,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(bindings/C): implement capability by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3479
 * feat: add mongodb gridfs service support by @realtaobo in https://github.com/apache/incubator-opendal/pull/3491
 * feat(services): add RedisConfig by @hoslo in https://github.com/apache/incubator-opendal/pull/3498
+* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
+* feat: Add opendal_metadata_last_modified and opendal_operator_create_dir by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3515
 ### Changed
 * refactor(services/sqlite): Polish sqlite via adding connection pool by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3249
 * refactor: Remove cucumber based test in python by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3253
@@ -109,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * refactor(service/postgresql): Add PostgresqlConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3495
 * refactor(binding/python): Add multiple custom exception for each of error code in Rust Core by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3492
 * refactor(service/libsql): Add LibsqlConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3501
+* refactor(service/http): Add HttpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3507
+* refactor(service/ftp): Add FtpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3510
+* refactor(service/sftp): Add SftpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3511
+* refactor(service/tikv): Add TikvConfig to implement ConfigDeserializer by @caicancai in https://github.com/apache/incubator-opendal/pull/3512
 ### Fixed
 * fix: Fix read result not full by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3350
 * fix(services/cos): fix prefix param by @G-XD in https://github.com/apache/incubator-opendal/pull/3384
@@ -119,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: nodejs test adapt `OPENDAL_DISABLE_RANDOM_ROOT` by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3456
 * fix(services/s3): Accept List responses without ETag by @amunra in https://github.com/apache/incubator-opendal/pull/3478
 * fix(bindings/python): fix type annotations and improve docs by @messense in https://github.com/apache/incubator-opendal/pull/3483
+* fix(services/dropbox): Check if folder exists before calling create dir by @leenstx in https://github.com/apache/incubator-opendal/pull/3513
 ### Docs
 * docs: Add docs in website for sqlite/mysql/postgresql services by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3290
 * docs: add docs in website for atomicserver by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3293
@@ -172,6 +179,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump actions/setup-node from 3 to 4 by @dependabot in https://github.com/apache/incubator-opendal/pull/3445
 * chore(deps): bump etcd-client from 0.11.1 to 0.12.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/3441
 * chore(services/libsql): Fix typos in backend by @sd44 in https://github.com/apache/incubator-opendal/pull/3506
+* chore: Bump to v0.42.0 to start release process by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3509
+* chore: Remove not released packages while releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3519
 
 ## [v0.41.0] - 2023-10-08
 

@@ -34,7 +34,7 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-/// Config for Mysql services support.
+/// Config for Tikv services support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]

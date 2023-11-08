@@ -62,7 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(bindings/C): implement capability by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3479
 * feat: add mongodb gridfs service support by @realtaobo in https://github.com/apache/incubator-opendal/pull/3491
 * feat(services): add RedisConfig by @hoslo in https://github.com/apache/incubator-opendal/pull/3498
-* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
 * feat: Add opendal_metadata_last_modified and opendal_operator_create_dir by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3515
 ### Changed
 * refactor(services/sqlite): Polish sqlite via adding connection pool by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3249
@@ -179,8 +178,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump actions/setup-node from 3 to 4 by @dependabot in https://github.com/apache/incubator-opendal/pull/3445
 * chore(deps): bump etcd-client from 0.11.1 to 0.12.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/3441
 * chore(services/libsql): Fix typos in backend by @sd44 in https://github.com/apache/incubator-opendal/pull/3506
+* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
 * chore: Bump to v0.42.0 to start release process by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3509
 * chore: Remove not released packages while releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3519
+
 
 ## [v0.41.0] - 2023-10-08
 

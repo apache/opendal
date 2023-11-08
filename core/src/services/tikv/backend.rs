@@ -71,6 +71,15 @@ pub struct TikvBuilder {
     config: TikvConfig,
 }
 
+impl Debug for TikvBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("TikvBuilder");
+
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
+}
+
 impl TikvBuilder {
     /// Set the network address of the TiKV service.
     pub fn endpoints(&mut self, endpoints: Vec<String>) -> &mut Self {

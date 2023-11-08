@@ -119,6 +119,8 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 ## Who is using OpenDAL?
 
+### Rust Core
+
 - [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
@@ -127,6 +129,10 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
 - [Pants](https://github.com/pantsbuild/pants): A fast, scalable, user-friendly build system for codebases of all sizes.
+
+### C Binding
+
+- [Milvus](https://github.com/milvus-io/milvus): A cloud-native vector database, storage for next generation AI applications
 
 ## License
 

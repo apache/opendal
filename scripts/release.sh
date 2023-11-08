@@ -38,6 +38,24 @@ mkdir -p dist/
 echo "> Checkout version branch"
 git checkout -B "${git_branch}"
 
+# Please update this part while package list changed.
+echo "> Update Cargo.toml to remove not released members"
+PACKAGES=(
+    "bindings\/c"
+    "bindings\/ruby"
+    "bindings\/haskell"
+    "bindings\/lua"
+    "bindings\/dotnet"
+    "bindings\/ocaml"
+    "bindings\/php"
+    "bindings\/cpp"
+    "bin\/"
+    "integrations\/"
+)
+for package in "${PACKAGES[@]}"; do
+  sed -i "/${package}/d" Cargo.toml
+done
+
 echo "> Start package"
 git archive --format=tar.gz --output="dist/apache-opendal-incubating-$release_version-src.tar.gz" --prefix="apache-opendal-incubating-$release_version-src/" "$git_branch"
 

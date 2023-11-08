@@ -22,6 +22,7 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use tikv_client::Config;
 use tikv_client::RawClient;
+use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -49,7 +50,7 @@ pub struct TikvConfig {
     key_path: Option<String>,
 }
 
-impl Debug for TiKVConfig {
+impl Debug for TikvConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("TikvConfig");
 
@@ -114,7 +115,7 @@ impl Builder for TikvBuilder {
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = Tikv::deserialize(ConfigDeserializer::new(map))
+        let config = TikvConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
         TikvBuilder { config }

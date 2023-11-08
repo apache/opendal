@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-use serde::Deserialize;
 use bb8::PooledConnection;
 use bb8::RunError;
 use etcd_client::Certificate;
@@ -30,6 +29,7 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
+use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -98,7 +98,7 @@ impl Debug for EtcdConfig {
         if let Some(key_path) = self.key_path.clone() {
             ds.field("key_path", &key_path);
         }
-       ds.finish()
+        ds.finish()
     }
 }
 
@@ -209,14 +209,20 @@ impl Builder for EtcdBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoints = self.config.endpoints.clone()
+        let endpoints = self
+            .config
+            .endpoints
+            .clone()
             .unwrap_or_else(|| DEFAULT_ETCD_ENDPOINTS.to_string());
 
         let endpoints: Vec<String> = endpoints.split(',').map(|s| s.to_string()).collect();
 
         let mut options = ConnectOptions::new();
 
-        if self.config.ca_path.is_some() && self.config.cert_path.is_some() && self.config.key_path.is_some() {
+        if self.config.ca_path.is_some()
+            && self.config.cert_path.is_some()
+            && self.config.key_path.is_some()
+        {
             let ca = self.load_pem(self.config.ca_path.clone().unwrap().as_str())?;
             let key = self.load_pem(self.config.key_path.clone().unwrap().as_str())?;
             let cert = self.load_pem(self.config.cert_path.clone().unwrap().as_str())?;
@@ -228,11 +234,16 @@ impl Builder for EtcdBuilder {
         }
 
         if let Some(username) = self.config.username.clone() {
-            options = options.with_user(username, self.config.password.clone().unwrap_or("".to_string()));
+            options = options.with_user(
+                username,
+                self.config.password.clone().unwrap_or("".to_string()),
+            );
         }
 
         let root = normalize_root(
-            self.config.root.clone()
+            self.config
+                .root
+                .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );

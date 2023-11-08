@@ -34,7 +34,7 @@ use crate::Scheme;
 use crate::*;
 
 /// Config for Mysql services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct TikvConfig {

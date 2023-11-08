@@ -54,4 +54,6 @@ None
 
 # Future possibilities
 
-None
+## Add delete with recursive support
+
+Some services have native support for delete with recursive, such as azfile. We can add this feature in the future if needed.

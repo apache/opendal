@@ -32,7 +32,6 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-
 /// Config for Mysql services support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -131,7 +130,9 @@ impl Builder for TikvBuilder {
         })?;
 
         if self.config.insecure
-            && (self.config.ca_path.is_some() || self.config.key_path.is_some() || self.config.cert_path.is_some())
+            && (self.config.ca_path.is_some()
+                || self.config.key_path.is_some()
+                || self.config.cert_path.is_some())
         {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
@@ -171,7 +172,7 @@ impl Debug for Adapter {
             .field("insecure", &self.insecure)
             .field("ca_path", &self.ca_path)
             .field("cert_path", &self.cert_path)
-            .field("key_path", &self.key_path)
+            .field("key_path", &self.key_path);
         ds.finish()
     }
 }

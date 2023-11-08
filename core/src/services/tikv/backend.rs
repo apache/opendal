@@ -52,7 +52,7 @@ pub struct TikvConfig {
 }
 
 impl Debug for TikvConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("TikvConfig");
 
         d.field("endpoints", &self.endpoints)
@@ -169,13 +169,11 @@ pub struct Adapter {
 
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("endpoints", &self.endpoints)
-            .field("insecure", &self.insecure)
-            .field("ca_path", &self.ca_path)
-            .field("cert_path", &self.cert_path)
-            .field("key_path", &self.key_path);
-        ds.finish()
+        f.debug_struct("Adapter");
+        let mut ds = f.debug_struct("Adapter");
+
+        ds.field("endpoints", &self.endpoints);
+        ds.finish();
     }
 }
 

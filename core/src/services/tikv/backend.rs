@@ -166,8 +166,12 @@ pub struct Adapter {
 
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("endpoints", &self.endpoints);
+        f.debug_struct("Adapter")
+            .field("endpoints", &self.endpoints)
+            .field("insecure", &self.insecure)
+            .field("ca_path", &self.ca_path)
+            .field("cert_path", &self.cert_path)
+            .field("key_path", &self.key_path)
         ds.finish()
     }
 }

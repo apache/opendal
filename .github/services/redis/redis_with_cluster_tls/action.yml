@@ -44,7 +44,7 @@ runs:
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_REDIS_CLUSTER_ENDPOINTS=redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
+        OPENDAL_REDIS_CLUSTER_ENDPOINTS=rediss://127.0.0.1:6380/,rediss://127.0.0.1:6381/,rediss://127.0.0.1:6382/,rediss://127.0.0.1:6383/,rediss://127.0.0.1:6384/,rediss://127.0.0.1:6385/
         OPENDAL_REDIS_ROOT=/test/opendal
         OPENDAL_REDIS_DB=0
         EOF

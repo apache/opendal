@@ -58,6 +58,8 @@ pub use fs::Fs;
 mod ftp;
 #[cfg(feature = "services-ftp")]
 pub use ftp::Ftp;
+#[cfg(feature = "services-ftp")]
+pub use ftp::FtpConfig;
 
 #[cfg(feature = "services-gcs")]
 mod gcs;
@@ -83,6 +85,8 @@ pub use hdfs::Hdfs;
 mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::Http;
+#[cfg(feature = "services-http")]
+pub use self::http::HttpConfig;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
@@ -164,6 +168,8 @@ pub use s3::S3;
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::Sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::SftpConfig;
 
 #[cfg(feature = "services-sled")]
 mod sled;

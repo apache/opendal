@@ -26,12 +26,13 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
-use super::core::DropboxCore;
-use super::error::parse_error;
-use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::services::dropbox::error::DropboxErrorResponse;
 use crate::*;
+
+use super::core::DropboxCore;
+use super::error::parse_error;
+use super::writer::DropboxWriter;
 
 static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
     ExponentialBuilder::default()
@@ -79,6 +80,23 @@ impl Accessor for DropboxBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        // Check if the folder already exists.
+        let resp = self.core.dropbox_get_metadata(path).await?;
+        if StatusCode::OK == resp.status() {
+            let bytes = resp.into_body().bytes().await?;
+            let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
+                .map_err(new_json_deserialize_error)?;
+            if "folder" == decoded_response.tag {
+                return Ok(RpCreateDir::default());
+            }
+            if "file" == decoded_response.tag {
+                return Err(Error::new(
+                    ErrorKind::NotADirectory,
+                    &format!("it's not a directory {}", path),
+                ));
+            }
+        }
+
         let resp = self.core.dropbox_create_folder(path).await?;
         let status = resp.status();
         match status {

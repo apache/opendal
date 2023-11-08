@@ -220,6 +220,8 @@ pub use self::redb::Redb;
 mod tikv;
 #[cfg(feature = "services-tikv")]
 pub use self::tikv::Tikv;
+#[cfg(feature = "services-tikv")]
+pub use self::tikv::TikvConfig;
 
 #[cfg(feature = "services-foundationdb")]
 mod foundationdb;

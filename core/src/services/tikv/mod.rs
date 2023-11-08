@@ -18,3 +18,4 @@
 mod backend;
 
 pub use backend::TikvBuilder as Tikv;
+pub use backend::TikvConfig;

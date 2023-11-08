@@ -48,6 +48,7 @@ runs:
       shell: bash
       run: |
           cat << EOF >> $GITHUB_ENV
+          RUST_TEST_THREADS=1
           OPENDAL_LIBSQL_CONNECTION_STRING=http://127.0.0.1:8080
           OPENDAL_LIBSQL_TABLE=data
           OPENDAL_LIBSQL_KEY_FIELD=key

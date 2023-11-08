@@ -1650,7 +1650,7 @@ dependencies = [
  "bytes",
  "chrono",
  "dav-server",
- "dirs 5.0.1",
+ "dirs",
  "futures",
  "futures-util",
  "opendal",
@@ -1812,31 +1812,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
-dependencies = [
- "dirs-sys 0.3.7",
-]
-
-[[package]]
-name = "dirs"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
 dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -4006,7 +3986,7 @@ dependencies = [
  "clap 4.4.6",
  "dav-server",
  "dav-server-opendalfs",
- "dirs 5.0.1",
+ "dirs",
  "futures",
  "futures-util",
  "opendal",
@@ -4143,7 +4123,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap 4.4.6",
- "dirs 5.0.1",
+ "dirs",
  "env_logger",
  "futures",
  "log",
@@ -4188,7 +4168,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "dirs 5.0.1",
+ "dirs",
  "dotenvy",
  "etcd-client",
  "flagset",
@@ -4369,11 +4349,11 @@ dependencies = [
 
 [[package]]
 name = "openssh"
-version = "0.9.9"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ca6c277973fb549b36dd8980941b5ea3ecebea026f5b1f0060acde74d893c22"
+checksum = "3dfe68c42d6ee6bd9de175b7a5d9bb86aa99d4e2fa7cf2f2a44e97f60b6d2759"
 dependencies = [
- "dirs 4.0.0",
+ "dirs",
  "libc",
  "once_cell",
  "shell-escape",
@@ -4385,9 +4365,9 @@ dependencies = [
 
 [[package]]
 name = "openssh-sftp-client"
-version = "0.13.10"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e12f786181bc141d1254b311184c81b487d3d237260eae6d58493cd1d6bdd3b"
+checksum = "7b1e5fe136dc7c9e08aa4b2f1124971964733826445572c06b04ba8a35a06d6b"
 dependencies = [
  "bytes",
  "derive_destructure2",
@@ -4423,9 +4403,9 @@ dependencies = [
 
 [[package]]
 name = "openssh-sftp-error"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4c3356e914b8006417188efd534105d5bcb230b4a9fd67782a6b4a4e15fa006"
+checksum = "196161495edbf67de0a2e136624c591e1594947b0f3c7938f8461dbb239e5389"
 dependencies = [
  "awaitable-error",
  "openssh",
@@ -5272,7 +5252,7 @@ dependencies = [
  "indoc",
  "libc",
  "memoffset",
- "parking_lot 0.12.1",
+ "parking_lot 0.11.2",
  "pyo3-build-config",
  "pyo3-ffi",
  "pyo3-macros",

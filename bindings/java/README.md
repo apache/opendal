@@ -8,8 +8,6 @@
 
 ## Example
 ```java
-package org.apache.opendal.test;
-
 import org.apache.opendal.Metadata;
 import org.apache.opendal.Operator;
 

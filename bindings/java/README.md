@@ -6,6 +6,54 @@
 
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+## Example
+```java
+package org.apache.opendal.test;
+
+import org.apache.opendal.Metadata;
+import org.apache.opendal.Operator;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.apache.opendal.test.behavior.BehaviorTestBase.generateBytes;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class main {
+  public static void main(String[] args) {
+    final Map<String, String> conf = new HashMap<>();
+    conf.put("root","/tmp");
+
+    try (final Operator op = Operator.of("fs", conf)) {
+      final String dir = UUID.randomUUID() + "/";
+      op.createDir(dir).join();
+      final Metadata dirMetadata = op.stat(dir).join();
+      assertTrue(dirMetadata.isDir());
+
+      final String path = UUID.randomUUID().toString();
+      final byte[] content = generateBytes();
+      op.write(path, content).join();
+
+      final Metadata metadata = op.stat(path).join();
+      assertTrue(metadata.isFile());
+      assertThat(metadata.contentLength).isEqualTo(content.length);
+      assertThat(metadata.lastModified).isNotNull();
+      assertThat(metadata.cacheControl).isNull();
+      assertThat(metadata.contentDisposition).isNull();
+      assertThat(metadata.contentMd5).isNull();
+      assertThat(metadata.contentType).isNull();
+      assertThat(metadata.etag).isNull();
+      assertThat(metadata.version).isNull();
+
+      op.delete(dir).join();
+      op.delete(path).join();
+    }
+  }
+}
+```
+
 ## Getting Started
 
 This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.

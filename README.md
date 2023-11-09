@@ -10,6 +10,7 @@ Major components of the project include:
 
 - [Rust Core](core/README.md)
 - [C Binding](bindings/c/README.md) *not released*
+- [Cpp Binding](bindings/cpp/README.md) *not released*
 - [Haskell Binding](bindings/haskell/README.md) *not released*
 - [Java Binding](bindings/java/README.md)
 - [Lua Binding](bindings/lua/README.md) *not released*

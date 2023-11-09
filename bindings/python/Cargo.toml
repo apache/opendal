@@ -78,8 +78,9 @@ services-all = [
   "services-vercel-artifacts",
   "services-wasabi",
   "services-mongodb",
+  "services-gridfs",
   "services-sqlite",
-  "services-libsql"
+  "services-libsql",
 ]
 
 # Default services provided by opendal.
@@ -107,8 +108,10 @@ services-etcd = ["opendal/services-etcd"]
 services-foundationdb = ["opendal/services-foundationdb"]
 services-ftp = ["opendal/services-ftp"]
 services-gdrive = ["opendal/services-gdrive"]
+services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-ipfs = ["opendal/services-ipfs"]
+services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
@@ -128,7 +131,6 @@ services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
-services-libsql = ["opendal/services-libsql"]
 
 [lib]
 crate-type = ["cdylib"]

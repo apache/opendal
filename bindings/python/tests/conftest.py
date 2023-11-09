@@ -34,7 +34,7 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def service_name():
     service_name = os.environ.get("OPENDAL_TEST")
     if service_name is None:
@@ -42,7 +42,7 @@ def service_name():
     return service_name
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def setup_config(service_name):
     # Read arguments from envs.
     prefix = f"opendal_{service_name}_"
@@ -54,18 +54,16 @@ def setup_config(service_name):
     return config
 
 
-@pytest.fixture()
-def operator(service_name, setup_config):
-    return opendal.Operator(service_name, **setup_config).layer(
-        opendal.layers.RetryLayer()
-    )
-
-
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def async_operator(service_name, setup_config):
     return opendal.AsyncOperator(service_name, **setup_config).layer(
         opendal.layers.RetryLayer()
     )
+
+
+@pytest.fixture(scope="session")
+def operator(async_operator):
+    return async_operator.to_operator()
 
 
 @pytest.fixture(autouse=True)

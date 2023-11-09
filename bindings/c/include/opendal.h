@@ -773,6 +773,21 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
 
 /**
+ * \brief Return the last_modified of the metadata, in milliseconds
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.error == NULL);
+ *
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_last_modified_ms(meta) != -1);
+ * ```
+ */
+int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
+
+/**
  * \brief Free the heap-allocated operator pointed by opendal_operator.
  *
  * Please only use this for a pointer pointing at a valid opendal_operator.
@@ -1104,7 +1119,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  * lister.
  *
  * @param ptr The opendal_operator created previously
- * @param path The designated path you want to delete
+ * @param path The designated path you want to list
  * @see opendal_lister
  * @return Returns opendal_result_list, containing a lister and an opendal_error.
  * If the operation succeeds, the `lister` field would holds a valid lister and
@@ -1148,6 +1163,138 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  */
 struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blockingly create the directory in `path`.
+ *
+ * Create the directory in `path` blockingly by `op_ptr`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param path The designated directory you want to create
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // create your directory
+ * opendal_error *error = opendal_operator_create_dir(ptr, "/testdir/");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_create_dir(const struct opendal_operator *op,
+                                                  const char *path);
+
+/**
+ * \brief Blockingly rename the object in `path`.
+ *
+ * Rename the object in `src` to `dest` blockingly by `op`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param src The designated source path you want to rename
+ * @param dest The designated destination path you want to rename
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // prepare your data
+ * char* data = "Hello, World!";
+ * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+ * opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+ *
+ * assert(error == NULL);
+ *
+ * // now you can renmae!
+ * opendal_error *error = opendal_operator_rename(ptr, "/testpath", "/testpath2");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
+                                              const char *src,
+                                              const char *dest);
+
+/**
+ * \brief Blockingly copy the object in `path`.
+ *
+ * Copy the object in `src` to `dest` blockingly by `op`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param src The designated source path you want to copy
+ * @param dest The designated destination path you want to copy
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // prepare your data
+ * char* data = "Hello, World!";
+ * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+ * opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+ *
+ * assert(error == NULL);
+ *
+ * // now you can renmae!
+ * opendal_error *error = opendal_operator_copy(ptr, "/testpath", "/testpath2");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
+                                            const char *src,
+                                            const char *dest);
 
 /**
  * \brief Get information of underlying accessor.

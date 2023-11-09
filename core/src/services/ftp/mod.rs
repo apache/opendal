@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::FtpBuilder as Ftp;
+pub use backend::FtpConfig;
 
 mod err;
 mod pager;

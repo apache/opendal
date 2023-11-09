@@ -17,7 +17,7 @@
 
 use ::opendal as core;
 
-/// \brief Carries all metadata associated with a path.
+/// \brief Carries all metadata associated with a **path**.
 ///
 /// The metadata of the "thing" under a path. Please **only** use the opendal_metadata
 /// with our provided API, e.g. opendal_metadata_content_length().
@@ -110,5 +110,25 @@ impl opendal_metadata {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { (*self.inner).is_dir() }
+    }
+
+    /// \brief Return the last_modified of the metadata, in milliseconds
+    ///
+    /// # Example
+    /// ```C
+    /// // ... previously you wrote "Hello, World!" to path "/testpath"
+    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// assert(s.error == NULL);
+    ///
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_last_modified_ms(meta) != -1);
+    /// ```
+    #[no_mangle]
+    pub extern "C" fn opendal_metadata_last_modified_ms(&self) -> i64 {
+        let mtime = unsafe { (*self.inner).last_modified() };
+        match mtime {
+            None => -1,
+            Some(time) => time.timestamp_millis(),
+        }
     }
 }

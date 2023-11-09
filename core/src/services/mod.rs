@@ -48,6 +48,8 @@ pub use self::dashmap::Dashmap;
 mod etcd;
 #[cfg(feature = "services-etcd")]
 pub use self::etcd::Etcd;
+#[cfg(feature = "services-etcd")]
+pub use self::etcd::EtcdConfig;
 
 #[cfg(feature = "services-fs")]
 mod fs;
@@ -58,6 +60,8 @@ pub use fs::Fs;
 mod ftp;
 #[cfg(feature = "services-ftp")]
 pub use ftp::Ftp;
+#[cfg(feature = "services-ftp")]
+pub use ftp::FtpConfig;
 
 #[cfg(feature = "services-gcs")]
 mod gcs;
@@ -69,6 +73,11 @@ mod ghac;
 #[cfg(feature = "services-ghac")]
 pub use ghac::Ghac;
 
+#[cfg(feature = "services-gridfs")]
+mod gridfs;
+#[cfg(feature = "services-gridfs")]
+pub use gridfs::Gridfs;
+
 #[cfg(feature = "services-hdfs")]
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
@@ -78,6 +87,8 @@ pub use hdfs::Hdfs;
 mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::Http;
+#[cfg(feature = "services-http")]
+pub use self::http::HttpConfig;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
@@ -93,6 +104,8 @@ pub use ipmfs::Ipmfs;
 mod libsql;
 #[cfg(feature = "services-libsql")]
 pub use libsql::Libsql;
+#[cfg(feature = "services-libsql")]
+pub use libsql::LibsqlConfig;
 
 #[cfg(feature = "services-memcached")]
 mod memcached;
@@ -137,7 +150,9 @@ pub use self::persy::Persy;
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::Redis;
+pub use redis::Redis;
+#[cfg(feature = "services-redis")]
+pub use redis::RedisConfig;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;
@@ -147,12 +162,16 @@ pub use self::rocksdb::Rocksdb;
 #[cfg(feature = "services-s3")]
 mod s3;
 #[cfg(feature = "services-s3")]
+pub use s3::S3Config;
+#[cfg(feature = "services-s3")]
 pub use s3::S3;
 
 #[cfg(feature = "services-sftp")]
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::Sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::SftpConfig;
 
 #[cfg(feature = "services-sled")]
 mod sled;
@@ -203,6 +222,8 @@ pub use self::redb::Redb;
 mod tikv;
 #[cfg(feature = "services-tikv")]
 pub use self::tikv::Tikv;
+#[cfg(feature = "services-tikv")]
+pub use self::tikv::TikvConfig;
 
 #[cfg(feature = "services-foundationdb")]
 mod foundationdb;
@@ -213,6 +234,8 @@ pub use self::foundationdb::Foundationdb;
 mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
+#[cfg(feature = "services-postgresql")]
+pub use self::postgresql::PostgresqlConfig;
 
 #[cfg(feature = "services-atomicserver")]
 mod atomicserver;
@@ -223,11 +246,15 @@ pub use self::atomicserver::Atomicserver;
 mod mysql;
 #[cfg(feature = "services-mysql")]
 pub use self::mysql::Mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::MysqlConfig;
 
 #[cfg(feature = "services-sqlite")]
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
-pub use self::sqlite::Sqlite;
+pub use sqlite::Sqlite;
+#[cfg(feature = "services-sqlite")]
+pub use sqlite::SqliteConfig;
 
 #[cfg(feature = "services-d1")]
 mod d1;

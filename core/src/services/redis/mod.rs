@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::RedisBuilder as Redis;
+pub use backend::RedisConfig;

@@ -208,6 +208,11 @@ typedef struct HashMap_String__String HashMap_String__String;
 typedef struct Metadata Metadata;
 
 /**
+ * Metadata for operator, users can use this metadata to get information of operator.
+ */
+typedef struct OperatorInfo OperatorInfo;
+
+/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -295,7 +300,7 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
- * \brief Carries all metadata associated with a path.
+ * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
  * with our provided API, e.g. opendal_metadata_content_length().
@@ -479,6 +484,199 @@ typedef struct opendal_result_list {
 } opendal_result_list;
 
 /**
+ * \brief Metadata for **operator**, users can use this metadata to get information
+ * of operator.
+ */
+typedef struct opendal_operator_info {
+  struct OperatorInfo *inner;
+} opendal_operator_info;
+
+/**
+ * \brief Capability is used to describe what operations are supported
+ * by current Operator.
+ */
+typedef struct opendal_capability {
+  /**
+   * If operator supports stat.
+   */
+  bool stat;
+  /**
+   * If operator supports stat with if match.
+   */
+  bool stat_with_if_match;
+  /**
+   * If operator supports stat with if none match.
+   */
+  bool stat_with_if_none_match;
+  /**
+   * If operator supports read.
+   */
+  bool read;
+  /**
+   * If operator supports seek on returning reader.
+   */
+  bool read_can_seek;
+  /**
+   * If operator supports next on returning reader.
+   */
+  bool read_can_next;
+  /**
+   * If operator supports read with range.
+   */
+  bool read_with_range;
+  /**
+   * If operator supports read with if match.
+   */
+  bool read_with_if_match;
+  /**
+   * If operator supports read with if none match.
+   */
+  bool read_with_if_none_match;
+  /**
+   * if operator supports read with override cache control.
+   */
+  bool read_with_override_cache_control;
+  /**
+   * if operator supports read with override content disposition.
+   */
+  bool read_with_override_content_disposition;
+  /**
+   * if operator supports read with override content type.
+   */
+  bool read_with_override_content_type;
+  /**
+   * If operator supports write.
+   */
+  bool write;
+  /**
+   * If operator supports write can be called in multi times.
+   */
+  bool write_can_multi;
+  /**
+   * If operator supports write with empty content.
+   */
+  bool write_can_empty;
+  /**
+   * If operator supports write by append.
+   */
+  bool write_can_append;
+  /**
+   * If operator supports write with content type.
+   */
+  bool write_with_content_type;
+  /**
+   * If operator supports write with content disposition.
+   */
+  bool write_with_content_disposition;
+  /**
+   * If operator supports write with cache control.
+   */
+  bool write_with_cache_control;
+  /**
+   * write_multi_max_size is the max size that services support in write_multi.
+   *
+   * For example, AWS S3 supports 5GiB as max in write_multi.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_max_size;
+  /**
+   * write_multi_min_size is the min size that services support in write_multi.
+   *
+   * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_min_size;
+  /**
+   * write_multi_align_size is the align size that services required in write_multi.
+   *
+   * For example, Google GCS requires align size to 256KiB in write_multi.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_multi_align_size;
+  /**
+   * write_total_max_size is the max size that services support in write_total.
+   *
+   * For example, Cloudflare D1 supports 1MB as max in write_total.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t write_total_max_size;
+  /**
+   * If operator supports create dir.
+   */
+  bool create_dir;
+  /**
+   * If operator supports delete.
+   */
+  bool delete_;
+  /**
+   * If operator supports copy.
+   */
+  bool copy;
+  /**
+   * If operator supports rename.
+   */
+  bool rename;
+  /**
+   * If operator supports list.
+   */
+  bool list;
+  /**
+   * If backend supports list with limit.
+   */
+  bool list_with_limit;
+  /**
+   * If backend supports list with start after.
+   */
+  bool list_with_start_after;
+  /**
+   * If backend support list with using slash as delimiter.
+   */
+  bool list_with_delimiter_slash;
+  /**
+   * If backend supports list without delimiter.
+   */
+  bool list_without_delimiter;
+  /**
+   * If operator supports presign.
+   */
+  bool presign;
+  /**
+   * If operator supports presign read.
+   */
+  bool presign_read;
+  /**
+   * If operator supports presign stat.
+   */
+  bool presign_stat;
+  /**
+   * If operator supports presign write.
+   */
+  bool presign_write;
+  /**
+   * If operator supports batch.
+   */
+  bool batch;
+  /**
+   * If operator supports batch delete.
+   */
+  bool batch_delete;
+  /**
+   * The max operations that operator supports in batch.
+   *
+   * If it is not set, this will be zero
+   */
+  uintptr_t batch_max_operations;
+  /**
+   * If operator supports blocking.
+   */
+  bool blocking;
+} opendal_capability;
+
+/**
  * \brief The is the result type returned by opendal_reader_read().
  * The result type contains a size field, which is the size of the data read,
  * which is zero on error. The error field is the error code and error message.
@@ -573,6 +771,21 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
  * after we support opendal_operator_mkdir()
  */
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the last_modified of the metadata, in milliseconds
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.error == NULL);
+ *
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_last_modified_ms(meta) != -1);
+ * ```
+ */
+int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator.
@@ -906,7 +1119,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  * lister.
  *
  * @param ptr The opendal_operator created previously
- * @param path The designated path you want to delete
+ * @param path The designated path you want to list
  * @see opendal_lister
  * @return Returns opendal_result_list, containing a lister and an opendal_error.
  * If the operation succeeds, the `lister` field would holds a valid lister and
@@ -950,6 +1163,195 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  */
 struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blockingly create the directory in `path`.
+ *
+ * Create the directory in `path` blockingly by `op_ptr`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param path The designated directory you want to create
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // create your directory
+ * opendal_error *error = opendal_operator_create_dir(ptr, "/testdir/");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_create_dir(const struct opendal_operator *op,
+                                                  const char *path);
+
+/**
+ * \brief Blockingly rename the object in `path`.
+ *
+ * Rename the object in `src` to `dest` blockingly by `op`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param src The designated source path you want to rename
+ * @param dest The designated destination path you want to rename
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // prepare your data
+ * char* data = "Hello, World!";
+ * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+ * opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+ *
+ * assert(error == NULL);
+ *
+ * // now you can renmae!
+ * opendal_error *error = opendal_operator_rename(ptr, "/testpath", "/testpath2");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
+                                              const char *src,
+                                              const char *dest);
+
+/**
+ * \brief Blockingly copy the object in `path`.
+ *
+ * Copy the object in `src` to `dest` blockingly by `op`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
+ *
+ * @param ptr The opendal_operator created previously
+ * @param src The designated source path you want to copy
+ * @param dest The designated destination path you want to copy
+ * @see opendal_operator
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named ptr for example
+ *
+ * // prepare your data
+ * char* data = "Hello, World!";
+ * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+ * opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+ *
+ * assert(error == NULL);
+ *
+ * // now you can renmae!
+ * opendal_error *error = opendal_operator_copy(ptr, "/testpath", "/testpath2");
+ *
+ * // Assert that this succeeds
+ * assert(error == NULL);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
+                                            const char *src,
+                                            const char *dest);
+
+/**
+ * \brief Get information of underlying accessor.
+ *
+ * # Example
+ *
+ * ```C
+ * /// suppose you have a memory-backed opendal_operator* named op
+ * char *scheme;
+ * opendal_operator_info *info = opendal_operator_info_new(op);
+ *
+ * scheme = opendal_operator_info_get_scheme(info);
+ * assert(!strcmp(scheme, "memory"));
+ *
+ * /// free the heap memory
+ * free(scheme);
+ * opendal_operator_info_free(info);
+ * ```
+ */
+struct opendal_operator_info *opendal_operator_info_new(const struct opendal_operator *op);
+
+/**
+ * \brief Free the heap-allocated opendal_operator_info
+ */
+void opendal_operator_info_free(struct opendal_operator_info *ptr);
+
+/**
+ * \brief Return the nul-terminated operator's scheme, i.e. service
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the nul-terminated operator's working root path
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
+ * namespace concept.
+ *
+ * \note: The string is on heap, remember to free it
+ */
+char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator's full capability
+ */
+struct opendal_capability opendal_operator_info_get_full_capability(const struct opendal_operator_info *self);
+
+/**
+ * \brief Return the operator's native capability
+ */
+struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes

@@ -5,6 +5,190 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.42.0] - 2023-11-07
+
+### Added
+* feat(binding/java): add `rename` support by @G-XD in https://github.com/apache/incubator-opendal/pull/3238
+* feat(prometheus): add bytes metrics as counter by @flaneur2020 in https://github.com/apache/incubator-opendal/pull/3246
+* feat(binding/python): new behavior testing for python by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3245
+* feat(binding/python): Support AsyncOperator tests. by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3254
+* feat(service/libsql): support libsql by @G-XD in https://github.com/apache/incubator-opendal/pull/3233
+* feat(binding/python): allow setting append/buffer/more in write() call by @jokester in https://github.com/apache/incubator-opendal/pull/3256
+* feat(services/persy): change blocking_x in async_x call to tokio::task::blocking_spawn by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3221
+* feat: Add edge test cases for OpenDAL Core by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3274
+* feat(service/d1): Support d1 for opendal by @realtaobo in https://github.com/apache/incubator-opendal/pull/3248
+* feat(services/redb): change blocking_x in async_x call to tokio::task::blocking_spawn by @shauvet in https://github.com/apache/incubator-opendal/pull/3276
+* feat: Add blocking layer for C bindings by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3278
+* feat(binding/c): Add blocking_reader for C binding by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3259
+* feat(services/sled): change blocking_x in async_x call to tokio::task::blocking_spawn by @shauvet in https://github.com/apache/incubator-opendal/pull/3280
+* feat(services/rocksdb): change blocking_x in async_x call to tokio::task::blocking_spawn by @shauvet in https://github.com/apache/incubator-opendal/pull/3279
+* feat(binding/java): make `Metadata` a POJO by @G-XD in https://github.com/apache/incubator-opendal/pull/3277
+* feat(bindings/java): convey backtrace on exception by @tisonkun in https://github.com/apache/incubator-opendal/pull/3286
+* feat(layer/prometheus): Support custom metric bucket for Histogram by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3275
+* feat(bindings/python): read APIs return `memoryview` instead of `bytes` to avoid copy by @messense in https://github.com/apache/incubator-opendal/pull/3310
+* feat(service/azfile): add azure file service support by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3312
+* feat(services/oss): Add allow anonymous support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3321
+* feat(bindings/python): build and publish aarch64 and armv7l wheels by @messense in https://github.com/apache/incubator-opendal/pull/3325
+* feat(bindings/java): support duplicate operator by @tisonkun in https://github.com/apache/incubator-opendal/pull/3330
+* feat(core): Add enabled for Scheme by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3331
+* feat(bindings/java): support get enabled services by @tisonkun in https://github.com/apache/incubator-opendal/pull/3336
+* feat(bindings/java): Migrate behavior tests to new Workflow Planner by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3341
+* feat(layer/prometheus): Support output path as a metric label by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3335
+* feat(service/mongodb): Support mongodb service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3355
+* feat: Make PrometheusClientLayer Clonable by @flaneur2020 in https://github.com/apache/incubator-opendal/pull/3352
+* feat(service/cloudflare_kv): support cloudflare KV by @my-vegetable-has-exploded in https://github.com/apache/incubator-opendal/pull/3348
+* feat(core): exposing `Metadata::metakey()` api by @G-XD in https://github.com/apache/incubator-opendal/pull/3373
+* feat(binding/java): add list & remove_all support by @G-XD in https://github.com/apache/incubator-opendal/pull/3333
+* feat: Add write_total_max_size in Capability by @realtaobo in https://github.com/apache/incubator-opendal/pull/3309
+* feat(core): service add DBFS API 2.0 support by @morristai in https://github.com/apache/incubator-opendal/pull/3334
+* feat(bindings/java): use random root for behavior tests by @tisonkun in https://github.com/apache/incubator-opendal/pull/3408
+* feat(services/oss): Add start-after support for oss list by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3410
+* feat(binding/python): Export full_capability API for Python binding by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3402
+* feat(test): Enable new test workflow planner for python binding by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3397
+* feat: Implement Lazy Reader by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3395
+* feat(binding/nodejs): upgrade test behavior and infra by @eryue0220 in https://github.com/apache/incubator-opendal/pull/3297
+* feat(binding/python): Support Copy operation for Python binding by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3454
+* feat(bindings/python): Add layer API for operator by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3464
+* feat(bindings/java): add layers onto ops by @tisonkun in https://github.com/apache/incubator-opendal/pull/3392
+* feat(binding/python): Support rename API for Python binding by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3467
+* feat(binding/python): Support remove_all API for Python binding by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3469
+* feat(core): fix token leak in OneDrive by @morristai in https://github.com/apache/incubator-opendal/pull/3470
+* feat(core): service add OpenStack Swift support by @morristai in https://github.com/apache/incubator-opendal/pull/3461
+* feat(bindings/python)!: Implement File and AsyncFile to replace Reader by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3474
+* feat(services): Implement ConfigDeserializer and add S3Config as example by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3490
+* feat(core): add OpenStack Swift e2e test by @morristai in https://github.com/apache/incubator-opendal/pull/3493
+* feat(doc): add OpenStack Swift document for the website by @morristai in https://github.com/apache/incubator-opendal/pull/3494
+* feat(services/sqlite): add SqliteConfig by @hoslo in https://github.com/apache/incubator-opendal/pull/3497
+* feat(bindings/C): implement capability by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3479
+* feat: add mongodb gridfs service support by @realtaobo in https://github.com/apache/incubator-opendal/pull/3491
+* feat(services): add RedisConfig by @hoslo in https://github.com/apache/incubator-opendal/pull/3498
+* feat: Add opendal_metadata_last_modified and opendal_operator_create_dir by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3515
+### Changed
+* refactor(services/sqlite): Polish sqlite via adding connection pool by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3249
+* refactor: Remove cucumber based test in python by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3253
+* refactor: Introduce OpenDAL Workflow Planner by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3258
+* refactor(bindings/C): Implement error with error message by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3250
+* refactor(oay): import dav-server-opendalfs by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3285
+* refactor(bindings/java): explicit error handling by @tisonkun in https://github.com/apache/incubator-opendal/pull/3288
+* refactor(services/gdrive): Extract folder search logic by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3234
+* refactor(core): use `list_with` in `Operator::list` by @G-XD in https://github.com/apache/incubator-opendal/pull/3305
+* refactor(!): Bump and update MSRV to 1.67 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3316
+* refactor(tests): Apply OPENDAL_TEST for behavior test by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3322
+* refactor(bindings/java): align test idiom with OPENDAL_TEST by @tisonkun in https://github.com/apache/incubator-opendal/pull/3328
+* refactor(bindings/java): split behavior tests by @tisonkun in https://github.com/apache/incubator-opendal/pull/3332
+* refactor(ci/behavior_test): Migrate to 1password instead by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3338
+* refactor(core/{fuzz,benches}): Migrate to OPENDANL_TEST by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3343
+* refactor(bindings/C): Alter naming convention for consistency by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/3282
+* refactor(service/mysql): Migrate to new task planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3357
+* refactor(service/postgresql): Migrate task to new task planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3358
+* refactor(services/etcd): Migrate etcd task to new behavior test planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3360
+* refactor(services/http): Migrate http task to new behavior test planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3362
+* refactor(services/sqlite): Migrate sqlite task to new behavior test planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3365
+* refactor(services/gdrive): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3368
+* refactor(services/redis): migrate to test planner for kvrocks,dragonfly by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3369
+* refactor(services/azblob): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3370
+* refactor(services/cos,obs): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3371
+* refactor(services/oss): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3375
+* refactor(services/memcached): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3377
+* refactor(services/gcs): migrate tot test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3391
+* refactor(services/moka): migrate to test planner by @G-XD in https://github.com/apache/incubator-opendal/pull/3394
+* refactor(services/dashmap): migrate to test planner by @G-XD in https://github.com/apache/incubator-opendal/pull/3396
+* refactor(services/memory): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3390
+* refactor(services/azdls): migrate to test planner by @G-XD in https://github.com/apache/incubator-opendal/pull/3405
+* refactor(services/mini_moka): migrate to test planner by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3416
+* refactor(core/fuzz): Fix some bugs inside fuzzer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3418
+* refactor(tests): Extract tests related logic into raw::tests for reuse by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3420
+* refactor(service/dropbox): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3381
+* refactor(services/supabase): migrate to test planner by @G-XD in https://github.com/apache/incubator-opendal/pull/3406
+* refactor(services/sftp): migrate to test planner by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3412
+* refactor(services/wasabi)!: Remove native support for wasabi services by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3455
+* refactor(ci): Polish the test planner code by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3457
+* refactor(services/webdav): migrate to test planner for webdav by @shauvet in https://github.com/apache/incubator-opendal/pull/3379
+* refactor(services/redis): Enable rustls support by default for redis by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3471
+* refactor(bindings/python): Refactor layout for python bindings by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3473
+* refactor(services/libsql): Migrate libsql task to new behavior test planner by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3363
+* refactor(service/postgresql): Add PostgresqlConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3495
+* refactor(binding/python): Add multiple custom exception for each of error code in Rust Core by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3492
+* refactor(service/libsql): Add LibsqlConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3501
+* refactor(service/http): Add HttpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3507
+* refactor(service/ftp): Add FtpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3510
+* refactor(service/sftp): Add SftpConfig to implement ConfigDeserializer by @sd44 in https://github.com/apache/incubator-opendal/pull/3511
+* refactor(service/tikv): Add TikvConfig to implement ConfigDeserializer by @caicancai in https://github.com/apache/incubator-opendal/pull/3512
+### Fixed
+* fix: Fix read result not full by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3350
+* fix(services/cos): fix prefix param by @G-XD in https://github.com/apache/incubator-opendal/pull/3384
+* fix(services/ghac)!: Remove enable_create_simulation support for ghac by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3423
+* fix: ASF event URL by @tisonkun in https://github.com/apache/incubator-opendal/pull/3431
+* fix(binding/java): fix return value of presign-related method by @G-XD in https://github.com/apache/incubator-opendal/pull/3433
+* fix(mongo/backend): remove redundant code by @bestgopher in https://github.com/apache/incubator-opendal/pull/3439
+* fix: nodejs test adapt `OPENDAL_DISABLE_RANDOM_ROOT` by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3456
+* fix(services/s3): Accept List responses without ETag by @amunra in https://github.com/apache/incubator-opendal/pull/3478
+* fix(bindings/python): fix type annotations and improve docs by @messense in https://github.com/apache/incubator-opendal/pull/3483
+* fix(services/dropbox): Check if folder exists before calling create dir by @leenstx in https://github.com/apache/incubator-opendal/pull/3513
+### Docs
+* docs: Add docs in website for sqlite/mysql/postgresql services by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3290
+* docs: add docs in website for atomicserver by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3293
+* docs: Add docs on website for GHAC service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3296
+* docs: Add docs on website for cacache services by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3294
+* docs: Add docs on website for libsql services by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3299
+* docs: download link for v0.41.0 by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3298
+* docs: Add docs on website for persy service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3300
+* docs: Add docs on website for d1 services by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3295
+* docs: Add docs on website for redb service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3301
+* docs: Add docs on website for tikv service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3302
+* docs: Add docs on website for Vercel Artifacts service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3303
+* docs: update release doc by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3306
+* docs(bindings): bindings README and binding release status by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3340
+* docs(bindings/java): update how to run behavior test by @tisonkun in https://github.com/apache/incubator-opendal/pull/3342
+* docs: fix something in docs by @my-vegetable-has-exploded in https://github.com/apache/incubator-opendal/pull/3353
+* docs: Update mysql `connection_string` config description in doc by @xring in https://github.com/apache/incubator-opendal/pull/3388
+* doc: apply `range_reader` change in upgrade doc  by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3401
+* docs(readme): Fix capitalization about the ABFS service in README.md by @caicancai in https://github.com/apache/incubator-opendal/pull/3485
+* docs: Add Milvus as C binding's user by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3523
+### CI
+* ci: Add bindings_go workflow by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3260
+* ci: Only fetch origin while in pull request by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3268
+* ci: add a new test case for the disk is full by @sunheyi6 in https://github.com/apache/incubator-opendal/pull/3079
+* ci: Passing GITHUB_TOKEN to avoid rate limit by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3272
+* ci(services/hdfs): Use dlcdn.apache.org instead by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3308
+* ci: Fix HDFS test by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3320
+* ci: Fix plan not generated correctly for PR from forked repo by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3327
+* ci(services/azfile): add azfile integration test by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3409
+* ci: Fix behavior tests been ignored by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3422
+* ci(binding/java): remove `testWriteFileWithNonAsciiName` behavior test by @G-XD in https://github.com/apache/incubator-opendal/pull/3424
+* ci(bindings/python): Remove not passing test cases until we addressed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3432
+* ci(services/sftp): Move setup logic into docker-compose by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3430
+* ci(test): Add health check for WebDAV docker compose config by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3448
+* ci: Switch to 1password connect to avoid rate limit by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3447
+* ci: Use cargo test instead of carge nextest by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3505
+* build(bindings/java): Allow building on `linux-aarch_64` by @amunra in https://github.com/apache/incubator-opendal/pull/3527
+* ci: support behavior test for gridfs by @realtaobo in https://github.com/apache/incubator-opendal/pull/3520
+### Chore
+* chore(ci): publish to pypi with github OIDC credential by @everpcpc in https://github.com/apache/incubator-opendal/pull/3252
+* chore(bindings/java): align mapping POJO pattern by @tisonkun in https://github.com/apache/incubator-opendal/pull/3289
+* chore: do not export unreleased bindings by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3339
+* chore: update object_store unit tests and s3 endpoint docs by @thorseraq in https://github.com/apache/incubator-opendal/pull/3345
+* chore: Fix typo in mysql doc by @lewiszlw in https://github.com/apache/incubator-opendal/pull/3351
+* chore: try format yaml files by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3364
+* chore(bindings/java): move out convert fns by @tisonkun in https://github.com/apache/incubator-opendal/pull/3389
+* chore(bindings/java): use JDK 8 time APIs by @tisonkun in https://github.com/apache/incubator-opendal/pull/3400
+* chore: remove unused dependencies by @xxchan in https://github.com/apache/incubator-opendal/pull/3414
+* chore(test): Compare with digest instead of whole content by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3419
+* chore: remove useless workflow file by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3425
+* chore(deps): bump minitrace from 0.5.1 to 0.6.1 by @andylokandy in https://github.com/apache/incubator-opendal/pull/3449
+* chore(deps): bump korandoru/hawkeye from 3.4.0 to 3.6.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/3446
+* chore(deps): bump toml from 0.7.8 to 0.8.6 by @dependabot in https://github.com/apache/incubator-opendal/pull/3442
+* chore(deps): bump actions/setup-node from 3 to 4 by @dependabot in https://github.com/apache/incubator-opendal/pull/3445
+* chore(deps): bump etcd-client from 0.11.1 to 0.12.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/3441
+* chore(services/libsql): Fix typos in backend by @sd44 in https://github.com/apache/incubator-opendal/pull/3506
+* chore: Bump to v0.42.0 to start release process by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3509
+* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
+* chore: Remove not released packages while releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3519
+* chore: Bump to v0.42.0 to start release process (Round 2) by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3521
+* chore: Fix typo in CHANGELOG  by @caicancai in https://github.com/apache/incubator-opendal/pull/3524
+* chore: add updated Cargo.toml to git archive by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3525
+* chore(bindings/java): improve build.py script by @tisonkun in https://github.com/apache/incubator-opendal/pull/3529
+
 ## [v0.41.0] - 2023-10-08
 
 ### Added
@@ -2831,6 +3015,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.42.0]: https://github.com/apache/incubator-opendal/compare/v0.41.0...v0.42.0
 [v0.41.0]: https://github.com/apache/incubator-opendal/compare/v0.40.0...v0.41.0
 [v0.40.0]: https://github.com/apache/incubator-opendal/compare/v0.39.1...v0.40.0
 [v0.39.0]: https://github.com/apache/incubator-opendal/compare/v0.38.1...v0.39.0

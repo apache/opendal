@@ -28,6 +28,7 @@ use super::writer::VercelArtifactsWriter;
 use crate::raw::*;
 use crate::*;
 
+#[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct VercelArtifactsBackend {
     pub(crate) access_token: String,

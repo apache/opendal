@@ -43,10 +43,10 @@ build:
 
 .PHONY: test
 test:
-	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
-	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
-	$(CXX) tests/error_msg.cpp -o $(OBJ_DIR)/error_msg $(CXXFLAGS) $(LDFLAGS) $(LIBS)
-	$(CXX) tests/opinfo.cpp -o $(OBJ_DIR)/opinfo $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/bdd.c -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/list.c -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/error_msg.c -o $(OBJ_DIR)/error_msg $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/opinfo.c -o $(OBJ_DIR)/opinfo $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
 	$(OBJ_DIR)/list
 	$(OBJ_DIR)/error_msg

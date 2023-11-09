@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "common.hpp"
+#include "common.h"
 #include "gtest/gtest.h"
 #include <cstring>
 

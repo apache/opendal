@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::EtcdBuilder as Etcd;
+pub use backend::EtcdConfig;

@@ -122,7 +122,7 @@ impl TikvBuilder {
 
 impl Builder for TikvBuilder {
     const SCHEME: Scheme = Scheme::Tikv;
-    type Accessor = Backend;
+    type Accessor = TikvBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = TikvConfig::deserialize(ConfigDeserializer::new(map))
@@ -152,7 +152,7 @@ impl Builder for TikvBuilder {
             )?;
         }
 
-        Ok(Backend::new(Adapter {
+        Ok(TikvBackend::new(Adapter {
             client: OnceCell::new(),
             endpoints,
             insecure: self.config.insecure,
@@ -164,7 +164,7 @@ impl Builder for TikvBuilder {
 }
 
 /// Backend for TiKV service
-pub type Backend = kv::Backend<Adapter>;
+pub type TikvBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

@@ -15,21 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::{Read, Write};
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::RwLock;
 
 use futures::AsyncSeekExt;
 use futures::{AsyncReadExt, AsyncWriteExt};
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::sync::GILProtected;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
 

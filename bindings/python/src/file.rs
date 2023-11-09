@@ -385,22 +385,3 @@ impl AsyncFile {
         })
     }
 }
-#[pyclass(module = "opendal")]
-pub struct GILFile(Arc<GILProtected<GILFileState>>);
-
-enum GILFileState {
-    Reader(ocore::Reader),
-    Write(ocore::Writer),
-    Closed,
-}
-
-#[pymethods]
-impl GILFile {
-    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<()> {
-        Python::with_gil(|py| {
-            let mut state = self.0.get(py);
-            *state.borrow_mut() = &GILFileState::Closed;
-        });
-        Ok(())
-    }
-}

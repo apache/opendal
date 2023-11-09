@@ -281,7 +281,7 @@ impl RedisBuilder {
                 let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
                 ConnectionAddr::Tcp(host, port)
             }
-            Some("rediss") => {
+            Some("redis") => {
                 let host = ep_url
                     .host()
                     .map(|h| h.to_string())

@@ -16,7 +16,7 @@
 # under the License.
 
 import os
-
+from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
@@ -50,7 +50,9 @@ def setup_config(service_name):
     for key in os.environ.keys():
         if key.lower().startswith(prefix):
             config[key[len(prefix) :].lower()] = os.environ.get(key)
-
+    disable_random_root = os.environ.get("OPENDAL_DISABLE_RANDOM_ROOT", "True")
+    if disable_random_root.lower() == "false":
+        config["root"] = config.get("root", "./root") + "/" + str(uuid4()) + "/"
     return config
 
 

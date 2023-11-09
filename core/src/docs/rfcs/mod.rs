@@ -172,3 +172,6 @@ pub mod rfc_3243_list_prefix {}
 
 #[doc = include_str!("3356_lazy_reader.md")]
 pub mod rfc_3356_lazy_reader {}
+
+#[doc = include_str!("3526_list_recursive.md")]
+pub mod rfc_3526_list_recursive {}

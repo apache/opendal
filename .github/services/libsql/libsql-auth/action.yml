@@ -19,8 +19,8 @@ name: libsql-auth
 description: 'Behavior test for libsql auth'
 
 runs:
-    using: "composite"
-    steps:
+  using: "composite"
+  steps:
     - name: Setup libsql
       shell: bash
       working-directory: fixtures/libsql
@@ -29,30 +29,30 @@ runs:
       shell: bash
       working-directory: core
       run: |
-          curl --location '127.0.0.1:8080/v2/pipeline' \
-          --header 'Content-Type: application/json' \
-          --header 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ' \
-          --data '{
-              "baton": null,
-              "requests": [
-                  {
-                      "type": "execute",
-                      "stmt": {
-                          "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
-                          "args": [],
-                          "want_rows": true
-                      }
-                  }
-              ]
-          }'
+        curl --location '127.0.0.1:8080/v2/pipeline' \
+        --header 'Content-Type: application/json' \
+        --header 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ' \
+        --data '{
+            "baton": null,
+            "requests": [
+                {
+                    "type": "execute",
+                    "stmt": {
+                        "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
+                        "args": [],
+                        "want_rows": true
+                    }
+                }
+            ]
+        }'
     - name: Setup
       shell: bash
       run: |
-          cat << EOF >> $GITHUB_ENV
-          RUST_TEST_THREADS=1
-          OPENDAL_LIBSQL_CONNECTION_STRING=http://127.0.0.1:8080
-          OPENDAL_LIBSQL_AUTH_TOKEN=eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
-          OPENDAL_LIBSQL_TABLE=data
-          OPENDAL_LIBSQL_KEY_FIELD=key
-          OPENDAL_LIBSQL_VALUE_FIELD=data
-          EOF
+        cat << EOF >> $GITHUB_ENV
+        RUST_TEST_THREADS=1
+        OPENDAL_LIBSQL_CONNECTION_STRING=http://127.0.0.1:8080
+        OPENDAL_LIBSQL_AUTH_TOKEN=eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
+        OPENDAL_LIBSQL_TABLE=data
+        OPENDAL_LIBSQL_KEY_FIELD=key
+        OPENDAL_LIBSQL_VALUE_FIELD=data
+        EOF

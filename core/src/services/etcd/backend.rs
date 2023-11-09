@@ -38,7 +38,7 @@ use crate::*;
 
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
-/// Config for Tikv services support.
+/// Config for Etcd services support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]

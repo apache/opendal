@@ -152,7 +152,7 @@ impl Builder for TikvBuilder {
             )?;
         }
 
-        Ok(TikvBackendBackend::new(Adapter {
+        Ok(TikvBackend::new(Adapter {
             client: OnceCell::new(),
             endpoints,
             insecure: self.config.insecure,
@@ -164,7 +164,7 @@ impl Builder for TikvBuilder {
 }
 
 /// Backend for TiKV service
-pub type TikvBackend = kv::TikvBackendBackend<Adapter>;
+pub type TikvBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

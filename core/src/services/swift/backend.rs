@@ -237,7 +237,7 @@ impl Accessor for SwiftBackend {
                 delete: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -329,11 +329,7 @@ impl Accessor for SwiftBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = SwiftPager::new(
-            self.core.clone(),
-            path.to_string(),
-            args.delimiter().to_string(),
-        );
+        let op = SwiftPager::new(self.core.clone(), path.to_string(), args.recursive());
 
         Ok((RpList::default(), op))
     }

@@ -182,7 +182,7 @@ impl Accessor for HdfsBackend {
                 delete: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 blocking: true,
 

@@ -84,7 +84,7 @@ impl Accessor for IpmfsBackend {
                 delete: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 ..Default::default()
             });

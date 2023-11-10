@@ -941,6 +941,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             list: true,
+            list_with_recursive: true,
             ..Default::default()
         });
         let res = op.list("path/").await;

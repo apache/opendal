@@ -71,16 +71,26 @@ impl OpDelete {
 #[derive(Debug, Clone)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
-    /// that could return.
+    /// that could return per-request.
+    ///
+    /// Users could use this to control the memory usage of list operation.
     limit: Option<usize>,
-
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
     start_after: Option<String>,
-
-    /// The delimiter used to for the list operation. Default to be `/`
-    delimiter: String,
-
+    /// The recursive is used to control whether the list operation is recursive.
+    ///
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    recursive: bool,
+    /// Metakey is used to control which meta should be returned.
+    ///
+    /// Lister will make sure the result for specified meta is **known**:
+    ///
+    /// - `Some(v)` means exist.
+    /// - `None` means services doesn't have this meta.
     metakey: FlagSet<Metakey>,
 }
 
@@ -89,7 +99,7 @@ impl Default for OpList {
         OpList {
             limit: None,
             start_after: None,
-            delimiter: "/".to_string(),
+            recursive: false,
             // By default, we want to know what's the mode of this entry.
             metakey: Metakey::Mode.into(),
         }
@@ -124,15 +134,20 @@ impl OpList {
         self.start_after.as_deref()
     }
 
-    /// Change the delimiter. The default delimiter is "/"
-    pub fn with_delimiter(mut self, delimiter: &str) -> Self {
-        self.delimiter = delimiter.to_string();
+    /// The recursive is used to control whether the list operation is recursive.
+    ///
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
         self
     }
 
-    /// Get the current delimiter.
-    pub fn delimiter(&self) -> &str {
-        &self.delimiter
+    /// Get the current recursive.
+    pub fn recursive(&self) -> bool {
+        self.recursive
     }
 
     /// Change the metakey of this list operation.

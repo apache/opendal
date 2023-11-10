@@ -36,7 +36,7 @@ pub struct OssPager {
     core: Arc<OssCore>,
 
     path: String,
-    delimiter: String,
+    delimiter: &'static str,
     limit: Option<usize>,
     /// Filter results to objects whose names are lexicographically
     /// **equal to or after** startOffset
@@ -50,14 +50,15 @@ impl OssPager {
     pub fn new(
         core: Arc<OssCore>,
         path: &str,
-        delimiter: &str,
+        recursive: bool,
         limit: Option<usize>,
         start_after: Option<&str>,
     ) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
             path: path.to_string(),
-            delimiter: delimiter.to_string(),
+            delimiter,
             limit,
             start_after: start_after.map(String::from),
             token: None,
@@ -79,7 +80,7 @@ impl oio::Page for OssPager {
             .oss_list_object(
                 &self.path,
                 self.token.as_deref(),
-                &self.delimiter,
+                self.delimiter,
                 self.limit,
                 self.start_after.clone(),
             )

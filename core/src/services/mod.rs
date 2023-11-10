@@ -48,6 +48,8 @@ pub use self::dashmap::Dashmap;
 mod etcd;
 #[cfg(feature = "services-etcd")]
 pub use self::etcd::Etcd;
+#[cfg(feature = "services-etcd")]
+pub use self::etcd::EtcdConfig;
 
 #[cfg(feature = "services-fs")]
 mod fs;

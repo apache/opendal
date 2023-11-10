@@ -322,7 +322,7 @@ impl Operator {
         Ok(Lister(
             self.0
                 .lister_with(&path)
-                .delimiter("")
+                .recursive(true)
                 .await
                 .map_err(format_napi_error)?,
         ))
@@ -354,7 +354,7 @@ impl Operator {
             self.0
                 .blocking()
                 .lister_with(&path)
-                .delimiter("")
+                .recursive(true)
                 .call()
                 .map_err(format_napi_error)?,
         ))
@@ -466,7 +466,6 @@ impl Operator {
             self.0
                 .blocking()
                 .lister_with(&path)
-                .delimiter("")
                 .call()
                 .map_err(format_napi_error)?,
         ))

@@ -175,7 +175,7 @@ impl Builder for SqliteBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Postgresql))
+                    .with_context("service", Scheme::Sqlite))
             }
         };
         let key_field = match self.config.key_field.clone() {

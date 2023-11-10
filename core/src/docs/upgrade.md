@@ -1,3 +1,16 @@
+# Unreleased
+
+## Public API
+
+After [RFC-3526: List Recursive](crate::docs::rfcs::rfc_3526_list_recursive) landed, we have changed the `list` API to accept `recursive` instead of `delimiter`:
+
+Users will need to change the following usage:
+
+- `op.list_with(path).delimiter("")` -> `op.list_with(path).recursive(true)`
+- `op.list_with(path).delimiter("/")` -> `op.list_with(path).recursive(false)`
+
+`delimiter` other than `""` and `"/"` is not supported anymore.
+
 # Upgrade to v0.42
 
 ## Public API

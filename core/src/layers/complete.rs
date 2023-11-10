@@ -103,9 +103,9 @@ use crate::*;
 /// Underlying services will return [`Capability`] to indicate the
 /// features that returning pagers support.
 ///
-/// - If both `list_with_delimiter_slash` and `list_without_delimiter`, return directly.
-/// - If only `list_without_delimiter`, with [`oio::to_flat_pager`].
-/// - if only `list_with_delimiter_slash`, with [`oio::to_hierarchy_pager`].
+/// - If both `list_without_recursive` and `list_with_recursive`, return directly.
+/// - If only `list_with_recursive`, with [`oio::to_flat_pager`].
+/// - if only `list_without_recursive`, with [`oio::to_hierarchy_pager`].
 /// - If neither not supported, something must be wrong for `list` is true.
 ///
 /// ## Capability Check
@@ -230,39 +230,36 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Err(self.new_unsupported_error(Operation::List));
         }
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (
+            recursive,
+            cap.list_with_recursive,
+            cap.list_without_recursive,
+        ) {
+            // - If service can both list_with_recursive and list_without_recursive
+            // - If recursive is true while services can list_with_recursive
+            // - If recursive is false while services can list_without_recursive
+            (_, true, true) | (true, true, _) | (false, _, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
                 Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
+            }
+            // If services can't list_with_recursive nor list_without_recursive.
+            //
+            // It should be a service level bug.
+            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
+            // If recursive is true but service can't list_with_recursive
+            (true, false, true) => {
+                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
                 Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
-        }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.list(path, args.with_delimiter("")).await?;
+            }
+            // If recursive is false but service can't list_without_recursive
+            (false, true, false) => {
+                let (_, p) = self.inner.list(path, args.with_recursive(true)).await?;
                 let p = into_hierarchy_page(p, path);
                 Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
+            }
         }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 
     fn complete_blocking_list(
@@ -275,40 +272,37 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Err(self.new_unsupported_error(Operation::BlockingList));
         }
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (
+            recursive,
+            cap.list_with_recursive,
+            cap.list_without_recursive,
+        ) {
+            // - If service can both list_with_recursive and list_without_recursive
+            // - If recursive is true while services can list_with_recursive
+            // - If recursive is false while services can list_without_recursive
+            (_, true, true) | (true, true, _) | (false, _, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
                 Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
+            }
+            // If services can't list_with_recursive nor list_without_recursive.
+            //
+            // It should be a service level bug.
+            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
+            // If recursive is true but service can't list_with_recursive
+            (true, false, true) => {
+                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
                 Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
-        }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.blocking_list(path, args.with_delimiter(""))?;
+            }
+            // If recursive is false but service can't list_without_recursive
+            (false, true, false) => {
+                let (_, p) = self.inner.blocking_list(path, args.with_recursive(true))?;
                 let p: HierarchyPager<<A as Accessor>::BlockingPager> =
                     into_hierarchy_page(p, path);
                 Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
+            }
         }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 }
 
@@ -947,6 +941,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             list: true,
+            list_with_recursive: true,
             ..Default::default()
         });
         let res = op.list("path/").await;

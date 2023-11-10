@@ -822,7 +822,7 @@ impl BlockingOperator {
     /// ## Listing recursively
     ///
     /// This function only read the children of the given directory. To read
-    /// all entries recursively, use `BlockingOperator::list_with("path").delimiter("")`
+    /// all entries recursively, use `BlockingOperator::list_with("path").recursive(true)`
     /// instead.
     ///
     /// ## Streaming
@@ -896,7 +896,7 @@ impl BlockingOperator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let mut entries = op.list_with("prefix/").delimiter("").call()?;
+    /// let mut entries = op.list_with("prefix/").recursive(true).call()?;
     /// for entry in entries {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
@@ -1066,7 +1066,7 @@ impl BlockingOperator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let mut ds = op.lister_with("path/to/dir/").delimiter("").call()?;
+    /// let mut ds = op.lister_with("path/to/dir/").recursive(true).call()?;
     /// for entry in ds {
     ///     let entry = entry?;
     ///     match entry.metadata().mode() {

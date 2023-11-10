@@ -289,8 +289,8 @@ impl Accessor for CosBackend {
                 copy: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -424,7 +424,7 @@ impl Accessor for CosBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            CosPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
+            CosPager::new(self.core.clone(), path, args.recursive(), args.limit()),
         ))
     }
 }

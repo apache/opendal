@@ -98,7 +98,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         }
 
         if cap.list {
-            cap.list_without_delimiter = true;
+            cap.list_with_recursive = true;
         }
 
         am.set_native_capability(cap);
@@ -202,14 +202,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        if !args.delimiter().is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "kv doesn't support delimiter",
-            ));
-        }
-
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.scan(&p).await?;
         let pager = KvPager::new(&self.root, res);
@@ -217,14 +210,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpList::default(), pager))
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        if !args.delimiter().is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "kv doesn't support delimiter",
-            ));
-        }
-
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.blocking_scan(&p)?;
         let pager = KvPager::new(&self.root, res);

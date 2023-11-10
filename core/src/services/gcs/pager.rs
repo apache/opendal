@@ -32,7 +32,7 @@ pub struct GcsPager {
     core: Arc<GcsCore>,
 
     path: String,
-    delimiter: String,
+    delimiter: &'static str,
     limit: Option<usize>,
 
     /// Filter results to objects whose names are lexicographically
@@ -48,15 +48,16 @@ impl GcsPager {
     pub fn new(
         core: Arc<GcsCore>,
         path: &str,
-        delimiter: &str,
+        recursive: bool,
         limit: Option<usize>,
         start_after: Option<&str>,
     ) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
 
             path: path.to_string(),
-            delimiter: delimiter.to_string(),
+            delimiter,
             limit,
             start_after: start_after.map(String::from),
 
@@ -78,7 +79,7 @@ impl oio::Page for GcsPager {
             .gcs_list_objects(
                 &self.path,
                 &self.page_token,
-                &self.delimiter,
+                self.delimiter,
                 self.limit,
                 self.start_after.clone(),
             )

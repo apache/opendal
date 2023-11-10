@@ -48,7 +48,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         return Ok(());
     }
 
-    let mut ds = op.lister_with(&path).delimiter("").await?;
+    let mut ds = op.lister_with(&path).recursive(true).await?;
     while let Some(de) = ds.try_next().await? {
         println!("{}", de.path());
     }

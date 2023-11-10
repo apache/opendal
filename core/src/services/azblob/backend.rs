@@ -539,8 +539,8 @@ impl Accessor for AzblobBackend {
                 copy: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 presign: self.has_sas_token,
                 presign_stat: self.has_sas_token,
@@ -654,7 +654,7 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            args.delimiter().to_string(),
+            args.recursive(),
             args.limit(),
         );
 

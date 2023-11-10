@@ -295,8 +295,8 @@ impl Accessor for ObsBackend {
                 copy: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -430,7 +430,7 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            ObsPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
+            ObsPager::new(self.core.clone(), path, args.recursive(), args.limit()),
         ))
     }
 }

@@ -565,7 +565,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// lister.
 ///
 /// @param ptr The opendal_operator created previously
-/// @param path The designated path you want to delete
+/// @param path The designated path you want to list
 /// @see opendal_lister
 /// @return Returns opendal_result_list, containing a lister and an opendal_error.
 /// If the operation succeeds, the `lister` field would holds a valid lister and
@@ -674,6 +674,132 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
     let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.create_dir(path) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
+/// \brief Blockingly rename the object in `path`.
+///
+/// Rename the object in `src` to `dest` blockingly by `op`.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
+///
+/// @param ptr The opendal_operator created previously
+/// @param src The designated source path you want to rename
+/// @param dest The designated destination path you want to rename
+/// @see opendal_operator
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named ptr for example
+///
+/// // prepare your data
+/// char* data = "Hello, World!";
+/// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+///
+/// assert(error == NULL);
+///
+/// // now you can renmae!
+/// opendal_error *error = opendal_operator_rename(ptr, "/testpath", "/testpath2");
+///
+/// // Assert that this succeeds
+/// assert(error == NULL);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_rename(
+    op: *const opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    if src.is_null() {
+        panic!("The source path given is pointing at NULL");
+    }
+    if dest.is_null() {
+        panic!("The destination path given is pointing at NULL");
+    }
+
+    let op = (*op).as_ref();
+    let src = unsafe { std::ffi::CStr::from_ptr(src).to_str().unwrap() };
+    let dest = unsafe { std::ffi::CStr::from_ptr(dest).to_str().unwrap() };
+    match op.rename(src, dest) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
+/// \brief Blockingly copy the object in `path`.
+///
+/// Copy the object in `src` to `dest` blockingly by `op`.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
+///
+/// @param ptr The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @see opendal_operator
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named ptr for example
+///
+/// // prepare your data
+/// char* data = "Hello, World!";
+/// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+///
+/// assert(error == NULL);
+///
+/// // now you can renmae!
+/// opendal_error *error = opendal_operator_copy(ptr, "/testpath", "/testpath2");
+///
+/// // Assert that this succeeds
+/// assert(error == NULL);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy(
+    op: *const opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    if src.is_null() {
+        panic!("The source path given is pointing at NULL");
+    }
+    if dest.is_null() {
+        panic!("The destination path given is pointing at NULL");
+    }
+
+    let op = (*op).as_ref();
+    let src = unsafe { std::ffi::CStr::from_ptr(src).to_str().unwrap() };
+    let dest = unsafe { std::ffi::CStr::from_ptr(dest).to_str().unwrap() };
+    match op.copy(src, dest) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
     }

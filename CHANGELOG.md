@@ -144,6 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: Update mysql `connection_string` config description in doc by @xring in https://github.com/apache/incubator-opendal/pull/3388
 * doc: apply `range_reader` change in upgrade doc  by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3401
 * docs(readme): Fix capitalization about the ABFS service in README.md by @caicancai in https://github.com/apache/incubator-opendal/pull/3485
+* docs: Add Milvus as C binding's user by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3523
 ### CI
 * ci: Add bindings_go workflow by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3260
 * ci: Only fetch origin while in pull request by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3268
@@ -160,6 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci(test): Add health check for WebDAV docker compose config by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3448
 * ci: Switch to 1password connect to avoid rate limit by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3447
 * ci: Use cargo test instead of carge nextest by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3505
+* build(bindings/java): Allow building on `linux-aarch_64` by @amunra in https://github.com/apache/incubator-opendal/pull/3527
+* ci: support behavior test for gridfs by @realtaobo in https://github.com/apache/incubator-opendal/pull/3520
 ### Chore
 * chore(ci): publish to pypi with github OIDC credential by @everpcpc in https://github.com/apache/incubator-opendal/pull/3252
 * chore(bindings/java): align mapping POJO pattern by @tisonkun in https://github.com/apache/incubator-opendal/pull/3289
@@ -178,9 +181,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump actions/setup-node from 3 to 4 by @dependabot in https://github.com/apache/incubator-opendal/pull/3445
 * chore(deps): bump etcd-client from 0.11.1 to 0.12.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/3441
 * chore(services/libsql): Fix typos in backend by @sd44 in https://github.com/apache/incubator-opendal/pull/3506
-* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
 * chore: Bump to v0.42.0 to start release process by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3509
+* chore(service/vercel_artifacts): add doc in backend by @caicancai in https://github.com/apache/incubator-opendal/pull/3508
 * chore: Remove not released packages while releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3519
+* chore: Bump to v0.42.0 to start release process (Round 2) by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3521
+* chore: Fix typo in CHANGELOG  by @caicancai in https://github.com/apache/incubator-opendal/pull/3524
+* chore: add updated Cargo.toml to git archive by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3525
+* chore(bindings/java): improve build.py script by @tisonkun in https://github.com/apache/incubator-opendal/pull/3529
 
 ## [v0.41.0] - 2023-10-08
 

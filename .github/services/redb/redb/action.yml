@@ -15,15 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.8'
+name: redb
+description: 'Behavior test for redb'
 
-services:
-  swift:
-    image: openstackswift/saio:py3
-    ports:
-      - 8080:8080
-    healthcheck:
-      test: ["CMD", "curl", "-i", "-H", "X-Storage-User: test:tester", "-H", "X-Storage-Pass: testing", "http://localhost:8080/"]
-      interval: 3s
-      timeout: 20s
-      retries: 10
+runs:
+  using: "composite"
+  steps:
+    - name: Setup data dir
+      shell: bash
+      working-directory: core
+      run: mkdir -p $OPENDAL_REDB_DATADIR
+      env:
+        OPENDAL_REDB_DATADIR: /tmp/opendal/
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        RUST_TEST_THREADS=1
+        OPENDAL_REDB_ROOT=/
+        OPENDAL_REDB_DATADIR=/tmp/opendal/redb
+        OPENDAL_REDB_TABLE=redb-table
+        EOF

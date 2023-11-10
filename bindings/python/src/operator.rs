@@ -174,7 +174,7 @@ impl Operator {
         let l = self
             .0
             .lister_with(path)
-            .delimiter("")
+            .recursive(true)
             .call()
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
@@ -390,7 +390,7 @@ impl AsyncOperator {
         future_into_py(py, async move {
             let lister = this
                 .lister_with(&path)
-                .delimiter("")
+                .recursive(true)
                 .await
                 .map_err(format_pyerr)?;
             let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));

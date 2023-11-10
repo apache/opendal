@@ -34,7 +34,7 @@ use crate::Result;
 pub struct ObsPager {
     core: Arc<ObsCore>,
     path: String,
-    delimiter: String,
+    delimiter: &'static str,
     limit: Option<usize>,
 
     next_marker: String,
@@ -42,11 +42,13 @@ pub struct ObsPager {
 }
 
 impl ObsPager {
-    pub fn new(core: Arc<ObsCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+    pub fn new(core: Arc<ObsCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
+
         Self {
             core,
             path: path.to_string(),
-            delimiter: delimiter.to_string(),
+            delimiter,
             limit,
 
             next_marker: "".to_string(),
@@ -64,7 +66,7 @@ impl oio::Page for ObsPager {
 
         let resp = self
             .core
-            .obs_list_objects(&self.path, &self.next_marker, &self.delimiter, self.limit)
+            .obs_list_objects(&self.path, &self.next_marker, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

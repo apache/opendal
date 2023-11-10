@@ -350,8 +350,8 @@ impl Accessor for GcsBackend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 batch: true,
                 batch_max_operations: Some(100),
@@ -477,7 +477,7 @@ impl Accessor for GcsBackend {
             GcsPager::new(
                 self.core.clone(),
                 path,
-                args.delimiter(),
+                args.recursive(),
                 args.limit(),
                 args.start_after(),
             ),

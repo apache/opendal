@@ -426,8 +426,8 @@ impl Accessor for OssBackend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -550,7 +550,7 @@ impl Accessor for OssBackend {
             OssPager::new(
                 self.core.clone(),
                 path,
-                args.delimiter(),
+                args.recursive(),
                 args.limit(),
                 args.start_after(),
             ),

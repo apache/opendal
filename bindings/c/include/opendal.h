@@ -635,11 +635,11 @@ typedef struct opendal_capability {
   /**
    * If backend support list with using slash as delimiter.
    */
-  bool list_with_delimiter_slash;
+  bool list_without_recursive;
   /**
    * If backend supports list without delimiter.
    */
-  bool list_without_delimiter;
+  bool list_with_recursive;
   /**
    * If operator supports presign.
    */

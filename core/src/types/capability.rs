@@ -120,10 +120,10 @@ pub struct Capability {
     pub list_with_limit: bool,
     /// If backend supports list with start after.
     pub list_with_start_after: bool,
-    /// If backend support list with using slash as delimiter.
-    pub list_with_delimiter_slash: bool,
-    /// If backend supports list without delimiter.
-    pub list_without_delimiter: bool,
+    /// If backend supports list with recursive.
+    pub list_with_recursive: bool,
+    /// If backend supports list without recursive.
+    pub list_without_recursive: bool,
 
     /// If operator supports presign.
     pub presign: bool,

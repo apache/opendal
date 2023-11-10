@@ -34,7 +34,7 @@ use crate::Result;
 pub struct CosPager {
     core: Arc<CosCore>,
     path: String,
-    delimiter: String,
+    delimiter: &'static str,
     limit: Option<usize>,
 
     next_marker: String,
@@ -42,11 +42,12 @@ pub struct CosPager {
 }
 
 impl CosPager {
-    pub fn new(core: Arc<CosCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+    pub fn new(core: Arc<CosCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
             path: path.to_string(),
-            delimiter: delimiter.to_string(),
+            delimiter,
             limit,
 
             next_marker: "".to_string(),
@@ -64,7 +65,7 @@ impl oio::Page for CosPager {
 
         let resp = self
             .core
-            .cos_list_objects(&self.path, &self.next_marker, &self.delimiter, self.limit)
+            .cos_list_objects(&self.path, &self.next_marker, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

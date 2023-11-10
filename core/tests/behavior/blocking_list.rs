@@ -191,7 +191,7 @@ pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
 
     let w = op
         .lister_with(&format!("{parent}/x/"))
-        .delimiter("")
+        .recursive(true)
         .call()?;
     let actual = w
         .collect::<Vec<_>>()

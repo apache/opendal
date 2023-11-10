@@ -797,7 +797,7 @@ impl BlockingOperator {
             return self.delete(path);
         }
 
-        let obs = self.lister_with(path).delimiter("").call()?;
+        let obs = self.lister_with(path).recursive(true).call()?;
 
         for v in obs {
             match v {

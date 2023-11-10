@@ -51,6 +51,7 @@ def test_sync_copy_source_directory(service_name, operator, async_operator):
     target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory) :
         operator.copy(source_path, target_path)
+    operator.delete(source_path)
 
 
 @pytest.mark.need_capability("read", "write", "copy")
@@ -87,7 +88,7 @@ def test_sync_copy_nested(service_name, operator, async_operator):
     assert target_content is not None
     assert target_content == content
     operator.delete(source_path)
-    operator.delete(target_path)
+    operator.remove_all(f'{target_path.split("/")[0]}/')
 
 
 @pytest.mark.need_capability("read", "write", "copy")

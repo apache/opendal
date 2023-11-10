@@ -51,6 +51,7 @@ def test_sync_rename_directory(service_name, operator, async_operator):
     target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory) :
         operator.rename(source_path, target_path)
+    operator.delete(source_path)
 
 
 @pytest.mark.need_capability("read", "write", "rename")
@@ -84,7 +85,7 @@ def test_sync_rename_nested(service_name, operator, async_operator):
     with pytest.raises(NotFound) :
         operator.read(source_path)
     assert operator.read(target_path) == content
-    operator.delete(target_path)
+    operator.remove_all(f'{target_path.split("/")[0]}/')
     operator.delete(source_path)
 
 

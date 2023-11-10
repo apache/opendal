@@ -54,6 +54,7 @@ async def test_async_copy_source_directory(service_name, operator, async_operato
     target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory) :
         await async_operator.copy(source_path, target_path)
+    await async_operator.delete(source_path)
 
 
 @pytest.mark.asyncio
@@ -93,7 +94,7 @@ async def test_async_copy_nested(service_name, operator, async_operator):
     assert target_content is not None
     assert target_content == content
     await async_operator.delete(source_path)
-    await async_operator.delete(target_path)
+    await async_operator.remove_all(f'{target_path.split("/")[0]}/')
 
 
 @pytest.mark.asyncio

@@ -54,6 +54,7 @@ async def test_async_rename_directory(service_name, operator, async_operator):
     target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory) :
         await async_operator.rename(source_path, target_path)
+    await async_operator.delete(source_path)
 
 
 @pytest.mark.asyncio
@@ -90,8 +91,7 @@ async def test_async_rename_nested(service_name, operator, async_operator):
     with pytest.raises(NotFound) :
         await async_operator.read(source_path)
     assert await async_operator.read(target_path) == content
-    await async_operator.delete(target_path)
-    await async_operator.delete(source_path)
+    await async_operator.remove_all(f'{target_path.split("/")[0]}/')
 
 
 @pytest.mark.asyncio

@@ -66,6 +66,8 @@ pub enum Scheme {
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
+    /// [alluxio][created::services::Alluxio]: Alluxio services.
+    Alluxio,
 
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
     Ipfs,
@@ -378,6 +380,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azfile => "azfile",
             Scheme::Sqlite => "sqlite",
             Scheme::Mongodb => "mongodb",
+            Scheme::Alluxio => "alluxio",
             Scheme::Custom(v) => v,
         }
     }

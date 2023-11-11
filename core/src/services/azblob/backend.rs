@@ -397,23 +397,13 @@ impl Builder for AzblobBuilder {
     type Accessor = AzblobBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = AzblobBuilder::default();
+        let config = AzblobConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("container").map(|v| builder.container(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("account_name").map(|v| builder.account_name(v));
-        map.get("account_key").map(|v| builder.account_key(v));
-        map.get("encryption_key").map(|v| builder.encryption_key(v));
-        map.get("encryption_key_sha256")
-            .map(|v| builder.encryption_key_sha256(v));
-        map.get("encryption_algorithm")
-            .map(|v| builder.encryption_algorithm(v));
-        map.get("sas_token").map(|v| builder.sas_token(v));
-        map.get("batch_max_operations")
-            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
-
-        builder
+        AzblobBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

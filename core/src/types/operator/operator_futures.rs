@@ -584,6 +584,12 @@ impl FutureLister {
         self.0 = self.0.map_args(|args| args.with_metakey(v));
         self
     }
+
+    /// Change the concurrent number of this list operation.
+    pub fn concurrent(mut self, v: u32) -> Self {
+        self.0 = self.0.map_args(|args| args.with_concurrent(v));
+        self
+    }
 }
 
 impl Future for FutureLister {

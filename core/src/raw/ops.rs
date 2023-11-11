@@ -82,6 +82,9 @@ pub struct OpList {
     delimiter: String,
 
     metakey: FlagSet<Metakey>,
+
+    // The concurrent of this list operation.
+    concurrent: u32,
 }
 
 impl Default for OpList {
@@ -92,6 +95,7 @@ impl Default for OpList {
             delimiter: "/".to_string(),
             // By default, we want to know what's the mode of this entry.
             metakey: Metakey::Mode.into(),
+            concurrent: 1,
         }
     }
 }
@@ -146,6 +150,17 @@ impl OpList {
     /// Get the current metakey.
     pub fn metakey(&self) -> FlagSet<Metakey> {
         self.metakey
+    }
+
+    /// Change the concurrent of this list operation.
+    pub fn with_concurrent(mut self, concurrent: u32) -> Self {
+        self.concurrent = concurrent;
+        self
+    }
+
+    /// Get the concurrent of this list operation.
+    pub fn concurrent(&self) -> u32 {
+        self.concurrent
     }
 }
 

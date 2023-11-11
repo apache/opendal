@@ -17,6 +17,7 @@
 
 use std::collections::VecDeque;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -25,6 +26,8 @@ use flagset::FlagSet;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
+use tokio::sync::Semaphore;
+use tokio::task::JoinHandle;
 
 use crate::raw::*;
 use crate::*;
@@ -32,7 +35,7 @@ use crate::*;
 /// Future constructed by listing.
 type ListFuture = BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>;
 /// Future constructed by stating.
-type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
+type StatFuture = BoxFuture<'static, Option<Result<Entry>>>;
 
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
@@ -48,6 +51,10 @@ pub struct Lister {
     buf: VecDeque<oio::Entry>,
     pager: Option<oio::Pager>,
     listing: Option<ListFuture>,
+
+    // NOTE: if semaphore is full
+    task_queue: Vec<JoinHandle<(String, Result<RpStat>)>>,
+    semaphore: Arc<Semaphore>,
     stating: Option<StatFuture>,
 }
 
@@ -60,6 +67,7 @@ impl Lister {
     /// Create a new lister.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
+        let concurrent = args.concurrent();
         let (_, pager) = acc.list(path, args).await?;
 
         Ok(Self {
@@ -69,45 +77,80 @@ impl Lister {
             buf: VecDeque::new(),
             pager: Some(pager),
             listing: None,
+
+            task_queue: Vec::new(),
+            semaphore: Arc::new(Semaphore::new(concurrent as usize)),
             stating: None,
         })
     }
 }
 
 impl Stream for Lister {
+    // NOTE: don't change USER facing API.
     type Item = Result<Entry>;
+    // NOTE: the only way is store inside the struct as buffer and iter them to user.
+    // Like concurrent == 2, we will store 2 entries in the buffer and iter them to user.
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(fut) = self.stating.as_mut() {
-            let (path, rp) = ready!(fut.poll_unpin(cx));
+            let entry = ready!(fut.poll_unpin(cx));
 
             // Make sure we will not poll this future again.
             self.stating = None;
-            let metadata = rp?.into_metadata();
 
-            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
+            return Poll::Ready(entry);
         }
 
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_metakey(self.required_metakey) {
-                return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
-            }
-
-            let acc = self.acc.clone();
+        if !self.task_queue.is_empty() {
+            let task = self.task_queue.pop();
             let fut = async move {
-                let res = acc.stat(&path, OpStat::default()).await;
-
-                (path, res)
+                if let Some(task) = task {
+                    let (path, rp) = task.await.ok()?;
+                    let metadata = rp.ok()?.into_metadata();
+                    Some(Ok(Entry::new(path, metadata)))
+                } else {
+                    None
+                }
             };
             self.stating = Some(Box::pin(fut));
             return self.poll_next(cx);
         }
 
+        while !self.buf.is_empty() {
+            if let Some(oe) = self.buf.pop_front() {
+                // NOTE: If we can't acquire semaphore, we will push back the entry.
+                let oe_clone = oe.clone();
+
+                let (path, metadata) = oe.into_entry().into_parts();
+                // TODO: we can optimize this by checking the provided metakey provided by services.
+                if metadata.contains_metakey(self.required_metakey) {
+                    return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
+                }
+
+                // NOTE: we will run stat API concurrently if metakey is unknown.
+                let acc = self.acc.clone();
+
+                match self.semaphore.clone().try_acquire_owned() {
+                    Ok(permit) => {
+                        let fut = async move {
+                            let res = acc.stat(&path, OpStat::default()).await;
+                            // NOTE: explicitly own `permit` in the task
+                            drop(permit);
+                            (path, res)
+                        };
+
+                        self.task_queue.push(tokio::spawn(fut));
+                    }
+                    Err(_) => {
+                        self.buf.push_front(oe_clone);
+                        return self.poll_next(cx);
+                    }
+                };
+            }
+        }
+
         if let Some(fut) = self.listing.as_mut() {
             let (op, res) = ready!(fut.poll_unpin(cx));
-
             // Make sure we will not poll this future again.
             self.listing = None;
 

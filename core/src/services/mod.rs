@@ -23,6 +23,8 @@
 mod azblob;
 #[cfg(feature = "services-azblob")]
 pub use azblob::Azblob;
+#[cfg(feature = "services-azblob")]
+pub use azblob::AzblobConfig;
 
 #[cfg(feature = "services-azdls")]
 mod azdls;

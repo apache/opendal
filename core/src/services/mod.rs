@@ -282,3 +282,10 @@ pub use self::dbfs::Dbfs;
 mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::Swift;
+
+#[cfg(feature = "services-alluxio")]
+mod alluxio;
+#[cfg(feature = "services-alluxio")]
+pub use alluxio::Alluxio;
+#[cfg(feature = "services-alluxio")]
+pub use alluxio::AlluxioConfig;

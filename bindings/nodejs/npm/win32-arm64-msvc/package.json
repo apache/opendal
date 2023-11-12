@@ -1,0 +1,19 @@
+{
+  "name": "@opendal/lib-win32-arm64-msvc",
+  "repository": "git@github.com/apache/incubator-opendal.git",
+  "version": "0.42.0",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "opendal.win32-arm64-msvc.node",
+  "files": [
+    "opendal.win32-arm64-msvc.node"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">= 10"
+  }
+}

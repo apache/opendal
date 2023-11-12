@@ -23,6 +23,8 @@
 mod azblob;
 #[cfg(feature = "services-azblob")]
 pub use azblob::Azblob;
+#[cfg(feature = "services-azblob")]
+pub use azblob::AzblobConfig;
 
 #[cfg(feature = "services-azdls")]
 mod azdls;
@@ -280,3 +282,10 @@ pub use self::dbfs::Dbfs;
 mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::Swift;
+
+#[cfg(feature = "services-alluxio")]
+mod alluxio;
+#[cfg(feature = "services-alluxio")]
+pub use alluxio::Alluxio;
+#[cfg(feature = "services-alluxio")]
+pub use alluxio::AlluxioConfig;

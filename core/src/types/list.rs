@@ -52,7 +52,6 @@ pub struct Lister {
     pager: Option<oio::Pager>,
     listing: Option<ListFuture>,
 
-    // NOTE: if semaphore is full
     task_queue: Vec<JoinHandle<(String, Result<RpStat>)>>,
     semaphore: Arc<Semaphore>,
     stating: Option<StatFuture>,
@@ -86,10 +85,7 @@ impl Lister {
 }
 
 impl Stream for Lister {
-    // NOTE: don't change USER facing API.
     type Item = Result<Entry>;
-    // NOTE: the only way is store inside the struct as buffer and iter them to user.
-    // Like concurrent == 2, we will store 2 entries in the buffer and iter them to user.
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(fut) = self.stating.as_mut() {

@@ -50,8 +50,9 @@ def setup_config(service_name):
     for key in os.environ.keys():
         if key.lower().startswith(prefix):
             config[key[len(prefix) :].lower()] = os.environ.get(key)
-    disable_random_root = False if os.environ.get(
-        "OPENDAL_DISABLE_RANDOM_ROOT", "false") == "false" else True
+    disable_random_root = (
+        True if os.environ.get("OPENDAL_DISABLE_RANDOM_ROOT") == "true" else False
+    )
     if not disable_random_root:
         config["root"] = f"{config.get('root', './')}{str(uuid4())}/"
     return config

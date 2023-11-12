@@ -7,26 +7,22 @@
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Example
+
 ```java
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-
 import org.apache.opendal.Operator;
 
 public class Main {
-  public static void main(String[] args) {
-    Map<String, String> conf = new HashMap<>();
-    conf.put("root", "/tmp");
+    public static void main(String[] args) {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/tmp");
 
-    Operator op = Operator.of("fs", conf);
-    op.write("/tmp","Hello world");
-    CompletableFuture<byte[]> result = op.read("/tmp");
-    byte[] bytes = result.join();
-
-    String content = new String(bytes);
-    System.out.println(content);
-  }
+        try (Operator op = Operator.of("fs", conf)) {
+            op.write("/path/to/data","Hello world").join();
+            System.out.println(new String(op.read("/path/to/data").join()));
+        }
+    }
 }
 ```
 

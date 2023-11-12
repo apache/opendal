@@ -80,12 +80,13 @@ def test_sync_rename_nested(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
+    target_directory = f"random_file_{str(uuid4())}/"
+    target_path = f"{target_directory}{str(uuid4())}/{str(uuid4())}"
     operator.rename(source_path, target_path)
     with pytest.raises(NotFound) :
         operator.read(source_path)
     assert operator.read(target_path) == content
-    operator.remove_all(f'{target_path.split("/")[0]}/')
+    operator.remove_all(target_directory)
     operator.delete(source_path)
 
 

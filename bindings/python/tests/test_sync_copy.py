@@ -80,7 +80,8 @@ def test_sync_copy_self(service_name, operator, async_operator):
 @pytest.mark.need_capability("read", "write", "copy")
 def test_sync_copy_nested(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
-    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
+    target_directory = f"random_file_{str(uuid4())}/"
+    target_path = f"{target_directory}{str(uuid4())}/{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     operator.copy(source_path, target_path)
@@ -88,7 +89,7 @@ def test_sync_copy_nested(service_name, operator, async_operator):
     assert target_content is not None
     assert target_content == content
     operator.delete(source_path)
-    operator.remove_all(f'{target_path.split("/")[0]}/')
+    operator.remove_all(target_directory)
 
 
 @pytest.mark.need_capability("read", "write", "copy")

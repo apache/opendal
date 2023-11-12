@@ -86,12 +86,13 @@ async def test_async_rename_nested(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
+    target_directory = f"random_file_{str(uuid4())}/"
+    target_path = f"{target_directory}{str(uuid4())}/{str(uuid4())}"
     await async_operator.rename(source_path, target_path)
     with pytest.raises(NotFound) :
         await async_operator.read(source_path)
     assert await async_operator.read(target_path) == content
-    await async_operator.remove_all(f'{target_path.split("/")[0]}/')
+    await async_operator.remove_all(target_directory)
 
 
 @pytest.mark.asyncio

@@ -31,7 +31,7 @@ pub struct AzblobPager {
     core: Arc<AzblobCore>,
 
     path: String,
-    delimiter: String,
+    delimiter: &'static str,
     limit: Option<usize>,
 
     next_marker: String,
@@ -39,12 +39,9 @@ pub struct AzblobPager {
 }
 
 impl AzblobPager {
-    pub fn new(
-        core: Arc<AzblobCore>,
-        path: String,
-        delimiter: String,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<AzblobCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
+
         Self {
             core,
             path,
@@ -66,7 +63,7 @@ impl oio::Page for AzblobPager {
 
         let resp = self
             .core
-            .azblob_list_blobs(&self.path, &self.next_marker, &self.delimiter, self.limit)
+            .azblob_list_blobs(&self.path, &self.next_marker, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

@@ -1153,8 +1153,8 @@ mod tests {
             am.set_native_capability(Capability {
                 read: true,
                 list: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
                 batch: true,
                 ..Default::default()
             });

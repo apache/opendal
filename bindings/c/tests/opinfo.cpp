@@ -82,7 +82,7 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
         EXPECT_TRUE(cap.delete_);
 
         EXPECT_TRUE(cap.list);
-        EXPECT_TRUE(cap.list_without_delimiter);
+        EXPECT_TRUE(cap.list_with_recursive);
 
         EXPECT_TRUE(cap.copy);
 

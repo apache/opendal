@@ -901,7 +901,7 @@ impl Operator {
             return self.delete(path).await;
         }
 
-        let obs = self.lister_with(path).delimiter("").await?;
+        let obs = self.lister_with(path).recursive(true).await?;
 
         if self.info().full_capability().batch {
             let mut obs = obs.try_chunks(self.limit());
@@ -942,7 +942,7 @@ impl Operator {
     /// ## Listing recursively
     ///
     /// This function only read the children of the given directory. To read
-    /// all entries recursively, use `Operator::list_with("path").delimiter("")`
+    /// all entries recursively, use `Operator::list_with("path").recursive(true)`
     /// instead.
     ///
     /// ## Streaming
@@ -1018,7 +1018,7 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.list_with("prefix/").delimiter("").await?;
+    /// let mut entries = op.list_with("prefix/").recursive(true).await?;
     /// for entry in entries {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
@@ -1106,7 +1106,7 @@ impl Operator {
     /// ## Listing recursively
     ///
     /// This function only read the children of the given directory. To read
-    /// all entries recursively, use [`Operator::lister_with`] and `delimiter("")`
+    /// all entries recursively, use [`Operator::lister_with`] and `recursive(true)`
     /// instead.
     ///
     /// ## Metadata
@@ -1194,7 +1194,7 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.lister_with("path/to/dir/").delimiter("").await?;
+    /// let mut ds = op.lister_with("path/to/dir/").recursive(true).await?;
     /// while let Some(mut entry) = ds.try_next().await? {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {

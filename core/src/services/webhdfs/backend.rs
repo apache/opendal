@@ -421,7 +421,7 @@ impl Accessor for WebhdfsBackend {
                 delete: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -541,10 +541,10 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        if args.delimiter() != "/" {
+        if args.recursive() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "WebHDFS only support delimiter `/`",
+                "WebHDFS doesn't support list with recursive",
             ));
         }
 

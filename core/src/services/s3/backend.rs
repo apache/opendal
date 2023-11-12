@@ -1016,8 +1016,8 @@ impl Accessor for S3Backend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_without_delimiter: true,
-                list_with_delimiter_slash: true,
+                list_with_recursive: true,
+                list_without_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -1139,7 +1139,7 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                args.delimiter(),
+                args.recursive(),
                 args.limit(),
                 args.start_after(),
             ),

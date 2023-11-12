@@ -540,7 +540,7 @@ pub unsafe extern "C" fn blocking_scan(
         }
     };
 
-    let res = match op.lister_with(path_str).delimiter("").call() {
+    let res = match op.lister_with(path_str).recursive(true).call() {
         Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
         Err(e) => FFIResult::err_with_source("Failed to scan", e),
     };

@@ -153,8 +153,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 
         let cap = meta.full_capability_mut();
         cap.list = true;
-        cap.list_with_delimiter_slash = true;
-        cap.list_without_delimiter = true;
+        cap.list_with_recursive = true;
+        cap.list_without_recursive = true;
 
         meta
     }
@@ -169,15 +169,10 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
             path = ""
         }
 
-        let idx = if args.delimiter() == "/" {
-            self.children_hierarchy(path)
-        } else if args.delimiter().is_empty() {
+        let idx = if args.recursive() {
             self.children_flat(path)
         } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                &format!("delimiter {} is not supported", args.delimiter()),
-            ));
+            self.children_hierarchy(path)
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
@@ -201,15 +196,10 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
             path = ""
         }
 
-        let idx = if args.delimiter() == "/" {
-            self.children_hierarchy(path)
-        } else if args.delimiter().is_empty() {
+        let idx = if args.recursive() {
             self.children_flat(path)
         } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                &format!("delimiter {} is not supported", args.delimiter()),
-            ));
+            self.children_hierarchy(path)
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
@@ -333,7 +323,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.lister_with("/").delimiter("").await?;
+        let mut ds = op.lister_with("/").recursive(true).await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
@@ -435,7 +425,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.lister_with("/").delimiter("").await?;
+        let mut ds = op.lister_with("/").recursive(true).await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();

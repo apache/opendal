@@ -343,7 +343,9 @@ impl AlluxioCore {
         match status {
             StatusCode::OK => {
                 let body = resp.into_body().bytes().await?;
-                Ok(body.len())
+                let size: usize =
+                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                Ok(size)
             }
             _ => Err(parse_error(resp).await?),
         }

@@ -16,8 +16,8 @@
 // under the License.
 
 mod backend;
-pub use backend::AzblobBuilder as Azblob;
-pub use backend::AzblobConfig;
+pub use backend::AlluxioBuilder as Alluxio;
+pub use backend::AlluxioConfig;
 
 mod core;
 mod error;

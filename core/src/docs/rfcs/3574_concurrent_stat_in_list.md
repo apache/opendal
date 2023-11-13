@@ -1,7 +1,7 @@
 - Proposal Name: `concurrent_stat_in_list`
-- Start Date: 2023-09-16
+- Start Date: 2023-11-13
 - RFC PR: [apache/incubator-opendal#3574](https://github.com/apache/incubator-opendal/pull/3574)
-- Tracking Issue: [apache/incubator-opendal#3097](https://github.com/apache/incubator-opendal/issues/3097)
+- Tracking Issue: [apache/incubator-opendal#3575](https://github.com/apache/incubator-opendal/issues/3575)
 
 # Summary
 
@@ -39,7 +39,9 @@ If the metakey is known, we should return the result immediately and go back to 
 
 # Drawbacks
 
-We never support this feature before.
+1. More memory usage
+2. More complex code
+3. More complex testing
 
 # Rationale and alternatives
 

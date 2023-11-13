@@ -28,11 +28,6 @@ use std::time::Duration;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 
-use napi::CallContext;
-use napi::JsBoolean;
-use napi::JsNumber;
-use napi::JsObject;
-
 #[napi]
 pub struct Operator(opendal::Operator);
 
@@ -696,7 +691,7 @@ pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
 }
 
-struct NodeLayerWrapper {
+pub struct Layer {
     inner: Box<dyn NodeLayer>,
 }
 
@@ -704,11 +699,8 @@ struct NodeLayerWrapper {
 impl Operator {
     /// Add a layer to this operator.
     #[napi]
-    pub fn layer(&self, env: Env, layer: JsObject) -> Result<Self> {
-        let ctx: &mut NodeLayerWrapper = env
-            .unwrap(&layer)
-            .map_err(|e| Error::from_reason(format!("failed to unwrap layer: {}", e)))?;
-        Ok(Self(ctx.inner.layer(self.0.clone())))
+    pub fn layer(&self, layer: External<Layer>) -> Result<Self> {
+        Ok(Self(layer.inner.layer(self.0.clone())))
     }
 }
 
@@ -722,8 +714,7 @@ impl Operator {
 /// - `factor`<number>: The exponential factor to use.
 /// - `max_delay`<number>: The maximum delay between retries. The unit is microsecond.
 /// - `min_delay`<number>: The minimum delay between retries. The unit is microsecond.
-#[napi]
-pub struct RetryLayer(opendal::layers::RetryLayer);
+struct RetryLayer(opendal::layers::RetryLayer);
 
 impl NodeLayer for RetryLayer {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator {
@@ -731,76 +722,40 @@ impl NodeLayer for RetryLayer {
     }
 }
 
-/// RetryLayer constructor.
-#[js_function(1)]
-pub fn create_retry_layer(ctx: CallContext) -> Result<JsObject> {
-    let mut retry = opendal::layers::RetryLayer::default();
-
-    let config: Option<JsObject> = ctx.get::<JsObject>(0).ok();
-
-    if let Some(config) = config {
-        let jitter = config.get_named_property::<JsBoolean>("jitter").ok();
-        if let Some(jitter) = jitter {
-            let jitter = jitter.get_value().ok();
-            if let Some(jitter) = jitter {
-                if jitter {
-                    retry = retry.with_jitter();
-                }
-            }
-        }
-
-        let max_times = config.get_named_property::<JsNumber>("maxTimes").ok();
-        if let Some(max_times) = max_times {
-            let max_times = max_times.get_uint32().ok();
-            if let Some(max_times) = max_times {
-                retry = retry.with_max_times(max_times as usize);
-            }
-        }
-
-        let factor = config.get_named_property::<JsNumber>("factor").ok();
-        if let Some(factor) = factor {
-            let factor = factor.get_double().ok();
-            if let Some(factor) = factor {
-                retry = retry.with_factor(factor as f32);
-            }
-        }
-
-        let max_delay = config.get_named_property::<JsNumber>("maxDelay").ok();
-        if let Some(max_delay) = max_delay {
-            let max_delay = max_delay.get_uint32().ok();
-            if let Some(max_delay) = max_delay {
-                retry = retry.with_max_delay(Duration::from_millis(max_delay as u64));
-            }
-        }
-
-        let min_delay = config.get_named_property::<JsNumber>("minDelay").ok();
-        if let Some(min_delay) = min_delay {
-            let min_delay = min_delay.get_uint32().ok();
-            if let Some(min_delay) = min_delay {
-                retry = retry.with_min_delay(Duration::from_millis(min_delay as u64));
-            }
-        }
-    }
-
-    let mut layer = ctx.this_unchecked();
-
-    ctx.env.wrap(
-        &mut layer,
-        NodeLayerWrapper {
-            inner: Box::new(RetryLayer(retry)),
-        },
-    )?;
-
-    Ok(layer)
+/// TODO: fill me
+#[napi]
+pub struct RetryLayerBuilder {
+    jitter: bool,
 }
 
-/// Export all layers types and constructors to nodejs.
-#[module_exports]
-pub fn layer_init(mut exports: JsObject, env: Env) -> Result<()> {
-    let retry_layer = env.define_class("RetryLayer", create_retry_layer, &[])?;
-    exports.set_named_property("RetryLayer", retry_layer)?;
+#[napi]
+impl RetryLayerBuilder {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        RetryLayerBuilder { jitter: false }
+    }
 
-    Ok(())
+    // #[napi(factory)]
+    // pub fn new() -> Self {
+    //     RetryLayerBuilder { jitter: false }
+    // }
+
+    #[napi(setter)]
+    pub fn jitter(&mut self, v: bool) {
+        self.jitter = v;
+    }
+
+    #[napi]
+    pub fn build(&self) -> External<Layer> {
+        let mut l = opendal::layers::RetryLayer::default();
+        if self.jitter {
+            l = l.with_jitter();
+        }
+
+        External::new(Layer {
+            inner: Box::new(RetryLayer(l)),
+        })
+    }
 }
 
 fn format_napi_error(err: opendal::Error) -> Error {

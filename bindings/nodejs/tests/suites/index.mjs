@@ -38,10 +38,7 @@ export function runner(testName, scheme) {
 
   let operator = scheme ? new Operator(scheme, config) : null
 
-  let retryLayer = new layers.RetryLayer({
-    jitter: true,
-    maxTimes: 4,
-  })
+  let retryLayer = new layers.RetryLayerBuilder().build()
 
   operator = operator.layer(retryLayer)
 

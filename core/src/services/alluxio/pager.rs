@@ -22,6 +22,7 @@ use async_trait::async_trait;
 use super::core::AlluxioCore;
 use crate::raw::oio::Entry;
 use crate::raw::*;
+use crate::ErrorKind;
 use crate::Result;
 
 pub struct AlluxioPager {
@@ -49,20 +50,39 @@ impl oio::Page for AlluxioPager {
             return Ok(None);
         }
 
-        let file_infos = self.core.list_status(&self.path).await?;
+        let result = self.core.list_status(&self.path).await;
 
-        let mut entries = vec![];
-        for file_info in file_infos {
-            let path: String = file_info.path.clone();
-            entries.push(Entry::new(&path, file_info.try_into()?));
+        match result {
+            Ok(file_infos) => {
+                let mut entries = vec![];
+                for file_info in file_infos {
+                    let path: String = file_info.path.clone();
+                    let path = if file_info.folder {
+                        format!("{}/", path)
+                    } else {
+                        path
+                    };
+                    entries.push(Entry::new(
+                        &build_rel_path(&self.core.root, &path),
+                        file_info.try_into()?,
+                    ));
+                }
+
+                if entries.is_empty() {
+                    return Ok(None);
+                }
+
+                self.done = true;
+
+                Ok(Some(entries))
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound {
+                    self.done = true;
+                    return Ok(None);
+                }
+                Err(e)
+            }
         }
-
-        if entries.is_empty() {
-            return Ok(None);
-        }
-
-        self.done = true;
-
-        Ok(Some(entries))
     }
 }

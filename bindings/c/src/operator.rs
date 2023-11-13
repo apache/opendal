@@ -59,11 +59,11 @@ impl opendal_operator {
     /// # Example
     ///
     /// ```C
-    /// opendal_operator *ptr = opendal_operator_new("fs", NULL);
-    /// // ... use this ptr, maybe some reads and writes
+    /// opendal_operator *op = opendal_operator_new("fs", NULL);
+    /// // ... use this op, maybe some reads and writes
     ///
     /// // free this operator
-    /// opendal_operator_free(ptr);
+    /// opendal_operator_free(op);
     /// ```
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator) {
@@ -203,7 +203,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// \note It is important to notice that the `bytes` that is passes in will be consumed by this
 ///       function. Therefore, you should not use the `bytes` after this function returns.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The designated path you want to write your bytes in
 /// @param bytes The opendal_byte typed bytes to be written
 /// @see opendal_operator
@@ -215,14 +215,14 @@ pub unsafe extern "C" fn opendal_operator_new(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator, named ptr for example
+/// //...prepare your opendal_operator, named op for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
 ///
 /// // now you can write!
-/// opendal_error *err = opendal_operator_write(ptr, "/testpath", bytes);
+/// opendal_error *err = opendal_operator_write(op, "/testpath", bytes);
 ///
 /// // Assert that this succeeds
 /// assert(err == NULL);
@@ -261,7 +261,7 @@ pub unsafe extern "C" fn opendal_operator_write(
 ///
 /// Read the data out from `path` blockingly by operator.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The path you want to read the data out
 /// @see opendal_operator
 /// @see opendal_result_read
@@ -279,7 +279,7 @@ pub unsafe extern "C" fn opendal_operator_write(
 /// ```C
 /// // ... you have write "Hello, World!" to path "/testpath"
 ///
-/// opendal_result_read r = opendal_operator_read(ptr, "testpath");
+/// opendal_result_read r = opendal_operator_read(op, "testpath");
 /// assert(r.error == NULL);
 ///
 /// opendal_bytes *bytes = r.data;
@@ -327,10 +327,8 @@ pub unsafe extern "C" fn opendal_operator_read(
 /// Read the data out from `path` blockingly by operator, returns
 /// an opendal_result_read with error code.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The path you want to read the data out
-/// @param buffer The buffer you want to read the data into
-/// @param buffer_len The length of the buffer
 /// @see opendal_operator
 /// @see opendal_result_read
 /// @see opendal_code
@@ -387,7 +385,7 @@ pub unsafe extern "C" fn opendal_operator_reader(
 /// Delete the object in `path` blockingly by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The designated path you want to delete
 /// @see opendal_operator
 /// @see opendal_error
@@ -397,17 +395,17 @@ pub unsafe extern "C" fn opendal_operator_reader(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator, named ptr for example
+/// //...prepare your opendal_operator, named op for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
-/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+/// opendal_error *error = opendal_operator_write(op, "/testpath", bytes);
 ///
 /// assert(error == NULL);
 ///
 /// // now you can delete!
-/// opendal_error *error = opendal_operator_delete(ptr, "/testpath");
+/// opendal_error *error = opendal_operator_delete(op, "/testpath");
 ///
 /// // Assert that this succeeds
 /// assert(error == NULL);
@@ -445,7 +443,7 @@ pub unsafe extern "C" fn opendal_operator_delete(
 /// the error should be a nullptr. Otherwise, the field `is_exist`
 /// is filled with false, and the error is set
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The path you want to check existence
 /// @see opendal_operator
 /// @see opendal_result_is_exist
@@ -457,12 +455,12 @@ pub unsafe extern "C" fn opendal_operator_delete(
 ///
 /// ```C
 /// // .. you previously wrote some data to path "/mytest/obj"
-/// opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/mytest/obj");
+/// opendal_result_is_exist e = opendal_operator_is_exist(op, "/mytest/obj");
 /// assert(e.error == NULL);
 /// assert(e.is_exist);
 ///
 /// // but you previously did **not** write any data to path "/yourtest/obj"
-/// opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/yourtest/obj");
+/// opendal_result_is_exist e = opendal_operator_is_exist(op, "/yourtest/obj");
 /// assert(e.error == NULL);
 /// assert(!e.is_exist);
 /// ```
@@ -503,7 +501,7 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 ///
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The path you want to stat
 /// @see opendal_operator
 /// @see opendal_result_stat
@@ -517,7 +515,7 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 ///
 /// ```C
 /// // ... previously you wrote "Hello, World!" to path "/testpath"
-/// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+/// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
 /// assert(s.error == NULL);
 ///
 /// const opendal_metadata *meta = s.meta;
@@ -564,7 +562,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// opendal_lister. Users should call opendal_lister_next() on the
 /// lister.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The designated path you want to list
 /// @see opendal_lister
 /// @return Returns opendal_result_list, containing a lister and an opendal_error.
@@ -577,8 +575,8 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// Following is an example
 /// ```C
 /// // You have written some data into some files path "root/dir1"
-/// // Your opendal_operator was called ptr
-/// opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
+/// // Your opendal_operator was called op
+/// opendal_result_list l = opendal_operator_list(op, "root/dir1");
 /// assert(l.error == ERROR);
 ///
 /// opendal_lister *lister = l.lister;
@@ -634,7 +632,7 @@ pub unsafe extern "C" fn opendal_operator_list(
 /// Create the directory in `path` blockingly by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param path The designated directory you want to create
 /// @see opendal_operator
 /// @see opendal_error
@@ -644,10 +642,10 @@ pub unsafe extern "C" fn opendal_operator_list(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator, named ptr for example
+/// //...prepare your opendal_operator, named op for example
 ///
 /// // create your directory
-/// opendal_error *error = opendal_operator_create_dir(ptr, "/testdir/");
+/// opendal_error *error = opendal_operator_create_dir(op, "/testdir/");
 ///
 /// // Assert that this succeeds
 /// assert(error == NULL);
@@ -684,7 +682,7 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
 /// Rename the object in `src` to `dest` blockingly by `op`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param src The designated source path you want to rename
 /// @param dest The designated destination path you want to rename
 /// @see opendal_operator
@@ -695,17 +693,17 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator, named ptr for example
+/// //...prepare your opendal_operator, named op for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
-/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+/// opendal_error *error = opendal_operator_write(op, "/testpath", bytes);
 ///
 /// assert(error == NULL);
 ///
 /// // now you can renmae!
-/// opendal_error *error = opendal_operator_rename(ptr, "/testpath", "/testpath2");
+/// opendal_error *error = opendal_operator_rename(op, "/testpath", "/testpath2");
 ///
 /// // Assert that this succeeds
 /// assert(error == NULL);
@@ -747,7 +745,7 @@ pub unsafe extern "C" fn opendal_operator_rename(
 /// Copy the object in `src` to `dest` blockingly by `op`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator created previously
+/// @param op The opendal_operator created previously
 /// @param src The designated source path you want to copy
 /// @param dest The designated destination path you want to copy
 /// @see opendal_operator
@@ -758,17 +756,17 @@ pub unsafe extern "C" fn opendal_operator_rename(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator, named ptr for example
+/// //...prepare your opendal_operator, named op for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
-/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
+/// opendal_error *error = opendal_operator_write(op, "/testpath", bytes);
 ///
 /// assert(error == NULL);
 ///
 /// // now you can renmae!
-/// opendal_error *error = opendal_operator_copy(ptr, "/testpath", "/testpath2");
+/// opendal_error *error = opendal_operator_copy(op, "/testpath", "/testpath2");
 ///
 /// // Assert that this succeeds
 /// assert(error == NULL);

@@ -23,7 +23,6 @@ import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '.
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
-import { RetryLayer } from '../../generated.js'
 
 export function runner(testName, scheme) {
   if (!scheme) {

@@ -28,7 +28,7 @@ export function run(operator) {
     try {
       await operator.stat(filename)
     } catch (error) {
-      assert.ok(error.message.includes('NotFound'))
+      assert.include(error.message, 'NotFound')
     }
   })
 }

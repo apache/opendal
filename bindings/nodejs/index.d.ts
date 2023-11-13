@@ -448,7 +448,6 @@ export class Layer { }
 /** Retry layer */
 export class RetryLayer {
   constructor()
-  /** Enable jitter */
   set jitter(v: boolean)
   set maxTimes(v: number)
   set factor(v: number)

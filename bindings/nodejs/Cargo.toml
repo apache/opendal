@@ -143,7 +143,6 @@ futures = "0.3.28"
 napi = { version = "2.11.3", default-features = false, features = [
   "napi6",
   "async",
-  "compat-mode"
 ] }
 napi-derive = "2.12.2"
 opendal.workspace = true

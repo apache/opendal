@@ -165,6 +165,8 @@ impl Scheme {
         HashSet::from([
             #[cfg(feature = "services-atomicserver")]
             Scheme::Atomicserver,
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio,
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
@@ -275,6 +277,7 @@ impl FromStr for Scheme {
         match s.as_str() {
             "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
+            "alluxio" => Ok(Scheme::Alluxio),
             // Notes:
             //
             // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.

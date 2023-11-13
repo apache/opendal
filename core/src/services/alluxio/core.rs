@@ -38,9 +38,12 @@ struct CreateFileRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateDirRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     recursive: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allow_exists: Option<bool>,
 }
 
 /// Metadata of alluxio object
@@ -97,17 +100,20 @@ impl Debug for AlluxioCore {
 
 impl AlluxioCore {
     pub async fn create_dir(&self, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let r = CreateDirRequest {
             recursive: Some(true),
+            allow_exists: Some(true),
         };
 
         let body = serde_json::to_vec(&r).map_err(new_json_serialize_error)?;
         let body = bytes::Bytes::from(body);
+
         let mut req = Request::post(format!(
-            "{}/api/v1/paths//{}/create-directory",
-            self.endpoint, path
+            "{}/api/v1/paths/{}/create-directory",
+            self.endpoint,
+            percent_encode_path(&path)
         ));
 
         req = req.header("Content-Type", "application/json");
@@ -126,7 +132,7 @@ impl AlluxioCore {
     }
 
     pub async fn create_file(&self, path: &str) -> Result<u64> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let r = CreateFileRequest {
             recursive: Some(true),
@@ -135,8 +141,9 @@ impl AlluxioCore {
         let body = serde_json::to_vec(&r).map_err(new_json_serialize_error)?;
         let body = bytes::Bytes::from(body);
         let mut req = Request::post(format!(
-            "{}/api/v1/paths//{}/create-file",
-            self.endpoint, path
+            "{}/api/v1/paths/{}/create-file",
+            self.endpoint,
+            percent_encode_path(&path)
         ));
 
         req = req.header("Content-Type", "application/json");
@@ -160,11 +167,12 @@ impl AlluxioCore {
     }
 
     pub(super) async fn open_file(&self, path: &str) -> Result<u64> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
-            "{}/api/v1/paths//{}/open-file",
-            self.endpoint, path
+            "{}/api/v1/paths/{}/open-file",
+            self.endpoint,
+            percent_encode_path(&path)
         ));
         let req = req
             .body(AsyncBody::Empty)
@@ -185,9 +193,13 @@ impl AlluxioCore {
     }
 
     pub(super) async fn delete(&self, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
-        let req = Request::post(format!("{}/api/v1/paths//{}/delete", self.endpoint, path));
+        let req = Request::post(format!(
+            "{}/api/v1/paths/{}/delete",
+            self.endpoint,
+            percent_encode_path(&path)
+        ));
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -197,16 +209,25 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let err = parse_error(resp).await?;
+                if err.kind() == ErrorKind::NotFound {
+                    return Ok(());
+                }
+                Err(err)
+            }
         }
     }
 
     pub(super) async fn rename(&self, path: &str, dst: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
+        let dst = build_rooted_abs_path(&self.root, dst);
 
         let req = Request::post(format!(
-            "{}/api/v1/paths//{}/rename?dst=/{}",
-            self.endpoint, path, dst
+            "{}/api/v1/paths/{}/rename?dst={}",
+            self.endpoint,
+            percent_encode_path(&path),
+            percent_encode_path(&dst)
         ));
 
         let req = req
@@ -224,16 +245,18 @@ impl AlluxioCore {
     }
 
     pub(super) async fn get_status(&self, path: &str) -> Result<FileInfo> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
-            "{}/api/v1/paths//{}/get-status",
-            self.endpoint, path
+            "{}/api/v1/paths/{}/get-status",
+            self.endpoint,
+            percent_encode_path(&path)
         ));
 
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
         let resp = self.client.send(req).await?;
 
         let status = resp.status();
@@ -250,11 +273,12 @@ impl AlluxioCore {
     }
 
     pub(super) async fn list_status(&self, path: &str) -> Result<Vec<FileInfo>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
-            "{}/api/v1/paths//{}/list-status",
-            self.endpoint, path
+            "{}/api/v1/paths/{}/list-status",
+            self.endpoint,
+            percent_encode_path(&path)
         ));
 
         let req = req

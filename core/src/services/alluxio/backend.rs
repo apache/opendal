@@ -152,7 +152,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azfile)),
+                .with_context("service", Scheme::Alluxio)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
@@ -161,7 +161,7 @@ impl Builder for AlluxioBuilder {
         } else {
             HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
+                    .with_context("service", Scheme::Alluxio)
             })?
         };
 
@@ -204,7 +204,6 @@ impl Accessor for AlluxioBackend {
 
                 create_dir: true,
                 delete: true,
-                rename: true,
 
                 list: true,
                 list_without_recursive: true,
@@ -230,7 +229,7 @@ impl Accessor for AlluxioBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AlluxioWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = AlluxioWriter::new(self.core.clone(), args, path.to_string());
         let w = OneShotWriter::new(w);
 
         Ok((RpWrite::default(), w))

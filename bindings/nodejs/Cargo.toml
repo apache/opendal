@@ -81,6 +81,7 @@ services-all = [
   "services-gridfs",
   "services-sqlite",
   "services-libsql",
+  "services-alluxio",
 ]
 
 # Default services provided by opendal.
@@ -131,6 +132,7 @@ services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-alluxio = ["opendal/services-alluxio"]
 
 [lib]
 crate-type = ["cdylib"]

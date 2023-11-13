@@ -46,9 +46,9 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
     if let Some(alluxio_err) = alluxio_err {
         kind = match alluxio_err.status_code.as_str() {
-            "AlreadyExists" => ErrorKind::AlreadyExists,
-            "NotFound" => ErrorKind::NotFound,
-            "InvalidArgument" => ErrorKind::InvalidInput,
+            "ALREADY_EXISTS" => ErrorKind::AlreadyExists,
+            "NOT_FOUND" => ErrorKind::NotFound,
+            "INVALID_ARGUMENT" => ErrorKind::InvalidInput,
             _ => ErrorKind::Unexpected,
         }
     }
@@ -63,23 +63,46 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::stream;
+    use http::StatusCode;
 
     /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-    #[test]
-    fn test_parse_error() {
-        let bs = bytes::Bytes::from(
-            r#"
-            {
-                "statusCode": "AlreadyExists",
-                "message": "The resource you requested already exist"
-            }
-"#,
-        );
+    #[tokio::test]
+    async fn test_parse_error() {
+        let err_res = vec![
+            (
+                r#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exist"}"#,
+                ErrorKind::AlreadyExists,
+            ),
+            (
+                r#"{"statusCode":"NOT_FOUND","message":"The resource you requested does not exist"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                r#"{"statusCode":"INVALID_ARGUMENT","message":"The argument you provided is invalid"}"#,
+                ErrorKind::InvalidInput,
+            ),
+            (
+                r#"{"statusCode":"INTERNAL_SERVER_ERROR","message":"Internal server error"}"#,
+                ErrorKind::Unexpected,
+            ),
+        ];
 
-        let out: AlluxioError = serde_json::from_reader(bs.reader()).expect("must success");
-        println!("{out:?}");
+        for res in err_res {
+            let bs = bytes::Bytes::from(res.0);
+            let body = IncomingAsyncBody::new(
+                Box::new(oio::into_stream(stream::iter(vec![Ok(bs.clone())]))),
+                None,
+            );
+            let resp = Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(body)
+                .unwrap();
 
-        assert_eq!(out.status_code, "AlreadyExists");
-        assert_eq!(out.message, "The resource you requested already exist");
+            let err = parse_error(resp).await;
+
+            assert!(err.is_ok());
+            assert_eq!(err.unwrap().kind(), res.1);
+        }
     }
 }

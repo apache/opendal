@@ -1,6 +1,6 @@
 - Proposal Name: `concurrent_stat_in_list`
 - Start Date: 2023-09-16
-- RFC PR: [apache/incubator-opendal#3526](https://github.com/apache/incubator-opendal/pull/)
+- RFC PR: [apache/incubator-opendal#3574](https://github.com/apache/incubator-opendal/pull/3574)
 - Tracking Issue: [apache/incubator-opendal#3097](https://github.com/apache/incubator-opendal/issues/3097)
 
 # Summary

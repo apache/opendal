@@ -443,9 +443,16 @@ export class Lister {
 export class BlockingLister {
   next(): Entry | null
 }
-/** TODO: fill me */
+/** A public layer wrapper */
+export class Layer { }
+/** Retry layer */
 export class RetryLayer {
   constructor()
+  /** Enable jitter */
   set jitter(v: boolean)
+  set maxTimes(v: number)
+  set factor(v: number)
+  set maxDelay(v: number)
+  set minDelay(v: number)
   build(): ExternalObject<Layer>
 }

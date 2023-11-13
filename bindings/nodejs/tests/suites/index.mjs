@@ -23,7 +23,7 @@ import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '.
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
-import {RetryLayer} from "../../generated.js";
+import { RetryLayer } from '../../generated.js'
 
 export function runner(testName, scheme) {
   if (!scheme) {
@@ -39,9 +39,11 @@ export function runner(testName, scheme) {
 
   let operator = scheme ? new Operator(scheme, config) : null
 
-  let retryLayer = new layers.RetryLayer().build()
+  let retryLayer = new layers.RetryLayer()
+  retryLayer.jitter = true
+  retryLayer.maxTimes = 4
 
-  operator = operator.layer(retryLayer)
+  operator = operator.layer(retryLayer.build())
 
   describe.skipIf(!operator)(testName, () => {
     AsyncIOTestRun(operator)

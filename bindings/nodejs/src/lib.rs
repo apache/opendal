@@ -691,6 +691,8 @@ pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
 }
 
+/// A public layer wrapper
+#[napi]
 pub struct Layer {
     inner: Box<dyn NodeLayer>,
 }
@@ -710,27 +712,47 @@ impl NodeLayer for opendal::layers::RetryLayer {
     }
 }
 
-/// TODO: fill me
+/// Retry layer
+#[derive(Default)]
 #[napi]
 pub struct RetryLayer {
     jitter: bool,
+    max_times: Option<u32>,
+    factor: Option<f64>,
+    max_delay: Option<f64>,
+    min_delay: Option<f64>,
 }
 
 #[napi]
 impl RetryLayer {
     #[napi(constructor)]
     pub fn new() -> Self {
-        RetryLayer { jitter: false }
+        Self::default()
     }
-
-    // #[napi(factory)]
-    // pub fn new() -> Self {
-    //     RetryLayerBuilder { jitter: false }
-    // }
 
     #[napi(setter)]
     pub fn jitter(&mut self, v: bool) {
         self.jitter = v;
+    }
+
+    #[napi(setter)]
+    pub fn max_times(&mut self, v: u32) {
+        self.max_times = Some(v);
+    }
+
+    #[napi(setter)]
+    pub fn factor(&mut self, v: f64) {
+        self.factor = Some(v);
+    }
+
+    #[napi(setter)]
+    pub fn max_delay(&mut self, v: f64) {
+        self.max_delay = Some(v);
+    }
+
+    #[napi(setter)]
+    pub fn min_delay(&mut self, v: f64) {
+        self.min_delay = Some(v);
     }
 
     #[napi]
@@ -738,6 +760,18 @@ impl RetryLayer {
         let mut l = opendal::layers::RetryLayer::default();
         if self.jitter {
             l = l.with_jitter();
+        }
+        if let Some(max_times) = self.max_times {
+            l = l.with_max_times(max_times as usize);
+        }
+        if let Some(factor) = self.factor {
+            l = l.with_factor(factor as f32);
+        }
+        if let Some(max_delay) = self.max_delay {
+            l = l.with_max_delay(Duration::from_micros((max_delay * 1000000.0) as u64));
+        }
+        if let Some(min_delay) = self.min_delay {
+            l = l.with_min_delay(Duration::from_micros((min_delay * 1000000.0) as u64));
         }
 
         External::new(Layer { inner: Box::new(l) })

@@ -444,7 +444,7 @@ export class BlockingLister {
   next(): Entry | null
 }
 /** TODO: fill me */
-export class RetryLayerBuilder {
+export class RetryLayer {
   constructor()
   set jitter(v: boolean)
   build(): ExternalObject<Layer>

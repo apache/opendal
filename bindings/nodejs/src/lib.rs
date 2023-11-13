@@ -704,35 +704,23 @@ impl Operator {
     }
 }
 
-/// A layer that will retry the request if it fails.
-/// It will retry with exponential backoff.
-///
-/// ## Parameters
-///
-/// - `jitter`<bool>: Whether to add jitter to the backoff.
-/// - `max_times`<number>: The maximum number of times to retry.
-/// - `factor`<number>: The exponential factor to use.
-/// - `max_delay`<number>: The maximum delay between retries. The unit is microsecond.
-/// - `min_delay`<number>: The minimum delay between retries. The unit is microsecond.
-struct RetryLayer(opendal::layers::RetryLayer);
-
-impl NodeLayer for RetryLayer {
+impl NodeLayer for opendal::layers::RetryLayer {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator {
-        op.layer(self.0.clone())
+        op.layer(self.clone())
     }
 }
 
 /// TODO: fill me
 #[napi]
-pub struct RetryLayerBuilder {
+pub struct RetryLayer {
     jitter: bool,
 }
 
 #[napi]
-impl RetryLayerBuilder {
+impl RetryLayer {
     #[napi(constructor)]
     pub fn new() -> Self {
-        RetryLayerBuilder { jitter: false }
+        RetryLayer { jitter: false }
     }
 
     // #[napi(factory)]
@@ -752,9 +740,7 @@ impl RetryLayerBuilder {
             l = l.with_jitter();
         }
 
-        External::new(Layer {
-            inner: Box::new(RetryLayer(l)),
-        })
+        External::new(Layer { inner: Box::new(l) })
     }
 }
 

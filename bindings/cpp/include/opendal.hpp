@@ -19,48 +19,18 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream.hpp"
 #include "lib.rs.h"
+#include "metadata.hpp"
 
 namespace opendal {
-
-/**
- * @enum class EntryMode
- * @brief The mode of the entry
- */
-enum class EntryMode {
-  kFile = 0,
-  kDir = 1,
-  kUnknown = 2,
-};
-
-/**
- * @struct Metadata
- * @brief The metadata of a file or directory
- */
-class Metadata {
- public:
-  EntryMode mode() const;
-
-  EntryMode mode_;
-  std::uint64_t content_length;
-  std::optional<std::string> cache_control;
-  std::optional<std::string> content_disposition;
-  std::optional<std::string> content_md5;
-  std::optional<std::string> content_type;
-  std::optional<std::string> etag;
-  std::optional<boost::posix_time::ptime> last_modified;
-
-  Metadata(ffi::Metadata &&);
-};
 
 /**
  * @struct Entry

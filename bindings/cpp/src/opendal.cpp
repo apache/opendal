@@ -128,7 +128,6 @@ Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
 
 // helper functions
 
-
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
   switch (dir) {
     case std::ios_base::beg:
@@ -142,4 +141,4 @@ ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
   }
 }
 
-}  // namespace opendal
+} // namespace opendal

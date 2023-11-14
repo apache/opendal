@@ -19,19 +19,44 @@
 
 #pragma once
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+
+#include "boost/date_time/posix_time/posix_time.hpp"
 
 #include "lib.rs.h"
 
 namespace opendal {
-
-inline std::optional<std::string> from(ffi::OptionalString &&s) {
-  if (s.has_value) {
-    return std::string(std::move(s.value));
-  } else {
-    return std::nullopt;
-  }
+namespace ffi {
+class Metadata;
 }
 
+/**
+ * @enum class EntryMode
+ * @brief The mode of the entry
+ */
+enum class EntryMode {
+  kFile = 0,
+  kDir = 1,
+  kUnknown = 2,
+};
+
+/**
+ * @struct Metadata
+ * @brief The metadata of a file or directory
+ */
+class Metadata final {
+public:
+  Metadata(ffi::Metadata &&ffi_metadata);
+  ~Metadata() noexcept;
+
+  EntryMode mode() const;
+  uint64_t content_length() const;
+
+private:
+  struct Rep;
+  std::unique_ptr<Rep> rep_;
+};
 } // namespace opendal

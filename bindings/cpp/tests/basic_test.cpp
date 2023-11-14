@@ -78,8 +78,8 @@ TEST_F(OpendalTest, BasicTest) {
 
   // stat
   auto metadata = op.stat(file_path);
-  EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);
-  EXPECT_EQ(metadata.content_length, data.size());
+  EXPECT_EQ(metadata.mode(), opendal::EntryMode::kFile);
+  EXPECT_EQ(metadata.content_length(), data.size());
 
   // list
   auto list_file_path = dir_path + file_path;

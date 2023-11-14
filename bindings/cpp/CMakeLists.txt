@@ -74,7 +74,7 @@ else()
 endif()
 set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
 file(GLOB_RECURSE CPP_SOURCE_FILE src/*.cpp)
-file(GLOB_RECURSE CPP_HEADER_FILE include/opendal.hpp)
+file(GLOB_RECURSE CPP_HEADER_FILE include/*.hpp)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_custom_command(

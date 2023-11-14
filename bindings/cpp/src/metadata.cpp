@@ -19,27 +19,35 @@
 
 #include "metadata.hpp"
 
-#include "lib.rs.h"
-
-#include "utils/from.hpp"
 #include <memory>
+
+#include "lib.rs.h"
+#include "utils/from.hpp"
 
 namespace opendal {
 
 namespace {
 EntryMode from(ffi::EntryMode mode) {
   switch (mode) {
-  case ffi::EntryMode::File:
-    return EntryMode::kFile;
-  case ffi::EntryMode::Dir:
-    return EntryMode::kDir;
-  case ffi::EntryMode::Unknown:
-    return EntryMode::kUnknown;
-  default:
-    return EntryMode::kUnknown;
+    case ffi::EntryMode::File:
+      return EntryMode::kFile;
+    case ffi::EntryMode::Dir:
+      return EntryMode::kDir;
+    case ffi::EntryMode::Unknown:
+      return EntryMode::kUnknown;
+    default:
+      return EntryMode::kUnknown;
   }
 }
-} // namespace
+
+std::optional<std::string_view> from(const std::optional<std::string> &s) {
+  if (s.has_value()) {
+    return std::string_view(s.value());
+  } else {
+    return std::nullopt;
+  }
+}
+}  // namespace
 
 struct Metadata::Rep {
   EntryMode mode;
@@ -54,8 +62,8 @@ struct Metadata::Rep {
   static std::unique_ptr<Rep> create(ffi::Metadata &&ffil_metadata);
 };
 
-std::unique_ptr<Metadata::Rep>
-Metadata::Rep::create(ffi::Metadata &&ffil_metadata) {
+std::unique_ptr<Metadata::Rep> Metadata::Rep::create(
+    ffi::Metadata &&ffil_metadata) {
   auto rep = std::make_unique<Metadata::Rep>();
 
   rep->mode = from(ffil_metadata.mode);
@@ -82,4 +90,28 @@ Metadata::~Metadata() = default;
 EntryMode Metadata::mode() const { return rep_->mode; }
 uint64_t Metadata::content_length() const { return rep_->content_length; }
 
-} // namespace opendal
+std::optional<std::string_view> Metadata::cache_control() const {
+  return from(rep_->cache_control);
+}
+
+std::optional<std::string_view> Metadata::content_disposition() const {
+  return from(rep_->content_disposition);
+}
+
+std::optional<std::string_view> Metadata::content_md5() const {
+  return from(rep_->content_md5);
+}
+
+std::optional<std::string_view> Metadata::content_type() const {
+  return from(rep_->content_type);
+}
+
+std::optional<std::string_view> Metadata::etag() const {
+  return from(rep_->etag);
+}
+
+std::optional<boost::posix_time::ptime> Metadata::last_modified() const {
+  return rep_->last_modified;
+}
+
+}  // namespace opendal

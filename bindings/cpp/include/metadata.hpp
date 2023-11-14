@@ -23,9 +23,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "boost/date_time/posix_time/posix_time.hpp"
-
 #include "lib.rs.h"
 
 namespace opendal {
@@ -48,15 +48,21 @@ enum class EntryMode {
  * @brief The metadata of a file or directory
  */
 class Metadata final {
-public:
+ public:
   Metadata(ffi::Metadata &&ffi_metadata);
   ~Metadata() noexcept;
 
   EntryMode mode() const;
   uint64_t content_length() const;
+  std::optional<std::string_view> cache_control() const;
+  std::optional<std::string_view> content_disposition() const;
+  std::optional<std::string_view> content_md5() const;
+  std::optional<std::string_view> content_type() const;
+  std::optional<std::string_view> etag() const;
+  std::optional<boost::posix_time::ptime> last_modified() const;
 
-private:
+ private:
   struct Rep;
   std::unique_ptr<Rep> rep_;
 };
-} // namespace opendal
+}  // namespace opendal

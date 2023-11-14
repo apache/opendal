@@ -30,14 +30,14 @@ use crate::raw::oio::{self};
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-pub struct GdrivePager {
+pub struct GdriveLister {
     path: String,
     core: Arc<GdriveCore>,
     next_page_token: Option<String>,
     done: bool,
 }
 
-impl GdrivePager {
+impl GdriveLister {
     pub fn new(path: String, core: Arc<GdriveCore>) -> Self {
         Self {
             path,
@@ -49,7 +49,7 @@ impl GdrivePager {
 }
 
 #[async_trait]
-impl oio::List for GdrivePager {
+impl oio::List for GdriveLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

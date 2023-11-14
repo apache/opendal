@@ -20,5 +20,5 @@ pub use backend::AzfileBuilder as Azfile;
 mod backend;
 mod core;
 mod error;
-mod pager;
+mod lister;
 mod writer;

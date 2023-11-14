@@ -86,8 +86,8 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;
     type Writer = ConcurrentLimitWrapper<A::Writer>;
     type BlockingWriter = ConcurrentLimitWrapper<A::BlockingWriter>;
-    type Pager = ConcurrentLimitWrapper<A::Pager>;
-    type BlockingPager = ConcurrentLimitWrapper<A::BlockingPager>;
+    type Lister = ConcurrentLimitWrapper<A::Lister>;
+    type BlockingLister = ConcurrentLimitWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -151,7 +151,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let permit = self
             .semaphore
             .clone()
@@ -226,7 +226,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let permit = self
             .semaphore
             .clone()

@@ -22,14 +22,14 @@ use serde::Deserialize;
 
 use crate::raw::*;
 use crate::*;
-pub struct WebdavPager {
+pub struct WebdavLister {
     base_dir: String,
     root: String,
     path: String,
     multistates: Multistatus,
 }
 
-impl WebdavPager {
+impl WebdavLister {
     pub fn new(base_dir: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
             base_dir: base_dir.to_string(),
@@ -41,7 +41,7 @@ impl WebdavPager {
 }
 
 #[async_trait]
-impl oio::List for WebdavPager {
+impl oio::List for WebdavLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.multistates.response.is_empty() {
             return Ok(None);

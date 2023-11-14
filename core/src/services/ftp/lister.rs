@@ -25,13 +25,13 @@ use suppaftp::list::File;
 use crate::raw::*;
 use crate::*;
 
-pub struct FtpPager {
+pub struct FtpLister {
     path: String,
     size: usize,
     file_iter: IntoIter<String>,
 }
 
-impl FtpPager {
+impl FtpLister {
     pub fn new(path: &str, files: Vec<String>, limit: Option<usize>) -> Self {
         Self {
             path: path.to_string(),
@@ -42,7 +42,7 @@ impl FtpPager {
 }
 
 #[async_trait]
-impl oio::List for FtpPager {
+impl oio::List for FtpLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

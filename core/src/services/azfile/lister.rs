@@ -28,7 +28,7 @@ use crate::*;
 use super::core::AzfileCore;
 use super::error::parse_error;
 
-pub struct AzfilePager {
+pub struct AzfileLister {
     core: Arc<AzfileCore>,
     path: String,
     limit: Option<usize>,
@@ -36,7 +36,7 @@ pub struct AzfilePager {
     continuation: String,
 }
 
-impl AzfilePager {
+impl AzfileLister {
     pub fn new(core: Arc<AzfileCore>, path: String, limit: Option<usize>) -> Self {
         Self {
             core,
@@ -49,7 +49,7 @@ impl AzfilePager {
 }
 
 #[async_trait]
-impl oio::List for AzfilePager {
+impl oio::List for AzfileLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

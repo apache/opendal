@@ -29,7 +29,7 @@ use reqsign::AzureStorageSigner;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
-use super::pager::AzdlsPager;
+use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use crate::raw::*;
 use crate::services::azdls::writer::AzdlsWriters;
@@ -233,8 +233,8 @@ impl Accessor for AzdlsBackend {
     type BlockingReader = ();
     type Writer = AzdlsWriters;
     type BlockingWriter = ();
-    type Pager = AzdlsPager;
-    type BlockingPager = ();
+    type Lister = AzdlsLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -365,8 +365,8 @@ impl Accessor for AzdlsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = AzdlsPager::new(self.core.clone(), path.to_string(), args.limit());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let op = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), op))
     }

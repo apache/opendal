@@ -20,6 +20,6 @@ pub use backend::GcsBuilder as Gcs;
 
 mod core;
 mod error;
-mod pager;
+mod lister;
 mod uri;
 mod writer;

@@ -149,8 +149,8 @@ impl LayeredAccessor for MadsimAccessor {
     type BlockingReader = ();
     type Writer = MadsimWriter;
     type BlockingWriter = ();
-    type Pager = MadsimPager;
-    type BlockingPager = ();
+    type Lister = MadsimLister;
+    type BlockingLister = ();
 
     fn inner(&self) -> &Self::Inner {
         &()
@@ -217,7 +217,7 @@ impl LayeredAccessor for MadsimAccessor {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
@@ -250,7 +250,7 @@ impl LayeredAccessor for MadsimAccessor {
         &self,
         path: &str,
         args: OpList,
-    ) -> crate::Result<(RpList, Self::BlockingPager)> {
+    ) -> crate::Result<(RpList, Self::BlockingLister)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will not be supported in MadsimLayer",
@@ -331,10 +331,10 @@ impl oio::Write for MadsimWriter {
     }
 }
 
-pub struct MadsimPager {}
+pub struct MadsimLister {}
 
 #[async_trait]
-impl oio::List for MadsimPager {
+impl oio::List for MadsimLister {
     async fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
         Err(Error::new(
             ErrorKind::Unsupported,

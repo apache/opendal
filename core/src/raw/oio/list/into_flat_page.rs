@@ -23,8 +23,8 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
-/// to_flat_pager is used to make a hierarchy pager flat.
-pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPager<A, P> {
+/// to_flat_lister is used to make a hierarchy lister flat.
+pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatLister<A, P> {
     #[cfg(debug_assertions)]
     {
         let meta = acc.info();
@@ -34,17 +34,17 @@ pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPa
         );
     }
 
-    FlatPager {
+    FlatLister {
         acc,
         size,
         root: path.to_string(),
         dirs: VecDeque::from([oio::Entry::new(path, Metadata::new(EntryMode::DIR))]),
-        pagers: vec![],
+        listers: vec![],
         res: Vec::with_capacity(size),
     }
 }
 
-/// ToFlatPager will walk dir in bottom up way:
+/// ToFlatLister will walk dir in bottom up way:
 ///
 /// - List nested dir first
 /// - Go back into parent dirs one by one
@@ -61,7 +61,7 @@ pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPa
 /// └── file_a
 /// ```
 ///
-/// ToFlatPager will output entries like:
+/// ToFlatLister will output entries like:
 ///
 /// ```txt
 /// dir_x/dir_y/dir_z/file_c
@@ -77,33 +77,33 @@ pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPa
 /// There is no guarantee about the order between files and dirs at the same level.
 /// We only make sure the nested dirs will show up before parent dirs.
 ///
-/// Especially, for storage services that can't return dirs first, ToFlatPager
+/// Especially, for storage services that can't return dirs first, ToFlatLister
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
-pub struct FlatPager<A: Accessor, P> {
+pub struct FlatLister<A: Accessor, P> {
     acc: A,
     size: usize,
     root: String,
     dirs: VecDeque<oio::Entry>,
-    pagers: Vec<(P, oio::Entry, Vec<oio::Entry>)>,
+    listers: Vec<(P, oio::Entry, Vec<oio::Entry>)>,
     res: Vec<oio::Entry>,
 }
 
 #[async_trait]
-impl<A, P> oio::List for FlatPager<A, P>
+impl<A, P> oio::List for FlatLister<A, P>
 where
-    A: Accessor<Pager = P>,
+    A: Accessor<Lister = P>,
     P: oio::List,
 {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.list(de.path(), OpList::new()).await?;
-                self.pagers.push((op, de, vec![]))
+                self.listers.push((op, de, vec![]))
             }
 
-            let (mut pager, de, mut buf) = match self.pagers.pop() {
-                Some((pager, de, buf)) => (pager, de, buf),
+            let (mut lister, de, mut buf) = match self.listers.pop() {
+                Some((lister, de, buf)) => (lister, de, buf),
                 None => {
                     if !self.res.is_empty() {
                         return Ok(Some(mem::take(&mut self.res)));
@@ -113,7 +113,7 @@ where
             };
 
             if buf.is_empty() {
-                match pager.next().await? {
+                match lister.next().await? {
                     Some(v) => {
                         buf = v;
                     }
@@ -132,13 +132,13 @@ where
                 if let Some(oe) = buf.pop_front() {
                     if oe.mode().is_dir() {
                         self.dirs.push_back(oe);
-                        self.pagers.push((pager, de, buf.into()));
+                        self.listers.push((lister, de, buf.into()));
                         break;
                     } else {
                         self.res.push(oe)
                     }
                 } else {
-                    self.pagers.push((pager, de, vec![]));
+                    self.listers.push((lister, de, vec![]));
                     break;
                 }
             }
@@ -150,20 +150,20 @@ where
     }
 }
 
-impl<A, P> oio::BlockingList for FlatPager<A, P>
+impl<A, P> oio::BlockingList for FlatLister<A, P>
 where
-    A: Accessor<BlockingPager = P>,
+    A: Accessor<BlockingLister = P>,
     P: oio::BlockingList,
 {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
-                self.pagers.push((op, de, vec![]))
+                self.listers.push((op, de, vec![]))
             }
 
-            let (mut pager, de, mut buf) = match self.pagers.pop() {
-                Some((pager, de, buf)) => (pager, de, buf),
+            let (mut lister, de, mut buf) = match self.listers.pop() {
+                Some((lister, de, buf)) => (lister, de, buf),
                 None => {
                     if !self.res.is_empty() {
                         return Ok(Some(mem::take(&mut self.res)));
@@ -173,7 +173,7 @@ where
             };
 
             if buf.is_empty() {
-                match pager.next()? {
+                match lister.next()? {
                     Some(v) => {
                         buf = v;
                     }
@@ -192,13 +192,13 @@ where
                 if let Some(oe) = buf.pop_front() {
                     if oe.mode().is_dir() {
                         self.dirs.push_back(oe);
-                        self.pagers.push((pager, de, buf.into()));
+                        self.listers.push((lister, de, buf.into()));
                         break;
                     } else {
                         self.res.push(oe)
                     }
                 } else {
-                    self.pagers.push((pager, de, vec![]));
+                    self.listers.push((lister, de, vec![]));
                     break;
                 }
             }
@@ -235,10 +235,10 @@ mod tests {
             Self { map }
         }
 
-        fn get(&self, path: &str) -> MockPager {
+        fn get(&self, path: &str) -> MockLister {
             let inner = self.map.get(path).expect("must have value").to_vec();
 
-            MockPager { inner, done: false }
+            MockLister { inner, done: false }
         }
     }
 
@@ -248,8 +248,8 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Pager = ();
-        type BlockingPager = MockPager;
+        type Lister = ();
+        type BlockingLister = MockLister;
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
@@ -259,18 +259,18 @@ mod tests {
             am
         }
 
-        fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
             debug!("visit path: {path}");
             Ok((RpList::default(), self.get(path)))
         }
     }
 
-    struct MockPager {
+    struct MockLister {
         inner: Vec<&'static str>,
         done: bool,
     }
 
-    impl BlockingList for MockPager {
+    impl BlockingList for MockLister {
         fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);
@@ -298,11 +298,11 @@ mod tests {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let acc = MockService::new();
-        let mut pager = into_flat_page(acc, "x/", 10);
+        let mut lister = into_flat_page(acc, "x/", 10);
 
         let mut entries = Vec::default();
 
-        while let Some(e) = pager.next()? {
+        while let Some(e) = lister.next()? {
             entries.extend_from_slice(&e)
         }
 

@@ -146,8 +146,8 @@ impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
     type BlockingReader = A::BlockingReader;
     type Writer = TimeoutWrapper<A::Writer>;
     type BlockingWriter = A::BlockingWriter;
-    type Pager = TimeoutWrapper<A::Pager>;
-    type BlockingPager = A::BlockingPager;
+    type Lister = TimeoutWrapper<A::Lister>;
+    type BlockingLister = A::BlockingLister;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -177,7 +177,7 @@ impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.timeout, self.speed)))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         tokio::time::timeout(self.timeout, self.inner.list(path, args))
             .await
             .map_err(|_| {
@@ -197,7 +197,7 @@ impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
     }
 }

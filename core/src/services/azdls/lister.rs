@@ -26,7 +26,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct AzdlsPager {
+pub struct AzdlsLister {
     core: Arc<AzdlsCore>,
 
     path: String,
@@ -36,7 +36,7 @@ pub struct AzdlsPager {
     done: bool,
 }
 
-impl AzdlsPager {
+impl AzdlsLister {
     pub fn new(core: Arc<AzdlsCore>, path: String, limit: Option<usize>) -> Self {
         Self {
             core,
@@ -50,7 +50,7 @@ impl AzdlsPager {
 }
 
 #[async_trait]
-impl oio::List for AzdlsPager {
+impl oio::List for AzdlsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

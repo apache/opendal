@@ -22,14 +22,14 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct HdfsPager {
+pub struct HdfsLister {
     root: String,
 
     size: usize,
     rd: hdrs::Readdir,
 }
 
-impl HdfsPager {
+impl HdfsLister {
     pub fn new(root: &str, rd: hdrs::Readdir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_string(),
@@ -41,7 +41,7 @@ impl HdfsPager {
 }
 
 #[async_trait]
-impl oio::List for HdfsPager {
+impl oio::List for HdfsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
@@ -72,7 +72,7 @@ impl oio::List for HdfsPager {
     }
 }
 
-impl oio::BlockingList for HdfsPager {
+impl oio::BlockingList for HdfsLister {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

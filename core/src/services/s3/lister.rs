@@ -29,7 +29,7 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct S3Pager {
+pub struct S3Lister {
     core: Arc<S3Core>,
 
     path: String,
@@ -43,7 +43,7 @@ pub struct S3Pager {
     done: bool,
 }
 
-impl S3Pager {
+impl S3Lister {
     pub fn new(
         core: Arc<S3Core>,
         path: &str,
@@ -67,7 +67,7 @@ impl S3Pager {
 }
 
 #[async_trait]
-impl oio::List for S3Pager {
+impl oio::List for S3Lister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

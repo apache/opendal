@@ -31,7 +31,7 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
-pub struct ObsPager {
+pub struct ObsLister {
     core: Arc<ObsCore>,
     path: String,
     delimiter: &'static str,
@@ -41,7 +41,7 @@ pub struct ObsPager {
     done: bool,
 }
 
-impl ObsPager {
+impl ObsLister {
     pub fn new(core: Arc<ObsCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
@@ -58,7 +58,7 @@ impl ObsPager {
 }
 
 #[async_trait]
-impl oio::List for ObsPager {
+impl oio::List for ObsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

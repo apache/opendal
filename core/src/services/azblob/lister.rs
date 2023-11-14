@@ -27,7 +27,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct AzblobPager {
+pub struct AzblobLister {
     core: Arc<AzblobCore>,
 
     path: String,
@@ -38,7 +38,7 @@ pub struct AzblobPager {
     done: bool,
 }
 
-impl AzblobPager {
+impl AzblobLister {
     pub fn new(core: Arc<AzblobCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
@@ -55,7 +55,7 @@ impl AzblobPager {
 }
 
 #[async_trait]
-impl oio::List for AzblobPager {
+impl oio::List for AzblobLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

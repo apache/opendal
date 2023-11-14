@@ -20,5 +20,5 @@ pub use backend::CosBuilder as Cos;
 
 mod core;
 mod error;
-mod pager;
+mod lister;
 mod writer;

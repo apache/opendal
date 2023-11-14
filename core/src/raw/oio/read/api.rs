@@ -28,7 +28,7 @@ use pin_project::pin_project;
 
 use crate::*;
 
-/// PageOperation is the name for APIs of pager.
+/// PageOperation is the name for APIs of lister.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ReadOperation {

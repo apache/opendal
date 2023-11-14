@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use crate::raw::oio::Entry;
 use crate::*;
 
-/// PageOperation is the name for APIs of pager.
+/// PageOperation is the name for APIs of lister.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ListOperation {
@@ -68,7 +68,7 @@ pub trait List: Send + Sync + 'static {
 }
 
 /// The boxed version of [`List`]
-pub type Pager = Box<dyn List>;
+pub type Lister = Box<dyn List>;
 
 #[async_trait]
 impl<P: List + ?Sized> List for Box<P> {

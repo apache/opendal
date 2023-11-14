@@ -28,14 +28,14 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct IpmfsPager {
+pub struct IpmfsLister {
     backend: Arc<IpmfsBackend>,
     root: String,
     path: String,
     consumed: bool,
 }
 
-impl IpmfsPager {
+impl IpmfsLister {
     pub fn new(backend: Arc<IpmfsBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
@@ -47,7 +47,7 @@ impl IpmfsPager {
 }
 
 #[async_trait]
-impl oio::List for IpmfsPager {
+impl oio::List for IpmfsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);

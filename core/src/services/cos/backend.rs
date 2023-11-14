@@ -29,7 +29,7 @@ use reqsign::TencentCosSigner;
 
 use super::core::CosCore;
 use super::error::parse_error;
-use super::pager::CosPager;
+use super::lister::CosLister;
 use super::writer::CosWriter;
 use crate::raw::*;
 use crate::services::cos::writer::CosWriters;
@@ -245,8 +245,8 @@ impl Accessor for CosBackend {
     type BlockingReader = ();
     type Writer = CosWriters;
     type BlockingWriter = ();
-    type Pager = CosPager;
-    type BlockingPager = ();
+    type Lister = CosLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -421,10 +421,10 @@ impl Accessor for CosBackend {
         )))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            CosPager::new(self.core.clone(), path, args.recursive(), args.limit()),
+            CosLister::new(self.core.clone(), path, args.recursive(), args.limit()),
         ))
     }
 }

@@ -29,7 +29,7 @@ use crate::*;
 
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::{core::AlluxioCore, pager::AlluxioPager};
+use super::{core::AlluxioCore, lister::AlluxioLister};
 
 /// Config for alluxio services support.
 #[derive(Default, Deserialize)]
@@ -185,8 +185,8 @@ impl Accessor for AlluxioBackend {
     type BlockingReader = ();
     type Writer = AlluxioWriters;
     type BlockingWriter = ();
-    type Pager = AlluxioPager;
-    type BlockingPager = ();
+    type Lister = AlluxioLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -252,10 +252,10 @@ impl Accessor for AlluxioBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            AlluxioPager::new(self.core.clone(), path),
+            AlluxioLister::new(self.core.clone(), path),
         ))
     }
 }

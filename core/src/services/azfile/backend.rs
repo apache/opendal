@@ -28,7 +28,7 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use crate::raw::*;
-use crate::services::azfile::pager::AzfilePager;
+use crate::services::azfile::lister::AzfileLister;
 use crate::*;
 
 use super::core::AzfileCore;
@@ -251,8 +251,8 @@ impl Accessor for AzfileBackend {
     type BlockingReader = ();
     type Writer = AzfileWriters;
     type BlockingWriter = ();
-    type Pager = AzfilePager;
-    type BlockingPager = ();
+    type Lister = AzfileLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -395,8 +395,8 @@ impl Accessor for AzfileBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = AzfilePager::new(self.core.clone(), path.to_string(), args.limit());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let op = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), op))
     }

@@ -32,7 +32,7 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
-pub struct OssPager {
+pub struct OssLister {
     core: Arc<OssCore>,
 
     path: String,
@@ -46,7 +46,7 @@ pub struct OssPager {
     done: bool,
 }
 
-impl OssPager {
+impl OssLister {
     pub fn new(
         core: Arc<OssCore>,
         path: &str,
@@ -69,7 +69,7 @@ impl OssPager {
 }
 
 #[async_trait]
-impl oio::List for OssPager {
+impl oio::List for OssLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

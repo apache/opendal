@@ -137,8 +137,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type BlockingReader = TracingWrapper<A::BlockingReader>;
     type Writer = TracingWrapper<A::Writer>;
     type BlockingWriter = TracingWrapper<A::BlockingWriter>;
-    type Pager = TracingWrapper<A::Pager>;
-    type BlockingPager = TracingWrapper<A::BlockingPager>;
+    type Lister = TracingWrapper<A::Lister>;
+    type BlockingLister = TracingWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -191,7 +191,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
             .map(|v| v.map(|(rp, s)| (rp, TracingWrapper::new(Span::current(), s))))
@@ -248,7 +248,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner
             .blocking_list(path, args)
             .map(|(rp, it)| (rp, TracingWrapper::new(Span::current(), it)))

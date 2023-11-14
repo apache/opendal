@@ -37,7 +37,7 @@ use suppaftp::FtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 
-use super::pager::FtpPager;
+use super::lister::FtpLister;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
@@ -284,8 +284,8 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriters;
     type BlockingWriter = ();
-    type Pager = FtpPager;
-    type BlockingPager = ();
+    type Lister = FtpLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -444,7 +444,7 @@ impl Accessor for FtpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
@@ -452,7 +452,7 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            FtpPager::new(if path == "/" { "" } else { path }, files, args.limit()),
+            FtpLister::new(if path == "/" { "" } else { path }, files, args.limit()),
         ))
     }
 }

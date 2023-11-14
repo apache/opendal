@@ -31,7 +31,7 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
-pub struct CosPager {
+pub struct CosLister {
     core: Arc<CosCore>,
     path: String,
     delimiter: &'static str,
@@ -41,7 +41,7 @@ pub struct CosPager {
     done: bool,
 }
 
-impl CosPager {
+impl CosLister {
     pub fn new(core: Arc<CosCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
         let delimiter = if recursive { "" } else { "/" };
         Self {
@@ -57,7 +57,7 @@ impl CosPager {
 }
 
 #[async_trait]
-impl oio::List for CosPager {
+impl oio::List for CosLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

@@ -70,8 +70,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type BlockingReader = ErrorContextWrapper<A::BlockingReader>;
     type Writer = ErrorContextWrapper<A::Writer>;
     type BlockingWriter = ErrorContextWrapper<A::BlockingWriter>;
-    type Pager = ErrorContextWrapper<A::Pager>;
-    type BlockingPager = ErrorContextWrapper<A::BlockingPager>;
+    type Lister = ErrorContextWrapper<A::Lister>;
+    type BlockingLister = ErrorContextWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -183,7 +183,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
             .map_ok(|(rp, p)| {
@@ -320,7 +320,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner
             .blocking_list(path, args)
             .map(|(rp, os)| {

@@ -19,7 +19,20 @@
 
 #pragma once
 
-#include "lister.hpp"
-#include "metadata.hpp"
-#include "operator.hpp"
-#include "reader.hpp"
+#include <string>
+
+#include "lib.rs.h"
+
+namespace opendal {
+
+/**
+ * @struct Entry
+ * @brief The entry of a file or directory
+ */
+struct Entry {
+  std::string path;
+
+  Entry(ffi::Entry &&);
+};
+
+}  // namespace opendal

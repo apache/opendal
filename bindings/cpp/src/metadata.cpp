@@ -20,6 +20,8 @@
 #include "metadata.hpp"
 
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "lib.rs.h"
 #include "utils/from.hpp"

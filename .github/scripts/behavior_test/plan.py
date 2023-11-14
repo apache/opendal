@@ -31,6 +31,8 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
+LANGUAGE_BINDING = ["java", "python", "nodejs"]
+
 
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
@@ -99,23 +101,18 @@ def calculate_hint(changed_files: list[str]) -> Hint:
         # workflow behavior tests affected
         if p == ".github/workflows/behavior_test.yml":
             hint.core = True
-            hint.binding_java = True
-            hint.binding_python = True
-            hint.binding_nodejs = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
             hint.all_service = True
+
         if p == ".github/workflows/behavior_test_core.yml":
             hint.core = True
             hint.all_service = True
-        if p == ".github/workflows/behavior_test_binding_java.yml":
-            hint.binding_java = True
-            hint.all_service = True
-        if p == ".github/workflows/behavior_test_binding_python.yml":
-            hint.binding_python = True
-            hint.all_service = True
-        if p == ".github/workflows/behavior_test_binding_nodejs.yml":
-            hint.binding_nodejs = True
-            hint.all_service = True
 
+        for language in LANGUAGE_BINDING:
+            if p == f".github/workflows/behavior_test_binding_{language}.yml":
+                setattr(hint, f"binding_{language}", True)
+                hint.all_service = True
         # core affected
         if (
             p.startswith("core/")
@@ -130,37 +127,26 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_nodejs = True
             hint.all_service = True
 
-        # binding java affected.
-        if p.startswith("bindings/java/"):
-            hint.binding_java = True
-            hint.all_service = True
-
-        # binding python affected.
-        if p.startswith("bindings/python/"):
-            hint.binding_python = True
-            hint.all_service = True
-
-        # binding nodejs affected.
-        if p.startswith("bindings/nodejs/"):
-            hint.binding_nodejs = True
-            hint.all_service = True
+        # language binding affected
+        for language in LANGUAGE_BINDING:
+            if p.startswith(f"bindings/{language}/"):
+                setattr(hint, f"binding_{language}", True)
+                hint.all_service = True
 
         # core service affected
         match = re.search(service_pattern, p)
         if match:
             hint.core = True
-            hint.binding_java = True
-            hint.binding_python = True
-            hint.binding_nodejs = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
             hint.services.add(match.group(1))
 
         # core test affected
         match = re.search(test_pattern, p)
         if match:
             hint.core = True
-            hint.binding_java = True
-            hint.binding_python = True
-            hint.binding_nodejs = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
             hint.services.add(match.group(1))
     return hint
 
@@ -228,21 +214,12 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     hint = calculate_hint(changed_files)
 
     core_cases = generate_core_cases(cases, hint)
-    binding_java_cases = generate_language_binding_cases(cases, hint, "java")
-    binding_python_cases = generate_language_binding_cases(cases, hint, "python")
-    binding_nodejs_cases = generate_language_binding_cases(cases, hint, "nodejs")
 
     jobs = {
         "components": {
             "core": False,
-            "binding_java": False,
-            "binding_python": False,
-            "binding_nodejs": False,
         },
         "core": [],
-        "binding_java": [],
-        "binding_python": [],
-        "binding_nodejs": [],
     }
 
     if len(core_cases) > 0:
@@ -259,22 +236,13 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
                     ],
                 }
             )
-
-    if len(binding_java_cases) > 0:
-        jobs["components"]["binding_java"] = True
-        jobs["binding_java"].append(
-            {"os": "ubuntu-latest", "cases": binding_java_cases}
-        )
-    if len(binding_python_cases) > 0:
-        jobs["components"]["binding_python"] = True
-        jobs["binding_python"].append(
-            {"os": "ubuntu-latest", "cases": binding_python_cases}
-        )
-    if len(binding_nodejs_cases) > 0:
-        jobs["components"]["binding_nodejs"] = True
-        jobs["binding_nodejs"].append(
-            {"os": "ubuntu-latest", "cases": binding_nodejs_cases}
-        )
+    for language in LANGUAGE_BINDING:
+        jobs[f"binding_{language}"] = []
+        jobs["components"][f"binding_{language}"] = False
+        cases = generate_language_binding_cases(cases, hint, language)
+        if len(cases) > 0:
+            jobs["components"][f"binding_{language}"] = True
+            jobs[f"binding_{language}"].append({"os": "ubuntu-latest", "cases": cases})
 
     return jobs
 

@@ -70,7 +70,7 @@ jobs:
         run: git diff --exit-code
 
       - name: Test
-        run: cargo nextest run --no-fail-fast
+        run: cargo test --no-fail-fast
 
   linux:
     runs-on: ubuntu-latest

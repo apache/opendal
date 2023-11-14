@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#include "opendal.hpp"
-#include "gtest/gtest.h"
 #include <ctime>
 #include <optional>
 #include <random>
@@ -26,8 +24,11 @@
 #include <unordered_map>
 #include <vector>
 
+#include "gtest/gtest.h"
+#include "opendal.hpp"
+
 class OpendalTest : public ::testing::Test {
-protected:
+ protected:
   opendal::Operator op;
 
   std::string scheme;

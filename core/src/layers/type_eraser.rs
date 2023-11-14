@@ -60,7 +60,7 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     type Writer = oio::Writer;
     type BlockingWriter = oio::BlockingWriter;
     type Pager = oio::Pager;
-    type BlockingPager = oio::BlockingPager;
+    type BlockingPager = oio::BlockingLister;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -102,6 +102,6 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingLister))
     }
 }

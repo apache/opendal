@@ -41,7 +41,7 @@ impl WebdavPager {
 }
 
 #[async_trait]
-impl oio::Page for WebdavPager {
+impl oio::List for WebdavPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.multistates.response.is_empty() {
             return Ok(None);

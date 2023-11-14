@@ -49,7 +49,7 @@ impl AzfilePager {
 }
 
 #[async_trait]
-impl oio::Page for AzfilePager {
+impl oio::List for AzfilePager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

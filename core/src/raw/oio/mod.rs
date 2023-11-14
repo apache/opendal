@@ -31,8 +31,8 @@ pub use write::*;
 mod stream;
 pub use stream::*;
 
-mod page;
-pub use page::*;
+mod list;
+pub use list::*;
 
 mod cursor;
 pub use cursor::Cursor;

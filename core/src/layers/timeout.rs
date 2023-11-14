@@ -24,7 +24,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::PageOperation;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -416,13 +416,13 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Page> oio::Page for TimeoutWrapper<R> {
+impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         tokio::time::timeout(self.timeout, self.inner.next())
             .await
             .map_err(|_| {
                 Error::new(ErrorKind::Unexpected, "operation timeout")
-                    .with_operation(PageOperation::Next)
+                    .with_operation(ListOperation::Next)
                     .with_context("timeout", self.timeout.as_secs_f64().to_string())
                     .set_temporary()
             })?

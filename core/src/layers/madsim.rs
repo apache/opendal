@@ -334,7 +334,7 @@ impl oio::Write for MadsimWriter {
 pub struct MadsimPager {}
 
 #[async_trait]
-impl oio::Page for MadsimPager {
+impl oio::List for MadsimPager {
     async fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
         Err(Error::new(
             ErrorKind::Unsupported,

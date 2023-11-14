@@ -634,10 +634,10 @@ pub enum CompletePager<A: Accessor, P> {
 }
 
 #[async_trait]
-impl<A, P> oio::Page for CompletePager<A, P>
+impl<A, P> oio::List for CompletePager<A, P>
 where
     A: Accessor<Pager = P>,
-    P: oio::Page,
+    P: oio::List,
 {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;
@@ -650,10 +650,10 @@ where
     }
 }
 
-impl<A, P> oio::BlockingPage for CompletePager<A, P>
+impl<A, P> oio::BlockingList for CompletePager<A, P>
 where
     A: Accessor<BlockingPager = P>,
-    P: oio::BlockingPage,
+    P: oio::BlockingList,
 {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;
@@ -771,7 +771,7 @@ mod tests {
         type Writer = oio::Writer;
         type BlockingWriter = oio::BlockingWriter;
         type Pager = oio::Pager;
-        type BlockingPager = oio::BlockingPager;
+        type BlockingPager = oio::BlockingLister;
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();

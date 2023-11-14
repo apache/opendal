@@ -58,7 +58,7 @@ impl ObsPager {
 }
 
 #[async_trait]
-impl oio::Page for ObsPager {
+impl oio::List for ObsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

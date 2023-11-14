@@ -69,7 +69,7 @@ impl OssPager {
 }
 
 #[async_trait]
-impl oio::Page for OssPager {
+impl oio::List for OssPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

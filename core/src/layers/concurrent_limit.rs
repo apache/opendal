@@ -309,13 +309,13 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Page> oio::Page for ConcurrentLimitWrapper<R> {
+impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
-impl<R: oio::BlockingPage> oio::BlockingPage for ConcurrentLimitWrapper<R> {
+impl<R: oio::BlockingList> oio::BlockingList for ConcurrentLimitWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()
     }

@@ -239,13 +239,13 @@ impl ImmutableDir {
 }
 
 #[async_trait]
-impl oio::Page for ImmutableDir {
+impl oio::List for ImmutableDir {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
-impl oio::BlockingPage for ImmutableDir {
+impl oio::BlockingList for ImmutableDir {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }

@@ -117,7 +117,7 @@ impl<P> HierarchyPager<P> {
 }
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for HierarchyPager<P> {
+impl<P: oio::List> oio::List for HierarchyPager<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next().await?;
 
@@ -133,7 +133,7 @@ impl<P: oio::Page> oio::Page for HierarchyPager<P> {
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for HierarchyPager<P> {
+impl<P: oio::BlockingList> oio::BlockingList for HierarchyPager<P> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next()?;
 
@@ -155,7 +155,7 @@ mod tests {
     use std::collections::HashSet;
 
     use log::debug;
-    use oio::BlockingPage;
+    use oio::BlockingList;
 
     use super::*;
 
@@ -173,7 +173,7 @@ mod tests {
         }
     }
 
-    impl BlockingPage for MockPager {
+    impl BlockingList for MockPager {
         fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);

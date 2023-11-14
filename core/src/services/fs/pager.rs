@@ -43,7 +43,7 @@ impl<P> FsPager<P> {
 }
 
 #[async_trait]
-impl oio::Page for FsPager<tokio::fs::ReadDir> {
+impl oio::List for FsPager<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
@@ -84,7 +84,7 @@ impl oio::Page for FsPager<tokio::fs::ReadDir> {
     }
 }
 
-impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
+impl oio::BlockingList for FsPager<std::fs::ReadDir> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

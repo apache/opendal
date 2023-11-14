@@ -44,7 +44,7 @@ impl AlluxioPager {
 }
 
 #[async_trait]
-impl oio::Page for AlluxioPager {
+impl oio::List for AlluxioPager {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         if self.done {
             return Ok(None);

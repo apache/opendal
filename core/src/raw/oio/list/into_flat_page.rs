@@ -90,10 +90,10 @@ pub struct FlatPager<A: Accessor, P> {
 }
 
 #[async_trait]
-impl<A, P> oio::Page for FlatPager<A, P>
+impl<A, P> oio::List for FlatPager<A, P>
 where
     A: Accessor<Pager = P>,
-    P: oio::Page,
+    P: oio::List,
 {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
@@ -150,10 +150,10 @@ where
     }
 }
 
-impl<A, P> oio::BlockingPage for FlatPager<A, P>
+impl<A, P> oio::BlockingList for FlatPager<A, P>
 where
     A: Accessor<BlockingPager = P>,
-    P: oio::BlockingPage,
+    P: oio::BlockingList,
 {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
@@ -216,7 +216,7 @@ mod tests {
     use std::vec;
 
     use log::debug;
-    use oio::BlockingPage;
+    use oio::BlockingList;
 
     use super::*;
 
@@ -270,7 +270,7 @@ mod tests {
         done: bool,
     }
 
-    impl BlockingPage for MockPager {
+    impl BlockingList for MockPager {
         fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);

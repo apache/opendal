@@ -364,14 +364,14 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Page> oio::Page for TracingWrapper<R> {
+impl<R: oio::List> oio::List for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
-impl<R: oio::BlockingPage> oio::BlockingPage for TracingWrapper<R> {
+impl<R: oio::BlockingList> oio::BlockingList for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()

@@ -66,10 +66,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// `blocking_write` operation.
     type BlockingWriter: oio::BlockingWrite;
     /// Pager is the associated page that return in `list` operation.
-    type Pager: oio::Page;
+    type Pager: oio::List;
     /// BlockingPager is the associated pager that could return in
     /// `blocking_list` operation.
-    type BlockingPager: oio::BlockingPage;
+    type BlockingPager: oio::BlockingList;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -473,7 +473,7 @@ pub type FusedAccessor = Arc<
         Writer = oio::Writer,
         BlockingWriter = oio::BlockingWriter,
         Pager = oio::Pager,
-        BlockingPager = oio::BlockingPager,
+        BlockingPager = oio::BlockingLister,
     >,
 >;
 

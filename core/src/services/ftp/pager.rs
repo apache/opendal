@@ -42,7 +42,7 @@ impl FtpPager {
 }
 
 #[async_trait]
-impl oio::Page for FtpPager {
+impl oio::List for FtpPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

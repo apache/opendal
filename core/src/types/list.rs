@@ -145,7 +145,7 @@ pub struct BlockingLister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    pager: Option<oio::BlockingPager>,
+    pager: Option<oio::BlockingLister>,
     buf: VecDeque<oio::Entry>,
 }
 

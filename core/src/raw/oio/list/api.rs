@@ -26,41 +26,40 @@ use crate::*;
 /// PageOperation is the name for APIs of pager.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum PageOperation {
-    /// Operation for [`Page::next`]
+pub enum ListOperation {
+    /// Operation for [`List::next`]
     Next,
-    /// Operation for [`BlockingPage::next`]
+    /// Operation for [`BlockingList::next`]
     BlockingNext,
 }
 
-impl PageOperation {
+impl ListOperation {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
     }
 }
 
-impl Display for PageOperation {
+impl Display for ListOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.into_static())
     }
 }
 
-impl From<PageOperation> for &'static str {
-    fn from(v: PageOperation) -> &'static str {
-        use PageOperation::*;
+impl From<ListOperation> for &'static str {
+    fn from(v: ListOperation) -> &'static str {
+        use ListOperation::*;
 
         match v {
-            Next => "Pager::next",
-            BlockingNext => "BlockingPager::next",
+            Next => "List::next",
+            BlockingNext => "List::next",
         }
     }
 }
 
-/// Page trait is used by [`raw::Accessor`] to implement `list`
-/// or `scan` operation.
+/// Page trait is used by [`raw::Accessor`] to implement `list` operation.
 #[async_trait]
-pub trait Page: Send + Sync + 'static {
+pub trait List: Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
@@ -68,25 +67,25 @@ pub trait Page: Send + Sync + 'static {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
-/// The boxed version of [`Page`]
-pub type Pager = Box<dyn Page>;
+/// The boxed version of [`List`]
+pub type Pager = Box<dyn List>;
 
 #[async_trait]
-impl<P: Page + ?Sized> Page for Box<P> {
+impl<P: List + ?Sized> List for Box<P> {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         (**self).next().await
     }
 }
 
 #[async_trait]
-impl Page for () {
+impl List for () {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }
 
 #[async_trait]
-impl<P: Page> Page for Option<P> {
+impl<P: List> List for Option<P> {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         match self {
             Some(p) => p.next().await,
@@ -95,8 +94,8 @@ impl<P: Page> Page for Option<P> {
     }
 }
 
-/// BlockingPage is the blocking version of [`Page`].
-pub trait BlockingPage: Send + 'static {
+/// BlockingList is the blocking version of [`List`].
+pub trait BlockingList: Send + 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
@@ -104,22 +103,22 @@ pub trait BlockingPage: Send + 'static {
     fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
-/// BlockingPager is a boxed [`BlockingPage`]
-pub type BlockingPager = Box<dyn BlockingPage>;
+/// BlockingLister is a boxed [`BlockingList`]
+pub type BlockingLister = Box<dyn BlockingList>;
 
-impl<P: BlockingPage + ?Sized> BlockingPage for Box<P> {
+impl<P: BlockingList + ?Sized> BlockingList for Box<P> {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         (**self).next()
     }
 }
 
-impl BlockingPage for () {
+impl BlockingList for () {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }
 
-impl<P: BlockingPage> BlockingPage for Option<P> {
+impl<P: BlockingList> BlockingList for Option<P> {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         match self {
             Some(p) => p.next(),

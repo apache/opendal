@@ -49,7 +49,7 @@ impl GdrivePager {
 }
 
 #[async_trait]
-impl oio::Page for GdrivePager {
+impl oio::List for GdrivePager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

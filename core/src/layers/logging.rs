@@ -1475,7 +1475,7 @@ impl<P> Drop for LoggingPager<P> {
 }
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for LoggingPager<P> {
+impl<P: oio::List> oio::List for LoggingPager<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next().await;
 
@@ -1519,7 +1519,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
+impl<P: oio::BlockingList> oio::BlockingList for LoggingPager<P> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next();
 

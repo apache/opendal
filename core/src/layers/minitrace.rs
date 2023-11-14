@@ -25,7 +25,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
-use crate::raw::oio::PageOperation;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -371,22 +371,22 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
+impl<R: oio::List> oio::List for MinitraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner
             .next()
             .in_span(Span::enter_with_parent(
-                PageOperation::Next.into_static(),
+                ListOperation::Next.into_static(),
                 &self.span,
             ))
             .await
     }
 }
 
-impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
+impl<R: oio::BlockingList> oio::BlockingList for MinitraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(PageOperation::BlockingNext.into_static());
+        let _span = LocalSpan::enter_with_local_parent(ListOperation::BlockingNext.into_static());
         self.inner.next()
     }
 }

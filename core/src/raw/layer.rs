@@ -132,8 +132,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type BlockingReader: oio::BlockingRead;
     type Writer: oio::Write;
     type BlockingWriter: oio::BlockingWrite;
-    type Pager: oio::Page;
-    type BlockingPager: oio::BlockingPage;
+    type Pager: oio::List;
+    type BlockingPager: oio::BlockingList;
 
     fn inner(&self) -> &Self::Inner;
 

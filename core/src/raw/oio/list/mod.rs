@@ -16,10 +16,10 @@
 // under the License.
 
 mod api;
-pub use api::BlockingPage;
-pub use api::BlockingPager;
-pub use api::Page;
-pub use api::PageOperation;
+pub use api::BlockingList;
+pub use api::BlockingLister;
+pub use api::List;
+pub use api::ListOperation;
 pub use api::Pager;
 
 mod into_flat_page;

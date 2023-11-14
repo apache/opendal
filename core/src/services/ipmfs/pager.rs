@@ -47,7 +47,7 @@ impl IpmfsPager {
 }
 
 #[async_trait]
-impl oio::Page for IpmfsPager {
+impl oio::List for IpmfsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);

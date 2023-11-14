@@ -44,7 +44,7 @@ impl DbfsPager {
 }
 
 #[async_trait]
-impl oio::Page for DbfsPager {
+impl oio::List for DbfsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

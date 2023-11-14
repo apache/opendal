@@ -429,7 +429,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl oio::Page for DirStream {
+impl oio::List for DirStream {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);

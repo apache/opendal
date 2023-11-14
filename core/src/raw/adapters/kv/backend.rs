@@ -335,13 +335,13 @@ impl KvPager {
 }
 
 #[async_trait]
-impl oio::Page for KvPager {
+impl oio::List for KvPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
-impl oio::BlockingPage for KvPager {
+impl oio::BlockingList for KvPager {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }

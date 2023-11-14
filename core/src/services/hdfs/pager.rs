@@ -41,7 +41,7 @@ impl HdfsPager {
 }
 
 #[async_trait]
-impl oio::Page for HdfsPager {
+impl oio::List for HdfsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
@@ -72,7 +72,7 @@ impl oio::Page for HdfsPager {
     }
 }
 
-impl oio::BlockingPage for HdfsPager {
+impl oio::BlockingList for HdfsPager {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

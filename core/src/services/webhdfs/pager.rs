@@ -51,7 +51,7 @@ impl WebhdfsPager {
 }
 
 #[async_trait]
-impl oio::Page for WebhdfsPager {
+impl oio::List for WebhdfsPager {
     /// Returns the next page of entries.
     ///
     /// Note: default list status with batch, calling next will query for next batch if `remaining_entries` > 0.

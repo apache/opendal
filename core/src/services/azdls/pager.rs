@@ -50,7 +50,7 @@ impl AzdlsPager {
 }
 
 #[async_trait]
-impl oio::Page for AzdlsPager {
+impl oio::List for AzdlsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

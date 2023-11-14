@@ -313,7 +313,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     }
 }
 
-impl<I: oio::Page> oio::BlockingPage for BlockingWrapper<I> {
+impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.handle.block_on(self.inner.next())
     }

@@ -46,7 +46,7 @@ impl SftpPager {
 }
 
 #[async_trait]
-impl oio::Page for SftpPager {
+impl oio::List for SftpPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.limit == 0 {
             return Ok(None);

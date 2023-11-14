@@ -45,7 +45,7 @@ impl SwiftPager {
 }
 
 #[async_trait]
-impl oio::Page for SwiftPager {
+impl oio::List for SwiftPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

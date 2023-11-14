@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::TryFutureExt;
 
-use crate::raw::oio::PageOperation;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -452,20 +452,20 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: oio::Page> oio::Page for ErrorContextWrapper<T> {
+impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await.map_err(|err| {
-            err.with_operation(PageOperation::Next)
+            err.with_operation(ListOperation::Next)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
     }
 }
 
-impl<T: oio::BlockingPage> oio::BlockingPage for ErrorContextWrapper<T> {
+impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().map_err(|err| {
-            err.with_operation(PageOperation::BlockingNext)
+            err.with_operation(ListOperation::BlockingNext)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

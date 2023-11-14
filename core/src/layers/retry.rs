@@ -35,7 +35,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::PageOperation;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -1050,7 +1050,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
 }
 
 #[async_trait]
-impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
+impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut backoff = self.builder.build();
 
@@ -1065,7 +1065,7 @@ impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
                             &e,
                             dur,
                             &[
-                                ("operation", PageOperation::Next.into_static()),
+                                ("operation", ListOperation::Next.into_static()),
                                 ("path", &self.path),
                             ],
                         );
@@ -1078,7 +1078,7 @@ impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
     }
 }
 
-impl<P: oio::BlockingPage, I: RetryInterceptor> oio::BlockingPage for RetryWrapper<P, I> {
+impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         { || self.inner.next() }
             .retry(&self.builder)
@@ -1088,7 +1088,7 @@ impl<P: oio::BlockingPage, I: RetryInterceptor> oio::BlockingPage for RetryWrapp
                     err,
                     dur,
                     &[
-                        ("operation", PageOperation::BlockingNext.into_static()),
+                        ("operation", ListOperation::BlockingNext.into_static()),
                         ("path", &self.path),
                     ],
                 );
@@ -1295,7 +1295,7 @@ mod tests {
         attempt: usize,
     }
     #[async_trait]
-    impl oio::Page for MockPager {
+    impl oio::List for MockPager {
         async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             self.attempt += 1;
             match self.attempt {

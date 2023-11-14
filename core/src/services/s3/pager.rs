@@ -67,7 +67,7 @@ impl S3Pager {
 }
 
 #[async_trait]
-impl oio::Page for S3Pager {
+impl oio::List for S3Pager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

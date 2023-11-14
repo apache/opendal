@@ -22,9 +22,11 @@ runs:
   using: "composite"
   steps:
     - name: install tiup
+      shell: bash
       run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
 
     - name: start tiup playground
+      shell: bash
       working-directory: fixtures/tikv
       run: |
         # use latest stable version

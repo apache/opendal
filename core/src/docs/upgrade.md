@@ -356,42 +356,42 @@ Please visit `Object::metadata()`'s example for more details.
 
 # Upgrade to v0.27
 
-In v0.27, we refactored our `list` related logic and added `scan` support. So make `Lister` and `BlockingLister` associated types in `Accessor` too!
+In v0.27, we refactored our `list` related logic and added `scan` support. So make `Pager` and `BlockingPager` associated types in `Accessor` too!
 
 ```diff
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
-+    type Lister: output::Page;
-+    type BlockingLister: output::BlockingPage;
++    type Pager: output::Page;
++    type BlockingPager: output::BlockingPage;
 }
 ```
 
 ## User defined layers
 
-Due to this change, all layers implementation should be changed. If there is not changed over lister, they can by changed like the following:
+Due to this change, all layers implementation should be changed. If there is not changed over pager, they can by changed like the following:
 
 ```diff
 impl<A: Accessor> LayeredAccessor for MyAccessor<A> {
     type Inner = A;
     type Reader = MyReader<A::Reader>;
     type BlockingReader = MyReader<A::BlockingReader>;
-+    type Lister = A::Lister;
-+    type BlockingLister = A::BlockingLister;
++    type Pager = A::Pager;
++    type BlockingPager = A::BlockingPager;
 
-+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
++    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
 +        self.inner.list(path, args).await
 +    }
 
-+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Lister)> {
++    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
 +        self.inner.scan(path, args).await
 +    }
 
-+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
++    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
 +        self.inner.blocking_list(path, args)
 +    }
 
-+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingLister)> {
++    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
 +        self.inner.blocking_scan(path, args)
 +    }
 }
@@ -568,11 +568,11 @@ Since v0.21, we will return a reply struct for different operations called `RpWr
 
 ## ObjectList and Page
 
-Since v0.21, `Accessor` will return `Lister` for `List`:
+Since v0.21, `Accessor` will return `Pager` for `List`:
 
 ```diff
 - async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
-+ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Lister)>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)>
 ```
 
 And `Object` will return an `ObjectLister` which is built upon `Page`:

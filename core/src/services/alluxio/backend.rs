@@ -24,7 +24,6 @@ use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::oio::OneShotWriter;
 use crate::raw::*;
 use crate::*;
 
@@ -201,6 +200,7 @@ impl Accessor for AlluxioBackend {
                 write: true,
                 /// https://github.com/Alluxio/alluxio/issues/8212
                 write_can_append: false,
+                write_can_multi: true,
 
                 create_dir: true,
                 delete: true,
@@ -229,8 +229,7 @@ impl Accessor for AlluxioBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AlluxioWriter::new(self.core.clone(), args, path.to_string());
-        let w = OneShotWriter::new(w);
+        let w = AlluxioWriter::new(self.core.clone(), args.clone(), path.to_string());
 
         Ok((RpWrite::default(), w))
     }

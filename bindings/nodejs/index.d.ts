@@ -445,13 +445,71 @@ export class BlockingLister {
 }
 /** A public layer wrapper */
 export class Layer { }
-/** Retry layer */
+/**
+ * Retry layer
+ *
+ * Add retry for temporary failed operations.
+ *
+ * # Notes
+ *
+ * This layer will retry failed operations when [`Error::is_temporary`]
+ * returns true. If operation still failed, this layer will set error to
+ * `Persistent` which means error has been retried.
+ *
+ * `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/incubator-opendal/issues/1223) for more details.
+ *
+ * # Examples
+ *
+ * ```javascript
+ * const op = new Operator("file", { root: "/tmp" })
+ *
+ * const retry = new RetryLayer();
+ * retry.max_times = 3;
+ * retry.jitter = true;
+ *
+ * op.layer(retry.build());
+ *```
+ */
 export class RetryLayer {
   constructor()
+  /**
+   * Set jitter of current backoff.
+   *
+   * If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
+   * to current delay.
+   */
   set jitter(v: boolean)
+  /**
+   * Set max_times of current backoff.
+   *
+   * Backoff will return `None` if max times is reaching.
+   */
   set maxTimes(v: number)
+  /**
+   * Set factor of current backoff.
+   *
+   * # Panics
+   *
+   * This function will panic if input factor smaller than `1.0`.
+   */
   set factor(v: number)
+  /**
+   * Set max_delay of current backoff.
+   *
+   * Delay will not increasing if current delay is larger than max_delay.
+   *
+   * # Notes
+   *
+   * - The unit of max_delay is millisecond.
+   */
   set maxDelay(v: number)
+  /**
+   * Set min_delay of current backoff.
+   *
+   * # Notes
+   *
+   * - The unit of min_delay is millisecond.
+   */
   set minDelay(v: number)
   build(): ExternalObject<Layer>
 }

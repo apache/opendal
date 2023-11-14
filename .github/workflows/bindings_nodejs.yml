@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  dist-check:
+  test:
     runs-on: ubuntu-latest
 
     # Notes: this defaults only apply on run tasks.
@@ -68,6 +68,9 @@ jobs:
 
       - name: Check diff
         run: git diff --exit-code
+
+      - name: Test
+        run: cargo nextest run --no-fail-fast
 
   linux:
     runs-on: ubuntu-latest

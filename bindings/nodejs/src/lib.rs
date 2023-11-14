@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
-/// This line exists here because of the `js_function` macro.
-
 #[macro_use]
 extern crate napi_derive;
 

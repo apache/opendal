@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::BorrowMut;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::{Read, Write};
-use std::ops::DerefMut;
 use std::sync::Arc;
 
 use futures::AsyncSeekExt;
@@ -26,6 +26,7 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::sync::GILProtected;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
 
@@ -187,7 +188,7 @@ impl File {
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
+pub struct AsyncFile(GILProtected<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::Reader),
@@ -197,11 +198,15 @@ enum AsyncFileState {
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::Reader) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
+        Self(GILProtected::new(Mutex::new(AsyncFileState::Reader(
+            reader,
+        ))))
     }
 
     pub fn new_writer(writer: ocore::Writer) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
+        Self(GILProtected::new(Mutex::new(AsyncFileState::Writer(
+            writer,
+        ))))
     }
 }
 
@@ -209,11 +214,11 @@ impl AsyncFile {
 impl AsyncFile {
     /// Read and return size bytes, or if size is not given, until EOF.
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let reader = match guard.deref_mut() {
+            let reader = match &mut *guard {
                 AsyncFileState::Reader(r) => r,
                 AsyncFileState::Writer(_) => {
                     return Err(PyIOError::new_err(
@@ -252,14 +257,14 @@ impl AsyncFile {
 
     /// Write bytes into the file.
     pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<&'p PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
 
         // FIXME: can we avoid this clone?
         let bs = bs.to_vec();
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let writer = match guard.deref_mut() {
+            let writer = match &mut *guard {
                 AsyncFileState::Reader(_) => {
                     return Err(PyIOError::new_err(
                         "I/O operation failed for reading on read only file.",
@@ -291,7 +296,7 @@ impl AsyncFile {
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
     pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<&'p PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
 
         let whence = match whence {
             0 => SeekFrom::Start(pos as u64),
@@ -302,7 +307,7 @@ impl AsyncFile {
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let reader = match guard.deref_mut() {
+            let reader = match &mut *guard {
                 AsyncFileState::Reader(r) => r,
                 AsyncFileState::Writer(_) => {
                     return Err(PyIOError::new_err(
@@ -326,11 +331,11 @@ impl AsyncFile {
 
     /// Return the current stream position.
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let reader = match guard.deref_mut() {
+            let reader = match &mut *guard {
                 AsyncFileState::Reader(r) => r,
                 AsyncFileState::Writer(_) => {
                     return Err(PyIOError::new_err(
@@ -353,7 +358,7 @@ impl AsyncFile {
     }
 
     fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
             *state = AsyncFileState::Closed;
@@ -373,7 +378,7 @@ impl AsyncFile {
         _exc_value: &'a PyAny,
         _traceback: &'a PyAny,
     ) -> PyResult<&'a PyAny> {
-        let state = self.0.clone();
+        let state = self.0.get(py).clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
             *state = AsyncFileState::Closed;

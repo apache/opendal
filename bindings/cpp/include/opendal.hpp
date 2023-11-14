@@ -33,21 +33,24 @@
 namespace opendal {
 
 /**
- * @enum EntryMode
+ * @enum class EntryMode
  * @brief The mode of the entry
  */
-enum EntryMode {
-  FILE = 1,
-  DIR = 2,
-  UNKNOWN = 0,
+enum class EntryMode {
+  kFile = 0,
+  kDir = 1,
+  kUnknown = 2,
 };
 
 /**
  * @struct Metadata
  * @brief The metadata of a file or directory
  */
-struct Metadata {
-  EntryMode type;
+class Metadata {
+ public:
+  EntryMode mode() const;
+
+  EntryMode mode_;
   std::uint64_t content_length;
   std::optional<std::string> cache_control;
   std::optional<std::string> content_disposition;
@@ -309,4 +312,5 @@ class Lister {
  private:
   rust::Box<opendal::ffi::Lister> raw_lister_;
 };
+
 }  // namespace opendal

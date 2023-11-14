@@ -19,13 +19,14 @@
 
 #include "opendal.hpp"
 
-using namespace opendal;
+#include "utils/from.hpp"
 
 #define RUST_STR(s) rust::Str(s.data(), s.size())
 #define RUST_STRING(s) rust::String(s.data(), s.size())
 
-// Operator
+namespace opendal {
 
+// Operator
 Operator::Operator(std::string_view scheme,
                    const std::unordered_map<std::string, std::string> &config) {
   auto rust_map = rust::Vec<ffi::HashMapValue>();
@@ -121,39 +122,12 @@ std::optional<Entry> Lister::next() {
 }
 
 // Metadata
-
-std::optional<std::string> parse_optional_string(ffi::OptionalString &&s);
-
-Metadata::Metadata(ffi::Metadata &&other) {
-  type = static_cast<EntryMode>(other.mode);
-  content_length = other.content_length;
-  cache_control = parse_optional_string(std::move(other.cache_control));
-  content_disposition =
-      parse_optional_string(std::move(other.content_disposition));
-  content_type = parse_optional_string(std::move(other.content_type));
-  content_md5 = parse_optional_string(std::move(other.content_md5));
-  etag = parse_optional_string(std::move(other.etag));
-  auto last_modified_str =
-      parse_optional_string(std::move(other.last_modified));
-  if (last_modified_str.has_value()) {
-    last_modified =
-        boost::posix_time::from_iso_string(last_modified_str.value());
-  }
-}
-
 // Entry
 
 Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
 
 // helper functions
 
-std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
-  if (s.has_value) {
-    return std::string(std::move(s.value));
-  } else {
-    return std::nullopt;
-  }
-}
 
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
   switch (dir) {
@@ -167,3 +141,5 @@ ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
       throw std::runtime_error("invalid seekdir");
   }
 }
+
+}  // namespace opendal

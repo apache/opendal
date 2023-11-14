@@ -23,7 +23,7 @@ services:
       - 19999:19999
       - 19998:19998
     environment:
-      ALLUXIO_JAVA_OPTS:  -Dalluxio.master.hostname=alluxio-master -Dalluxio.master.mount.table.root.ufs=/opt/alluxio/underFSStorage
+      ALLUXIO_JAVA_OPTS: -Dalluxio.master.hostname=alluxio-master -Dalluxio.master.mount.table.root.ufs=/opt/alluxio/underFSStorage
     command: master
     networks:
       - alluxio_network
@@ -55,7 +55,7 @@ services:
       - 30000:30000
     shm_size: 1gb
     environment:
-      ALLUXIO_JAVA_OPTS:  -Dalluxio.worker.ramdisk.size=1G     -Dalluxio.master.hostname=alluxio-master  -Dalluxio.worker.hostname=alluxio-worker
+      ALLUXIO_JAVA_OPTS: -Dalluxio.worker.ramdisk.size=1G     -Dalluxio.master.hostname=alluxio-master  -Dalluxio.worker.hostname=alluxio-worker
     command: worker
     networks:
       - alluxio_network
@@ -69,4 +69,4 @@ services:
 networks:
   alluxio_network:
     driver: bridge
-    
+

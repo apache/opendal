@@ -87,30 +87,33 @@ Metadata::Metadata(ffi::Metadata &&ffi_metadata)
 
 Metadata::~Metadata() = default;
 
-EntryMode Metadata::mode() const { return rep_->mode; }
-uint64_t Metadata::content_length() const { return rep_->content_length; }
+EntryMode Metadata::mode() const noexcept { return rep_->mode; }
+uint64_t Metadata::content_length() const noexcept {
+  return rep_->content_length;
+}
 
-std::optional<std::string_view> Metadata::cache_control() const {
+std::optional<std::string_view> Metadata::cache_control() const noexcept {
   return from(rep_->cache_control);
 }
 
-std::optional<std::string_view> Metadata::content_disposition() const {
+std::optional<std::string_view> Metadata::content_disposition() const noexcept {
   return from(rep_->content_disposition);
 }
 
-std::optional<std::string_view> Metadata::content_md5() const {
+std::optional<std::string_view> Metadata::content_md5() const noexcept {
   return from(rep_->content_md5);
 }
 
-std::optional<std::string_view> Metadata::content_type() const {
+std::optional<std::string_view> Metadata::content_type() const noexcept {
   return from(rep_->content_type);
 }
 
-std::optional<std::string_view> Metadata::etag() const {
+std::optional<std::string_view> Metadata::etag() const noexcept {
   return from(rep_->etag);
 }
 
-std::optional<boost::posix_time::ptime> Metadata::last_modified() const {
+std::optional<boost::posix_time::ptime> Metadata::last_modified()
+    const noexcept {
   return rep_->last_modified;
 }
 

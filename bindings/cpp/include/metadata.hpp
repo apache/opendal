@@ -52,14 +52,16 @@ class Metadata final {
   Metadata(ffi::Metadata &&ffi_metadata);
   ~Metadata() noexcept;
 
-  EntryMode mode() const;
-  uint64_t content_length() const;
-  std::optional<std::string_view> cache_control() const;
-  std::optional<std::string_view> content_disposition() const;
-  std::optional<std::string_view> content_md5() const;
-  std::optional<std::string_view> content_type() const;
-  std::optional<std::string_view> etag() const;
-  std::optional<boost::posix_time::ptime> last_modified() const;
+  [[nodiscard]] EntryMode mode() const noexcept;
+  [[nodiscard]] uint64_t content_length() const noexcept;
+  [[nodiscard]] std::optional<std::string_view> cache_control() const noexcept;
+  [[nodiscard]] std::optional<std::string_view> content_disposition()
+      const noexcept;
+  [[nodiscard]] std::optional<std::string_view> content_md5() const noexcept;
+  [[nodiscard]] std::optional<std::string_view> content_type() const noexcept;
+  [[nodiscard]] std::optional<std::string_view> etag() const noexcept;
+  [[nodiscard]] std::optional<boost::posix_time::ptime> last_modified()
+      const noexcept;
 
  private:
   struct Rep;

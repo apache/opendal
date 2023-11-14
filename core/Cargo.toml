@@ -125,6 +125,7 @@ services-azdls = [
   "reqsign?/reqwest_request",
 ]
 services-azfile = []
+services-b2 = []
 services-cacache = ["dep:cacache"]
 services-cloudflare-kv = []
 services-cos = [

@@ -29,10 +29,10 @@
 //! #[async_trait]
 //! //                  <----------Trait Bound-------------->
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: oio::Read;                 // --+
-//!     type BlockingReader: oio::BlockingRead; //   +--> Associated Type
-//!     type Lister: oio::Page;                  //   +
-//!     type BlockingLister: oio::BlockingPage;  // --+
+//!     type Reader: oio::Read;                    // --+
+//!     type BlockingReader: oio::BlockingRead;    //   +--> Associated Type
+//!     type Lister: oio::Lister;                  //   +
+//!     type BlockingLister: oio::BlockingLister;  // --+
 //!
 //!     // APIs
 //!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;

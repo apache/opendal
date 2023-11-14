@@ -65,7 +65,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
     type BlockingWriter: oio::BlockingWrite;
-    /// Lister is the associated page that return in `list` operation.
+    /// Lister is the associated lister that return in `list` operation.
     type Lister: oio::List;
     /// BlockingLister is the associated lister that could return in
     /// `blocking_list` operation.

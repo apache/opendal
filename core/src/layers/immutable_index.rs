@@ -140,8 +140,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Pager = ImmutableDir;
-    type BlockingPager = ImmutableDir;
+    type Lister = ImmutableDir;
+    type BlockingLister = ImmutableDir;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -163,7 +163,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let mut path = path;
         if path == "/" {
             path = ""
@@ -190,7 +190,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let mut path = path;
         if path == "/" {
             path = ""
@@ -239,13 +239,13 @@ impl ImmutableDir {
 }
 
 #[async_trait]
-impl oio::Page for ImmutableDir {
+impl oio::List for ImmutableDir {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
-impl oio::BlockingPage for ImmutableDir {
+impl oio::BlockingList for ImmutableDir {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }

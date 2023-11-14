@@ -35,7 +35,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::PageOperation;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -284,8 +284,8 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
     type BlockingReader = RetryWrapper<A::BlockingReader, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter, I>;
-    type Pager = RetryWrapper<A::Pager, I>;
-    type BlockingPager = RetryWrapper<A::BlockingPager, I>;
+    type Lister = RetryWrapper<A::Lister, I>;
+    type BlockingLister = RetryWrapper<A::BlockingLister, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -432,7 +432,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -445,9 +445,9 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
             })
             .map(|v| {
                 v.map(|(l, p)| {
-                    let pager =
+                    let lister =
                         RetryWrapper::new(p, self.notify.clone(), path, self.builder.clone());
-                    (l, pager)
+                    (l, lister)
                 })
                 .map_err(|e| e.set_persistent())
             })
@@ -622,7 +622,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -1050,7 +1050,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
 }
 
 #[async_trait]
-impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
+impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut backoff = self.builder.build();
 
@@ -1065,7 +1065,7 @@ impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
                             &e,
                             dur,
                             &[
-                                ("operation", PageOperation::Next.into_static()),
+                                ("operation", ListOperation::Next.into_static()),
                                 ("path", &self.path),
                             ],
                         );
@@ -1078,7 +1078,7 @@ impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
     }
 }
 
-impl<P: oio::BlockingPage, I: RetryInterceptor> oio::BlockingPage for RetryWrapper<P, I> {
+impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         { || self.inner.next() }
             .retry(&self.builder)
@@ -1088,7 +1088,7 @@ impl<P: oio::BlockingPage, I: RetryInterceptor> oio::BlockingPage for RetryWrapp
                     err,
                     dur,
                     &[
-                        ("operation", PageOperation::BlockingNext.into_static()),
+                        ("operation", ListOperation::BlockingNext.into_static()),
                         ("path", &self.path),
                     ],
                 );
@@ -1145,8 +1145,8 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Pager = MockPager;
-        type BlockingPager = ();
+        type Lister = MockLister;
+        type BlockingLister = ();
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
@@ -1172,9 +1172,9 @@ mod tests {
             ))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-            let pager = MockPager::default();
-            Ok((RpList::default(), pager))
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+            let lister = MockLister::default();
+            Ok((RpList::default(), lister))
         }
 
         async fn batch(&self, op: OpBatch) -> Result<RpBatch> {
@@ -1291,17 +1291,17 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Default)]
-    struct MockPager {
+    struct MockLister {
         attempt: usize,
     }
     #[async_trait]
-    impl oio::Page for MockPager {
+    impl oio::List for MockLister {
         async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
                     ErrorKind::RateLimited,
-                    "retryable rate limited error from pager",
+                    "retryable rate limited error from lister",
                 )
                 .set_temporary()),
                 2 => {

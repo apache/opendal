@@ -29,12 +29,12 @@ use tokio::sync::OnceCell;
 
 use super::error::parse_error;
 use super::error::parse_error_msg;
+use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
 use super::message::DirectoryListingWrapper;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
-use super::pager::WebhdfsPager;
 use super::writer::WebhdfsWriter;
 use crate::raw::*;
 use crate::*;
@@ -402,8 +402,8 @@ impl Accessor for WebhdfsBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebhdfsWriter>;
     type BlockingWriter = ();
-    type Pager = WebhdfsPager;
-    type BlockingPager = ();
+    type Lister = WebhdfsLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -540,7 +540,7 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         if args.recursive() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -560,12 +560,12 @@ impl Accessor for WebhdfsBackend {
                         .map_err(new_json_deserialize_error)?
                         .directory_listing;
                     let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
-                    let mut objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    let mut objects = WebhdfsLister::new(self.clone(), path, file_statuses);
                     objects.set_remaining_entries(directory_listing.remaining_entries);
                     Ok((RpList::default(), objects))
                 }
                 StatusCode::NOT_FOUND => {
-                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    let objects = WebhdfsLister::new(self.clone(), path, vec![]);
                     Ok((RpList::default(), objects))
                 }
                 _ => Err(parse_error(resp).await?),
@@ -580,11 +580,11 @@ impl Accessor for WebhdfsBackend {
                         .map_err(new_json_deserialize_error)?
                         .file_statuses
                         .file_status;
-                    let objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    let objects = WebhdfsLister::new(self.clone(), path, file_statuses);
                     Ok((RpList::default(), objects))
                 }
                 StatusCode::NOT_FOUND => {
-                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    let objects = WebhdfsLister::new(self.clone(), path, vec![]);
                     Ok((RpList::default(), objects))
                 }
                 _ => Err(parse_error(resp).await?),

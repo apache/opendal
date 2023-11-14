@@ -27,13 +27,13 @@ use crate::*;
 
 use super::error::parse_error;
 
-pub struct DbfsPager {
+pub struct DbfsLister {
     core: Arc<DbfsCore>,
     path: String,
     done: bool,
 }
 
-impl DbfsPager {
+impl DbfsLister {
     pub fn new(core: Arc<DbfsCore>, path: String) -> Self {
         Self {
             core,
@@ -44,7 +44,7 @@ impl DbfsPager {
 }
 
 #[async_trait]
-impl oio::Page for DbfsPager {
+impl oio::List for DbfsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

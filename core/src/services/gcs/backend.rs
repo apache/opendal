@@ -32,7 +32,7 @@ use serde_json;
 
 use super::core::GcsCore;
 use super::error::parse_error;
-use super::pager::GcsPager;
+use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use crate::raw::*;
 use crate::services::gcs::writer::GcsWriters;
@@ -312,8 +312,8 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriters;
     type BlockingWriter = ();
-    type Pager = GcsPager;
-    type BlockingPager = ();
+    type Lister = GcsLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -471,10 +471,10 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            GcsPager::new(
+            GcsLister::new(
                 self.core.clone(),
                 path,
                 args.recursive(),

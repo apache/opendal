@@ -34,7 +34,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::error::parse_error;
-use super::pager::AzblobPager;
+use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
@@ -546,8 +546,8 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriters;
     type BlockingWriter = ();
-    type Pager = AzblobPager;
-    type BlockingPager = ();
+    type Lister = AzblobLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -688,8 +688,8 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = AzblobPager::new(
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let op = AzblobLister::new(
             self.core.clone(),
             path.to_string(),
             args.recursive(),

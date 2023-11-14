@@ -26,9 +26,9 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// GcsPager takes over task of listing objects and
+/// GcsLister takes over task of listing objects and
 /// helps walking directory
-pub struct GcsPager {
+pub struct GcsLister {
     core: Arc<GcsCore>,
 
     path: String,
@@ -43,7 +43,7 @@ pub struct GcsPager {
     done: bool,
 }
 
-impl GcsPager {
+impl GcsLister {
     /// Generate a new directory walker
     pub fn new(
         core: Arc<GcsCore>,
@@ -68,7 +68,7 @@ impl GcsPager {
 }
 
 #[async_trait]
-impl oio::Page for GcsPager {
+impl oio::List for GcsLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

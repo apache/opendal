@@ -16,16 +16,16 @@
 // under the License.
 
 mod api;
-pub use api::BlockingPage;
-pub use api::BlockingPager;
-pub use api::Page;
-pub use api::PageOperation;
-pub use api::Pager;
+pub use api::BlockingList;
+pub use api::BlockingLister;
+pub use api::List;
+pub use api::ListOperation;
+pub use api::Lister;
 
 mod into_flat_page;
 pub use into_flat_page::into_flat_page;
-pub use into_flat_page::FlatPager;
+pub use into_flat_page::FlatLister;
 
 mod into_hierarchy_pager;
 pub use into_hierarchy_pager::into_hierarchy_page;
-pub use into_hierarchy_pager::HierarchyPager;
+pub use into_hierarchy_pager::HierarchyLister;

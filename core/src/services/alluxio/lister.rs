@@ -25,7 +25,7 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::Result;
 
-pub struct AlluxioPager {
+pub struct AlluxioLister {
     core: Arc<AlluxioCore>,
 
     path: String,
@@ -33,9 +33,9 @@ pub struct AlluxioPager {
     done: bool,
 }
 
-impl AlluxioPager {
+impl AlluxioLister {
     pub(super) fn new(core: Arc<AlluxioCore>, path: &str) -> Self {
-        AlluxioPager {
+        AlluxioLister {
             core,
             path: path.to_string(),
             done: false,
@@ -44,7 +44,7 @@ impl AlluxioPager {
 }
 
 #[async_trait]
-impl oio::Page for AlluxioPager {
+impl oio::List for AlluxioLister {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         if self.done {
             return Ok(None);

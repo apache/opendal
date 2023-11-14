@@ -22,7 +22,7 @@ use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
 
-use super::core::ObsCore;
+use super::core::CosCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
@@ -31,8 +31,8 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
-pub struct ObsPager {
-    core: Arc<ObsCore>,
+pub struct CosLister {
+    core: Arc<CosCore>,
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
@@ -41,10 +41,9 @@ pub struct ObsPager {
     done: bool,
 }
 
-impl ObsPager {
-    pub fn new(core: Arc<ObsCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+impl CosLister {
+    pub fn new(core: Arc<CosCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
         let delimiter = if recursive { "" } else { "/" };
-
         Self {
             core,
             path: path.to_string(),
@@ -58,7 +57,7 @@ impl ObsPager {
 }
 
 #[async_trait]
-impl oio::Page for ObsPager {
+impl oio::List for CosLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
@@ -66,7 +65,7 @@ impl oio::Page for ObsPager {
 
         let resp = self
             .core
-            .obs_list_objects(&self.path, &self.next_marker, self.delimiter, self.limit)
+            .cos_list_objects(&self.path, &self.next_marker, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -149,7 +148,7 @@ mod tests {
     fn test_parse_xml() {
         let bs = bytes::Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<ListBucketResult xmlns="http://obs.cn-north-4.myhuaweicloud.com/doc/2015-06-30/">
+<ListBucketResult>
     <Name>examplebucket</Name>
     <Prefix>obj</Prefix>
     <Marker>obj002</Marker>

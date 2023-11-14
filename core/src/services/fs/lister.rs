@@ -25,14 +25,14 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct FsPager<P> {
+pub struct FsLister<P> {
     root: PathBuf,
 
     size: usize,
     rd: P,
 }
 
-impl<P> FsPager<P> {
+impl<P> FsLister<P> {
     pub fn new(root: &Path, rd: P, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
@@ -43,7 +43,7 @@ impl<P> FsPager<P> {
 }
 
 #[async_trait]
-impl oio::Page for FsPager<tokio::fs::ReadDir> {
+impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
@@ -84,7 +84,7 @@ impl oio::Page for FsPager<tokio::fs::ReadDir> {
     }
 }
 
-impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
+impl oio::BlockingList for FsLister<std::fs::ReadDir> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 

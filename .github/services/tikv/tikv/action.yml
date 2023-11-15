@@ -30,7 +30,7 @@ runs:
       working-directory: fixtures/tikv
       run: |
         ~/.tiup/bin/tiup install tikv:v7.3.0 pd:v7.3.0
-        ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config tikv.toml --pd.config pd.toml &
+        ~/.tiup/bin/tiup playground v7.3.0 --mode tikv-slim --kv 3 --without-monitor --kv.config tikv.toml --pd.config pd.toml &
         while :; do
           echo "waiting cluster to be ready"
           [[ "$(curl -I http://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break

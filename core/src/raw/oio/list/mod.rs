@@ -27,9 +27,8 @@ pub use page_list::PageContext;
 pub use page_list::PageList;
 pub use page_list::PageLister;
 
-mod into_flat_page;
-pub use into_flat_page::into_flat_page;
-pub use into_flat_page::FlatLister;
+mod flat_list;
+pub use flat_list::FlatLister;
 
 mod into_hierarchy_pager;
 pub use into_hierarchy_pager::into_hierarchy_page;

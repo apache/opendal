@@ -27,11 +27,11 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
+use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
-use crate::raw::oio::{into_flat_page, FileReader};
 use crate::raw::oio::{into_hierarchy_page, LazyReader};
 use crate::raw::*;
 use crate::*;
@@ -249,7 +249,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
             (true, false, true) => {
-                let p = into_flat_page(self.inner.clone(), path);
+                let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
             }
             // If recursive is false but service can't list_without_recursive
@@ -291,7 +291,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
             (true, false, true) => {
-                let p = into_flat_page(self.inner.clone(), path);
+                let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
             }
             // If recursive is false but service can't list_without_recursive

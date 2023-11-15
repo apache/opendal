@@ -27,26 +27,6 @@ use crate::*;
 /// ListFuture is the future returned while calling async list.
 type ListFuture<A, L> = BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>;
 
-/// to_flat_lister is used to make a hierarchy lister flat.
-pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str) -> FlatLister<A, P> {
-    #[cfg(debug_assertions)]
-    {
-        let meta = acc.info();
-        debug_assert!(
-            meta.full_capability().list_without_recursive,
-            "service doesn't support list hierarchy, it must be a bug"
-        );
-    }
-
-    FlatLister {
-        acc: Some(acc),
-        root: path.to_string(),
-        next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
-        active_lister: vec![],
-        list_future: None,
-    }
-}
-
 /// ToFlatLister will walk dir in bottom up way:
 ///
 /// - List nested dir first
@@ -96,6 +76,31 @@ pub struct FlatLister<A: Accessor, L> {
 ///
 /// We will only take `&mut Self` reference for FsLister.
 unsafe impl<A: Accessor, L> Sync for FlatLister<A, L> {}
+
+impl<A, L> FlatLister<A, L>
+where
+    A: Accessor,
+{
+    /// Create a new flat lister
+    pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
+        #[cfg(debug_assertions)]
+        {
+            let meta = acc.info();
+            debug_assert!(
+                meta.full_capability().list_without_recursive,
+                "service doesn't support list hierarchy, it must be a bug"
+            );
+        }
+
+        FlatLister {
+            acc: Some(acc),
+            root: path.to_string(),
+            next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
+            active_lister: vec![],
+            list_future: None,
+        }
+    }
+}
 
 #[async_trait]
 impl<A, L> oio::List for FlatLister<A, L>
@@ -280,7 +285,7 @@ mod tests {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let acc = MockService::new();
-        let mut lister = into_flat_page(acc, "x/");
+        let mut lister = FlatLister::new(acc, "x/");
 
         let mut entries = Vec::default();
 

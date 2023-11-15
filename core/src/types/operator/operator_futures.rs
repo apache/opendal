@@ -616,6 +616,16 @@ impl FutureLister {
         self.0 = self.0.map_args(|args| args.with_metakey(v));
         self
     }
+
+    /// Concurrent is used to control the number of concurrent stat requests.
+    ///
+    /// If concurrent is set to <=1, the lister will perform stat requests sequentially.
+    ///
+    /// The default concurrent is 1.
+    pub fn concurrent(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_concurrent(v));
+        self
+    }
 }
 
 impl Future for FutureLister {

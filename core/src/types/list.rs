@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::ready;
@@ -25,6 +26,7 @@ use flagset::FlagSet;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
+use tokio::task::JoinHandle;
 
 use crate::raw::*;
 use crate::*;
@@ -32,7 +34,7 @@ use crate::*;
 /// Future constructed by listing.
 type ListFuture = BoxFuture<'static, (oio::Lister, Result<Option<Vec<oio::Entry>>>)>;
 /// Future constructed by stating.
-type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
+type StatFuture = BoxFuture<'static, Result<Entry>>;
 
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
@@ -48,6 +50,8 @@ pub struct Lister {
     buf: VecDeque<oio::Entry>,
     lister: Option<oio::Lister>,
     listing: Option<ListFuture>,
+
+    task_queue: VecDeque<JoinHandle<(String, Result<RpStat>)>>,
     stating: Option<StatFuture>,
 }
 
@@ -60,6 +64,8 @@ impl Lister {
     /// Create a new lister.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
+        let concurrent = cmp::max(1, args.concurrent());
+
         let (_, lister) = acc.list(path, args).await?;
 
         Ok(Self {
@@ -69,6 +75,7 @@ impl Lister {
             buf: VecDeque::new(),
             lister: Some(lister),
             listing: None,
+            task_queue: VecDeque::with_capacity(concurrent),
             stating: None,
         })
     }
@@ -79,30 +86,61 @@ impl Stream for Lister {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(fut) = self.stating.as_mut() {
-            let (path, rp) = ready!(fut.poll_unpin(cx));
+            let entry = ready!(fut.poll_unpin(cx));
 
-            // Make sure we will not poll this future again.
+            // Make sure we will not poll this future again
             self.stating = None;
-            let metadata = rp?.into_metadata();
 
-            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
+            return Poll::Ready(Some(entry));
         }
 
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_metakey(self.required_metakey) {
-                return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
-            }
-
-            let acc = self.acc.clone();
+        if !self.task_queue.is_empty() {
+            let task = self.task_queue.pop_back();
             let fut = async move {
-                let res = acc.stat(&path, OpStat::default()).await;
-
-                (path, res)
+                if let Some(task) = task {
+                    let (path, rp) = task.await.map_err(|err| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            format!("failed to stat: {}", err).as_str(),
+                        )
+                    })?;
+                    let metadata = rp?.into_metadata();
+                    Ok(Entry::new(path, metadata))
+                } else {
+                    Err(Error::new(ErrorKind::Unexpected, "stat task is None"))
+                }
             };
             self.stating = Some(Box::pin(fut));
             return self.poll_next(cx);
+        }
+
+        while !self.buf.is_empty() {
+            if let Some(oe) = self.buf.front() {
+                let (path, metadata) = oe.clone().into_entry().into_parts();
+                // TODO: we can optimize this by checking the provided metakey provided by services.
+                if metadata.contains_metakey(self.required_metakey) {
+                    return if self.task_queue.is_empty() {
+                        self.buf.pop_front();
+                        Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                    } else {
+                        self.poll_next(cx)
+                    };
+                }
+
+                if self.task_queue.len() < self.task_queue.capacity() {
+                    let acc = self.acc.clone();
+
+                    let fut = async move {
+                        let res = acc.stat(&path, OpStat::default()).await;
+                        (path, res)
+                    };
+
+                    self.task_queue.push_front(tokio::spawn(fut));
+                    self.buf.pop_front();
+                } else {
+                    return self.poll_next(cx);
+                };
+            }
         }
 
         if let Some(fut) = self.listing.as_mut() {

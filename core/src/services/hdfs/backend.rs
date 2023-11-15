@@ -156,7 +156,7 @@ unsafe impl Send for HdfsBackend {}
 unsafe impl Sync for HdfsBackend {}
 
 impl HdfsBackend {
-    fn create_parent_if_need(&self, path: &str) -> Result<()>{
+    fn create_parent_if_need(&self, path: &str) -> Result<()> {
         if let Err(err) = self.client.metadata(path) {
             // Early return if other error happened.
             if err.kind() != io::ErrorKind::NotFound {
@@ -169,7 +169,8 @@ impl HdfsBackend {
                     Error::new(
                         ErrorKind::Unexpected,
                         "path should have parent but not, it must be malformed",
-                    ).with_context("input", path)
+                    )
+                    .with_context("input", path)
                 })?
                 .to_path_buf();
 
@@ -280,10 +281,12 @@ impl Accessor for HdfsBackend {
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path =  build_rooted_abs_path(&self.root, to);
+        let to_path = build_rooted_abs_path(&self.root, to);
         self.create_parent_if_need(&to_path)?;
 
-        self.client.rename_file( &from_path, &to_path).map_err(new_std_io_error)?;
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
 
         Ok(RpRename::new())
     }
@@ -407,10 +410,12 @@ impl Accessor for HdfsBackend {
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path =  build_rooted_abs_path(&self.root, to);
+        let to_path = build_rooted_abs_path(&self.root, to);
         self.create_parent_if_need(&to_path)?;
 
-        self.client.rename_file( &from_path, &to_path).map_err(new_std_io_error)?;
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
 
         Ok(RpRename::new())
     }

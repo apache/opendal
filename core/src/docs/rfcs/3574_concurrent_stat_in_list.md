@@ -60,12 +60,11 @@ Using a `semaphore` will introduce more cost and memory.
 
 ## Why not using `JoinSet`?
 
-`JoinSet` requires mutability to spawn or join the next task, and `tokio::spawn()` requires the async block to be `'static`.
-This implies that we need to use `Arc<T>` to wrap our `JoinSet`. 
+The main reason is that `JoinSet` can't maintain the order of entries.
 
-However, to change the value inside `Arc`, we need to introduce a `Mutex`. Since it's inside an async block, we need to use Tokio's `Mutex` to satisfy the `Sync` requirement. 
-
-Therefore, for every operation on the `JoinSet`, there will be an `.await` on the lock outside of the async block, making concurrency impossible inside `poll_next()`.
+The other reason is that `JoinSet` requires mutability to spawn or join the next task, and `tokio::spawn()` requires the async block to be `'static`.
+This implies that we need to use `Arc<T>` to wrap our `JoinSet`. However, to change the value inside `Arc`, we need to introduce a `Mutex`. Since it's inside an async block, we need to use Tokio's `Mutex` to satisfy the `Sync` bound. 
+Therefore, for every operation on the `JoinSet`, there will be an `.await` on the lock outside the async block, making concurrency impossible inside `poll_next()`.
 
 # Prior art
 

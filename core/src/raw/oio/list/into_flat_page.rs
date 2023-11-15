@@ -24,6 +24,9 @@ use futures::FutureExt;
 use crate::raw::*;
 use crate::*;
 
+/// ListFuture is the future returned while calling async list.
+type ListFuture<A, L> = BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>;
+
 /// to_flat_lister is used to make a hierarchy lister flat.
 pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str) -> FlatLister<A, P> {
     #[cfg(debug_assertions)]
@@ -86,7 +89,7 @@ pub struct FlatLister<A: Accessor, L> {
 
     next_dir: Option<oio::Entry>,
     active_lister: Vec<(Option<oio::Entry>, L)>,
-    list_future: Option<BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>>,
+    list_future: Option<ListFuture<A, L>>,
 }
 
 /// # Safety

@@ -164,9 +164,9 @@ mod tests {
     }
 
     impl MockLister {
-        fn new(inner: &[&'static str]) -> Self {
+        fn new(inner: Vec<&'static str>) -> Self {
             Self {
-                inner: inner.to_vec().into_iter(),
+                inner: inner.into_iter(),
             }
         }
     }
@@ -189,7 +189,9 @@ mod tests {
     fn test_blocking_list() -> Result<()> {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-        let lister = MockLister::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
+        let lister = MockLister::new(vec![
+            "x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a",
+        ]);
         let mut lister = into_hierarchy_page(lister, "");
 
         let mut entries = Vec::default();

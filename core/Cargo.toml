@@ -51,7 +51,6 @@ default = [
   "services-webdav",
   "services-webhdfs",
   "services-azfile",
-  "services-ftp",
 ]
 
 # Build docs or not.

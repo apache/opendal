@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
-use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -29,11 +28,14 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
+use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
+use suppaftp::AsyncNativeTlsConnector;
+use suppaftp::AsyncNativeTlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::FtpStream;
+use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 
@@ -213,16 +215,18 @@ pub struct Manager {
 
 #[async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = FtpStream;
+    type Connection = AsyncNativeTlsFtpStream;
     type Error = FtpError;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let stream = FtpStream::connect(&self.endpoint).await?;
-
+        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
             stream
-                .into_secure(TlsConnector::default().into(), &self.endpoint)
+                .into_secure(
+                    AsyncNativeTlsConnector::from(TlsConnector::new()),
+                    &self.endpoint,
+                )
                 .await?
         } else {
             stream

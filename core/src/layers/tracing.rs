@@ -366,8 +366,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
 #[async_trait]
 impl<R: oio::List> oio::List for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        self.inner.next().await
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        self.inner.poll_next(cx)
     }
 }
 

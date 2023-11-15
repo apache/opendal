@@ -372,14 +372,10 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::List> oio::List for MinitraceWrapper<R> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        self.inner
-            .next()
-            .in_span(Span::enter_with_parent(
-                ListOperation::Next.into_static(),
-                &self.span,
-            ))
-            .await
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ListOperation::Next.into_static());
+        self.inner.poll_next(cx)
     }
 }
 

@@ -417,14 +417,33 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
 
 #[async_trait]
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        tokio::time::timeout(self.timeout, self.inner.next())
-            .await
-            .map_err(|_| {
-                Error::new(ErrorKind::Unexpected, "operation timeout")
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        match self.start {
+            Some(start) => {
+                if start.elapsed() > self.timeout {
+                    // Clean up the start time before return ready.
+                    self.start = None;
+
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "operation timeout",
+                    )
                     .with_operation(ListOperation::Next)
                     .with_context("timeout", self.timeout.as_secs_f64().to_string())
-                    .set_temporary()
-            })?
+                    .set_temporary()));
+                }
+            }
+            None => {
+                self.start = Some(Instant::now());
+            }
+        }
+
+        match self.inner.poll_next(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(v) => {
+                self.start = None;
+                Poll::Ready(v)
+            }
+        }
     }
 }

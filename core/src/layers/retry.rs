@@ -1051,28 +1051,48 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
 
 #[async_trait]
 impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let mut backoff = self.builder.build();
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.next().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_next(cx)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", ListOperation::Next.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_next(cx)
                     }
-                },
+                }
             }
         }
     }
@@ -1296,37 +1316,33 @@ mod tests {
     }
     #[async_trait]
     impl oio::List for MockLister {
-        async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
             self.attempt += 1;
-            match self.attempt {
+            let result = match self.attempt {
                 1 => Err(Error::new(
                     ErrorKind::RateLimited,
                     "retryable rate limited error from lister",
                 )
                 .set_temporary()),
-                2 => {
-                    let entries = vec![
-                        oio::Entry::new("hello", Metadata::new(EntryMode::FILE)),
-                        oio::Entry::new("world", Metadata::new(EntryMode::FILE)),
-                    ];
-                    Ok(Some(entries))
-                }
+                2 => Ok(Some(oio::Entry::new(
+                    "hello",
+                    Metadata::new(EntryMode::FILE),
+                ))),
                 3 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable internal server error")
                         .set_temporary(),
                 ),
-                4 => {
-                    let entries = vec![
-                        oio::Entry::new("2023/", Metadata::new(EntryMode::DIR)),
-                        oio::Entry::new("0208/", Metadata::new(EntryMode::DIR)),
-                    ];
-                    Ok(Some(entries))
-                }
+                4 => Ok(Some(oio::Entry::new(
+                    "2023/",
+                    Metadata::new(EntryMode::DIR),
+                ))),
                 5 => Ok(None),
                 _ => {
                     unreachable!()
                 }
-            }
+            };
+
+            Poll::Ready(result)
         }
     }
 

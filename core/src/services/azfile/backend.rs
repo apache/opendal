@@ -251,7 +251,7 @@ impl Accessor for AzfileBackend {
     type BlockingReader = ();
     type Writer = AzfileWriters;
     type BlockingWriter = ();
-    type Lister = AzfileLister;
+    type Lister = oio::PageLister<AzfileLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -396,9 +396,9 @@ impl Accessor for AzfileBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
+        let l = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

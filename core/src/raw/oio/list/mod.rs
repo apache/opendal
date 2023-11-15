@@ -22,6 +22,11 @@ pub use api::List;
 pub use api::ListOperation;
 pub use api::Lister;
 
+mod page_list;
+pub use page_list::PageContext;
+pub use page_list::PageList;
+pub use page_list::PageLister;
+
 mod into_flat_page;
 pub use into_flat_page::into_flat_page;
 pub use into_flat_page::FlatLister;

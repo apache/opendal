@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -303,47 +304,52 @@ where
 
 pub struct KvLister {
     root: String,
-    inner: Option<Vec<String>>,
+    inner: IntoIter<String>,
 }
 
 impl KvLister {
     fn new(root: &str, inner: Vec<String>) -> Self {
         Self {
             root: root.to_string(),
-            inner: Some(inner),
+            inner: inner.into_iter(),
         }
-    }
-
-    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
-        let res = self
-            .inner
-            .take()?
-            .into_iter()
-            .map(|v| {
-                let mode = if v.ends_with('/') {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::FILE
-                };
-
-                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
-            })
-            .collect();
-
-        Some(res)
     }
 }
 
 #[async_trait]
 impl oio::List for KvLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let entry = self.inner.next().map(|v| {
+            let mode = if v.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+
+            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+        });
+
+        Poll::Ready(Ok(entry))
     }
 }
 
 impl oio::BlockingList for KvLister {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+        Ok(Some(
+            self.inner
+                .as_slice()
+                .iter()
+                .map(|v| {
+                    let mode = if v.ends_with('/') {
+                        EntryMode::DIR
+                    } else {
+                        EntryMode::FILE
+                    };
+
+                    oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+                })
+                .collect(),
+        ))
     }
 }
 

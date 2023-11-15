@@ -324,7 +324,7 @@ impl OssCore {
     pub fn oss_list_object_request(
         &self,
         path: &str,
-        token: Option<&str>,
+        token: &str,
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
@@ -347,13 +347,9 @@ impl OssCore {
         }
 
         // continuation_token
-        if let Some(continuation_token) = token {
-            write!(
-                url,
-                "&continuation-token={}",
-                percent_encode_path(continuation_token)
-            )
-            .expect("write into string must succeed");
+        if !token.is_empty() {
+            write!(url, "&continuation-token={}", percent_encode_path(token))
+                .expect("write into string must succeed");
         }
 
         // start-after
@@ -446,7 +442,7 @@ impl OssCore {
     pub async fn oss_list_object(
         &self,
         path: &str,
-        token: Option<&str>,
+        token: &str,
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,

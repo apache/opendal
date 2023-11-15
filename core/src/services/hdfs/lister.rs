@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use std::task::{Context, Poll};
 
 use crate::raw::*;
 use crate::EntryMode;
@@ -42,33 +43,27 @@ impl HdfsLister {
 
 #[async_trait]
 impl oio::List for HdfsLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let de = match self.rd.next() {
+            Some(de) => de,
+            None => return Poll::Ready(Ok(None)),
+        };
 
-        for _ in 0..self.size {
-            let de = match self.rd.next() {
-                Some(de) => de,
-                None => break,
-            };
+        let path = build_rel_path(&self.root, de.path());
 
-            let path = build_rel_path(&self.root, de.path());
+        let entry = if de.is_file() {
+            let meta = Metadata::new(EntryMode::FILE)
+                .with_content_length(de.len())
+                .with_last_modified(de.modified().into());
+            oio::Entry::new(&path, meta)
+        } else if de.is_dir() {
+            // Make sure we are returning the correct path.
+            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
+        } else {
+            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
+        };
 
-            let d = if de.is_file() {
-                let meta = Metadata::new(EntryMode::FILE)
-                    .with_content_length(de.len())
-                    .with_last_modified(de.modified().into());
-                oio::Entry::new(&path, meta)
-            } else if de.is_dir() {
-                // Make sure we are returning the correct path.
-                oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
-            } else {
-                oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
-            };
-
-            oes.push(d)
-        }
-
-        Ok(if oes.is_empty() { None } else { Some(oes) })
+        Poll::Ready(Ok(Some(entry)))
     }
 }
 

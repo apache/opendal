@@ -16,6 +16,7 @@
 // under the License.
 
 use std::pin::Pin;
+use std::task::{ready, Context, Poll};
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -47,24 +48,18 @@ impl SftpLister {
 
 #[async_trait]
 impl oio::List for SftpLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.limit == 0 {
-            return Ok(None);
-        }
-
-        let item = self.dir.next().await;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let item = ready!(self.dir.poll_next_unpin(cx)).transpose()?;
 
         match item {
-            Some(Ok(e)) => {
+            Some(e) => {
                 if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
-                    self.next().await
+                    self.poll_next(cx)
                 } else {
-                    self.limit -= 1;
-                    Ok(Some(vec![map_entry(self.prefix.as_str(), e.clone())]))
+                    Poll::Ready(Ok(Some(map_entry(self.prefix.as_str(), e))))
                 }
             }
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
+            None => Poll::Ready(Ok(None)),
         }
     }
 }

@@ -165,7 +165,7 @@ impl Accessor for IpfsBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
-    type Lister = DirStream;
+    type Lister = oio::PageLister<DirStream>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -351,10 +351,8 @@ impl Accessor for IpfsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            DirStream::new(Arc::new(self.clone()), path),
-        ))
+        let l = DirStream::new(Arc::new(self.clone()), path);
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 
@@ -415,7 +413,6 @@ impl IpfsBackend {
 pub struct DirStream {
     backend: Arc<IpfsBackend>,
     path: String,
-    consumed: bool,
 }
 
 impl DirStream {
@@ -423,18 +420,13 @@ impl DirStream {
         Self {
             backend,
             path: path.to_string(),
-            consumed: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for DirStream {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.consumed {
-            return Ok(None);
-        }
-
+impl oio::PageList for DirStream {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
@@ -452,8 +444,6 @@ impl oio::List for DirStream {
             .map(|v| v.name.unwrap())
             .collect::<Vec<String>>();
 
-        let mut oes = Vec::with_capacity(names.len());
-
         for mut name in names {
             let meta = self
                 .backend
@@ -465,10 +455,10 @@ impl oio::List for DirStream {
                 name += "/";
             }
 
-            oes.push(oio::Entry::new(&name, meta))
+            ctx.entries.push_back(oio::Entry::new(&name, meta))
         }
 
-        self.consumed = true;
-        Ok(Some(oes))
+        ctx.done = true;
+        Ok(())
     }
 }

@@ -27,7 +27,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::Entry;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::RangeReader;
@@ -639,13 +638,13 @@ where
     A: Accessor<Lister = P>,
     P: oio::List,
 {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         use CompleteLister::*;
 
         match self {
-            AlreadyComplete(p) => p.next().await,
-            NeedFlat(p) => p.next().await,
-            NeedHierarchy(p) => p.next().await,
+            AlreadyComplete(p) => p.poll_next(cx),
+            NeedFlat(p) => p.poll_next(cx),
+            NeedHierarchy(p) => p.poll_next(cx),
         }
     }
 }
@@ -655,7 +654,7 @@ where
     A: Accessor<BlockingLister = P>,
     P: oio::BlockingList,
 {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         use CompleteLister::*;
 
         match self {

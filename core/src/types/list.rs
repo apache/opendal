@@ -26,11 +26,10 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
 
+use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
 
-/// Future constructed by listing.
-type ListFuture = BoxFuture<'static, (oio::Lister, Result<Option<Vec<oio::Entry>>>)>;
 /// Future constructed by stating.
 type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
 
@@ -42,12 +41,10 @@ type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
 /// User can use lister as `Stream<Item = Result<Entry>>`.
 pub struct Lister {
     acc: FusedAccessor,
+    lister: oio::Lister,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    buf: VecDeque<oio::Entry>,
-    lister: Option<oio::Lister>,
-    listing: Option<ListFuture>,
     stating: Option<StatFuture>,
 }
 
@@ -64,11 +61,9 @@ impl Lister {
 
         Ok(Self {
             acc,
+            lister,
             required_metakey,
 
-            buf: VecDeque::new(),
-            lister: Some(lister),
-            listing: None,
             stating: None,
         })
     }
@@ -83,52 +78,39 @@ impl Stream for Lister {
 
             // Make sure we will not poll this future again.
             self.stating = None;
-            let metadata = rp?.into_metadata();
+            // TODO: we should rebuild the future if stat failed.
+            let metadata = match rp {
+                Ok(rp) => rp.into_metadata(),
+                Err(err) => {
+                    let acc = self.acc.clone();
+                    let fut = async move {
+                        let res = acc.stat(&path, OpStat::default()).await;
+
+                        (path, res)
+                    };
+                    self.stating = Some(Box::pin(fut));
+                    return Poll::Ready(Some(Err(err)));
+                }
+            };
 
             return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_metakey(self.required_metakey) {
-                return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
-            }
-
-            let acc = self.acc.clone();
-            let fut = async move {
-                let res = acc.stat(&path, OpStat::default()).await;
-
-                (path, res)
-            };
-            self.stating = Some(Box::pin(fut));
-            return self.poll_next(cx);
-        }
-
-        if let Some(fut) = self.listing.as_mut() {
-            let (op, res) = ready!(fut.poll_unpin(cx));
-
-            // Make sure we will not poll this future again.
-            self.listing = None;
-
-            return match res? {
-                Some(oes) => {
-                    self.lister = Some(op);
-                    self.buf = oes.into();
-                    self.poll_next(cx)
+        match ready!(self.lister.poll_next(cx))? {
+            Some(oe) => {
+                let (path, metadata) = oe.into_entry().into_parts();
+                // TODO: we can optimize this by checking the provided metakey provided by services.
+                if metadata.contains_metakey(self.required_metakey) {
+                    return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
                 }
-                None => Poll::Ready(None),
-            };
-        }
 
-        match self.lister.take() {
-            Some(mut lister) => {
+                let acc = self.acc.clone();
                 let fut = async move {
-                    let res = lister.next().await;
+                    let res = acc.stat(&path, OpStat::default()).await;
 
-                    (lister, res)
+                    (path, res)
                 };
-                self.listing = Some(Box::pin(fut));
+                self.stating = Some(Box::pin(fut));
                 self.poll_next(cx)
             }
             None => Poll::Ready(None),

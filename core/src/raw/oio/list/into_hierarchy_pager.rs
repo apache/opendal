@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashSet;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 
@@ -118,18 +119,19 @@ impl<P> HierarchyLister<P> {
 
 #[async_trait]
 impl<P: oio::List> oio::List for HierarchyLister<P> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let page = self.lister.next().await?;
-
-        let entries = if let Some(entries) = page {
-            entries
-        } else {
-            return Ok(None);
-        };
-
-        let entries = self.filter_entries(entries);
-
-        Ok(Some(entries))
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        todo!()
+        // let page = self.lister.poll_next(cx)?;
+        //
+        // let entries = if let Some(entries) = page {
+        //     entries
+        // } else {
+        //     return Ok(None);
+        // };
+        //
+        // let entries = self.filter_entries(entries);
+        //
+        // Ok(Some(entries))
     }
 }
 

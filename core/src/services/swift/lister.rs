@@ -29,7 +29,6 @@ pub struct SwiftLister {
     core: Arc<SwiftCore>,
     path: String,
     delimiter: &'static str,
-    done: bool,
 }
 
 impl SwiftLister {
@@ -39,18 +38,13 @@ impl SwiftLister {
             core,
             path,
             delimiter,
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for SwiftLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for SwiftLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self.core.swift_list(&self.path, self.delimiter).await?;
 
         let status_code = response.status();
@@ -60,15 +54,13 @@ impl oio::List for SwiftLister {
             return Err(error);
         }
 
+        ctx.done = true;
+
         let bytes = response.into_body().bytes().await?;
         let mut decoded_response = serde_json::from_slice::<Vec<ListOpResponse>>(&bytes)
             .map_err(new_json_deserialize_error)?;
 
-        self.done = true;
-
-        let mut entries = Vec::with_capacity(decoded_response.len());
-
-        while let Some(status) = decoded_response.pop() {
+        for status in decoded_response {
             let entry: oio::Entry = match status {
                 ListOpResponse::Subdir { subdir } => {
                     let meta = Metadata::new(EntryMode::DIR);
@@ -99,9 +91,9 @@ impl oio::List for SwiftLister {
                     oio::Entry::new(&name, meta)
                 }
             };
-            entries.push(entry);
+            ctx.entries.push_back(entry);
         }
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

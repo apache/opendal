@@ -310,7 +310,7 @@ impl GdriveCore {
         &self,
         path: &str,
         page_size: i32,
-        next_page_token: Option<String>,
+        next_page_token: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let file_id = self.get_file_id_by_path(path).await;
 
@@ -341,22 +341,13 @@ impl GdriveCore {
             },
         };
 
-        let url = match next_page_token {
-            Some(page_token) => {
-                format!(
-                    "https://www.googleapis.com/drive/v3/files?pageSize={}&pageToken={}&q={}",
-                    page_size,
-                    page_token,
-                    percent_encode_path(q.as_str())
-                )
-            }
-            None => {
-                format!(
-                    "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
-                    page_size,
-                    percent_encode_path(q.as_str())
-                )
-            }
+        let mut url = format!(
+            "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
+            page_size,
+            percent_encode_path(&q)
+        );
+        if !next_page_token.is_empty() {
+            url += &format!("&pageToken={next_page_token}");
         };
 
         let mut req = Request::get(&url)

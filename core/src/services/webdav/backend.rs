@@ -223,7 +223,7 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type BlockingWriter = ();
-    type Lister = Option<WebdavLister>;
+    type Lister = Option<oio::PageLister<WebdavLister>>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -398,10 +398,9 @@ impl Accessor for WebdavBackend {
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                Ok((
-                    RpList::default(),
-                    Some(WebdavLister::new(&self.base_dir, &self.root, path, result)),
-                ))
+                let l = WebdavLister::new(&self.base_dir, &self.root, path, result);
+
+                Ok((RpList::default(), Some(oio::PageLister::new(l))))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),
             _ => Err(parse_error(resp).await?),

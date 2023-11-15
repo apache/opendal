@@ -310,8 +310,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
 
 #[async_trait]
 impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        self.inner.next().await
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        self.inner.poll_next(cx)
     }
 }
 

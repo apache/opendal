@@ -41,9 +41,6 @@ pub struct OssLister {
     /// Filter results to objects whose names are lexicographically
     /// **equal to or after** startOffset
     start_after: Option<String>,
-
-    token: Option<String>,
-    done: bool,
 }
 
 impl OssLister {
@@ -61,28 +58,25 @@ impl OssLister {
             delimiter,
             limit,
             start_after: start_after.map(String::from),
-            token: None,
-
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for OssLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for OssLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
             .oss_list_object(
                 &self.path,
-                self.token.as_deref(),
+                &ctx.token,
                 self.delimiter,
                 self.limit,
-                self.start_after.clone(),
+                if ctx.token.is_empty() {
+                    self.start_after.clone()
+                } else {
+                    None
+                },
             )
             .await?;
 
@@ -95,17 +89,15 @@ impl oio::List for OssLister {
         let output: ListBucketOutput = de::from_reader(bs.reader())
             .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
-        self.done = !output.is_truncated;
-        self.token = output.next_continuation_token.clone();
-
-        let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
+        ctx.done = !output.is_truncated;
+        ctx.token = output.next_continuation_token.unwrap_or_default();
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
         for object in output.contents {
@@ -129,10 +121,10 @@ impl oio::List for OssLister {
             let path = unescape(&rel)
                 .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
             let de = oio::Entry::new(&path, meta);
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

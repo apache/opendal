@@ -233,7 +233,7 @@ impl Accessor for AzdlsBackend {
     type BlockingReader = ();
     type Writer = AzdlsWriters;
     type BlockingWriter = ();
-    type Lister = AzdlsLister;
+    type Lister = oio::PageLister<AzdlsLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -366,9 +366,9 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
+        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

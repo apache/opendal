@@ -18,6 +18,7 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::mem;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 
@@ -240,8 +241,9 @@ impl ImmutableDir {
 
 #[async_trait]
 impl oio::List for ImmutableDir {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        todo!()
+        // Ok(self.inner_next_page())
     }
 }
 

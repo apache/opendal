@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
-
 use async_trait::async_trait;
 use serde::Deserialize;
 
@@ -30,6 +28,7 @@ pub struct WebdavLister {
 }
 
 impl WebdavLister {
+    /// TODO: sending request in `next_page` instead of in `new`.
     pub fn new(base_dir: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
             base_dir: base_dir.to_string(),
@@ -41,14 +40,10 @@ impl WebdavLister {
 }
 
 #[async_trait]
-impl oio::List for WebdavLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.multistates.response.is_empty() {
-            return Ok(None);
-        };
-        let oes = mem::take(&mut self.multistates.response);
-
-        let mut entries = Vec::with_capacity(oes.len());
+impl oio::PageList for WebdavLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        // Build request instead of clone here.
+        let oes = self.multistates.response.clone();
 
         for res in oes {
             let path = res
@@ -70,19 +65,20 @@ impl oio::List for WebdavLister {
             }
 
             let meta = res.parse_into_metadata()?;
-            entries.push(oio::Entry::new(&decoded_path, meta))
+            ctx.entries.push_back(oio::Entry::new(&decoded_path, meta))
         }
+        ctx.done = true;
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Multistatus {
     pub response: Vec<ListOpResponse>,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ListOpResponse {
     pub href: String,
     pub propstat: Propstat,
@@ -141,13 +137,13 @@ impl ListOpResponse {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Propstat {
     pub prop: Prop,
     pub status: String,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Prop {
     #[serde(default)]
     pub displayname: String,
@@ -158,13 +154,13 @@ pub struct Prop {
     pub resourcetype: ResourceTypeContainer,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ResourceTypeContainer {
     #[serde(rename = "$value")]
     pub value: Option<ResourceType>,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ResourceType {
     Collection,

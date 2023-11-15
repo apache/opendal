@@ -29,8 +29,6 @@ pub struct AlluxioLister {
     core: Arc<AlluxioCore>,
 
     path: String,
-
-    done: bool,
 }
 
 impl AlluxioLister {
@@ -38,23 +36,19 @@ impl AlluxioLister {
         AlluxioLister {
             core,
             path: path.to_string(),
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for AlluxioLister {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for AlluxioLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let result = self.core.list_status(&self.path).await;
 
         match result {
             Ok(file_infos) => {
-                let mut entries = vec![];
+                ctx.done = true;
+
                 for file_info in file_infos {
                     let path: String = file_info.path.clone();
                     let path = if file_info.folder {
@@ -62,24 +56,18 @@ impl oio::List for AlluxioLister {
                     } else {
                         path
                     };
-                    entries.push(Entry::new(
+                    ctx.entries.push_back(Entry::new(
                         &build_rel_path(&self.core.root, &path),
                         file_info.try_into()?,
                     ));
                 }
 
-                if entries.is_empty() {
-                    return Ok(None);
-                }
-
-                self.done = true;
-
-                Ok(Some(entries))
+                Ok(())
             }
             Err(e) => {
                 if e.kind() == ErrorKind::NotFound {
-                    self.done = true;
-                    return Ok(None);
+                    ctx.done = true;
+                    return Ok(());
                 }
                 Err(e)
             }

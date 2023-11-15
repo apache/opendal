@@ -33,9 +33,6 @@ pub struct AzblobLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
-
-    next_marker: String,
-    done: bool,
 }
 
 impl AzblobLister {
@@ -47,23 +44,16 @@ impl AzblobLister {
             path,
             delimiter,
             limit,
-
-            next_marker: "".to_string(),
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for AzblobLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for AzblobLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azblob_list_blobs(&self.path, &self.next_marker, self.delimiter, self.limit)
+            .azblob_list_blobs(&self.path, &ctx.token, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -80,12 +70,11 @@ impl oio::List for AzblobLister {
         //
         // - Check `next_marker`
         if let Some(next_marker) = output.next_marker.as_ref() {
-            self.done = next_marker.is_empty();
+            ctx.done = next_marker.is_empty();
         };
-        self.next_marker = output.next_marker.clone().unwrap_or_default();
+        ctx.token = output.next_marker.clone().unwrap_or_default();
 
         let prefixes = output.blobs.blob_prefix;
-        let mut entries = Vec::with_capacity(prefixes.len() + output.blobs.blob.len());
 
         for prefix in prefixes {
             let de = oio::Entry::new(
@@ -93,7 +82,7 @@ impl oio::List for AzblobLister {
                 Metadata::new(EntryMode::DIR),
             );
 
-            entries.push(de)
+            ctx.entries.push_back(de)
         }
 
         for object in output.blobs.blob {
@@ -116,10 +105,10 @@ impl oio::List for AzblobLister {
 
             let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

@@ -1476,18 +1476,18 @@ impl<P> Drop for LoggingLister<P> {
 
 #[async_trait]
 impl<P: oio::List> oio::List for LoggingLister<P> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let res = self.inner.next().await;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let res = ready!(self.inner.poll_next(cx));
 
         match &res {
-            Ok(Some(des)) => {
+            Ok(Some(de)) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> listed {} entries",
+                    "service={} operation={} path={} -> listed entry: {}",
                     self.ctx.scheme,
                     self.op,
                     self.path,
-                    des.len(),
+                    de.path(),
                 );
             }
             Ok(None) => {
@@ -1515,7 +1515,7 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
             }
         };
 
-        res
+        Poll::Ready(res)
     }
 }
 

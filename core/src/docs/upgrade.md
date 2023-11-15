@@ -11,6 +11,19 @@ Users will need to change the following usage:
 
 `delimiter` other than `""` and `"/"` is not supported anymore.
 
+## Raw API
+
+### Lister Align
+
+We changed our internal `lister` implementation to align with the `list` public API for better performance and readability.
+
+- trait `Page` => `List`
+- struct `Pager` => `Lister`
+- trait `BlockingPage` => `BlockingList`
+- struct `BlockingPager` => `BlockingLister`
+
+Every call to `next` will return an entry instead a page of entries. Also, we changed our async list api into poll based instead of `async_trait`.
+
 # Upgrade to v0.42
 
 ## Public API

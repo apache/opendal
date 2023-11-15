@@ -26,16 +26,18 @@ op.lister_with(path).metakey(Metakey::ContentLength).concurrent(10).await?
 
 # Reference-level explanation
 
-When `concurrent` is set and `list_with` is called, the list operation will be split into two parts: list and stat.
-The list part will iterate through the entries inside the buffer, and if its metakey is unknown, it will send a stat request to the storage service.
+When `concurrent` is set and `list_with` is called, the list operation will be split into two parts:  list and stat.
 
-We will add a new field `concurrent` to `OpList`. The type of `concurrent` is `Option<usize>` (TBD). If `concurrent` is `None`, it means the default behavior. If `concurrent` is `Some(n)`, it means the maximum concurrent stat handlers are `n`.
+The list part will iterate through the entries inside the buffer, and if its `metakey` is unknown, it will send a stat request to the storage service.
 
-Then we could use a `Semaphore` (or similar) to limit the maximum concurrent stat handlers. Additionally, we could use handlers (`JoinSet` or `Vec<JoinHandle>`, etc.) to spawn and stack the stat task. While iterating through the entries, we should check if the metakey is unknown and if the `Semaphore` is available. If the metakey is unknown and the `Semaphore` is available, we should spawn a new stat handler and push it into the handlers stack.
+We will add a new field `concurrent` to `OpList`. The type of `concurrent` is `Option<u32>`. If `concurrent` is `None`, it means the default behavior. If `concurrent` is `Some(n)`, it means the maximum concurrent stat handlers are `n`.
+
+Then we could use a sized `VecDeque` to limit the maximum concurrent stat handlers. Additionally, we could use handlers `JoinHandle<T>` inside `VecDeque` to spawn and queue the stat tasks. 
+While iterating through the entries, we should check if the `metakey` is unknown and if the `VecDeque` is full. If the `metakey` is unknown and the `VecDeque` is full, we should wait and join the handle once it’s finished, since we need to keep the entry order.
 
 If the metakey is unknown and the handlers are full, we should break the loop and wait for the spawned tasks inside handlers to finish. After the spawned tasks finish, we should iterate through the handlers and return the result.
 
-If the metakey is known, we should return the result immediately and go back to return the concurrent tasks' results after the spawned tasks finish.
+If the metakey is known, we should check if the handlers are empty. If true, return the result immediately; otherwise, we should wait for the spawned tasks to finish.
 
 # Drawbacks
 
@@ -45,7 +47,25 @@ If the metakey is known, we should return the result immediately and go back to 
 
 # Rationale and alternatives
 
-None
+## Why not `VecDeque<BoxFuture<'static, X>>`?
+
+To maintain the order of returned entries, we need to pre-run future entries before returning the current one to address the slowness issue. 
+Although we could use `VecDeque<BoxFuture<'static, X>>` to store the spawned tasks, 
+using it here would prevent us from executing the async block concurrently when we only have one `cx: &mut Context<'_>`.
+
+## Do we need `Semaphore`?
+
+No, we can control the concurrent number by limiting the length of the `VecDeque`.
+Using a `semaphore` will introduce more cost and memory.
+
+## Why not using `JoinSet`?
+
+`JoinSet` requires mutability to spawn or join the next task, and `tokio::spawn()` requires the async block to be `'static`.
+This implies that we need to use `Arc<T>` to wrap our `JoinSet`. 
+
+However, to change the value inside `Arc`, we need to introduce a `Mutex`. Since it's inside an async block, we need to use Tokio's `Mutex` to satisfy the `Sync` requirement. 
+
+Therefore, for every operation on the `JoinSet`, there will be an `.await` on the lock outside of the async block, making concurrency impossible inside `poll_next()`.
 
 # Prior art
 
@@ -53,11 +73,8 @@ None
 
 # Unresolved questions
 
-1. Can we avoid using `Semaphore` and `JoinSet`, which introduce extra costs? Could we store those features directly?
-
-2. Is this implementation zero cost to users who don't want to do concurrent stat?
-
-3. How to implement a similar logic to `blocking` API?
+- How to implement a similar logic to `blocking` API? 
+   - Quoted from [oowl](https://github.com/oowl): It seems these features can be implemented in blocking mode, but it may require breaking something in OpenDAL, such as using some pthread API in blocking mode.
 
 # Future possibilities
 

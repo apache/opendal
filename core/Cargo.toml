@@ -51,6 +51,7 @@ default = [
   "services-webdav",
   "services-webhdfs",
   "services-azfile",
+  "services-ftp",
 ]
 
 # Build docs or not.
@@ -291,6 +292,7 @@ sled = { version = "0.34.7", optional = true }
 suppaftp = { version = "5.2", default-features = false, features = [
   "async-secure",
   "async-rustls",
+  "async-native-tls",
 ], optional = true }
 tikv-client = { version = "0.2.0", optional = true }
 tokio = "1.27"

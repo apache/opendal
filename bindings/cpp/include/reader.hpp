@@ -27,6 +27,10 @@
 
 namespace opendal {
 
+namespace ffi {
+struct Reader;
+}
+
 /**
  * @class Reader
  * @brief Reader is designed to read data from the operator.
@@ -39,8 +43,7 @@ namespace opendal {
 class Reader
     : public boost::iostreams::device<boost::iostreams::input_seekable> {
  public:
-  Reader(rust::Box<opendal::ffi::Reader> &&reader)
-      : raw_reader_(std::move(reader)) {}
+  Reader(rust::Box<opendal::ffi::Reader> &&reader);
 
   std::streamsize read(void *s, std::streamsize n);
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);

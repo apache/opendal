@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashSet;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use async_trait::async_trait;
 
@@ -55,100 +55,96 @@ pub struct HierarchyLister<P> {
 }
 
 impl<P> HierarchyLister<P> {
-    /// TODO: use retain_mut instead after we bump MSRV to 1.61.
-    fn filter_entries(&mut self, entries: Vec<oio::Entry>) -> Vec<oio::Entry> {
-        entries
-            .into_iter()
-            .filter_map(|mut e| {
-                // If path is not started with prefix, drop it.
-                //
-                // Ideally, it should never happen. But we just tolerate
-                // this state.
-                if !e.path().starts_with(&self.path) {
-                    return None;
-                }
+    /// ## NOTES
+    ///
+    /// We take `&mut Entry` here because we need to perform modification on entry in the case like
+    /// listing "a/" with existing key `a/b/c`.
+    ///
+    /// In this case, we got a key `a/b/c`, but we should return `a/b/` instead to keep the hierarchy.
+    fn keep_entry(&mut self, e: &mut oio::Entry) -> bool {
+        // If path is not started with prefix, drop it.
+        //
+        // Ideally, it should never happen. But we just tolerate
+        // this state.
+        if !e.path().starts_with(&self.path) {
+            return false;
+        }
 
-                // Dir itself should not be returned in hierarchy page.
-                if e.path() == self.path {
-                    return None;
-                }
+        // Dir itself should not be returned in hierarchy page.
+        if e.path() == self.path {
+            return false;
+        }
 
-                let prefix_len = self.path.len();
+        let prefix_len = self.path.len();
 
-                let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {
-                    idx + prefix_len + 1
-                } else {
-                    // If there is no `/` in path, it's a normal file, we
-                    // can return it directly.
-                    return Some(e);
-                };
+        let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {
+            idx + prefix_len + 1
+        } else {
+            // If there is no `/` in path, it's a normal file, we
+            // can return it directly.
+            return true;
+        };
 
-                // idx == path.len() means it's contain only one `/` at the
-                // end of path.
-                if idx == e.path().len() {
-                    if !self.visited.contains(e.path()) {
-                        self.visited.insert(e.path().to_string());
-                    }
-                    return Some(e);
-                }
+        // idx == path.len() means it's contain only one `/` at the
+        // end of path.
+        if idx == e.path().len() {
+            if !self.visited.contains(e.path()) {
+                self.visited.insert(e.path().to_string());
+            }
+            return true;
+        }
 
-                // If idx < path.len() means that are more levels to come.
-                // We should check the first dir path.
-                let has = {
-                    let path = &e.path()[..idx];
-                    self.visited.contains(path)
-                };
-                if !has {
-                    let path = {
-                        let path = &e.path()[..idx];
-                        path.to_string()
-                    };
+        // If idx < path.len() means that are more levels to come.
+        // We should check the first dir path.
+        let has = {
+            let path = &e.path()[..idx];
+            self.visited.contains(path)
+        };
+        if !has {
+            let path = {
+                let path = &e.path()[..idx];
+                path.to_string()
+            };
 
-                    e.set_path(&path);
-                    e.set_mode(EntryMode::DIR);
-                    self.visited.insert(path);
+            e.set_path(&path);
+            e.set_mode(EntryMode::DIR);
+            self.visited.insert(path);
 
-                    return Some(e);
-                }
+            return true;
+        }
 
-                None
-            })
-            .collect()
+        false
     }
 }
 
 #[async_trait]
 impl<P: oio::List> oio::List for HierarchyLister<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        todo!()
-        // let page = self.lister.poll_next(cx)?;
-        //
-        // let entries = if let Some(entries) = page {
-        //     entries
-        // } else {
-        //     return Ok(None);
-        // };
-        //
-        // let entries = self.filter_entries(entries);
-        //
-        // Ok(Some(entries))
+        loop {
+            let mut entry = match ready!(self.lister.poll_next(cx))? {
+                Some(entry) => entry,
+                None => return Poll::Ready(Ok(None)),
+            };
+
+            if self.keep_entry(&mut entry) {
+                return Poll::Ready(Ok(Some(entry)));
+            }
+        }
     }
 }
 
 impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        todo!()
-        // let page = self.lister.next()?;
-        //
-        // let entries = if let Some(entries) = page {
-        //     entries
-        // } else {
-        //     return Ok(None);
-        // };
-        //
-        // let entries = self.filter_entries(entries);
-        //
-        // Ok(Some(entries))
+        loop {
+            let mut entry = match self.lister.next()? {
+                Some(entry) => entry,
+                None => return Ok(None),
+            };
+
+            if self.keep_entry(&mut entry) {
+                return Ok(Some(entry));
+            }
+        }
     }
 }
 
@@ -156,6 +152,7 @@ impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
 mod tests {
 
     use std::collections::HashSet;
+    use std::vec::IntoIter;
 
     use log::debug;
     use oio::BlockingList;
@@ -163,40 +160,28 @@ mod tests {
     use super::*;
 
     struct MockLister {
-        inner: Vec<&'static str>,
-        done: bool,
+        inner: IntoIter<&'static str>,
     }
 
     impl MockLister {
         fn new(inner: &[&'static str]) -> Self {
             Self {
-                inner: inner.to_vec(),
-                done: false,
+                inner: inner.to_vec().into_iter(),
             }
         }
     }
 
     impl BlockingList for MockLister {
         fn next(&mut self) -> Result<Option<oio::Entry>> {
-            todo!()
-            // if self.done {
-            //     return Ok(None);
-            // }
-            // self.done = true;
-            //
-            // let entries = self
-            //     .inner
-            //     .iter()
-            //     .map(|path| {
-            //         if path.ends_with('/') {
-            //             oio::Entry::new(path, Metadata::new(EntryMode::DIR))
-            //         } else {
-            //             oio::Entry::new(path, Metadata::new(EntryMode::FILE))
-            //         }
-            //     })
-            //     .collect();
-            //
-            // Ok(Some(entries))
+            let entry = self.inner.next().map(|path| {
+                if path.ends_with('/') {
+                    oio::Entry::new(path, Metadata::new(EntryMode::DIR))
+                } else {
+                    oio::Entry::new(path, Metadata::new(EntryMode::FILE))
+                }
+            });
+
+            Ok(entry)
         }
     }
 

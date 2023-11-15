@@ -54,7 +54,7 @@ impl oio::PageList for DbfsLister {
         }
 
         let bytes = response.into_body().bytes().await?;
-        let mut decoded_response =
+        let decoded_response =
             serde_json::from_slice::<DbfsOutputList>(&bytes).map_err(new_json_deserialize_error)?;
 
         ctx.done = true;

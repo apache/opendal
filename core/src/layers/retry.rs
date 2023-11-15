@@ -1316,7 +1316,7 @@ mod tests {
     }
     #[async_trait]
     impl oio::List for MockLister {
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
             self.attempt += 1;
             let result = match self.attempt {
                 1 => Err(Error::new(

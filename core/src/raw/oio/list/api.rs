@@ -80,7 +80,7 @@ impl<P: List + ?Sized> List for Box<P> {
 
 #[async_trait]
 impl List for () {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         Poll::Ready(Ok(None))
     }
 }

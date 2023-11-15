@@ -57,7 +57,7 @@ impl oio::PageList for SwiftLister {
         ctx.done = true;
 
         let bytes = response.into_body().bytes().await?;
-        let mut decoded_response = serde_json::from_slice::<Vec<ListOpResponse>>(&bytes)
+        let decoded_response = serde_json::from_slice::<Vec<ListOpResponse>>(&bytes)
             .map_err(new_json_deserialize_error)?;
 
         for status in decoded_response {

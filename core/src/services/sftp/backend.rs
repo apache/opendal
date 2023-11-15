@@ -446,7 +446,7 @@ impl Accessor for SftpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let client = self.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
@@ -467,7 +467,7 @@ impl Accessor for SftpBackend {
 
         Ok((
             RpList::default(),
-            Some(SftpLister::new(dir, path.to_owned(), args.limit())),
+            Some(SftpLister::new(dir, path.to_owned())),
         ))
     }
 }

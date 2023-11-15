@@ -29,19 +29,15 @@ use crate::Result;
 pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
-    limit: usize,
 }
 
 impl SftpLister {
-    pub fn new(dir: ReadDir, path: String, limit: Option<usize>) -> Self {
+    pub fn new(dir: ReadDir, path: String) -> Self {
         let prefix = if path == "/" { "".to_owned() } else { path };
-
-        let limit = limit.unwrap_or(usize::MAX);
 
         SftpLister {
             dir: Box::pin(dir),
             prefix,
-            limit,
         }
     }
 }

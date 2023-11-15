@@ -446,7 +446,7 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -460,7 +460,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.root, f, args.limit());
+        let rd = FsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -617,7 +617,7 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -631,7 +631,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.root, f, args.limit());
+        let rd = FsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }

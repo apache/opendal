@@ -28,15 +28,13 @@ use crate::*;
 
 pub struct FtpLister {
     path: String,
-    size: usize,
     file_iter: IntoIter<String>,
 }
 
 impl FtpLister {
-    pub fn new(path: &str, files: Vec<String>, limit: Option<usize>) -> Self {
+    pub fn new(path: &str, files: Vec<String>) -> Self {
         Self {
             path: path.to_string(),
-            size: limit.unwrap_or(1000),
             file_iter: files.into_iter(),
         }
     }
@@ -44,7 +42,7 @@ impl FtpLister {
 
 #[async_trait]
 impl oio::List for FtpLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         let de = match self.file_iter.next() {
             Some(file_str) => File::from_str(file_str.as_str()).map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e)

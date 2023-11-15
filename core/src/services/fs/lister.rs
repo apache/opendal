@@ -32,17 +32,15 @@ use crate::Result;
 pub struct FsLister<P> {
     root: PathBuf,
 
-    size: usize,
     rd: P,
 
     fut: Option<BoxFuture<'static, (tokio::fs::DirEntry, Result<FileType>)>>,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, rd: P, limit: Option<usize>) -> Self {
+    pub fn new(root: &Path, rd: P) -> Self {
         Self {
             root: root.to_owned(),
-            size: limit.unwrap_or(1000),
             rd,
 
             fut: None,

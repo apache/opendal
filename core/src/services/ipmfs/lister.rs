@@ -32,7 +32,6 @@ pub struct IpmfsLister {
     backend: Arc<IpmfsBackend>,
     root: String,
     path: String,
-    consumed: bool,
 }
 
 impl IpmfsLister {
@@ -41,7 +40,6 @@ impl IpmfsLister {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            consumed: false,
         }
     }
 }

@@ -331,7 +331,7 @@ impl KvLister {
 
 #[async_trait]
 impl oio::List for KvLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         Poll::Ready(Ok(self.inner_next()))
     }
 }

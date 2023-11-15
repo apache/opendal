@@ -121,7 +121,7 @@ where
                 continue;
             }
 
-            let (de, mut lister) = match self.active_lister.last_mut() {
+            let (de, lister) = match self.active_lister.last_mut() {
                 Some((de, lister)) => (de, lister),
                 None => return Poll::Ready(Ok(None)),
             };
@@ -167,7 +167,7 @@ where
                 self.active_lister.push((Some(de), l))
             }
 
-            let (de, mut lister) = match self.active_lister.last_mut() {
+            let (de, lister) = match self.active_lister.last_mut() {
                 Some((de, lister)) => (de, lister),
                 None => return Ok(None),
             };

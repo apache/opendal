@@ -39,6 +39,16 @@ pub trait PageList: Send + Sync + Unpin + 'static {
     async fn next_page(&self, ctx: &mut PageContext) -> Result<()>;
 }
 
+/// PageContext is the context passing between `PageList`.
+///
+/// [`PageLister`] will init the PageContext, and implementor of [`PageList`] should fill the `PageContext`
+/// based on their needs.
+///
+/// - Set `done` to `true` if all page have been fetched.
+/// - Update `token` if there is more page to fetch. `token` is not exposed to users, it's internal used only.
+/// - Push back into the entries for each entry fetched from underlying storage.
+///
+/// NOTE: `entries` is a `VecDeque` to avoid unnecessary memory allocation. Only `push_back` is allowed.
 pub struct PageContext {
     /// done is used to indicate whether the list operation is done.
     pub done: bool,
@@ -52,6 +62,7 @@ pub struct PageContext {
     pub entries: VecDeque<oio::Entry>,
 }
 
+/// PageLister implements [`List`] based on [`PageList`].
 pub struct PageLister<L: PageList> {
     state: State<L>,
 }

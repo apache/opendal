@@ -26,16 +26,14 @@ use crate::Result;
 pub struct HdfsLister {
     root: String,
 
-    size: usize,
     rd: hdrs::Readdir,
 }
 
 impl HdfsLister {
-    pub fn new(root: &str, rd: hdrs::Readdir, limit: Option<usize>) -> Self {
+    pub fn new(root: &str, rd: hdrs::Readdir) -> Self {
         Self {
             root: root.to_string(),
 
-            size: limit.unwrap_or(1000),
             rd,
         }
     }
@@ -43,7 +41,7 @@ impl HdfsLister {
 
 #[async_trait]
 impl oio::List for HdfsLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         let de = match self.rd.next() {
             Some(de) => de,
             None => return Poll::Ready(Ok(None)),

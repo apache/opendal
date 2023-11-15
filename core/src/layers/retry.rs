@@ -1314,6 +1314,7 @@ mod tests {
     struct MockLister {
         attempt: usize,
     }
+
     #[async_trait]
     impl oio::List for MockLister {
         fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
@@ -1328,15 +1329,23 @@ mod tests {
                     "hello",
                     Metadata::new(EntryMode::FILE),
                 ))),
-                3 => Err(
+                3 => Ok(Some(oio::Entry::new(
+                    "world",
+                    Metadata::new(EntryMode::FILE),
+                ))),
+                4 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable internal server error")
                         .set_temporary(),
                 ),
-                4 => Ok(Some(oio::Entry::new(
+                5 => Ok(Some(oio::Entry::new(
                     "2023/",
                     Metadata::new(EntryMode::DIR),
                 ))),
-                5 => Ok(None),
+                6 => Ok(Some(oio::Entry::new(
+                    "0208/",
+                    Metadata::new(EntryMode::DIR),
+                ))),
+                7 => Ok(None),
                 _ => {
                     unreachable!()
                 }

@@ -101,26 +101,26 @@ pub trait BlockingList: Send + 'static {
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
-    fn next(&mut self) -> Result<Option<Vec<Entry>>>;
+    fn next(&mut self) -> Result<Option<Entry>>;
 }
 
 /// BlockingLister is a boxed [`BlockingList`]
 pub type BlockingLister = Box<dyn BlockingList>;
 
 impl<P: BlockingList + ?Sized> BlockingList for Box<P> {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         (**self).next()
     }
 }
 
 impl BlockingList for () {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         Ok(None)
     }
 }
 
 impl<P: BlockingList> BlockingList for Option<P> {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         match self {
             Some(p) => p.next(),
             None => Ok(None),

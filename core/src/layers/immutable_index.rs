@@ -17,8 +17,8 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::mem;
 use std::task::{Context, Poll};
+use std::vec::IntoIter;
 
 use async_trait::async_trait;
 
@@ -208,48 +208,39 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 }
 
 pub struct ImmutableDir {
-    idx: Vec<String>,
+    idx: IntoIter<String>,
 }
 
 impl ImmutableDir {
     fn new(idx: Vec<String>) -> Self {
-        Self { idx }
+        Self {
+            idx: idx.into_iter(),
+        }
     }
 
-    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
-        if self.idx.is_empty() {
-            return None;
-        }
-
-        let vs = mem::take(&mut self.idx);
-
-        Some(
-            vs.into_iter()
-                .map(|v| {
-                    let mode = if v.ends_with('/') {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    };
-                    let meta = Metadata::new(mode);
-                    oio::Entry::with(v, meta)
-                })
-                .collect(),
-        )
+    fn inner_next(&mut self) -> Option<oio::Entry> {
+        self.idx.next().map(|v| {
+            let mode = if v.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let meta = Metadata::new(mode);
+            oio::Entry::with(v, meta)
+        })
     }
 }
 
 #[async_trait]
 impl oio::List for ImmutableDir {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        todo!()
-        // Ok(self.inner_next_page())
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        Poll::Ready(Ok(self.inner_next()))
     }
 }
 
 impl oio::BlockingList for ImmutableDir {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 

@@ -380,7 +380,7 @@ impl<R: oio::List> oio::List for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingList> oio::BlockingList for MinitraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ListOperation::BlockingNext.into_static());
         self.inner.next()

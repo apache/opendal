@@ -1099,7 +1099,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
 }
 
 impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         { || self.inner.next() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())

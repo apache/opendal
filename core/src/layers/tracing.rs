@@ -373,7 +373,7 @@ impl<R: oio::List> oio::List for TracingWrapper<R> {
 
 impl<R: oio::BlockingList> oio::BlockingList for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
     }
 }

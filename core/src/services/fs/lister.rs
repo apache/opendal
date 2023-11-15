@@ -112,42 +112,36 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
 }
 
 impl oio::BlockingList for FsLister<std::fs::ReadDir> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let de = match self.rd.next() {
+            Some(de) => de.map_err(new_std_io_error)?,
+            None => return Ok(None),
+        };
 
-        for _ in 0..self.size {
-            let de = match self.rd.next() {
-                Some(de) => de.map_err(new_std_io_error)?,
-                None => break,
-            };
+        let entry_path = de.path();
+        let rel_path = normalize_path(
+            &entry_path
+                .strip_prefix(&self.root)
+                .expect("cannot fail because the prefix is iterated")
+                .to_string_lossy()
+                .replace('\\', "/"),
+        );
 
-            let entry_path = de.path();
-            let rel_path = normalize_path(
-                &entry_path
-                    .strip_prefix(&self.root)
-                    .expect("cannot fail because the prefix is iterated")
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-            );
+        // On Windows and most Unix platforms this function is free
+        // (no extra system calls needed), but some Unix platforms may
+        // require the equivalent call to symlink_metadata to learn about
+        // the target file type.
+        let file_type = de.file_type().map_err(new_std_io_error)?;
 
-            // On Windows and most Unix platforms this function is free
-            // (no extra system calls needed), but some Unix platforms may
-            // require the equivalent call to symlink_metadata to learn about
-            // the target file type.
-            let file_type = de.file_type().map_err(new_std_io_error)?;
+        let entry = if file_type.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
+        } else if file_type.is_dir() {
+            // Make sure we are returning the correct path.
+            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+        };
 
-            let d = if file_type.is_file() {
-                oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-            } else if file_type.is_dir() {
-                // Make sure we are returning the correct path.
-                oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
-            } else {
-                oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
-            };
-
-            oes.push(d)
-        }
-
-        Ok(if oes.is_empty() { None } else { Some(oes) })
+        Ok(Some(entry))
     }
 }

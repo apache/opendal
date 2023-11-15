@@ -1520,18 +1520,18 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
 }
 
 impl<P: oio::BlockingList> oio::BlockingList for LoggingLister<P> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         let res = self.inner.next();
 
         match &res {
             Ok(Some(des)) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> got {} entries",
+                    "service={} operation={} path={} -> listed entry: {}",
                     self.ctx.scheme,
                     self.op,
                     self.path,
-                    des.len(),
+                    des.path(),
                 );
             }
             Ok(None) => {

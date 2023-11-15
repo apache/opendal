@@ -314,12 +314,9 @@ impl KvLister {
             inner: inner.into_iter(),
         }
     }
-}
 
-#[async_trait]
-impl oio::List for KvLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let entry = self.inner.next().map(|v| {
+    fn inner_next(&mut self) -> Option<oio::Entry> {
+        self.inner.next().map(|v| {
             let mode = if v.ends_with('/') {
                 EntryMode::DIR
             } else {
@@ -327,29 +324,20 @@ impl oio::List for KvLister {
             };
 
             oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
-        });
+        })
+    }
+}
 
-        Poll::Ready(Ok(entry))
+#[async_trait]
+impl oio::List for KvLister {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        Poll::Ready(Ok(self.inner_next()))
     }
 }
 
 impl oio::BlockingList for KvLister {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(Some(
-            self.inner
-                .as_slice()
-                .iter()
-                .map(|v| {
-                    let mode = if v.ends_with('/') {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    };
-
-                    oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
-                })
-                .collect(),
-        ))
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 

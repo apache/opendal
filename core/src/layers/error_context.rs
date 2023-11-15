@@ -463,7 +463,7 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().map_err(|err| {
             err.with_operation(ListOperation::BlockingNext)
                 .with_context("service", self.scheme)

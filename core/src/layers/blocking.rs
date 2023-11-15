@@ -314,7 +314,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
 }
 
 impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         todo!()
         // self.handle.block_on(poll_fn(|cx| self.inner.poll_next(cx)))
     }

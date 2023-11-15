@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -127,8 +126,7 @@ pub struct BlockingLister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    lister: Option<oio::BlockingLister>,
-    buf: VecDeque<oio::Entry>,
+    lister: oio::BlockingLister,
 }
 
 /// # Safety
@@ -146,8 +144,7 @@ impl BlockingLister {
             acc,
             required_metakey,
 
-            buf: VecDeque::new(),
-            lister: Some(lister),
+            lister,
         })
     }
 }
@@ -157,38 +154,25 @@ impl Iterator for BlockingLister {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_metakey(self.required_metakey) {
-                return Some(Ok(Entry::new(path, metadata)));
-            }
-
-            let metadata = match self.acc.blocking_stat(&path, OpStat::default()) {
-                Ok(rp) => rp.into_metadata(),
-                Err(err) => return Some(Err(err)),
-            };
-            return Some(Ok(Entry::new(path, metadata)));
-        }
-
-        let lister = match self.lister.as_mut() {
-            Some(lister) => lister,
-            None => return None,
-        };
-
-        self.buf = match lister.next() {
-            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-            //
-            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-            Ok(Some(entries)) => entries.into(),
+        let entry = match self.lister.next() {
+            Ok(Some(entry)) => entry,
             Ok(None) => {
-                self.lister = None;
                 return None;
             }
             Err(err) => return Some(Err(err)),
         };
 
-        self.next()
+        let (path, metadata) = entry.into_entry().into_parts();
+        // TODO: we can optimize this by checking the provided metakey provided by services.
+        if metadata.contains_metakey(self.required_metakey) {
+            return Some(Ok(Entry::new(path, metadata)));
+        }
+
+        let metadata = match self.acc.blocking_stat(&path, OpStat::default()) {
+            Ok(rp) => rp.into_metadata(),
+            Err(err) => return Some(Err(err)),
+        };
+        Some(Ok(Entry::new(path, metadata)))
     }
 }
 

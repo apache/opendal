@@ -136,18 +136,19 @@ impl<P: oio::List> oio::List for HierarchyLister<P> {
 }
 
 impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let page = self.lister.next()?;
-
-        let entries = if let Some(entries) = page {
-            entries
-        } else {
-            return Ok(None);
-        };
-
-        let entries = self.filter_entries(entries);
-
-        Ok(Some(entries))
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        todo!()
+        // let page = self.lister.next()?;
+        //
+        // let entries = if let Some(entries) = page {
+        //     entries
+        // } else {
+        //     return Ok(None);
+        // };
+        //
+        // let entries = self.filter_entries(entries);
+        //
+        // Ok(Some(entries))
     }
 }
 
@@ -176,25 +177,26 @@ mod tests {
     }
 
     impl BlockingList for MockLister {
-        fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-            if self.done {
-                return Ok(None);
-            }
-            self.done = true;
-
-            let entries = self
-                .inner
-                .iter()
-                .map(|path| {
-                    if path.ends_with('/') {
-                        oio::Entry::new(path, Metadata::new(EntryMode::DIR))
-                    } else {
-                        oio::Entry::new(path, Metadata::new(EntryMode::FILE))
-                    }
-                })
-                .collect();
-
-            Ok(Some(entries))
+        fn next(&mut self) -> Result<Option<oio::Entry>> {
+            todo!()
+            // if self.done {
+            //     return Ok(None);
+            // }
+            // self.done = true;
+            //
+            // let entries = self
+            //     .inner
+            //     .iter()
+            //     .map(|path| {
+            //         if path.ends_with('/') {
+            //             oio::Entry::new(path, Metadata::new(EntryMode::DIR))
+            //         } else {
+            //             oio::Entry::new(path, Metadata::new(EntryMode::FILE))
+            //         }
+            //     })
+            //     .collect();
+            //
+            // Ok(Some(entries))
         }
     }
 
@@ -209,15 +211,14 @@ mod tests {
 
         let mut set = HashSet::new();
         while let Some(e) = lister.next()? {
-            for i in &e {
-                debug!("got path {}", i.path());
-                assert!(
-                    set.insert(i.path().to_string()),
-                    "duplicated value: {}",
-                    i.path()
-                );
-            }
-            entries.extend_from_slice(&e)
+            debug!("got path {}", e.path());
+            assert!(
+                set.insert(e.path().to_string()),
+                "duplicated value: {}",
+                e.path()
+            );
+
+            entries.push(e)
         }
 
         assert_eq!(

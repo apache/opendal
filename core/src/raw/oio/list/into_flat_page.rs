@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::mem;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
@@ -157,58 +156,59 @@ where
     A: Accessor<BlockingLister = P>,
     P: oio::BlockingList,
 {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        loop {
-            if let Some(de) = self.dirs.pop_back() {
-                let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
-                self.listers.push((op, de, vec![]))
-            }
-
-            let (mut lister, de, mut buf) = match self.listers.pop() {
-                Some((lister, de, buf)) => (lister, de, buf),
-                None => {
-                    if !self.res.is_empty() {
-                        return Ok(Some(mem::take(&mut self.res)));
-                    }
-                    return Ok(None);
-                }
-            };
-
-            if buf.is_empty() {
-                match lister.next()? {
-                    Some(v) => {
-                        buf = v;
-                    }
-                    None => {
-                        // Only push entry if it's not root dir
-                        if de.path() != self.root {
-                            self.res.push(de);
-                        }
-                        continue;
-                    }
-                }
-            }
-
-            let mut buf = VecDeque::from(buf);
-            loop {
-                if let Some(oe) = buf.pop_front() {
-                    if oe.mode().is_dir() {
-                        self.dirs.push_back(oe);
-                        self.listers.push((lister, de, buf.into()));
-                        break;
-                    } else {
-                        self.res.push(oe)
-                    }
-                } else {
-                    self.listers.push((lister, de, vec![]));
-                    break;
-                }
-            }
-
-            if self.res.len() >= self.size {
-                return Ok(Some(mem::take(&mut self.res)));
-            }
-        }
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        todo!()
+        // loop {
+        //     if let Some(de) = self.dirs.pop_back() {
+        //         let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
+        //         self.listers.push((op, de, vec![]))
+        //     }
+        //
+        //     let (mut lister, de, mut buf) = match self.listers.pop() {
+        //         Some((lister, de, buf)) => (lister, de, buf),
+        //         None => {
+        //             if !self.res.is_empty() {
+        //                 return Ok(Some(mem::take(&mut self.res)));
+        //             }
+        //             return Ok(None);
+        //         }
+        //     };
+        //
+        //     if buf.is_empty() {
+        //         match lister.next()? {
+        //             Some(v) => {
+        //                 buf = v;
+        //             }
+        //             None => {
+        //                 // Only push entry if it's not root dir
+        //                 if de.path() != self.root {
+        //                     self.res.push(de);
+        //                 }
+        //                 continue;
+        //             }
+        //         }
+        //     }
+        //
+        //     let mut buf = VecDeque::from(buf);
+        //     loop {
+        //         if let Some(oe) = buf.pop_front() {
+        //             if oe.mode().is_dir() {
+        //                 self.dirs.push_back(oe);
+        //                 self.listers.push((lister, de, buf.into()));
+        //                 break;
+        //             } else {
+        //                 self.res.push(oe)
+        //             }
+        //         } else {
+        //             self.listers.push((lister, de, vec![]));
+        //             break;
+        //         }
+        //     }
+        //
+        //     if self.res.len() >= self.size {
+        //         return Ok(Some(mem::take(&mut self.res)));
+        //     }
+        // }
     }
 }
 
@@ -273,25 +273,26 @@ mod tests {
     }
 
     impl BlockingList for MockLister {
-        fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-            if self.done {
-                return Ok(None);
-            }
-            self.done = true;
-
-            let entries = self
-                .inner
-                .iter()
-                .map(|path| {
-                    if path.ends_with('/') {
-                        oio::Entry::new(path, Metadata::new(EntryMode::DIR))
-                    } else {
-                        oio::Entry::new(path, Metadata::new(EntryMode::FILE))
-                    }
-                })
-                .collect();
-
-            Ok(Some(entries))
+        fn next(&mut self) -> Result<Option<oio::Entry>> {
+            todo!()
+            // if self.done {
+            //     return Ok(None);
+            // }
+            // self.done = true;
+            //
+            // let entries = self
+            //     .inner
+            //     .iter()
+            //     .map(|path| {
+            //         if path.ends_with('/') {
+            //             oio::Entry::new(path, Metadata::new(EntryMode::DIR))
+            //         } else {
+            //             oio::Entry::new(path, Metadata::new(EntryMode::FILE))
+            //         }
+            //     })
+            //     .collect();
+            //
+            // Ok(Some(entries))
         }
     }
 
@@ -305,7 +306,7 @@ mod tests {
         let mut entries = Vec::default();
 
         while let Some(e) = lister.next()? {
-            entries.extend_from_slice(&e)
+            entries.push(e)
         }
 
         assert_eq!(

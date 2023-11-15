@@ -337,7 +337,7 @@ impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingList> oio::BlockingList for OtelTraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
     }
 }

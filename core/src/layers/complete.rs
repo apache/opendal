@@ -654,7 +654,7 @@ where
     A: Accessor<BlockingLister = P>,
     P: oio::BlockingList,
 {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         use CompleteLister::*;
 
         match self {

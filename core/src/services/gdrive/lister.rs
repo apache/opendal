@@ -44,12 +44,14 @@ impl oio::PageList for GdriveLister {
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().bytes().await?,
-            StatusCode::NOT_FOUND => {
-                ctx.done = true;
-                return Ok(());
-            }
             _ => return Err(parse_error(resp).await?),
         };
+
+        // Gdrive returns empty content when this dir is not exist.
+        if bytes.is_empty() {
+            ctx.done = true;
+            return Ok(());
+        }
 
         let decoded_response =
             serde_json::from_slice::<GdriveFileList>(&bytes).map_err(new_json_deserialize_error)?;

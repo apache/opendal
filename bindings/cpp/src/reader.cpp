@@ -22,6 +22,33 @@
 #include "lib.rs.h"
 
 namespace opendal {
+
+namespace {
+ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
+  switch (dir) {
+    case std::ios_base::beg:
+      return ffi::SeekDir::Start;
+    case std::ios_base::cur:
+      return ffi::SeekDir::Current;
+    case std::ios_base::end:
+      return ffi::SeekDir::End;
+    default:
+      throw std::runtime_error("invalid seekdir");
+  }
+}
+}  // namespace
+
 Reader::Reader(rust::Box<opendal::ffi::Reader> &&reader)
     : raw_reader_(std::move(reader)) {}
+
+std::streamsize Reader::read(void *s, std::streamsize n) {
+  auto rust_slice = rust::Slice<uint8_t>(reinterpret_cast<uint8_t *>(s), n);
+  auto read_size = raw_reader_->read(rust_slice);
+  return read_size;
+}
+
+std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
+  return raw_reader_->seek(off, to_rust_seek_dir(dir));
+}
+
 }  // namespace opendal

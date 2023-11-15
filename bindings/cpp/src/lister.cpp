@@ -17,24 +17,19 @@
  * under the License.
  */
 
-#pragma once
+#include "lister.hpp"
 
-#include <string>
+#include "lib.rs.h"
 
 namespace opendal {
 
-namespace ffi {
-struct Entry;
-}  // namespace ffi
-
-/**
- * @struct Entry
- * @brief The entry of a file or directory
- */
-struct Entry {
-  std::string path;
-
-  Entry(ffi::Entry &&);
-};
+std::optional<Entry> Lister::next() {
+  auto entry = raw_lister_->next();
+  if (entry.has_value) {
+    return std::move(entry.value);
+  } else {
+    return std::nullopt;
+  }
+}
 
 }  // namespace opendal

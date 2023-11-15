@@ -48,8 +48,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          need-nextest: true
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -65,11 +63,14 @@ jobs:
       - name: Check format
         run: yarn run prettier --check .
 
+      - name: Build
+        run: yarn build
+
       - name: Check diff
         run: git diff --exit-code
 
-      - name: Unit test
-        run: cargo nextest run --no-fail-fast
+      - name: Test
+        run: cargo test --no-fail-fast
 
   linux:
     runs-on: ubuntu-latest

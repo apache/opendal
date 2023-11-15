@@ -29,10 +29,10 @@
 //! #[async_trait]
 //! //                  <----------Trait Bound-------------->
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: oio::Read;                 // --+
-//!     type BlockingReader: oio::BlockingRead; //   +--> Associated Type
-//!     type Pager: oio::Page;                  //   +
-//!     type BlockingPager: oio::BlockingPage;  // --+
+//!     type Reader: oio::Read;                    // --+
+//!     type BlockingReader: oio::BlockingRead;    //   +--> Associated Type
+//!     type Lister: oio::Lister;                  //   +
+//!     type BlockingLister: oio::BlockingLister;  // --+
 //!
 //!     // APIs
 //!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
@@ -102,8 +102,8 @@
 //!
 //! - `Reader`: reader returned by `read` operation.
 //! - `BlockingReader`: reader returned by `blocking_read` operation.
-//! - `Pager`: pager returned by `scan` or `list` operation.
-//! - `BlockingPager`: pager returned by `blocking_scan` or `blocking_list` operation.
+//! - `Lister`: lister returned by `scan` or `list` operation.
+//! - `BlockingLister`: lister returned by `blocking_scan` or `blocking_list` operation.
 //!
 //! Implementer of `Accessor` should take care the following things:
 //!
@@ -290,8 +290,8 @@
 //!     type BlockingReader = ();
 //!     type Writer = ();
 //!     type BlockingWriter = ();
-//!     type Pager = ();
-//!     type BlockingPager = ();
+//!     type Lister = ();
+//!     type BlockingLister = ();
 //!
 //!     fn metadata(&self) -> AccessorInfo {
 //!         let mut am = AccessorInfo::default();

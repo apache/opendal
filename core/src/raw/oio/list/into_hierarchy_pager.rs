@@ -22,38 +22,38 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
-/// to_hierarchy_pager is used to make a hierarchy pager flat.
-pub fn into_hierarchy_page<P>(pager: P, path: &str) -> HierarchyPager<P> {
+/// to_hierarchy_lister is used to make a hierarchy lister flat.
+pub fn into_hierarchy_page<P>(lister: P, path: &str) -> HierarchyLister<P> {
     let path = if path == "/" {
         "".to_string()
     } else {
         path.to_string()
     };
 
-    HierarchyPager {
-        pager,
+    HierarchyLister {
+        lister,
         path,
         visited: HashSet::default(),
     }
 }
 
-/// ToHierarchyPager will convert a flat page to hierarchy by filter
+/// ToHierarchyLister will convert a flat page to hierarchy by filter
 /// not needed entries.
 ///
 /// # Notes
 ///
-/// ToHierarchyPager filter entries after fetch entries. So it's possible
+/// ToHierarchyLister filter entries after fetch entries. So it's possible
 /// to return an empty vec. It doesn't mean the all pages have been
 /// returned.
 ///
 /// Please keep calling next_page until we returned `Ok(None)`
-pub struct HierarchyPager<P> {
-    pager: P,
+pub struct HierarchyLister<P> {
+    lister: P,
     path: String,
     visited: HashSet<String>,
 }
 
-impl<P> HierarchyPager<P> {
+impl<P> HierarchyLister<P> {
     /// TODO: use retain_mut instead after we bump MSRV to 1.61.
     fn filter_entries(&mut self, entries: Vec<oio::Entry>) -> Vec<oio::Entry> {
         entries
@@ -117,9 +117,9 @@ impl<P> HierarchyPager<P> {
 }
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for HierarchyPager<P> {
+impl<P: oio::List> oio::List for HierarchyLister<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let page = self.pager.next().await?;
+        let page = self.lister.next().await?;
 
         let entries = if let Some(entries) = page {
             entries
@@ -133,9 +133,9 @@ impl<P: oio::Page> oio::Page for HierarchyPager<P> {
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for HierarchyPager<P> {
+impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let page = self.pager.next()?;
+        let page = self.lister.next()?;
 
         let entries = if let Some(entries) = page {
             entries
@@ -155,16 +155,16 @@ mod tests {
     use std::collections::HashSet;
 
     use log::debug;
-    use oio::BlockingPage;
+    use oio::BlockingList;
 
     use super::*;
 
-    struct MockPager {
+    struct MockLister {
         inner: Vec<&'static str>,
         done: bool,
     }
 
-    impl MockPager {
+    impl MockLister {
         fn new(inner: &[&'static str]) -> Self {
             Self {
                 inner: inner.to_vec(),
@@ -173,7 +173,7 @@ mod tests {
         }
     }
 
-    impl BlockingPage for MockPager {
+    impl BlockingList for MockLister {
         fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);
@@ -200,13 +200,13 @@ mod tests {
     fn test_blocking_list() -> Result<()> {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-        let pager = MockPager::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
-        let mut pager = into_hierarchy_page(pager, "");
+        let lister = MockLister::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
+        let mut lister = into_hierarchy_page(lister, "");
 
         let mut entries = Vec::default();
 
         let mut set = HashSet::new();
-        while let Some(e) = pager.next()? {
+        while let Some(e) = lister.next()? {
             for i in &e {
                 debug!("got path {}", i.path());
                 assert!(

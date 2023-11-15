@@ -33,7 +33,7 @@ use openssh_sftp_client::SftpOptions;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
-use super::pager::SftpPager;
+use super::lister::SftpLister;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
@@ -247,8 +247,8 @@ impl Accessor for SftpBackend {
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
-    type Pager = Option<SftpPager>;
-    type BlockingPager = ();
+    type Lister = Option<SftpLister>;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -446,7 +446,7 @@ impl Accessor for SftpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let client = self.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
@@ -467,7 +467,7 @@ impl Accessor for SftpBackend {
 
         Ok((
             RpList::default(),
-            Some(SftpPager::new(dir, path.to_owned(), args.limit())),
+            Some(SftpLister::new(dir, path.to_owned(), args.limit())),
         ))
     }
 }

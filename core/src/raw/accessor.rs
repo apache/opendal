@@ -65,11 +65,11 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
     type BlockingWriter: oio::BlockingWrite;
-    /// Pager is the associated page that return in `list` operation.
-    type Pager: oio::Page;
-    /// BlockingPager is the associated pager that could return in
+    /// Lister is the associated lister that return in `list` operation.
+    type Lister: oio::List;
+    /// BlockingLister is the associated lister that could return in
     /// `blocking_list` operation.
-    type BlockingPager: oio::BlockingPage;
+    type BlockingLister: oio::BlockingList;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -209,7 +209,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -353,7 +353,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -370,8 +370,8 @@ impl Accessor for () {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
-    type Pager = ();
-    type BlockingPager = ();
+    type Lister = ();
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         AccessorInfo {
@@ -392,8 +392,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type BlockingReader = T::BlockingReader;
     type Writer = T::Writer;
     type BlockingWriter = T::BlockingWriter;
-    type Pager = T::Pager;
-    type BlockingPager = T::BlockingPager;
+    type Lister = T::Lister;
+    type BlockingLister = T::BlockingLister;
 
     fn info(&self) -> AccessorInfo {
         self.as_ref().info()
@@ -424,7 +424,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.as_ref().list(path, args).await
     }
 
@@ -460,7 +460,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.as_ref().blocking_list(path, args)
     }
 }
@@ -472,8 +472,8 @@ pub type FusedAccessor = Arc<
         BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
         BlockingWriter = oio::BlockingWriter,
-        Pager = oio::Pager,
-        BlockingPager = oio::BlockingPager,
+        Lister = oio::Lister,
+        BlockingLister = oio::BlockingLister,
     >,
 >;
 

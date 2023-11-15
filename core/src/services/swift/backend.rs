@@ -26,7 +26,7 @@ use log::debug;
 
 use super::core::SwiftCore;
 use super::error::parse_error;
-use super::pager::SwiftPager;
+use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;
 use crate::*;
@@ -218,8 +218,8 @@ impl Accessor for SwiftBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type BlockingWriter = ();
-    type Pager = SwiftPager;
-    type BlockingPager = ();
+    type Lister = SwiftLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -328,8 +328,8 @@ impl Accessor for SwiftBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = SwiftPager::new(self.core.clone(), path.to_string(), args.recursive());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let op = SwiftLister::new(self.core.clone(), path.to_string(), args.recursive());
 
         Ok((RpList::default(), op))
     }

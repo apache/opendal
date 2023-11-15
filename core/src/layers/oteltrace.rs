@@ -73,8 +73,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     type BlockingReader = OtelTraceWrapper<A::BlockingReader>;
     type Writer = OtelTraceWrapper<A::Writer>;
     type BlockingWriter = OtelTraceWrapper<A::BlockingWriter>;
-    type Pager = OtelTraceWrapper<A::Pager>;
-    type BlockingPager = OtelTraceWrapper<A::BlockingPager>;
+    type Lister = OtelTraceWrapper<A::Lister>;
+    type BlockingLister = OtelTraceWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -154,7 +154,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         self.inner().delete(path, args).with_context(cx).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -254,7 +254,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -330,13 +330,13 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Page> oio::Page for OtelTraceWrapper<R> {
+impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
-impl<R: oio::BlockingPage> oio::BlockingPage for OtelTraceWrapper<R> {
+impl<R: oio::BlockingList> oio::BlockingList for OtelTraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()
     }

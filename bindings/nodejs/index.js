@@ -19,7 +19,9 @@
 
 /// <reference types="node" />
 
-require('dotenv').config()
-const { Operator } = require('./generated.js')
+const { Operator, RetryLayer } = require('./generated.js')
 
 module.exports.Operator = Operator
+module.exports.layers = {
+  RetryLayer,
+}

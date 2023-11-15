@@ -32,7 +32,7 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct OnedrivePager {
+pub struct OnedriveLister {
     root: String,
     path: String,
     backend: OnedriveBackend,
@@ -40,7 +40,7 @@ pub struct OnedrivePager {
     done: bool,
 }
 
-impl OnedrivePager {
+impl OnedriveLister {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
     pub(crate) fn new(root: String, path: String, backend: OnedriveBackend) -> Self {
@@ -55,7 +55,7 @@ impl OnedrivePager {
 }
 
 #[async_trait]
-impl oio::Page for OnedrivePager {
+impl oio::List for OnedriveLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
@@ -112,7 +112,7 @@ impl oio::Page for OnedrivePager {
     }
 }
 
-impl OnedrivePager {
+impl OnedriveLister {
     async fn onedrive_get(&mut self) -> Result<Response<IncomingAsyncBody>> {
         let request_url = if let Some(next_link) = &self.next_link {
             let next_link_clone = next_link.clone();

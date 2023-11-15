@@ -30,7 +30,7 @@ use crate::*;
 
 use super::core::DbfsCore;
 use super::error::parse_error;
-use super::pager::DbfsPager;
+use super::lister::DbfsLister;
 use super::reader::DbfsReader;
 use super::writer::DbfsWriter;
 
@@ -158,8 +158,8 @@ impl Accessor for DbfsBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type BlockingWriter = ();
-    type Pager = DbfsPager;
-    type BlockingPager = ();
+    type Lister = DbfsLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -275,8 +275,8 @@ impl Accessor for DbfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = DbfsPager::new(self.core.clone(), path.to_string());
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+        let op = DbfsLister::new(self.core.clone(), path.to_string());
 
         Ok((RpList::default(), op))
     }

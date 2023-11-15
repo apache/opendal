@@ -155,6 +155,8 @@ impl Operator {
         let op = match scheme {
             #[cfg(feature = "services-atomicserver")]
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
             #[cfg(feature = "services-azdls")]

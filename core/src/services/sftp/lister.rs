@@ -25,19 +25,19 @@ use openssh_sftp_client::fs::ReadDir;
 use crate::raw::oio;
 use crate::Result;
 
-pub struct SftpPager {
+pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
     limit: usize,
 }
 
-impl SftpPager {
+impl SftpLister {
     pub fn new(dir: ReadDir, path: String, limit: Option<usize>) -> Self {
         let prefix = if path == "/" { "".to_owned() } else { path };
 
         let limit = limit.unwrap_or(usize::MAX);
 
-        SftpPager {
+        SftpLister {
             dir: Box::pin(dir),
             prefix,
             limit,
@@ -46,7 +46,7 @@ impl SftpPager {
 }
 
 #[async_trait]
-impl oio::Page for SftpPager {
+impl oio::List for SftpLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.limit == 0 {
             return Ok(None);

@@ -412,8 +412,8 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type BlockingReader = MetricWrapper<A::BlockingReader>;
     type Writer = MetricWrapper<A::Writer>;
     type BlockingWriter = MetricWrapper<A::BlockingWriter>;
-    type Pager = A::Pager;
-    type BlockingPager = A::BlockingPager;
+    type Lister = A::Lister;
+    type BlockingLister = A::BlockingLister;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -547,7 +547,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.handle.requests_total_list.increment(1);
 
         let start = Instant::now();
@@ -709,7 +709,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.handle.requests_total_blocking_list.increment(1);
 
         let start = Instant::now();

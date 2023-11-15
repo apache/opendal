@@ -25,14 +25,14 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct SwiftPager {
+pub struct SwiftLister {
     core: Arc<SwiftCore>,
     path: String,
     delimiter: &'static str,
     done: bool,
 }
 
-impl SwiftPager {
+impl SwiftLister {
     pub fn new(core: Arc<SwiftCore>, path: String, recursive: bool) -> Self {
         let delimiter = if recursive { "" } else { "/" };
         Self {
@@ -45,7 +45,7 @@ impl SwiftPager {
 }
 
 #[async_trait]
-impl oio::Page for SwiftPager {
+impl oio::List for SwiftLister {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);

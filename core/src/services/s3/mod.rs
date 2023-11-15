@@ -21,5 +21,5 @@ pub use backend::S3Config;
 
 mod core;
 mod error;
-mod pager;
+mod lister;
 mod writer;

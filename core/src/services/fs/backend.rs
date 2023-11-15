@@ -24,7 +24,7 @@ use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
 
-use super::pager::FsPager;
+use super::lister::FsLister;
 use super::writer::FsWriter;
 use crate::raw::*;
 use crate::*;
@@ -248,8 +248,8 @@ impl Accessor for FsBackend {
     type BlockingReader = oio::StdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
-    type Pager = Option<FsPager<tokio::fs::ReadDir>>;
-    type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
+    type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -446,7 +446,7 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -460,7 +460,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsPager::new(&self.root, f, args.limit());
+        let rd = FsLister::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -617,7 +617,7 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -631,7 +631,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsPager::new(&self.root, f, args.limit());
+        let rd = FsLister::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

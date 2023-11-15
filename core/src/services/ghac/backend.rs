@@ -230,8 +230,8 @@ impl Accessor for GhacBackend {
     type BlockingReader = ();
     type Writer = GhacWriter;
     type BlockingWriter = ();
-    type Pager = ();
-    type BlockingPager = ();
+    type Lister = ();
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();

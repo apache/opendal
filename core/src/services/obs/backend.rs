@@ -29,7 +29,7 @@ use reqsign::HuaweicloudObsSigner;
 
 use super::core::ObsCore;
 use super::error::parse_error;
-use super::pager::ObsPager;
+use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
@@ -252,8 +252,8 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriters;
     type BlockingWriter = ();
-    type Pager = ObsPager;
-    type BlockingPager = ();
+    type Lister = ObsLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -427,10 +427,10 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            ObsPager::new(self.core.clone(), path, args.recursive(), args.limit()),
+            ObsLister::new(self.core.clone(), path, args.recursive(), args.limit()),
         ))
     }
 }

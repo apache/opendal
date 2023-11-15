@@ -160,9 +160,9 @@ impl Accessor for SupabaseBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     type BlockingWriter = ();
-    // todo: implement Pager to support list and scan
-    type Pager = ();
-    type BlockingPager = ();
+    // todo: implement Lister to support list and scan
+    type Lister = ();
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();

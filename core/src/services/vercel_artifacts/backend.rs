@@ -49,8 +49,8 @@ impl Accessor for VercelArtifactsBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type BlockingWriter = ();
-    type Pager = ();
-    type BlockingPager = ();
+    type Lister = ();
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();

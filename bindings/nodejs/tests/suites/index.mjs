@@ -18,7 +18,7 @@
  */
 
 import { describe } from 'vitest'
-import { Operator } from '../../index.js'
+import { Operator, layers } from '../../index.js'
 import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '../utils.mjs'
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
@@ -36,7 +36,13 @@ export function runner(testName, scheme) {
     config.root = generateRandomRoot(config.root)
   }
 
-  const operator = scheme ? new Operator(scheme, config) : null
+  let operator = scheme ? new Operator(scheme, config) : null
+
+  let retryLayer = new layers.RetryLayer()
+  retryLayer.jitter = true
+  retryLayer.maxTimes = 4
+
+  operator = operator.layer(retryLayer.build())
 
   describe.skipIf(!operator)(testName, () => {
     AsyncIOTestRun(operator)

@@ -20,6 +20,6 @@ pub use backend::SftpConfig;
 
 mod backend;
 mod error;
-mod pager;
+mod lister;
 mod utils;
 mod writer;

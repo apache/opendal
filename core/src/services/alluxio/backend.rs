@@ -24,13 +24,12 @@ use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::oio::OneShotWriter;
 use crate::raw::*;
 use crate::*;
 
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::{core::AlluxioCore, pager::AlluxioPager};
+use super::{core::AlluxioCore, lister::AlluxioLister};
 
 /// Config for alluxio services support.
 #[derive(Default, Deserialize)]
@@ -152,7 +151,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azfile)),
+                .with_context("service", Scheme::Alluxio)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
@@ -161,7 +160,7 @@ impl Builder for AlluxioBuilder {
         } else {
             HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
+                    .with_context("service", Scheme::Alluxio)
             })?
         };
 
@@ -186,8 +185,8 @@ impl Accessor for AlluxioBackend {
     type BlockingReader = ();
     type Writer = AlluxioWriters;
     type BlockingWriter = ();
-    type Pager = AlluxioPager;
-    type BlockingPager = ();
+    type Lister = AlluxioLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -201,10 +200,10 @@ impl Accessor for AlluxioBackend {
                 write: true,
                 /// https://github.com/Alluxio/alluxio/issues/8212
                 write_can_append: false,
+                write_can_multi: true,
 
                 create_dir: true,
                 delete: true,
-                rename: true,
 
                 list: true,
                 list_without_recursive: true,
@@ -231,7 +230,6 @@ impl Accessor for AlluxioBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let w = AlluxioWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = OneShotWriter::new(w);
 
         Ok((RpWrite::default(), w))
     }
@@ -254,10 +252,10 @@ impl Accessor for AlluxioBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            AlluxioPager::new(self.core.clone(), path),
+            AlluxioLister::new(self.core.clone(), path),
         ))
     }
 }

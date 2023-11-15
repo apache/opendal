@@ -165,8 +165,8 @@ impl Accessor for IpfsBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
-    type Pager = DirStream;
-    type BlockingPager = ();
+    type Lister = DirStream;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
@@ -350,7 +350,7 @@ impl Accessor for IpfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
             DirStream::new(Arc::new(self.clone()), path),
@@ -429,7 +429,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl oio::Page for DirStream {
+impl oio::List for DirStream {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);

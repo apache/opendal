@@ -26,7 +26,7 @@ use super::message::FileStatusType;
 use crate::raw::*;
 use crate::*;
 
-pub struct WebhdfsPager {
+pub struct WebhdfsLister {
     backend: WebhdfsBackend,
     path: String,
     statuses: Vec<FileStatus>,
@@ -34,7 +34,7 @@ pub struct WebhdfsPager {
     remaining_entries: u32,
 }
 
-impl WebhdfsPager {
+impl WebhdfsLister {
     pub fn new(backend: WebhdfsBackend, path: &str, statuses: Vec<FileStatus>) -> Self {
         Self {
             backend,
@@ -51,7 +51,7 @@ impl WebhdfsPager {
 }
 
 #[async_trait]
-impl oio::Page for WebhdfsPager {
+impl oio::List for WebhdfsLister {
     /// Returns the next page of entries.
     ///
     /// Note: default list status with batch, calling next will query for next batch if `remaining_entries` > 0.
@@ -98,7 +98,7 @@ impl oio::Page for WebhdfsPager {
     }
 }
 
-impl WebhdfsPager {
+impl WebhdfsLister {
     /// Returns the next page of entries.
     fn webhdfs_get_next_list_statuses(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut entries = Vec::with_capacity(self.statuses.len());

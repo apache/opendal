@@ -23,21 +23,6 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
-/// to_hierarchy_lister is used to make a hierarchy lister flat.
-pub fn into_hierarchy_page<P>(lister: P, path: &str) -> HierarchyLister<P> {
-    let path = if path == "/" {
-        "".to_string()
-    } else {
-        path.to_string()
-    };
-
-    HierarchyLister {
-        lister,
-        path,
-        visited: HashSet::default(),
-    }
-}
-
 /// ToHierarchyLister will convert a flat page to hierarchy by filter
 /// not needed entries.
 ///
@@ -55,6 +40,21 @@ pub struct HierarchyLister<P> {
 }
 
 impl<P> HierarchyLister<P> {
+    /// Create a new hierarchy lister
+    pub fn new(lister: P, path: &str) -> HierarchyLister<P> {
+        let path = if path == "/" {
+            "".to_string()
+        } else {
+            path.to_string()
+        };
+
+        HierarchyLister {
+            lister,
+            path,
+            visited: HashSet::default(),
+        }
+    }
+
     /// ## NOTES
     ///
     /// We take `&mut Entry` here because we need to perform modification on entry in the case like
@@ -192,7 +192,7 @@ mod tests {
         let lister = MockLister::new(vec![
             "x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a",
         ]);
-        let mut lister = into_hierarchy_page(lister, "");
+        let mut lister = HierarchyLister::new(lister, "");
 
         let mut entries = Vec::default();
 

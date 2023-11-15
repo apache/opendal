@@ -30,9 +30,9 @@ use bytes::Bytes;
 use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::HierarchyLister;
+use crate::raw::oio::LazyReader;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
-use crate::raw::oio::{into_hierarchy_page, LazyReader};
 use crate::raw::*;
 use crate::*;
 
@@ -255,7 +255,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             // If recursive is false but service can't list_without_recursive
             (false, true, false) => {
                 let (_, p) = self.inner.list(path, args.with_recursive(true)).await?;
-                let p = into_hierarchy_page(p, path);
+                let p = HierarchyLister::new(p, path);
                 Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }
@@ -298,7 +298,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             (false, true, false) => {
                 let (_, p) = self.inner.blocking_list(path, args.with_recursive(true))?;
                 let p: HierarchyLister<<A as Accessor>::BlockingLister> =
-                    into_hierarchy_page(p, path);
+                    HierarchyLister::new(p, path);
                 Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }

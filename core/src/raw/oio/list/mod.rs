@@ -30,6 +30,5 @@ pub use page_list::PageLister;
 mod flat_list;
 pub use flat_list::FlatLister;
 
-mod into_hierarchy_pager;
-pub use into_hierarchy_pager::into_hierarchy_page;
-pub use into_hierarchy_pager::HierarchyLister;
+mod hierarchy_list;
+pub use hierarchy_list::HierarchyLister;

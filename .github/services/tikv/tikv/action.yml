@@ -29,8 +29,7 @@ runs:
       shell: bash
       working-directory: fixtures/tikv
       run: |
-        # use latest stable version
-        ~/.tiup/bin/tiup install tikv pd
+        ~/.tiup/bin/tiup install tikv:v7.3.0 pd:v7.3.0
         ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config tikv.toml --pd.config pd.toml &
         while :; do
           echo "waiting cluster to be ready"

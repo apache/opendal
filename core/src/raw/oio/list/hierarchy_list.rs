@@ -20,8 +20,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -119,7 +117,6 @@ impl<P> HierarchyLister<P> {
     }
 }
 
-#[async_trait]
 impl<P: oio::List> oio::List for HierarchyLister<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         loop {

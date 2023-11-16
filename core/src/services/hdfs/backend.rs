@@ -182,14 +182,10 @@ impl HdfsBackend {
             }
             Ok(metadata) => {
                 if metadata.is_file() {
-                    self.client
-                        .remove_file(&path)
-                        .map_err(new_std_io_error)?;
+                    self.client.remove_file(path).map_err(new_std_io_error)?;
                 } else {
-                    return Err(Error::new(
-                        ErrorKind::IsADirectory,
-                        "path should be a file")
-                        .with_context("input", path))
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", path));
                 }
             }
         }
@@ -294,7 +290,7 @@ impl Accessor for HdfsBackend {
         Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 
@@ -425,7 +421,7 @@ impl Accessor for HdfsBackend {
         Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 

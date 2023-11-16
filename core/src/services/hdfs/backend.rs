@@ -184,6 +184,7 @@ impl Accessor for HdfsBackend {
                 list: true,
                 list_without_recursive: true,
 
+                rename: true,
                 blocking: true,
 
                 ..Default::default()
@@ -248,6 +249,53 @@ impl Accessor for HdfsBackend {
             .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+
+        let to_path = build_rooted_abs_path(&self.root, to);
+        let result = self.client.metadata(&to_path);
+        match result {
+            Err(err) => {
+                // Early return if other error happened.
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+
+                let parent = PathBuf::from(&to_path)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path should have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &to_path)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(new_std_io_error)?;
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    self.client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
+                } else {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                }
+            }
+        }
+
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
+
+        Ok(RpRename::new())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -365,6 +413,53 @@ impl Accessor for HdfsBackend {
             .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+
+        let to_path = build_rooted_abs_path(&self.root, to);
+        let result = self.client.metadata(&to_path);
+        match result {
+            Err(err) => {
+                // Early return if other error happened.
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+
+                let parent = PathBuf::from(&to_path)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path should have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &to_path)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(new_std_io_error)?;
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    self.client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
+                } else {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                }
+            }
+        }
+
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
+
+        Ok(RpRename::new())
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

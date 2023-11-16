@@ -10,12 +10,12 @@ This service can be used to:
 - [x] create_dir
 - [x] delete
 - [ ] copy
-- [ ] rename
+- [x] rename
 - [x] list
 - [ ] ~~scan~~
 - [ ] ~~presign~~
 - [x] blocking
-- [x] append
+- [ ] append
 
 ## Differences with webhdfs
 

@@ -111,6 +111,7 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 
+services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
   "dep:sha2",
@@ -148,7 +149,6 @@ services-gdrive = []
 services-ghac = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]
-services-alluxio = []
 services-http = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []

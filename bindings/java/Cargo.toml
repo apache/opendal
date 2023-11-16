@@ -105,6 +105,7 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 
 # Optional services provided by opendal.
+services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
@@ -136,7 +137,6 @@ services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
-services-alluxio = ["opendal/services-alluxio"]
 
 [dependencies]
 anyhow = "1.0.71"

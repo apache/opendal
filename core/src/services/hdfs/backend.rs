@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::AsyncWriteExt;
 use log::debug;
 
 use super::lister::HdfsLister;
@@ -175,8 +176,7 @@ impl Accessor for HdfsBackend {
                 read_can_seek: true,
 
                 write: true,
-                // TODO: wait for https://github.com/apache/incubator-opendal/pull/2715
-                write_can_append: false,
+                write_can_append: true,
 
                 create_dir: true,
                 delete: true,
@@ -220,20 +220,37 @@ impl Accessor for HdfsBackend {
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+        if let Err(err) = self.client.metadata(&p) {
+            // Early return if other error happened.
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(new_std_io_error(err));
+            }
 
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(new_std_io_error)?;
+            let parent = PathBuf::from(&p)
+                .parent()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path should have parent but not, it must be malformed",
+                    )
+                    .with_context("input", &p)
+                })?
+                .to_path_buf();
+
+            self.client
+                .create_dir(&parent.to_string_lossy())
+                .map_err(new_std_io_error)?;
+
+            let mut f = self
+                .client
+                .open_file()
+                .create(true)
+                .write(true)
+                .async_open(&p)
+                .await
+                .map_err(new_std_io_error)?;
+            f.close().await.map_err(new_std_io_error)?;
+        }
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -386,31 +403,47 @@ impl Accessor for HdfsBackend {
         Ok((RpRead::new(), r))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+    fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+        if let Err(err) = self.client.metadata(&p) {
+            // Early return if other error happened.
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(new_std_io_error(err));
+            }
 
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(new_std_io_error)?;
+            let parent = PathBuf::from(&p)
+                .parent()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path should have parent but not, it must be malformed",
+                    )
+                    .with_context("input", &p)
+                })?
+                .to_path_buf();
 
-        let f = self
-            .client
-            .open_file()
-            .create(true)
-            .write(true)
-            .open(&p)
-            .map_err(new_std_io_error)?;
+            self.client
+                .create_dir(&parent.to_string_lossy())
+                .map_err(new_std_io_error)?;
+
+            self.client
+                .open_file()
+                .create(true)
+                .write(true)
+                .open(&p)
+                .map_err(new_std_io_error)?;
+        }
+
+        let mut open_options = self.client.open_file();
+        open_options.create(true);
+        if op.append() {
+            open_options.append(true);
+        } else {
+            open_options.write(true);
+        }
+
+        let f = open_options.open(&p).map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
     }

@@ -198,8 +198,6 @@ impl Accessor for AlluxioBackend {
                 read: true,
 
                 write: true,
-                /// https://github.com/Alluxio/alluxio/issues/8212
-                write_can_append: false,
                 write_can_multi: true,
 
                 create_dir: true,

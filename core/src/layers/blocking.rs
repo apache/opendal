@@ -177,8 +177,8 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     type BlockingReader = BlockingWrapper<A::Reader>;
     type Writer = A::Writer;
     type BlockingWriter = BlockingWrapper<A::Writer>;
-    type Pager = A::Pager;
-    type BlockingPager = BlockingWrapper<A::Pager>;
+    type Lister = A::Lister;
+    type BlockingLister = BlockingWrapper<A::Lister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -218,7 +218,7 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
 
@@ -267,11 +267,11 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
         self.handle.block_on(self.inner.delete(path, args))
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.handle.block_on(async {
-            let (rp, pager) = self.inner.list(path, args).await?;
-            let blocking_pager = Self::BlockingPager::new(self.handle.clone(), pager);
-            Ok((rp, blocking_pager))
+            let (rp, lister) = self.inner.list(path, args).await?;
+            let blocking_lister = Self::BlockingLister::new(self.handle.clone(), lister);
+            Ok((rp, blocking_lister))
         })
     }
 }
@@ -313,7 +313,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     }
 }
 
-impl<I: oio::Page> oio::BlockingPage for BlockingWrapper<I> {
+impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.handle.block_on(self.inner.next())
     }

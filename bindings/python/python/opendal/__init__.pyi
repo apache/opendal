@@ -159,8 +159,8 @@ class Capability:
     list: bool
     list_with_limit: bool
     list_with_start_after: bool
-    list_with_delimiter_slash: bool
-    list_without_delimiter: bool
+    list_without_recursive: bool
+    list_with_recursive: bool
 
     presign: bool
     presign_read: bool

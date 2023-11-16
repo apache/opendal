@@ -66,6 +66,8 @@ pub enum Scheme {
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
+    /// [alluxio][created::services::Alluxio]: Alluxio services.
+    Alluxio,
 
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
     Ipfs,
@@ -163,6 +165,8 @@ impl Scheme {
         HashSet::from([
             #[cfg(feature = "services-atomicserver")]
             Scheme::Atomicserver,
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio,
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob,
             #[cfg(feature = "services-azdls")]
@@ -273,6 +277,7 @@ impl FromStr for Scheme {
         match s.as_str() {
             "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
+            "alluxio" => Ok(Scheme::Alluxio),
             // Notes:
             //
             // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.
@@ -378,6 +383,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azfile => "azfile",
             Scheme::Sqlite => "sqlite",
             Scheme::Mongodb => "mongodb",
+            Scheme::Alluxio => "alluxio",
             Scheme::Custom(v) => v,
         }
     }

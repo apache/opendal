@@ -1,0 +1,88 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::core::AlluxioCore;
+use crate::raw::oio::Entry;
+use crate::raw::*;
+use crate::ErrorKind;
+use crate::Result;
+
+pub struct AlluxioLister {
+    core: Arc<AlluxioCore>,
+
+    path: String,
+
+    done: bool,
+}
+
+impl AlluxioLister {
+    pub(super) fn new(core: Arc<AlluxioCore>, path: &str) -> Self {
+        AlluxioLister {
+            core,
+            path: path.to_string(),
+            done: false,
+        }
+    }
+}
+
+#[async_trait]
+impl oio::List for AlluxioLister {
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+        if self.done {
+            return Ok(None);
+        }
+
+        let result = self.core.list_status(&self.path).await;
+
+        match result {
+            Ok(file_infos) => {
+                let mut entries = vec![];
+                for file_info in file_infos {
+                    let path: String = file_info.path.clone();
+                    let path = if file_info.folder {
+                        format!("{}/", path)
+                    } else {
+                        path
+                    };
+                    entries.push(Entry::new(
+                        &build_rel_path(&self.core.root, &path),
+                        file_info.try_into()?,
+                    ));
+                }
+
+                if entries.is_empty() {
+                    return Ok(None);
+                }
+
+                self.done = true;
+
+                Ok(Some(entries))
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound {
+                    self.done = true;
+                    return Ok(None);
+                }
+                Err(e)
+            }
+        }
+    }
+}

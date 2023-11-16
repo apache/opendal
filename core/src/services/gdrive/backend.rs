@@ -27,7 +27,7 @@ use serde_json::json;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
-use super::pager::GdrivePager;
+use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
@@ -45,8 +45,8 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type BlockingWriter = ();
-    type Pager = GdrivePager;
-    type BlockingPager = ();
+    type Lister = GdriveLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
@@ -59,7 +59,7 @@ impl Accessor for GdriveBackend {
 
                 list: true,
 
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 write: true,
 
@@ -212,10 +212,10 @@ impl Accessor for GdriveBackend {
         }
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            GdrivePager::new(path.into(), self.core.clone()),
+            GdriveLister::new(path.into(), self.core.clone()),
         ))
     }
 

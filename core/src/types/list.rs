@@ -30,7 +30,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Future constructed by listing.
-type ListFuture = BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>;
+type ListFuture = BoxFuture<'static, (oio::Lister, Result<Option<Vec<oio::Entry>>>)>;
 /// Future constructed by stating.
 type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
 
@@ -46,7 +46,7 @@ pub struct Lister {
     required_metakey: FlagSet<Metakey>,
 
     buf: VecDeque<oio::Entry>,
-    pager: Option<oio::Pager>,
+    lister: Option<oio::Lister>,
     listing: Option<ListFuture>,
     stating: Option<StatFuture>,
 }
@@ -60,14 +60,14 @@ impl Lister {
     /// Create a new lister.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
-        let (_, pager) = acc.list(path, args).await?;
+        let (_, lister) = acc.list(path, args).await?;
 
         Ok(Self {
             acc,
             required_metakey,
 
             buf: VecDeque::new(),
-            pager: Some(pager),
+            lister: Some(lister),
             listing: None,
             stating: None,
         })
@@ -113,7 +113,7 @@ impl Stream for Lister {
 
             return match res? {
                 Some(oes) => {
-                    self.pager = Some(op);
+                    self.lister = Some(op);
                     self.buf = oes.into();
                     self.poll_next(cx)
                 }
@@ -121,12 +121,12 @@ impl Stream for Lister {
             };
         }
 
-        match self.pager.take() {
-            Some(mut pager) => {
+        match self.lister.take() {
+            Some(mut lister) => {
                 let fut = async move {
-                    let res = pager.next().await;
+                    let res = lister.next().await;
 
-                    (pager, res)
+                    (lister, res)
                 };
                 self.listing = Some(Box::pin(fut));
                 self.poll_next(cx)
@@ -145,7 +145,7 @@ pub struct BlockingLister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    pager: Option<oio::BlockingPager>,
+    lister: Option<oio::BlockingLister>,
     buf: VecDeque<oio::Entry>,
 }
 
@@ -158,14 +158,14 @@ impl BlockingLister {
     /// Create a new lister.
     pub(crate) fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
-        let (_, pager) = acc.blocking_list(path, args)?;
+        let (_, lister) = acc.blocking_list(path, args)?;
 
         Ok(Self {
             acc,
             required_metakey,
 
             buf: VecDeque::new(),
-            pager: Some(pager),
+            lister: Some(lister),
         })
     }
 }
@@ -189,18 +189,18 @@ impl Iterator for BlockingLister {
             return Some(Ok(Entry::new(path, metadata)));
         }
 
-        let pager = match self.pager.as_mut() {
-            Some(pager) => pager,
+        let lister = match self.lister.as_mut() {
+            Some(lister) => lister,
             None => return None,
         };
 
-        self.buf = match pager.next() {
+        self.buf = match lister.next() {
             // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
             //
             // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
             Ok(Some(entries)) => entries.into(),
             Ok(None) => {
-                self.pager = None;
+                self.lister = None;
                 return None;
             }
             Err(err) => return Some(Err(err)),

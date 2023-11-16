@@ -17,8 +17,9 @@
 
 mod backend;
 pub use backend::AzblobBuilder as Azblob;
+pub use backend::AzblobConfig;
 
 mod core;
 mod error;
-mod pager;
+mod lister;
 mod writer;

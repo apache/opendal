@@ -217,25 +217,41 @@ impl FunctionDelete {
 pub struct FunctionList(pub(crate) OperatorFunction<OpList, Vec<Entry>>);
 
 impl FunctionList {
-    /// Change the limit of this list operation.
+    /// The limit passed to underlying service to specify the max results
+    /// that could return per-request.
+    ///
+    /// Users could use this to control the memory usage of list operation.
     pub fn limit(mut self, v: usize) -> Self {
         self.0 = self.0.map_args(|args| args.with_limit(v));
         self
     }
 
-    /// Change the start_after of this list operation.
+    /// The start_after passes to underlying service to specify the specified key
+    /// to start listing from.
     pub fn start_after(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_start_after(v));
         self
     }
 
-    /// Change the delimiter. The default delimiter is "/"
-    pub fn delimiter(mut self, v: &str) -> Self {
-        self.0 = self.0.map_args(|args| args.with_delimiter(v));
+    /// The recursive is used to control whether the list operation is recursive.
+    ///
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    pub fn recursive(mut self, v: bool) -> Self {
+        self.0 = self.0.map_args(|args| args.with_recursive(v));
         self
     }
 
-    /// Change the metakey. The default metakey is `Metakey::Mode`.
+    /// Metakey is used to control which meta should be returned.
+    ///
+    /// Lister will make sure the result for specified meta is **known**:
+    ///
+    /// - `Some(v)` means exist.
+    /// - `None` means services doesn't have this meta.
+    ///
+    /// The default metakey is `Metakey::Mode`.
     pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
         self.0 = self.0.map_args(|args| args.with_metakey(v));
         self
@@ -254,25 +270,41 @@ impl FunctionList {
 pub struct FunctionLister(pub(crate) OperatorFunction<OpList, BlockingLister>);
 
 impl FunctionLister {
-    /// Change the limit of this list operation.
+    /// The limit passed to underlying service to specify the max results
+    /// that could return per-request.
+    ///
+    /// Users could use this to control the memory usage of list operation.
     pub fn limit(mut self, v: usize) -> Self {
         self.0 = self.0.map_args(|args| args.with_limit(v));
         self
     }
 
-    /// Change the start_after of this list operation.
+    /// The start_after passes to underlying service to specify the specified key
+    /// to start listing from.
     pub fn start_after(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_start_after(v));
         self
     }
 
-    /// Change the delimiter. The default delimiter is "/"
-    pub fn delimiter(mut self, v: &str) -> Self {
-        self.0 = self.0.map_args(|args| args.with_delimiter(v));
+    /// The recursive is used to control whether the list operation is recursive.
+    ///
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    pub fn recursive(mut self, v: bool) -> Self {
+        self.0 = self.0.map_args(|args| args.with_recursive(v));
         self
     }
 
-    /// Change the metakey. The default metakey is `Metakey::Mode`.
+    /// Metakey is used to control which meta should be returned.
+    ///
+    /// Lister will make sure the result for specified meta is **known**:
+    ///
+    /// - `Some(v)` means exist.
+    /// - `None` means services doesn't have this meta.
+    ///
+    /// The default metakey is `Metakey::Mode`.
     pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
         self.0 = self.0.map_args(|args| args.with_metakey(v));
         self

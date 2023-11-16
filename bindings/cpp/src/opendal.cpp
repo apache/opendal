@@ -157,13 +157,13 @@ std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
 
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
   switch (dir) {
-  case std::ios_base::beg:
-    return ffi::SeekDir::Start;
-  case std::ios_base::cur:
-    return ffi::SeekDir::Current;
-  case std::ios_base::end:
-    return ffi::SeekDir::End;
-  default:
-    throw std::runtime_error("invalid seekdir");
+    case std::ios_base::beg:
+      return ffi::SeekDir::Start;
+    case std::ios_base::cur:
+      return ffi::SeekDir::Current;
+    case std::ios_base::end:
+      return ffi::SeekDir::End;
+    default:
+      throw std::runtime_error("invalid seekdir");
   }
 }

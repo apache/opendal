@@ -85,6 +85,25 @@ export CLASSPATH=$HADOOP_CONF_DIR:$HADOOP_CLASSPATH:$CLASSPATH
 ```rust
 builder.name_node("hdfs://cluster_name");
 ```
+
+### macOS Specific Note
+
+If you encounter an issue during the build process on macOS with an error message similar to:
+
+```shell
+ld: unknown file type in $HADOOP_HOME/lib/native/libhdfs.so.0.0.0
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+```
+This error is likely due to the fact that the official Hadoop build includes the libhdfs.so file for the x86-64 architecture, which is not compatible with aarch64 architecture required for MacOS.
+
+To resolve this issue, you can add hdrs as a dependency in your Rust application's Cargo.toml file, and enable the vendored feature:
+
+```toml
+[dependencies]
+hdrs = { version = "<version_number>", features = ["vendored"] }
+```
+Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.so library built for the correct architecture.
+
 ## Example
 
 ### Via Builder

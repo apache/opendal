@@ -151,7 +151,7 @@ impl ObjectStore for OpendalStore {
             .inner
             .lister_with(&path)
             .metakey(Metakey::ContentLength | Metakey::LastModified)
-            .delimiter("")
+            .recursive(true)
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 

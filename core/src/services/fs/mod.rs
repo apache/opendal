@@ -18,5 +18,5 @@
 mod backend;
 pub use backend::FsBuilder as Fs;
 
-mod pager;
+mod lister;
 mod writer;

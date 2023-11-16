@@ -6,6 +6,26 @@
 
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+## Example
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.opendal.Operator;
+
+public class Main {
+    public static void main(String[] args) {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/tmp");
+
+        try (Operator op = Operator.of("fs", conf)) {
+            op.write("/path/to/data","Hello world").join();
+            System.out.println(new String(op.read("/path/to/data").join()));
+        }
+    }
+}
+```
+
 ## Getting Started
 
 This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.

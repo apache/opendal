@@ -18,16 +18,17 @@
  */
 
 #pragma once
-#include "lib.rs.h"
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/iostreams/concepts.hpp>
-#include <boost/iostreams/stream.hpp>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/iostreams/concepts.hpp"
+#include "boost/iostreams/stream.hpp"
+#include "lib.rs.h"
 
 namespace opendal {
 
@@ -76,7 +77,7 @@ class Lister;
  * @brief Operator is the entry for all public APIs.
  */
 class Operator {
-public:
+ public:
   Operator() = default;
 
   /**
@@ -187,7 +188,7 @@ public:
 
   Lister lister(std::string_view path);
 
-private:
+ private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;
 };
 
@@ -202,14 +203,14 @@ private:
  */
 class Reader
     : public boost::iostreams::device<boost::iostreams::input_seekable> {
-public:
+ public:
   Reader(rust::Box<opendal::ffi::Reader> &&reader)
       : raw_reader_(std::move(reader)) {}
 
   std::streamsize read(void *s, std::streamsize n);
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
-private:
+ private:
   rust::Box<opendal::ffi::Reader> raw_reader_;
 };
 
@@ -225,13 +226,13 @@ private:
  */
 class ReaderStream
     : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
-public:
+ public:
   ReaderStream(Reader &&reader)
       : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
             boost::ref(reader_)),
         reader_(std::move(reader)) {}
 
-private:
+ private:
   Reader reader_;
 };
 
@@ -248,7 +249,7 @@ private:
  * @endcode
  */
 class Lister {
-public:
+ public:
   Lister(rust::Box<opendal::ffi::Lister> &&lister)
       : raw_lister_(std::move(lister)) {}
 
@@ -259,7 +260,7 @@ public:
    * Lister.
    */
   class ListerIterator {
-  public:
+   public:
     using iterator_category = std::input_iterator_tag;
     using value_type = Entry;
     using difference_type = std::ptrdiff_t;
@@ -284,11 +285,11 @@ public:
              other.current_entry_ != std::nullopt;
     }
 
-  protected:
+   protected:
     // Only used for end iterator
     ListerIterator(Lister &lister, bool /*end*/) : lister_(lister) {}
 
-  private:
+   private:
     Lister &lister_;
     std::optional<Entry> current_entry_;
 
@@ -305,7 +306,7 @@ public:
   ListerIterator begin() { return ListerIterator(*this); }
   ListerIterator end() { return ListerIterator(*this, true); }
 
-private:
+ private:
   rust::Box<opendal::ffi::Lister> raw_lister_;
 };
-} // namespace opendal
+}  // namespace opendal

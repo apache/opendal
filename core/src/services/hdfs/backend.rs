@@ -24,7 +24,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::debug;
 
-use super::pager::HdfsPager;
+use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::*;
@@ -161,8 +161,8 @@ impl Accessor for HdfsBackend {
     type BlockingReader = oio::StdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
-    type Pager = Option<HdfsPager>;
-    type BlockingPager = Option<HdfsPager>;
+    type Lister = Option<HdfsLister>;
+    type BlockingLister = Option<HdfsLister>;
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -182,7 +182,7 @@ impl Accessor for HdfsBackend {
                 delete: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 rename: true,
                 blocking: true,
@@ -344,7 +344,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -358,7 +358,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsPager::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -508,7 +508,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -522,7 +522,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsPager::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

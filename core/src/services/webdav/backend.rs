@@ -31,8 +31,8 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use super::pager::Multistatus;
-use super::pager::WebdavPager;
+use super::lister::Multistatus;
+use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
 use crate::*;
@@ -223,8 +223,8 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type BlockingWriter = ();
-    type Pager = Option<WebdavPager>;
-    type BlockingPager = ();
+    type Lister = Option<WebdavLister>;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
@@ -248,7 +248,7 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -378,11 +378,11 @@ impl Accessor for WebdavBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        if args.delimiter() != "/" {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        if args.recursive() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "webdav only support delimiter `/`",
+                "webdav doesn't support list with recursive",
             ));
         }
 
@@ -400,7 +400,7 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    Some(WebdavPager::new(&self.base_dir, &self.root, path, result)),
+                    Some(WebdavLister::new(&self.base_dir, &self.root, path, result)),
                 ))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),

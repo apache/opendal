@@ -122,6 +122,8 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: wheels
+          path: bindings/python/dist
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
+          packages-dir: bindings/python/dist

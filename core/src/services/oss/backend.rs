@@ -32,7 +32,7 @@ use reqsign::AliyunOssSigner;
 
 use super::core::*;
 use super::error::parse_error;
-use super::pager::OssPager;
+use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;
 use crate::services::oss::writer::OssWriters;
@@ -380,8 +380,8 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriters;
     type BlockingWriter = ();
-    type Pager = OssPager;
-    type BlockingPager = ();
+    type Lister = OssLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -426,8 +426,8 @@ impl Accessor for OssBackend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_without_recursive: true,
+                list_with_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -544,13 +544,13 @@ impl Accessor for OssBackend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            OssPager::new(
+            OssLister::new(
                 self.core.clone(),
                 path,
-                args.delimiter(),
+                args.recursive(),
                 args.limit(),
                 args.start_after(),
             ),

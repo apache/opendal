@@ -56,7 +56,7 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
     /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
@@ -74,7 +74,7 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
     /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
@@ -94,7 +94,7 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
     /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
@@ -117,7 +117,7 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
     /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;

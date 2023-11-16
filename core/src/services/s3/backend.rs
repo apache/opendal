@@ -41,7 +41,7 @@ use serde::Deserialize;
 use super::core::*;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
-use super::pager::S3Pager;
+use super::lister::S3Lister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::*;
@@ -969,8 +969,8 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writers;
     type BlockingWriter = ();
-    type Pager = S3Pager;
-    type BlockingPager = ();
+    type Lister = S3Lister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -1016,8 +1016,8 @@ impl Accessor for S3Backend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_without_delimiter: true,
-                list_with_delimiter_slash: true,
+                list_with_recursive: true,
+                list_without_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -1133,13 +1133,13 @@ impl Accessor for S3Backend {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         Ok((
             RpList::default(),
-            S3Pager::new(
+            S3Lister::new(
                 self.core.clone(),
                 path,
-                args.delimiter(),
+                args.recursive(),
                 args.limit(),
                 args.start_after(),
             ),

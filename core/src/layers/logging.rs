@@ -218,8 +218,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type BlockingReader = LoggingReader<A::BlockingReader>;
     type Writer = LoggingWriter<A::Writer>;
     type BlockingWriter = LoggingWriter<A::BlockingWriter>;
-    type Pager = LoggingPager<A::Pager>;
-    type BlockingPager = LoggingPager<A::BlockingPager>;
+    type Lister = LoggingLister<A::Lister>;
+    type BlockingLister = LoggingLister<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -525,7 +525,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -545,7 +545,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         Operation::List,
                         path
                     );
-                    let streamer = LoggingPager::new(self.ctx.clone(), path, Operation::List, v);
+                    let streamer = LoggingLister::new(self.ctx.clone(), path, Operation::List, v);
                     Ok((rp, streamer))
                 }
                 Err(err) => {
@@ -914,7 +914,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -933,7 +933,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::BlockingList,
                     path
                 );
-                let li = LoggingPager::new(self.ctx.clone(), path, Operation::BlockingList, v);
+                let li = LoggingLister::new(self.ctx.clone(), path, Operation::BlockingList, v);
                 (rp, li)
             })
             .map_err(|err| {
@@ -1431,7 +1431,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
     }
 }
 
-pub struct LoggingPager<P> {
+pub struct LoggingLister<P> {
     ctx: LoggingContext,
     path: String,
     op: Operation,
@@ -1440,7 +1440,7 @@ pub struct LoggingPager<P> {
     inner: P,
 }
 
-impl<P> LoggingPager<P> {
+impl<P> LoggingLister<P> {
     fn new(ctx: LoggingContext, path: &str, op: Operation, inner: P) -> Self {
         Self {
             ctx,
@@ -1452,7 +1452,7 @@ impl<P> LoggingPager<P> {
     }
 }
 
-impl<P> Drop for LoggingPager<P> {
+impl<P> Drop for LoggingLister<P> {
     fn drop(&mut self) {
         if self.finished {
             debug!(
@@ -1475,7 +1475,7 @@ impl<P> Drop for LoggingPager<P> {
 }
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for LoggingPager<P> {
+impl<P: oio::List> oio::List for LoggingLister<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next().await;
 
@@ -1519,7 +1519,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
+impl<P: oio::BlockingList> oio::BlockingList for LoggingLister<P> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next();
 

@@ -24,7 +24,6 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use napi::tokio;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -322,7 +321,7 @@ impl Operator {
         Ok(Lister(
             self.0
                 .lister_with(&path)
-                .delimiter("")
+                .recursive(true)
                 .await
                 .map_err(format_napi_error)?,
         ))
@@ -354,7 +353,7 @@ impl Operator {
             self.0
                 .blocking()
                 .lister_with(&path)
-                .delimiter("")
+                .recursive(true)
                 .call()
                 .map_err(format_napi_error)?,
         ))
@@ -466,7 +465,6 @@ impl Operator {
             self.0
                 .blocking()
                 .lister_with(&path)
-                .delimiter("")
                 .call()
                 .map_err(format_napi_error)?,
         ))
@@ -683,6 +681,143 @@ impl PresignedRequest {
             url,
             headers,
         }
+    }
+}
+
+pub trait NodeLayer: Send + Sync {
+    fn layer(&self, op: opendal::Operator) -> opendal::Operator;
+}
+
+/// A public layer wrapper
+#[napi]
+pub struct Layer {
+    inner: Box<dyn NodeLayer>,
+}
+
+#[napi]
+impl Operator {
+    /// Add a layer to this operator.
+    #[napi]
+    pub fn layer(&self, layer: External<Layer>) -> Result<Self> {
+        Ok(Self(layer.inner.layer(self.0.clone())))
+    }
+}
+
+impl NodeLayer for opendal::layers::RetryLayer {
+    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
+        op.layer(self.clone())
+    }
+}
+
+/// Retry layer
+///
+/// Add retry for temporary failed operations.
+///
+/// # Notes
+///
+/// This layer will retry failed operations when [`Error::is_temporary`]
+/// returns true. If operation still failed, this layer will set error to
+/// `Persistent` which means error has been retried.
+///
+/// `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/incubator-opendal/issues/1223) for more details.
+///
+/// # Examples
+///
+/// ```javascript
+/// const op = new Operator("file", { root: "/tmp" })
+///
+/// const retry = new RetryLayer();
+/// retry.max_times = 3;
+/// retry.jitter = true;
+///
+/// op.layer(retry.build());
+///```
+#[derive(Default)]
+#[napi]
+pub struct RetryLayer {
+    jitter: bool,
+    max_times: Option<u32>,
+    factor: Option<f64>,
+    max_delay: Option<f64>,
+    min_delay: Option<f64>,
+}
+
+#[napi]
+impl RetryLayer {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set jitter of current backoff.
+    ///
+    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
+    /// to current delay.
+    #[napi(setter)]
+    pub fn jitter(&mut self, v: bool) {
+        self.jitter = v;
+    }
+
+    /// Set max_times of current backoff.
+    ///
+    /// Backoff will return `None` if max times is reaching.
+    #[napi(setter)]
+    pub fn max_times(&mut self, v: u32) {
+        self.max_times = Some(v);
+    }
+
+    /// Set factor of current backoff.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if input factor smaller than `1.0`.
+    #[napi(setter)]
+    pub fn factor(&mut self, v: f64) {
+        self.factor = Some(v);
+    }
+
+    /// Set max_delay of current backoff.
+    ///
+    /// Delay will not increasing if current delay is larger than max_delay.
+    ///
+    /// # Notes
+    ///
+    /// - The unit of max_delay is millisecond.
+    #[napi(setter)]
+    pub fn max_delay(&mut self, v: f64) {
+        self.max_delay = Some(v);
+    }
+
+    /// Set min_delay of current backoff.
+    ///
+    /// # Notes
+    ///
+    /// - The unit of min_delay is millisecond.
+    #[napi(setter)]
+    pub fn min_delay(&mut self, v: f64) {
+        self.min_delay = Some(v);
+    }
+
+    #[napi]
+    pub fn build(&self) -> External<Layer> {
+        let mut l = opendal::layers::RetryLayer::default();
+        if self.jitter {
+            l = l.with_jitter();
+        }
+        if let Some(max_times) = self.max_times {
+            l = l.with_max_times(max_times as usize);
+        }
+        if let Some(factor) = self.factor {
+            l = l.with_factor(factor as f32);
+        }
+        if let Some(max_delay) = self.max_delay {
+            l = l.with_max_delay(Duration::from_millis(max_delay as u64));
+        }
+        if let Some(min_delay) = self.min_delay {
+            l = l.with_min_delay(Duration::from_millis(min_delay as u64));
+        }
+
+        External::new(Layer { inner: Box::new(l) })
     }
 }
 

@@ -19,6 +19,6 @@ mod backend;
 pub use backend::WebhdfsBuilder as Webhdfs;
 
 mod error;
+mod lister;
 mod message;
-mod pager;
 mod writer;

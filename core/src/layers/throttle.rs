@@ -120,8 +120,8 @@ impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
     type BlockingReader = ThrottleWrapper<A::BlockingReader>;
     type Writer = ThrottleWrapper<A::Writer>;
     type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
-    type Pager = A::Pager;
-    type BlockingPager = A::BlockingPager;
+    type Lister = A::Lister;
+    type BlockingLister = A::BlockingLister;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -145,7 +145,7 @@ impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
 
@@ -165,7 +165,7 @@ impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
     }
 }

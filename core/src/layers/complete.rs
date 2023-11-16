@@ -28,8 +28,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::raw::oio::Entry;
-use crate::raw::oio::FlatPager;
-use crate::raw::oio::HierarchyPager;
+use crate::raw::oio::FlatLister;
+use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
 use crate::raw::oio::{into_flat_page, FileReader};
@@ -101,11 +101,11 @@ use crate::*;
 /// them. CompleteLayer will add those capabilities in a zero cost way.
 ///
 /// Underlying services will return [`Capability`] to indicate the
-/// features that returning pagers support.
+/// features that returning listers support.
 ///
-/// - If both `list_with_delimiter_slash` and `list_without_delimiter`, return directly.
-/// - If only `list_without_delimiter`, with [`oio::to_flat_pager`].
-/// - if only `list_with_delimiter_slash`, with [`oio::to_hierarchy_pager`].
+/// - If both `list_without_recursive` and `list_with_recursive`, return directly.
+/// - If only `list_with_recursive`, with [`oio::to_flat_lister`].
+/// - if only `list_without_recursive`, with [`oio::to_hierarchy_lister`].
 /// - If neither not supported, something must be wrong for `list` is true.
 ///
 /// ## Capability Check
@@ -224,91 +224,85 @@ impl<A: Accessor> CompleteAccessor<A> {
         &self,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
+    ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
         let cap = self.meta.full_capability();
         if !cap.list {
             return Err(self.new_unsupported_error(Operation::List));
         }
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (
+            recursive,
+            cap.list_with_recursive,
+            cap.list_without_recursive,
+        ) {
+            // - If service can both list_with_recursive and list_without_recursive
+            // - If recursive is true while services can list_with_recursive
+            // - If recursive is false while services can list_without_recursive
+            (_, true, true) | (true, true, _) | (false, _, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
-                Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
-        }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.list(path, args.with_delimiter("")).await?;
+                Ok((rp, CompleteLister::AlreadyComplete(p)))
+            }
+            // If services can't list_with_recursive nor list_without_recursive.
+            //
+            // It should be a service level bug.
+            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
+            // If recursive is true but service can't list_with_recursive
+            (true, false, true) => {
+                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
+                Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+            }
+            // If recursive is false but service can't list_without_recursive
+            (false, true, false) => {
+                let (_, p) = self.inner.list(path, args.with_recursive(true)).await?;
                 let p = into_hierarchy_page(p, path);
-                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
+                Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
+            }
         }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 
     fn complete_blocking_list(
         &self,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
+    ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
         let cap = self.meta.full_capability();
         if !cap.list {
             return Err(self.new_unsupported_error(Operation::BlockingList));
         }
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (
+            recursive,
+            cap.list_with_recursive,
+            cap.list_without_recursive,
+        ) {
+            // - If service can both list_with_recursive and list_without_recursive
+            // - If recursive is true while services can list_with_recursive
+            // - If recursive is false while services can list_without_recursive
+            (_, true, true) | (true, true, _) | (false, _, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
-                Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
-        }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.blocking_list(path, args.with_delimiter(""))?;
-                let p: HierarchyPager<<A as Accessor>::BlockingPager> =
+                Ok((rp, CompleteLister::AlreadyComplete(p)))
+            }
+            // If services can't list_with_recursive nor list_without_recursive.
+            //
+            // It should be a service level bug.
+            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
+            // If recursive is true but service can't list_with_recursive
+            (true, false, true) => {
+                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
+                Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+            }
+            // If recursive is false but service can't list_without_recursive
+            (false, true, false) => {
+                let (_, p) = self.inner.blocking_list(path, args.with_recursive(true))?;
+                let p: HierarchyLister<<A as Accessor>::BlockingLister> =
                     into_hierarchy_page(p, path);
-                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
+                Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
+            }
         }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 }
 
@@ -322,8 +316,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         oio::ExactBufWriter<CompleteWriter<A::Writer>>,
     >;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
-    type Pager = CompletePager<A, A::Pager>;
-    type BlockingPager = CompletePager<A, A::BlockingPager>;
+    type Lister = CompleteLister<A, A::Lister>;
+    type BlockingLister = CompleteLister<A, A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -436,7 +430,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         self.inner().delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let capability = self.meta.full_capability();
         if !capability.list {
             return Err(self.new_unsupported_error(Operation::List));
@@ -538,7 +532,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         self.inner().blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let capability = self.meta.full_capability();
         if !capability.list || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingList));
@@ -633,20 +627,20 @@ where
     }
 }
 
-pub enum CompletePager<A: Accessor, P> {
+pub enum CompleteLister<A: Accessor, P> {
     AlreadyComplete(P),
-    NeedFlat(FlatPager<Arc<A>, P>),
-    NeedHierarchy(HierarchyPager<P>),
+    NeedFlat(FlatLister<Arc<A>, P>),
+    NeedHierarchy(HierarchyLister<P>),
 }
 
 #[async_trait]
-impl<A, P> oio::Page for CompletePager<A, P>
+impl<A, P> oio::List for CompleteLister<A, P>
 where
-    A: Accessor<Pager = P>,
-    P: oio::Page,
+    A: Accessor<Lister = P>,
+    P: oio::List,
 {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        use CompletePager::*;
+        use CompleteLister::*;
 
         match self {
             AlreadyComplete(p) => p.next().await,
@@ -656,13 +650,13 @@ where
     }
 }
 
-impl<A, P> oio::BlockingPage for CompletePager<A, P>
+impl<A, P> oio::BlockingList for CompleteLister<A, P>
 where
-    A: Accessor<BlockingPager = P>,
-    P: oio::BlockingPage,
+    A: Accessor<BlockingLister = P>,
+    P: oio::BlockingList,
 {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        use CompletePager::*;
+        use CompleteLister::*;
 
         match self {
             AlreadyComplete(p) => p.next(),
@@ -776,8 +770,8 @@ mod tests {
         type BlockingReader = oio::BlockingReader;
         type Writer = oio::Writer;
         type BlockingWriter = oio::BlockingWriter;
-        type Pager = oio::Pager;
-        type BlockingPager = oio::BlockingPager;
+        type Lister = oio::Lister;
+        type BlockingLister = oio::BlockingLister;
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();
@@ -814,7 +808,7 @@ mod tests {
             Ok(RpDelete {})
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList {}, Box::new(())))
         }
 
@@ -947,6 +941,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             list: true,
+            list_with_recursive: true,
             ..Default::default()
         });
         let res = op.list("path/").await;

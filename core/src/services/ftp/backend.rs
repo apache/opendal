@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
-use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -29,15 +28,18 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
+use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
+use suppaftp::AsyncNativeTlsConnector;
+use suppaftp::AsyncNativeTlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::FtpStream;
+use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 
-use super::pager::FtpPager;
+use super::lister::FtpLister;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
@@ -213,16 +215,18 @@ pub struct Manager {
 
 #[async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = FtpStream;
+    type Connection = AsyncNativeTlsFtpStream;
     type Error = FtpError;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let stream = FtpStream::connect(&self.endpoint).await?;
-
+        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
             stream
-                .into_secure(TlsConnector::default().into(), &self.endpoint)
+                .into_secure(
+                    AsyncNativeTlsConnector::from(TlsConnector::new()),
+                    &self.endpoint,
+                )
                 .await?
         } else {
             stream
@@ -284,8 +288,8 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriters;
     type BlockingWriter = ();
-    type Pager = FtpPager;
-    type BlockingPager = ();
+    type Lister = FtpLister;
+    type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
@@ -303,7 +307,7 @@ impl Accessor for FtpBackend {
                 create_dir: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -444,7 +448,7 @@ impl Accessor for FtpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
@@ -452,7 +456,7 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            FtpPager::new(if path == "/" { "" } else { path }, files, args.limit()),
+            FtpLister::new(if path == "/" { "" } else { path }, files, args.limit()),
         ))
     }
 }

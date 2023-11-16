@@ -32,7 +32,6 @@ pub struct IpmfsLister {
     backend: Arc<IpmfsBackend>,
     root: String,
     path: String,
-    consumed: bool,
 }
 
 impl IpmfsLister {
@@ -41,18 +40,13 @@ impl IpmfsLister {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            consumed: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for IpmfsLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.consumed {
-            return Ok(None);
-        }
-
+impl oio::PageList for IpmfsLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.backend.ipmfs_ls(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
@@ -64,33 +58,24 @@ impl oio::List for IpmfsLister {
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         // Mark dir stream has been consumed.
-        self.consumed = true;
+        ctx.done = true;
 
-        Ok(Some(
-            entries_body
-                .entries
-                .unwrap_or_default()
-                .into_iter()
-                .map(|object| {
-                    let path = match object.mode() {
-                        EntryMode::FILE => {
-                            format!("{}{}", &self.path, object.name)
-                        }
-                        EntryMode::DIR => {
-                            format!("{}{}/", &self.path, object.name)
-                        }
-                        EntryMode::Unknown => unreachable!(),
-                    };
+        for object in entries_body.entries.unwrap_or_default() {
+            let path = match object.mode() {
+                EntryMode::FILE => format!("{}{}", &self.path, object.name),
+                EntryMode::DIR => format!("{}{}/", &self.path, object.name),
+                EntryMode::Unknown => unreachable!(),
+            };
 
-                    let path = build_rel_path(&self.root, &path);
+            let path = build_rel_path(&self.root, &path);
 
-                    oio::Entry::new(
-                        &path,
-                        Metadata::new(object.mode()).with_content_length(object.size),
-                    )
-                })
-                .collect(),
-        ))
+            ctx.entries.push_back(oio::Entry::new(
+                &path,
+                Metadata::new(object.mode()).with_content_length(object.size),
+            ));
+        }
+
+        Ok(())
     }
 }
 

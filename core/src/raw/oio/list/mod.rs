@@ -22,10 +22,13 @@ pub use api::List;
 pub use api::ListOperation;
 pub use api::Lister;
 
-mod into_flat_page;
-pub use into_flat_page::into_flat_page;
-pub use into_flat_page::FlatLister;
+mod page_list;
+pub use page_list::PageContext;
+pub use page_list::PageList;
+pub use page_list::PageLister;
 
-mod into_hierarchy_pager;
-pub use into_hierarchy_pager::into_hierarchy_page;
-pub use into_hierarchy_pager::HierarchyLister;
+mod flat_list;
+pub use flat_list::FlatLister;
+
+mod hierarchy_list;
+pub use hierarchy_list::HierarchyLister;

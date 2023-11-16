@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -304,47 +305,40 @@ where
 
 pub struct KvLister {
     root: String,
-    inner: Option<Vec<String>>,
+    inner: IntoIter<String>,
 }
 
 impl KvLister {
     fn new(root: &str, inner: Vec<String>) -> Self {
         Self {
             root: root.to_string(),
-            inner: Some(inner),
+            inner: inner.into_iter(),
         }
     }
 
-    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
-        let res = self
-            .inner
-            .take()?
-            .into_iter()
-            .map(|v| {
-                let mode = if v.ends_with('/') {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::FILE
-                };
+    fn inner_next(&mut self) -> Option<oio::Entry> {
+        self.inner.next().map(|v| {
+            let mode = if v.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
 
-                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
-            })
-            .collect();
-
-        Some(res)
+            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+        })
     }
 }
 
 #[async_trait]
 impl oio::List for KvLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        Poll::Ready(Ok(self.inner_next()))
     }
 }
 
 impl oio::BlockingList for KvLister {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 

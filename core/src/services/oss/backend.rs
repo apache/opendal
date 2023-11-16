@@ -380,7 +380,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriters;
     type BlockingWriter = ();
-    type Lister = OssLister;
+    type Lister = oio::PageLister<OssLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -545,16 +545,14 @@ impl Accessor for OssBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            OssLister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            ),
-        ))
+        let l = OssLister::new(
+            self.core.clone(),
+            path,
+            args.recursive(),
+            args.limit(),
+            args.start_after(),
+        );
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

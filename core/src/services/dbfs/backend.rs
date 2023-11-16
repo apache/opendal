@@ -158,7 +158,7 @@ impl Accessor for DbfsBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type BlockingWriter = ();
-    type Lister = DbfsLister;
+    type Lister = oio::PageLister<DbfsLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -276,9 +276,9 @@ impl Accessor for DbfsBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = DbfsLister::new(self.core.clone(), path.to_string());
+        let l = DbfsLister::new(self.core.clone(), path.to_string());
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

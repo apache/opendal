@@ -969,7 +969,7 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writers;
     type BlockingWriter = ();
-    type Lister = S3Lister;
+    type Lister = oio::PageLister<S3Lister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -1134,16 +1134,14 @@ impl Accessor for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            S3Lister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            ),
-        ))
+        let l = S3Lister::new(
+            self.core.clone(),
+            path,
+            args.recursive(),
+            args.limit(),
+            args.start_after(),
+        );
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

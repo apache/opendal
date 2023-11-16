@@ -296,7 +296,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -310,7 +310,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -413,7 +413,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -427,7 +427,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }

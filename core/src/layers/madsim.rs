@@ -39,8 +39,6 @@ use madsim::net::Endpoint;
 #[cfg(madsim)]
 use madsim::net::Payload;
 
-use crate::raw::oio;
-use crate::raw::oio::Entry;
 use crate::raw::*;
 use crate::*;
 
@@ -335,11 +333,11 @@ pub struct MadsimLister {}
 
 #[async_trait]
 impl oio::List for MadsimLister {
-    async fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
-        Err(Error::new(
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Option<oio::Entry>>> {
+        Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
-        ))
+        )))
     }
 }
 

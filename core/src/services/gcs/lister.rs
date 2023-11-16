@@ -38,9 +38,6 @@ pub struct GcsLister {
     /// Filter results to objects whose names are lexicographically
     /// **equal to or after** startOffset
     start_after: Option<String>,
-
-    page_token: String,
-    done: bool,
 }
 
 impl GcsLister {
@@ -60,28 +57,25 @@ impl GcsLister {
             delimiter,
             limit,
             start_after: start_after.map(String::from),
-
-            page_token: "".to_string(),
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for GcsLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for GcsLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
             .gcs_list_objects(
                 &self.path,
-                &self.page_token,
+                &ctx.token,
                 self.delimiter,
                 self.limit,
-                self.start_after.clone(),
+                if ctx.token.is_empty() {
+                    self.start_after.clone()
+                } else {
+                    None
+                },
             )
             .await?;
 
@@ -94,12 +88,10 @@ impl oio::List for GcsLister {
             serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
-            self.page_token = token.clone();
+            ctx.token = token.clone();
         } else {
-            self.done = true;
+            ctx.done = true;
         }
-
-        let mut entries = Vec::with_capacity(output.prefixes.len() + output.items.len());
 
         for prefix in output.prefixes {
             let de = oio::Entry::new(
@@ -107,7 +99,7 @@ impl oio::List for GcsLister {
                 Metadata::new(EntryMode::DIR),
             );
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
         for object in output.items {
@@ -139,10 +131,10 @@ impl oio::List for GcsLister {
 
             let de = oio::Entry::new(path, meta);
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

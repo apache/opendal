@@ -185,7 +185,7 @@ impl Accessor for AlluxioBackend {
     type BlockingReader = ();
     type Writer = AlluxioWriters;
     type BlockingWriter = ();
-    type Lister = AlluxioLister;
+    type Lister = oio::PageLister<AlluxioLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -253,10 +253,8 @@ impl Accessor for AlluxioBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            AlluxioLister::new(self.core.clone(), path),
-        ))
+        let l = AlluxioLister::new(self.core.clone(), path);
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

@@ -30,46 +30,36 @@ use super::error::parse_error;
 pub struct DbfsLister {
     core: Arc<DbfsCore>,
     path: String,
-    done: bool,
 }
 
 impl DbfsLister {
     pub fn new(core: Arc<DbfsCore>, path: String) -> Self {
-        Self {
-            core,
-            path,
-            done: false,
-        }
+        Self { core, path }
     }
 }
 
 #[async_trait]
-impl oio::List for DbfsLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for DbfsLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self.core.dbfs_list(&self.path).await?;
 
         let status_code = response.status();
         if !status_code.is_success() {
             if status_code == StatusCode::NOT_FOUND {
-                return Ok(None);
+                ctx.done = true;
+                return Ok(());
             }
             let error = parse_error(response).await?;
             return Err(error);
         }
 
         let bytes = response.into_body().bytes().await?;
-        let mut decoded_response =
+        let decoded_response =
             serde_json::from_slice::<DbfsOutputList>(&bytes).map_err(new_json_deserialize_error)?;
 
-        self.done = true;
+        ctx.done = true;
 
-        let mut entries = Vec::with_capacity(decoded_response.files.len());
-
-        while let Some(status) = decoded_response.files.pop() {
+        for status in decoded_response.files {
             let entry: oio::Entry = match status.is_dir {
                 true => {
                     let normalized_path = format!("{}/", &status.path);
@@ -88,9 +78,9 @@ impl oio::List for DbfsLister {
                     oio::Entry::new(&status.path, meta)
                 }
             };
-            entries.push(entry);
+            ctx.entries.push_back(entry);
         }
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

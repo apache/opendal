@@ -17,6 +17,7 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 
@@ -27,7 +28,7 @@ use crate::*;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ListOperation {
-    /// Operation for [`List::next`]
+    /// Operation for [`List::poll_next`]
     Next,
     /// Operation for [`BlockingList::next`]
     BlockingNext,
@@ -64,7 +65,7 @@ pub trait List: Send + Sync + 'static {
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>>;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>>;
 }
 
 /// The boxed version of [`List`]
@@ -72,24 +73,24 @@ pub type Lister = Box<dyn List>;
 
 #[async_trait]
 impl<P: List + ?Sized> List for Box<P> {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        (**self).next().await
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+        (**self).poll_next(cx)
     }
 }
 
 #[async_trait]
 impl List for () {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        Ok(None)
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+        Poll::Ready(Ok(None))
     }
 }
 
 #[async_trait]
 impl<P: List> List for Option<P> {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         match self {
-            Some(p) => p.next().await,
-            None => Ok(None),
+            Some(p) => p.poll_next(cx),
+            None => Poll::Ready(Ok(None)),
         }
     }
 }
@@ -100,26 +101,26 @@ pub trait BlockingList: Send + 'static {
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
-    fn next(&mut self) -> Result<Option<Vec<Entry>>>;
+    fn next(&mut self) -> Result<Option<Entry>>;
 }
 
 /// BlockingLister is a boxed [`BlockingList`]
 pub type BlockingLister = Box<dyn BlockingList>;
 
 impl<P: BlockingList + ?Sized> BlockingList for Box<P> {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         (**self).next()
     }
 }
 
 impl BlockingList for () {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         Ok(None)
     }
 }
 
 impl<P: BlockingList> BlockingList for Option<P> {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Entry>> {
         match self {
             Some(p) => p.next(),
             None => Ok(None),

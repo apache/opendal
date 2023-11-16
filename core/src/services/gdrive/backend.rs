@@ -45,7 +45,7 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type BlockingWriter = ();
-    type Lister = GdriveLister;
+    type Lister = oio::PageLister<GdriveLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -213,10 +213,8 @@ impl Accessor for GdriveBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            GdriveLister::new(path.into(), self.core.clone()),
-        ))
+        let l = GdriveLister::new(path.into(), self.core.clone());
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

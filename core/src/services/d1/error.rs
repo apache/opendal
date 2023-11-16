@@ -18,16 +18,14 @@
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
-
-use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-
 use serde_json::de;
 
 use super::model::D1Error;
 use super::model::D1Response;
+use crate::raw::*;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {

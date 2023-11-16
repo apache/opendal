@@ -16,7 +16,8 @@
 // under the License.
 
 use anyhow::Result;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
+use sha2::Sha256;
 
 use crate::*;
 

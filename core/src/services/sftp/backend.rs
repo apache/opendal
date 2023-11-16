@@ -30,6 +30,7 @@ use openssh::SessionBuilder;
 use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
+use serde::Deserialize;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -37,8 +38,6 @@ use super::lister::SftpLister;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
-
-use serde::Deserialize;
 
 /// Config for Sftpservices support.
 #[derive(Default, Deserialize)]

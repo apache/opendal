@@ -15,11 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::de::value::{MapDeserializer, SeqDeserializer};
-use serde::de::{self, Deserializer, IntoDeserializer, Visitor};
 use std::collections::hash_map::IntoIter;
 use std::collections::HashMap;
 use std::iter::empty;
+
+use serde::de::value::MapDeserializer;
+use serde::de::value::SeqDeserializer;
+use serde::de::Deserializer;
+use serde::de::IntoDeserializer;
+use serde::de::Visitor;
+use serde::de::{self};
 
 use crate::*;
 
@@ -303,8 +308,9 @@ impl<'de> Deserializer<'de> for Pair {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::Deserialize;
+
+    use super::*;
 
     #[derive(Debug, Default, Deserialize, Eq, PartialEq)]
     #[serde(default)]

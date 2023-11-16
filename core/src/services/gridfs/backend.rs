@@ -15,12 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use async_trait::async_trait;
-use futures::{AsyncWriteExt, StreamExt};
+use futures::AsyncWriteExt;
+use futures::StreamExt;
 use mongodb::bson::doc;
-use mongodb::options::{ClientOptions, GridFsBucketOptions, GridFsFindOptions};
+use mongodb::options::ClientOptions;
+use mongodb::options::GridFsBucketOptions;
+use mongodb::options::GridFsFindOptions;
 use mongodb::GridFsBucket;
-use std::fmt::{Debug, Formatter};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

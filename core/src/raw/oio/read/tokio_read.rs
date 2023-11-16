@@ -15,14 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
-use bytes::Bytes;
 use std::io::SeekFrom;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Bytes;
+use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::ReadBuf;
+
+use crate::raw::*;
+use crate::*;
 
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct TokioReader<R: AsyncRead + AsyncSeek> {

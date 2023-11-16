@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as core;
 use std::ffi::CString;
 use std::os::raw::c_char;
+
+use ::opendal as core;
 
 /// \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
 ///

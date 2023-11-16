@@ -28,6 +28,7 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
+use serde::Deserialize;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
@@ -45,8 +46,6 @@ use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::services::ftp::writer::FtpWriters;
 use crate::*;
-
-use serde::Deserialize;
 
 /// Config for Ftpservices support.
 #[derive(Default, Deserialize)]

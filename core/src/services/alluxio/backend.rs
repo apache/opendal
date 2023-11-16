@@ -24,12 +24,12 @@ use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
+use super::core::AlluxioCore;
+use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::{core::AlluxioCore, lister::AlluxioLister};
+use crate::raw::*;
+use crate::*;
 
 /// Config for alluxio services support.
 #[derive(Default, Deserialize)]
@@ -198,8 +198,6 @@ impl Accessor for AlluxioBackend {
                 read: true,
 
                 write: true,
-                /// https://github.com/Alluxio/alluxio/issues/8212
-                write_can_append: false,
                 write_can_multi: true,
 
                 create_dir: true,

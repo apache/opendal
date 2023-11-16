@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+
+use bytes::Bytes;
+
 use crate::raw::*;
 use crate::*;
-use bytes::Bytes;
-use std::io::Seek;
-use std::io::{Read, SeekFrom};
 
 /// FuturesReader implements [`oio::BlockingRead`] via [`Read`] + [`Seek`].
 pub struct StdReader<R: Read + Seek> {

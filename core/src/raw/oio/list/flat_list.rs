@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
-use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
@@ -102,7 +103,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A, L> oio::List for FlatLister<A, L>
 where
     A: Accessor<Lister = L>,
@@ -208,6 +208,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use std::collections::HashMap;
     use std::vec;
     use std::vec::IntoIter;

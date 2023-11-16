@@ -19,7 +19,8 @@ use std::io::SeekFrom;
 use std::vec;
 
 use anyhow::Result;
-use opendal::raw::tests::{ReadAction, ReadChecker};
+use opendal::raw::tests::ReadAction;
+use opendal::raw::tests::ReadChecker;
 use opendal::raw::BytesRange;
 
 use crate::*;
@@ -110,25 +111,8 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
 /// FuzzInput {
 ///     path: "06ae5d93-c0e9-43f2-ae5a-225cfaaa40a0",
 ///     size: 1,
-///     range: BytesRange(
-///         Some(
-///             0,
-///         ),
-///         None,
-///     ),
-///     actions: [
-///         Seek(
-///             Current(
-///                 1,
-///             ),
-///         ),
-///         Next,
-///         Seek(
-///             End(
-///                 -1,
-///             ),
-///         ),
-///     ],
+///     range: BytesRange(Some(0), None),
+///     actions: [Seek(Current(1)), Next, Seek(End(-1))],
 /// }
 /// ```
 pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
@@ -148,26 +132,8 @@ pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
 /// FuzzInput {
 ///     path: "e6056989-7c7c-4075-b975-5ae380884333",
 ///     size: 1,
-///     range: BytesRange(
-///         Some(
-///             0,
-///         ),
-///         None,
-///     ),
-///     actions: [
-///         Next,
-///         Seek(
-///             Current(
-///                 1,
-///             ),
-///         ),
-///         Next,
-///         Seek(
-///             End(
-///                 0,
-///             ),
-///         ),
-///     ],
+///     range: BytesRange(Some(0), None),
+///     actions: [Next, Seek(Current(1)), Next, Seek(End(0))],
 /// }
 /// ```
 pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {

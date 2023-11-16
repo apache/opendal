@@ -27,12 +27,11 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use serde::Deserialize;
 
 /// Config for Http service support.
 #[derive(Default, Deserialize)]

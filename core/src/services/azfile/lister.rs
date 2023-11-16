@@ -22,11 +22,10 @@ use http::StatusCode;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::AzfileCore;
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 pub struct AzfileLister {
     core: Arc<AzfileCore>,

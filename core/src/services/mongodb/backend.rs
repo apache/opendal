@@ -15,11 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use async_trait::async_trait;
+use mongodb::bson::doc;
 use mongodb::bson::Binary;
-use mongodb::bson::{doc, Document};
-use mongodb::options::{ClientOptions, UpdateOptions};
-use std::fmt::{Debug, Formatter};
+use mongodb::bson::Document;
+use mongodb::options::ClientOptions;
+use mongodb::options::UpdateOptions;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

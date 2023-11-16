@@ -17,9 +17,8 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::task::{Context, Poll};
-
-use async_trait::async_trait;
+use std::task::Context;
+use std::task::Poll;
 
 use crate::raw::oio::Entry;
 use crate::*;
@@ -59,7 +58,6 @@ impl From<ListOperation> for &'static str {
 }
 
 /// Page trait is used by [`raw::Accessor`] to implement `list` operation.
-#[async_trait]
 pub trait List: Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]
     ///
@@ -71,21 +69,18 @@ pub trait List: Send + Sync + 'static {
 /// The boxed version of [`List`]
 pub type Lister = Box<dyn List>;
 
-#[async_trait]
 impl<P: List + ?Sized> List for Box<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         (**self).poll_next(cx)
     }
 }
 
-#[async_trait]
 impl List for () {
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         Poll::Ready(Ok(None))
     }
 }
 
-#[async_trait]
 impl<P: List> List for Option<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         match self {

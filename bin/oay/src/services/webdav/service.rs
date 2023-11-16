@@ -23,10 +23,10 @@ use axum::http::Request;
 use axum::routing::any_service;
 use axum::Router;
 use dav_server::DavHandler;
+use dav_server_opendalfs::OpendalFs;
 use opendal::Operator;
 
 use crate::Config;
-use dav_server_opendalfs::OpendalFs;
 
 pub struct WebdavService {
     cfg: Arc<Config>,

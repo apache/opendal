@@ -25,13 +25,12 @@ use http::Request;
 use http::StatusCode;
 use serde_json::Value;
 
+use super::error::parse_error;
+use super::model::D1Response;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
-
-use super::error::parse_error;
-use super::model::D1Response;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]

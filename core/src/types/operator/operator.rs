@@ -26,7 +26,8 @@ use futures::TryStreamExt;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::raw::oio::{ReadExt, WriteExt};
+use crate::raw::oio::ReadExt;
+use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 

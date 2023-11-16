@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use std::collections::VecDeque;
-use std::task::{ready, Context, Poll};
 
 use crate::raw::*;
 use crate::*;

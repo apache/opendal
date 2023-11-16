@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::SeekFrom;
+
+use bytes::Bytes;
+use rand::thread_rng;
+use rand::RngCore;
+use sha2::Digest;
+use sha2::Sha256;
+
 use crate::raw::*;
 use crate::*;
-use bytes::Bytes;
-use rand::{thread_rng, RngCore};
-use sha2::{Digest, Sha256};
-use std::io::SeekFrom;
 
 /// ReadAction represents a read action.
 #[derive(Debug, Clone, Eq, PartialEq)]

@@ -102,7 +102,6 @@ mod tests {
         buf: Vec<u8>,
     }
 
-    #[async_trait]
     impl Write for MockWriter {
         fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
             debug!(

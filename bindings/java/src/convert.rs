@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::{JMap, JObject, JString};
+use std::collections::HashMap;
+
+use jni::objects::JMap;
+use jni::objects::JObject;
+use jni::objects::JString;
 use jni::sys::jlong;
 use jni::JNIEnv;
-use std::collections::HashMap;
 
 pub(crate) fn usize_to_jlong(n: Option<usize>) -> jlong {
     // usize is always >= 0, so we can use -1 to identify the empty value.

@@ -15,15 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Bytes;
+use futures::future::BoxFuture;
+use futures::Future;
+
+use crate::raw::*;
+use crate::*;
 
 /// LazyReader implements [`oio::Read`] in a lazy way.
 ///

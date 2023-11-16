@@ -17,7 +17,8 @@
 
 use std::str;
 use std::str::FromStr;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;

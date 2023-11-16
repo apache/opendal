@@ -62,9 +62,10 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use futures::stream;
     use http::StatusCode;
+
+    use super::*;
 
     /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
     #[tokio::test]

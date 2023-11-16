@@ -21,7 +21,8 @@ use std::io;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;

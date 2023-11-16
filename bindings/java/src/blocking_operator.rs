@@ -19,12 +19,12 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::jbyteArray;
+use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
-use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
-
 use opendal::BlockingOperator;
 
 use crate::convert::jstring_to_string;

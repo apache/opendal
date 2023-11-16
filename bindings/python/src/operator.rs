@@ -21,7 +21,8 @@ use std::time::Duration;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::PyBytes;
+use pyo3::types::PyDict;
 use pyo3_asyncio::tokio::future_into_py;
 
 use crate::*;

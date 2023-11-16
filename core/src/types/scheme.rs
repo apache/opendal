@@ -158,7 +158,7 @@ impl Scheme {
     ///
     /// let enabled_schemes = Scheme::enabled();
     /// if !enabled_schemes.contains(&Scheme::Memory) {
-    ///    panic!("s3 support is not enabled")
+    ///     panic!("s3 support is not enabled")
     /// }
     /// ```
     pub fn enabled() -> HashSet<Scheme> {

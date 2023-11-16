@@ -18,7 +18,9 @@
 use std::fs::FileType;
 use std::path::Path;
 use std::path::PathBuf;
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;

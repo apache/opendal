@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes, BytesMut};
 use std::cmp;
+
+use bytes::Bytes;
+use bytes::BytesMut;
 use tokio::io::ReadBuf;
 
 /// The default minimum adaptive buffer size is 8 KiB.

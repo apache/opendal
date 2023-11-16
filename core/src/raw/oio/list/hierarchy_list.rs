@@ -23,7 +23,7 @@ use std::task::Poll;
 use crate::raw::*;
 use crate::*;
 
-/// ToHierarchyLister will convert a flat page to hierarchy by filter
+/// ToHierarchyLister will convert a flat list to hierarchy by filter
 /// not needed entries.
 ///
 /// # Notes
@@ -32,7 +32,7 @@ use crate::*;
 /// to return an empty vec. It doesn't mean the all pages have been
 /// returned.
 ///
-/// Please keep calling next_page until we returned `Ok(None)`
+/// Please keep calling next until we returned `Ok(None)`
 pub struct HierarchyLister<P> {
     lister: P,
     path: String,

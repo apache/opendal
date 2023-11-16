@@ -468,7 +468,7 @@ export class Layer { }
  * retry.jitter = true;
  *
  * op.layer(retry.build());
- *```
+ * ```
  */
 export class RetryLayer {
   constructor()

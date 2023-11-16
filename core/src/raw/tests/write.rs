@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes, BytesMut};
-use rand::{thread_rng, RngCore};
-use sha2::{Digest, Sha256};
+use bytes::Bytes;
+use bytes::BytesMut;
+use rand::thread_rng;
+use rand::RngCore;
+use sha2::Digest;
+use sha2::Sha256;
 
 /// WriteAction represents a read action.
 #[derive(Debug, Clone, Eq, PartialEq)]

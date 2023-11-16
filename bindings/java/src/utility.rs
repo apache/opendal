@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::{JClass, JObject};
-use jni::sys::{jobjectArray, jsize};
+use jni::objects::JClass;
+use jni::objects::JObject;
+use jni::sys::jobjectArray;
+use jni::sys::jsize;
 use jni::JNIEnv;
-
 use opendal::Scheme;
 
 use crate::convert::string_to_jstring;

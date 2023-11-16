@@ -17,7 +17,8 @@
 
 #![no_main]
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::io::SeekFrom;
 
 use libfuzzer_sys::arbitrary::Arbitrary;

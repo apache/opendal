@@ -24,12 +24,12 @@ use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
+use super::core::AlluxioCore;
+use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::{core::AlluxioCore, lister::AlluxioLister};
+use crate::raw::*;
+use crate::*;
 
 /// Config for alluxio services support.
 #[derive(Default, Deserialize)]

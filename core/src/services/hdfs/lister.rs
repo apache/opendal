@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
-use std::task::{Context, Poll};
 
 use crate::raw::*;
 use crate::EntryMode;

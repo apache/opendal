@@ -86,7 +86,6 @@ impl MysqlBuilder {
     /// - `mysql://user:password@localhost:3306/db`
     ///
     /// For more information, please refer to [mysql client](https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html)
-    ///
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());

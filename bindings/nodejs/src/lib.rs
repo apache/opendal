@@ -731,7 +731,7 @@ impl NodeLayer for opendal::layers::RetryLayer {
 /// retry.jitter = true;
 ///
 /// op.layer(retry.build());
-///```
+/// ```
 #[derive(Default)]
 #[napi]
 pub struct RetryLayer {

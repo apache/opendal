@@ -18,9 +18,10 @@
 use std::time::Duration;
 
 use jni::objects::JClass;
-use jni::sys::{jboolean, jfloat, jlong};
+use jni::sys::jboolean;
+use jni::sys::jfloat;
+use jni::sys::jlong;
 use jni::JNIEnv;
-
 use opendal::layers::RetryLayer;
 use opendal::Operator;
 

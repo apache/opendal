@@ -16,7 +16,9 @@
 // under the License.
 
 use std::collections::HashSet;
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 

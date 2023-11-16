@@ -17,7 +17,8 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 

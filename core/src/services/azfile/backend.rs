@@ -27,14 +27,13 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use crate::raw::*;
-use crate::services::azfile::lister::AzfileLister;
-use crate::*;
-
 use super::core::AzfileCore;
 use super::error::parse_error;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
+use crate::raw::*;
+use crate::services::azfile::lister::AzfileLister;
+use crate::*;
 
 /// Default endpoint of Azure File services.
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";

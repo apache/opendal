@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::io;
 use std::pin::Pin;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
-use std::{cmp, io};
 
 use bytes::Bytes;
 use futures::Future;

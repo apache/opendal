@@ -15,11 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Error;
-use bytes::Bytes;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use std::fmt::Debug;
+
+use bytes::Bytes;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json::Map;
+use serde_json::Value;
+
+use crate::Error;
 
 /// response data from d1
 #[derive(Deserialize, Debug)]

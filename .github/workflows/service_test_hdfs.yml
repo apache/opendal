@@ -135,3 +135,4 @@ jobs:
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
+          OPENDAL_HDFS_ENABLE_APPEND: true

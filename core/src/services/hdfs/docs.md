@@ -31,6 +31,7 @@ HDFS support needs to enable feature `services-hdfs`.
 - `name_node`: Set the name node for backend.
 - `kerberos_ticket_cache_path`: Set the kerberos ticket cache path for backend, this should be gotten by `klist` after `kinit`
 - `user`: Set the user for backend
+- `enable_append`: enable the append capacity. Default is false. 
 
 Refer to [`HdfsBuilder`]'s public API docs for more information.
 

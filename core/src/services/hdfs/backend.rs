@@ -48,7 +48,7 @@ impl Default for HdfsBuilder {
             name_node: None,
             kerberos_ticket_cache_path: None,
             user: None,
-            enable_append: true,
+            enable_append: false,
         }
     }
 }

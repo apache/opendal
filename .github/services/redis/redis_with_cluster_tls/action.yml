@@ -35,11 +35,6 @@ runs:
 
         docker compose -f docker-compose-redis-cluster-tls.yml up -d --wait
 
-    - name: Setup Rust toolchain
-      uses: ./.github/actions/setup
-      with:
-        need-nextest: true
-
     - name: Setup
       shell: bash
       run: |

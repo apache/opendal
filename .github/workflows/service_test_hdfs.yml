@@ -64,7 +64,7 @@ jobs:
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
           cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${{ env.HADOOP_HOME }}/etc/hadoop/hdfs-site.xml
-          
+
           cargo test behavior --features tests,services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"

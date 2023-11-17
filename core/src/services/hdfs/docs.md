@@ -126,6 +126,11 @@ async fn main() -> Result<()> {
     //
     // NOTE: the root must be absolute path.
     builder.root("/tmp");
+    
+    // Enable the append capacity for hdfs. 
+    // 
+    // Note: HDFS run in non-distributed mode doesn't support append.
+    builder.enable_append(true);
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder)?.finish();

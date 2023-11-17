@@ -88,7 +88,9 @@ impl HdfsBuilder {
         self
     }
 
-    /// Set enable_append of this backend
+    /// Enable append capacity of this backend.
+    ///
+    /// This should be disabled when HDFS runs in non-distributed mode.
     pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
         self.enable_append = enable_append;
         self

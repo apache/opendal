@@ -821,6 +821,7 @@ impl RetryLayer {
     }
 }
 
+/// Format opendal error to napi error.
 fn format_napi_error(err: opendal::Error) -> Error {
     Error::from_reason(format!("{}", err))
 }

@@ -32,25 +32,13 @@ use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 #[doc = include_str!("docs.md")]
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct HdfsBuilder {
     root: Option<String>,
     name_node: Option<String>,
     kerberos_ticket_cache_path: Option<String>,
     user: Option<String>,
     enable_append: bool,
-}
-
-impl Default for HdfsBuilder {
-    fn default() -> Self {
-        Self {
-            root: None,
-            name_node: None,
-            kerberos_ticket_cache_path: None,
-            user: None,
-            enable_append: false,
-        }
-    }
 }
 
 impl HdfsBuilder {

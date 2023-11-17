@@ -32,12 +32,25 @@ use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 #[doc = include_str!("docs.md")]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct HdfsBuilder {
     root: Option<String>,
     name_node: Option<String>,
     kerberos_ticket_cache_path: Option<String>,
     user: Option<String>,
+    enable_append: bool,
+}
+
+impl Default for HdfsBuilder {
+    fn default() -> Self {
+        Self {
+            root: None,
+            name_node: None,
+            kerberos_ticket_cache_path: None,
+            user: None,
+            enable_append: true,
+        }
+    }
 }
 
 impl HdfsBuilder {
@@ -86,6 +99,12 @@ impl HdfsBuilder {
         }
         self
     }
+
+    /// Set enable_append of this backend
+    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+        self.enable_append = enable_append;
+        self
+    }
 }
 
 impl Builder for HdfsBuilder {
@@ -100,6 +119,9 @@ impl Builder for HdfsBuilder {
         map.get("kerberos_ticket_cache_path")
             .map(|v| builder.kerberos_ticket_cache_path(v));
         map.get("user").map(|v| builder.user(v));
+        map.get("enable_append").map(|v| {
+            builder.enable_append(v.parse().expect("enable_append should be true or false"))
+        });
 
         builder
     }
@@ -141,6 +163,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             root,
             client: Arc::new(client),
+            enable_append: self.enable_append,
         })
     }
 }
@@ -150,6 +173,7 @@ impl Builder for HdfsBuilder {
 pub struct HdfsBackend {
     root: String,
     client: Arc<hdrs::Client>,
+    enable_append: bool,
 }
 
 /// hdrs::Client is thread-safe.
@@ -176,7 +200,7 @@ impl Accessor for HdfsBackend {
                 read_can_seek: true,
 
                 write: true,
-                write_can_append: true,
+                write_can_append: self.enable_append,
 
                 create_dir: true,
                 delete: true,
@@ -226,20 +250,9 @@ impl Accessor for HdfsBackend {
                 return Err(new_std_io_error(err));
             }
 
-            let parent = PathBuf::from(&p)
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", &p)
-                })?
-                .to_path_buf();
+            let parent = get_parent(&p);
 
-            self.client
-                .create_dir(&parent.to_string_lossy())
-                .map_err(new_std_io_error)?;
+            self.client.create_dir(parent).map_err(new_std_io_error)?;
 
             let mut f = self
                 .client
@@ -412,20 +425,9 @@ impl Accessor for HdfsBackend {
                 return Err(new_std_io_error(err));
             }
 
-            let parent = PathBuf::from(&p)
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", &p)
-                })?
-                .to_path_buf();
+            let parent = get_parent(&p);
 
-            self.client
-                .create_dir(&parent.to_string_lossy())
-                .map_err(new_std_io_error)?;
+            self.client.create_dir(parent).map_err(new_std_io_error)?;
 
             self.client
                 .open_file()

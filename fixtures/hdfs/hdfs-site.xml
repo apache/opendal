@@ -24,8 +24,4 @@
         <name>dfs.replication</name>
         <value>1</value>
     </property>
-    <property>
-        <name>fs.hdfs.impl</name>
-        <value>org.apache.hadoop.hdfs.DistributedFileSystem</value>
-    </property>
 </configuration>

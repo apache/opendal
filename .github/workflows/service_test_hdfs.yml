@@ -71,6 +71,7 @@ jobs:
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
+          OPENDAL_HDFS_ENABLE_APPEND: false
 
   hdfs-cluster:
     runs-on: ubuntu-latest

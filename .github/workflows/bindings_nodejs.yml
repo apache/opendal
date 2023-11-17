@@ -48,6 +48,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
+      - name: Corepack
+        run: corepack enable
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -55,8 +58,6 @@ jobs:
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
 
-      - name: Corepack
-        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
 
@@ -127,14 +128,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Corepack
+        run: corepack enable
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-      - name: Corepack
-        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
       - name: Build
@@ -170,14 +171,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Corepack
+        run: corepack enable
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-      - name: Corepack
-        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
       - name: Build
@@ -219,14 +220,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Corepack
+        run: corepack enable
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-      - name: Corepack
-        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
       - name: Build
@@ -251,14 +252,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Corepack
+        run: corepack enable
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-      - name: Corepack
-        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
 

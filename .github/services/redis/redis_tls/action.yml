@@ -36,7 +36,7 @@ runs:
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
+        OPENDAL_REDIS_ENDPOINT=rediss://127.0.0.1:6379
         OPENDAL_REDIS_ROOT=/
         OPENDAL_REDIS_DB=0
         EOF

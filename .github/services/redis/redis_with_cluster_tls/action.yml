@@ -27,7 +27,6 @@ runs:
       shell: bash
       working-directory: fixtures/redis
       run: |
-
         # Install the CA in the system
 
         sudo cp ssl/ca.crt /usr/local/share/ca-certificates

@@ -201,10 +201,12 @@ bench = false
 [[bench]]
 harness = false
 name = "ops"
+required-features = ["tests"]
 
 [[bench]]
 harness = false
 name = "oio"
+required-features = ["tests"]
 
 [[test]]
 harness = false

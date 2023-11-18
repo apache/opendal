@@ -4251,6 +4251,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-benchmark-vs-fs"
+version = "0.0.0"
+dependencies = [
+ "criterion",
+ "opendal",
+ "rand 0.8.5",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "opendal-c"
 version = "0.42.0"
 dependencies = [

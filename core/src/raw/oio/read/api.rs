@@ -27,6 +27,7 @@ use std::task::Poll;
 use bytes::Bytes;
 use futures::Future;
 use pin_project::pin_project;
+use tokio::io::ReadBuf;
 
 use crate::*;
 
@@ -359,46 +360,47 @@ pub trait BlockingRead: Send + Sync {
 
     /// Read all data of current reader to the end of buf.
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        let start = buf.len();
-        let mut next = MAX_READ_TO_END_GROW_SIZE;
-        let mut length = start;
+        let start_len = buf.len();
+        let start_cap = buf.capacity();
 
         loop {
-            if buf.capacity() == length {
-                buf.reserve(next);
-                // # Safety
-                //
-                // We make sure that the length of buf is maintained correctly.
-                #[allow(clippy::uninit_vec)]
-                unsafe {
-                    buf.set_len(buf.capacity());
-                }
+            if buf.len() == buf.capacity() {
+                buf.reserve(32); // buf is full, need more space
             }
 
-            let bs = &mut buf[length..];
-            match self.read(bs) {
-                Ok(0) => {
-                    unsafe {
-                        buf.set_len(length);
-                    }
-                    return Ok(length - start);
-                }
-                Ok(n) => {
-                    next = if n >= next {
-                        cmp::min(next.saturating_mul(2), MAX_READ_TO_END_GROW_SIZE)
-                    } else if n >= next / 2 {
-                        next
-                    } else {
-                        cmp::max(next.saturating_div(2), MIN_READ_TO_END_GROW_SIZE)
-                    };
+            let spare = buf.spare_capacity_mut();
+            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
 
-                    // We can't allow bogus values from read. If it is too large, the returned vec could have its length
-                    // set past its capacity, or if it overflows the vec could be shortened which could create an invalid
-                    // string if this is called via read_to_string.
-                    assert!(n <= buf.len());
-                    length += n;
+            // SAFETY: These bytes were initialized but not filled in the previous loop
+            unsafe {
+                read_buf.assume_init(read_buf.capacity());
+            }
+
+            match self.read(read_buf.initialize_unfilled()) {
+                Ok(0) => return Ok(buf.len() - start_len),
+                Ok(n) => {
+                    // SAFETY: Read API makes sure that returning `n` is correct.
+                    unsafe {
+                        buf.set_len(buf.len() + n);
+                    }
                 }
                 Err(e) => return Err(e),
+            }
+
+            // The buffer might be an exact fit. Let's read into a probe buffer
+            // and see if it returns `Ok(0)`. If so, we've avoided an
+            // unnecessary doubling of the capacity. But if not, append the
+            // probe buffer to the primary buffer and let its capacity grow.
+            if buf.len() == buf.capacity() && buf.capacity() == start_cap {
+                let mut probe = [0u8; 32];
+
+                match self.read(&mut probe) {
+                    Ok(0) => return Ok(buf.len() - start_len),
+                    Ok(n) => {
+                        buf.extend_from_slice(&probe[..n]);
+                    }
+                    Err(e) => return Err(e),
+                }
             }
         }
     }

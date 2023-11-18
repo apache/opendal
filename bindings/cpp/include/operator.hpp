@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "entry.hpp"
-#include "lib.rs.h"
 #include "lister.hpp"
 #include "metadata.hpp"
 #include "reader.hpp"

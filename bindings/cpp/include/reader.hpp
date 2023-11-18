@@ -49,6 +49,7 @@ class Reader
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
  private:
+  struct Rep;
   rust::Box<opendal::ffi::Reader> raw_reader_;
 };
 

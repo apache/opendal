@@ -23,13 +23,14 @@
 
 namespace opendal {
 
+Lister::Lister(rust::Box<opendal::ffi::Lister> &&lister) noexcept
+    : raw_lister_(std::move(lister)) {}
+
 std::optional<Entry> Lister::next() {
-  auto entry = raw_lister_->next();
-  if (entry.has_value) {
+  if (auto entry = raw_lister_->next(); entry.has_value) {
     return std::move(entry.value);
-  } else {
-    return std::nullopt;
   }
+  return std::nullopt;
 }
 
 }  // namespace opendal

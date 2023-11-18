@@ -40,8 +40,7 @@ namespace opendal {
  */
 class Lister {
  public:
-  Lister(rust::Box<opendal::ffi::Lister> &&lister)
-      : raw_lister_(std::move(lister)) {}
+  Lister(rust::Box<opendal::ffi::Lister> &&lister) noexcept;
 
   /**
    * @class ListerIterator

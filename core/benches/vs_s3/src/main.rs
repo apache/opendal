@@ -95,6 +95,21 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
             let _ = r.read_to_end(&mut bs).await.unwrap();
         });
     });
+    group.bench_function("aws_s3_sdk_into_async_read_with_size_known", |b| {
+        b.to_async(&*TEST_RUNTIME).iter(|| async {
+            let mut r = s3_client
+                .get_object()
+                .bucket(bucket)
+                .key(&path)
+                .send()
+                .await
+                .unwrap()
+                .body
+                .into_async_read();
+            let mut bs = Vec::with_capacity(16 * 1024 * 1024);
+            let _ = r.read_to_end(&mut bs).await.unwrap();
+        });
+    });
     group.bench_function("opendal_s3", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
             let _: Vec<u8> = op.read(&path).await.unwrap();

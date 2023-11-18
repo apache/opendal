@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
@@ -204,14 +203,7 @@ pub trait ReadExt: Read {
 
     /// Build a future for `read_to_end`.
     fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self> {
-        let start = buf.len();
-        ReadToEndFuture {
-            reader: self,
-            buf,
-            start,
-            length: start,
-            next: MIN_READ_TO_END_GROW_SIZE,
-        }
+        ReadToEndFuture { reader: self, buf }
     }
 }
 
@@ -271,19 +263,11 @@ where
     }
 }
 
-/// The MIN read to end grow size.
-const MIN_READ_TO_END_GROW_SIZE: usize = 8 * 1024;
-/// The MAX read to end grow size.
-const MAX_READ_TO_END_GROW_SIZE: usize = 4 * 1024 * 1024;
-
 /// Make this future `!Unpin` for compatibility with async trait methods.
 #[pin_project(!Unpin)]
 pub struct ReadToEndFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     buf: &'a mut Vec<u8>,
-    start: usize,
-    length: usize,
-    next: usize,
 }
 
 impl<R> Future for ReadToEndFuture<'_, R>
@@ -294,42 +278,49 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
         let this = self.project();
+        let start_len = this.buf.len();
+        let start_cap = this.buf.capacity();
 
         loop {
-            if this.buf.capacity() == *this.length {
-                this.buf.reserve(*this.next);
-                // # Safety
-                //
-                // We make sure that the length of buf is maintained correctly.
-                #[allow(clippy::uninit_vec)]
-                unsafe {
-                    this.buf.set_len(this.buf.capacity());
-                }
+            if this.buf.len() == this.buf.capacity() {
+                this.buf.reserve(32); // buf is full, need more space
             }
 
-            let buf = &mut this.buf[*this.length..];
-            match ready!(this.reader.poll_read(cx, buf)) {
+            let spare = this.buf.spare_capacity_mut();
+            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
+
+            // SAFETY: These bytes were initialized but not filled in the previous loop
+            unsafe {
+                read_buf.assume_init(read_buf.capacity());
+            }
+
+            match ready!(this.reader.poll_read(cx, read_buf.initialize_unfilled())) {
                 Ok(0) => {
-                    unsafe {
-                        this.buf.set_len(*this.length);
-                    }
-                    return Poll::Ready(Ok(*this.length - *this.start));
+                    return Poll::Ready(Ok(this.buf.len() - start_len));
                 }
                 Ok(n) => {
-                    *this.next = if n >= *this.next {
-                        cmp::min((*this.next).saturating_mul(2), MAX_READ_TO_END_GROW_SIZE)
-                    } else if n >= *this.next / 2 {
-                        *this.next
-                    } else {
-                        cmp::max((*this.next).saturating_div(2), MIN_READ_TO_END_GROW_SIZE)
-                    };
-                    // We can't allow bogus values from read. If it is too large, the returned vec could have its length
-                    // set past its capacity, or if it overflows the vec could be shortened which could create an invalid
-                    // string if this is called via read_to_string.
-                    assert!(n <= buf.len());
-                    *this.length += n;
+                    // SAFETY: Read API makes sure that returning `n` is correct.
+                    unsafe {
+                        this.buf.set_len(this.buf.len() + n);
+                    }
                 }
                 Err(e) => return Poll::Ready(Err(e)),
+            }
+
+            // The buffer might be an exact fit. Let's read into a probe buffer
+            // and see if it returns `Ok(0)`. If so, we've avoided an
+            // unnecessary doubling of the capacity. But if not, append the
+            // probe buffer to the primary buffer and let its capacity grow.
+            if this.buf.len() == this.buf.capacity() && this.buf.capacity() == start_cap {
+                let mut probe = [0u8; 32];
+
+                match ready!(this.reader.poll_read(cx, &mut probe)) {
+                    Ok(0) => return Poll::Ready(Ok(this.buf.len() - start_len)),
+                    Ok(n) => {
+                        this.buf.extend_from_slice(&probe[..n]);
+                    }
+                    Err(e) => return Poll::Ready(Err(e)),
+                }
             }
         }
     }

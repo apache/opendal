@@ -21,5 +21,5 @@ mod write;
 use criterion::criterion_group;
 use criterion::criterion_main;
 
-criterion_group!(benches, write::bench_exact_buf_write,);
+criterion_group!(benches, write::bench_exact_buf_write);
 criterion_main!(benches);

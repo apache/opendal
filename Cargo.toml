@@ -22,7 +22,7 @@ members = [
   "core",
   "core/fuzz",
   "core/edge/*",
-  "core/benches/vs_fs",
+  "core/benches/vs_*",
 
   "bindings/c",
   "bindings/nodejs",

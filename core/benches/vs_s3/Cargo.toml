@@ -1,0 +1,40 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[package]
+name = "opendal-benchmark-vs-s3"
+description = "OpenDAL Benchmark vs s3"
+version = "0.0.0"
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+opendal = { path = "../..", features = ["tests"] }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+criterion = { version = "0.4", features = ["async", "async_tokio"] }
+rand = "0.8"
+aws-sdk-s3 = "0.38"
+aws-config = { version = "0.101.0", features = ["behavior-version-latest"] }
+dotenvy = "0.15"
+aws-credential-types = { version = "0.101.0", features = ["hardcoded-credentials"] }

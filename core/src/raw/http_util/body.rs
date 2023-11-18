@@ -159,13 +159,19 @@ impl oio::Read for IncomingAsyncBody {
             return Poll::Ready(Ok(0));
         }
 
-        // We must get a valid bytes from underlying stream
-        let mut bs = loop {
-            match ready!(self.poll_next(cx)) {
-                Some(Ok(bs)) if bs.is_empty() => continue,
-                Some(Ok(bs)) => break bs,
-                Some(Err(err)) => return Poll::Ready(Err(err)),
-                None => return Poll::Ready(Ok(0)),
+        // Avoid extra poll of next if we already have chunks.
+        let mut bs = if let Some(chunk) = self.chunk.take() {
+            chunk
+        } else {
+            loop {
+                match ready!(self.poll_next(cx)) {
+                    // It's possible for underlying stream to return empty bytes, we should continue
+                    // to fetch next one.
+                    Some(Ok(bs)) if bs.is_empty() => continue,
+                    Some(Ok(bs)) => break bs,
+                    Some(Err(err)) => return Poll::Ready(Err(err)),
+                    None => return Poll::Ready(Ok(0)),
+                }
             }
         };
 

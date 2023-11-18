@@ -835,6 +835,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             read: true,
+            stat: true,
             ..Default::default()
         });
         let res = op.read("path").await;

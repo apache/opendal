@@ -367,8 +367,22 @@ impl Operator {
                         .with_context("path", &path));
                     }
 
+                    let range = args.range();
+                    let size_hint = match range.size() {
+                        Some(v) => v,
+                        None => {
+                            let mut size = inner
+                                .stat(&path, OpStat::default())
+                                .await?
+                                .into_metadata()
+                                .content_length();
+                            size -= range.offset().unwrap_or(0);
+                            size
+                        }
+                    };
+
                     let (_, mut s) = inner.read(&path, args).await?;
-                    let mut buf = Vec::new();
+                    let mut buf = Vec::with_capacity(size_hint as usize);
                     s.read_to_end(&mut buf).await?;
 
                     Ok(buf)

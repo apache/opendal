@@ -45,6 +45,8 @@ runs:
         echo "RUST_LOG=opendal=trace" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+        # Make sure rust has been setup
+        cargo version
 
     # Make sure all required lib has been installed.
     - name: Setup Linux

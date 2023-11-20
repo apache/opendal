@@ -16,10 +16,10 @@
 # under the License.
 
 [package]
-name = "opendal-benchmark-vs-fs"
 description = "OpenDAL Benchmark vs fs"
-version = "0.0.0"
+name = "opendal-benchmark-vs-fs"
 publish = false
+version = "0.0.0"
 
 authors.workspace = true
 edition.workspace = true
@@ -29,8 +29,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+criterion = { version = "0.5", features = ["async", "async_tokio"] }
 opendal = { path = "../..", features = ["tests"] }
+rand = "0.8"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
-criterion = { version = "0.5", features = ["async", "async_tokio"] }
-rand = "0.8"

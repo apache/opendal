@@ -99,7 +99,6 @@ impl Stream for Lister {
         match ready!(self.lister.poll_next(cx)) {
             Ok(Some(oe)) => {
                 let (path, metadata) = oe.into_entry().into_parts();
-                // TODO: we can optimize this by checking the provided metakey provided by services.
                 if metadata.contains_metakey(self.required_metakey) {
                     return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
                 }

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -29,12 +30,21 @@ use std::fmt::Debug;
 ///
 /// # Notes
 ///
-/// Capabilities reflects the native support for operations. It's possible
-/// that some operations are not supported by current Operator, but still
-/// can be used.
+/// Every operator has two capabilities:
 ///
-/// For examples, we will support `seek` and `next` for all readers
-/// returned by services.
+/// - [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability] reflects the native
+///   support for operations.
+/// - [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability] reflects the full support
+///   for operations.
+///
+/// It's possible that some operations are not supported by current Operator, but still
+/// can be used. For examples:
+///
+/// - S3 doesn't support `seek` natively, but we implement it via `range` header.
+/// - S3 doesn't support blocking API, but `BlockingLayer` makes it possible.
+///
+/// Users can use full_capability to decide what operations can be used and use native_capability to
+/// decide if this operation optimized or not.
 ///
 /// # Naming Style
 ///

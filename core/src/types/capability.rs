@@ -30,7 +30,7 @@ use std::fmt::Debug;
 ///
 /// # Notes
 ///
-/// Every operator has two capabilities:
+/// Every operator has two kinds of capabilities:
 ///
 /// - [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability] reflects the native
 ///   support for operations.

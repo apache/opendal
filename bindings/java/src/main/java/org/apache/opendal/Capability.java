@@ -19,8 +19,11 @@
 
 package org.apache.opendal;
 
-import lombok.Data;
+import lombok.*;
 
+@Getter
+@Setter
+@AllArgsConstructor
 @Data
 public class Capability {
     /**
@@ -216,82 +219,4 @@ public class Capability {
      */
     public final boolean blocking;
 
-    public Capability(
-            boolean stat,
-            boolean statWithIfMatch,
-            boolean statWithIfNoneMatch,
-            boolean read,
-            boolean readCanSeek,
-            boolean readCanNext,
-            boolean readWithRange,
-            boolean readWithIfMatch,
-            boolean readWithIfNoneMatch,
-            boolean readWithOverrideCacheControl,
-            boolean readWithOverrideContentDisposition,
-            boolean readWithOverrideContentType,
-            boolean write,
-            boolean writeCanMulti,
-            boolean writeCanAppend,
-            boolean writeWithContentType,
-            boolean writeWithContentDisposition,
-            boolean writeWithCacheControl,
-            long writeMultiMaxSize,
-            long writeMultiMinSize,
-            long writeMultiAlignSize,
-            boolean createDir,
-            boolean delete,
-            boolean copy,
-            boolean rename,
-            boolean list,
-            boolean listWithLimit,
-            boolean listWithStartAfter,
-            boolean listWithDelimiterSlash,
-            boolean listWithoutDelimiter,
-            boolean presign,
-            boolean presignRead,
-            boolean presignStat,
-            boolean presignWrite,
-            boolean batch,
-            boolean batchDelete,
-            long batchMaxOperations,
-            boolean blocking) {
-        this.stat = stat;
-        this.statWithIfMatch = statWithIfMatch;
-        this.statWithIfNoneMatch = statWithIfNoneMatch;
-        this.read = read;
-        this.readCanSeek = readCanSeek;
-        this.readCanNext = readCanNext;
-        this.readWithRange = readWithRange;
-        this.readWithIfMatch = readWithIfMatch;
-        this.readWithIfNoneMatch = readWithIfNoneMatch;
-        this.readWithOverrideCacheControl = readWithOverrideCacheControl;
-        this.readWithOverrideContentDisposition = readWithOverrideContentDisposition;
-        this.readWithOverrideContentType = readWithOverrideContentType;
-        this.write = write;
-        this.writeCanMulti = writeCanMulti;
-        this.writeCanAppend = writeCanAppend;
-        this.writeWithContentType = writeWithContentType;
-        this.writeWithContentDisposition = writeWithContentDisposition;
-        this.writeWithCacheControl = writeWithCacheControl;
-        this.writeMultiMaxSize = writeMultiMaxSize;
-        this.writeMultiMinSize = writeMultiMinSize;
-        this.writeMultiAlignSize = writeMultiAlignSize;
-        this.createDir = createDir;
-        this.delete = delete;
-        this.copy = copy;
-        this.rename = rename;
-        this.list = list;
-        this.listWithLimit = listWithLimit;
-        this.listWithStartAfter = listWithStartAfter;
-        this.listWithDelimiterSlash = listWithDelimiterSlash;
-        this.listWithoutDelimiter = listWithoutDelimiter;
-        this.presign = presign;
-        this.presignRead = presignRead;
-        this.presignStat = presignStat;
-        this.presignWrite = presignWrite;
-        this.batch = batch;
-        this.batchDelete = batchDelete;
-        this.batchMaxOperations = batchMaxOperations;
-        this.blocking = blocking;
-    }
 }

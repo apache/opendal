@@ -19,15 +19,13 @@
 
 package org.apache.opendal;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
+@AllArgsConstructor
 @Data
 public class Entry {
     public final String path;
     public final Metadata metadata;
 
-    public Entry(String path, Metadata metadata) {
-        this.path = path;
-        this.metadata = metadata;
-    }
 }

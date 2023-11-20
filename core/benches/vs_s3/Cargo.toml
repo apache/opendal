@@ -32,12 +32,12 @@ rust-version.workspace = true
 opendal = { path = "../..", features = ["tests"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
-criterion = { version = "0.4", features = ["async", "async_tokio"] }
+criterion = { version = "0.5", features = ["async", "async_tokio"] }
 rand = "0.8"
 aws-sdk-s3 = "0.38"
-aws-config = { version = "0.101.0", features = ["behavior-version-latest"] }
+aws-config = { version = "0.101", features = ["behavior-version-latest"] }
 dotenvy = "0.15"
-aws-credential-types = { version = "0.101.0", features = ["hardcoded-credentials"] }
+aws-credential-types = { version = "0.101", features = ["hardcoded-credentials"] }
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

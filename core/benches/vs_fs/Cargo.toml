@@ -32,5 +32,5 @@ rust-version.workspace = true
 opendal = { path = "../..", features = ["tests"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
-criterion = { version = "0.4", features = ["async", "async_tokio"] }
+criterion = { version = "0.5", features = ["async", "async_tokio"] }
 rand = "0.8"

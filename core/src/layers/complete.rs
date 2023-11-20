@@ -553,6 +553,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
+    #[inline]
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         use CompleteReader::*;
 

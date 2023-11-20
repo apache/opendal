@@ -4,43 +4,52 @@ This benchmark compares the performance of OpenDAL with the performance of the `
 
 ## Goal
 
-We expect OpenDAL to match `aws_sdk_s3` in speed: the throughput of OpenDAL should be within a `10%` range of `aws_sdk_s3`.
+We expect OpenDAL to match `aws_sdk_s3` in speed: the throughput of OpenDAL should be within a `5%` range of `aws_sdk_s3`.
+
+## Notes
+
+Please run bench case separately, otherwise the result will be affected by each other since we are sharing the same runtime.
 
 ## Usage
 
 For test: `cargo run`
 
 ```shell
-Testing read/aws_s3_sdk_collect
+> cargo run
+Testing read/opendal_s3_reader
 Success
 Testing read/aws_s3_sdk_into_async_read
 Success
+Testing read/opendal_s3_reader_with_capacity
+Success
 Testing read/aws_s3_sdk_into_async_read_with_capacity
 Success
-Testing read/opendal_s3
-Success
-Testing read/opendal_s3_with_capacity
-Success
+```
+
+For bench case: `cargo run --release -- opendal_s3_reader --bench`
+
+```shell
+> cargo run --release -- opendal_s3_reader --bench
+read/opendal_s3_reader  time:   [12.773 ms 13.004 ms 13.232 ms]
+                        thrpt:  [1.1809 GiB/s 1.2016 GiB/s 1.2232 GiB/s]
 ```
 
 For bench: `cargo run --release -- --bench`
 
 ```shell
-read/aws_s3_sdk_collect time:   [47.264 ms 47.378 ms 47.504 ms]
-                        thrpt:  [336.82 MiB/s 337.71 MiB/s 338.53 MiB/s]
+> cargo run --release -- --bench
+read/opendal_s3_reader  time:   [12.773 ms 13.004 ms 13.232 ms]
+                        thrpt:  [1.1809 GiB/s 1.2016 GiB/s 1.2232 GiB/s]
 
 read/aws_s3_sdk_into_async_read
-                        time:   [9.8422 ms 11.607 ms 13.703 ms]
-                        thrpt:  [1.1403 GiB/s 1.3462 GiB/s 1.5876 GiB/s]
+                        time:   [12.527 ms 12.842 ms 13.158 ms]
+                        thrpt:  [1.1875 GiB/s 1.2168 GiB/s 1.2473 GiB/s]
 
-read/aws_s3_sdk_into_async_read_with_size_known
-                        time:   [7.9572 ms 8.1055 ms 8.2552 ms]
-                        thrpt:  [1.8927 GiB/s 1.9277 GiB/s 1.9636 GiB/s]
+read/opendal_s3_reader_with_capacity
+                        time:   [9.6098 ms 9.8133 ms 10.017 ms]
+                        thrpt:  [1.5599 GiB/s 1.5922 GiB/s 1.6259 GiB/s]
 
-read/opendal_s3         time:   [8.9068 ms 9.2614 ms 9.6912 ms]
-                        thrpt:  [1.6123 GiB/s 1.6871 GiB/s 1.7543 GiB/s]
-
-read/opendal_s3_with_range
-                        time:   [8.5459 ms 8.7592 ms 8.9739 ms]
-                        thrpt:  [1.7412 GiB/s 1.7838 GiB/s 1.8284 GiB/s]
+read/aws_s3_sdk_into_async_read_with_capacity
+                        time:   [9.8970 ms 10.113 ms 10.329 ms]
+                        thrpt:  [1.5128 GiB/s 1.5451 GiB/s 1.5788 GiB/s]
 ```

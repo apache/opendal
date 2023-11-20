@@ -16,10 +16,10 @@
 # under the License.
 
 [package]
-name = "opendal-benchmark-vs-s3"
 description = "OpenDAL Benchmark vs s3"
-version = "0.0.0"
+name = "opendal-benchmark-vs-s3"
 publish = false
+version = "0.0.0"
 
 authors.workspace = true
 edition.workspace = true
@@ -29,17 +29,18 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-opendal = { path = "../..", features = ["tests"] }
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4"] }
-criterion = { version = "0.4", features = ["async", "async_tokio"] }
-rand = "0.8"
+aws-config = { version = "0.101", features = ["behavior-version-latest"] }
+aws-credential-types = { version = "0.101", features = [
+  "hardcoded-credentials",
+] }
 aws-sdk-s3 = "0.38"
-aws-config = { version = "0.101.0", features = ["behavior-version-latest"] }
+criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-aws-credential-types = { version = "0.101.0", features = ["hardcoded-credentials"] }
+opendal = { path = "../..", features = ["tests"] }
+rand = "0.8"
+tokio = { version = "1", features = ["full"] }
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
-
+uuid = { version = "1", features = ["v4"] }

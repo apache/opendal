@@ -90,15 +90,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
 
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: corepack enable
       - name: Install dependencies
         working-directory: bindings/nodejs
         run: yarn install --immutable
@@ -292,15 +292,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: yarn
           cache-dependency-path: "website/yarn.lock"
-
-      - name: Corepack
-        working-directory: website
-        run: corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v3

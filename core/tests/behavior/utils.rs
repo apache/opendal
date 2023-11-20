@@ -26,13 +26,12 @@ use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use log::debug;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
-
-use opendal::raw::tests::TEST_RUNTIME;
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
     let mut rng = thread_rng();

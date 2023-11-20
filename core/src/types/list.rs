@@ -28,31 +28,29 @@ use futures::FutureExt;
 use futures::Stream;
 use tokio::task::JoinHandle;
 
+use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
 
-/// Future constructed by listing.
-type ListFuture = BoxFuture<'static, (oio::Lister, Result<Option<Vec<oio::Entry>>>)>;
 /// Future constructed by stating.
 type StatFuture = BoxFuture<'static, Result<Entry>>;
 
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
 ///
-/// Users can construct Lister by [`Operator::lister`].
+/// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`].
 ///
-/// User can use lister as `Stream<Item = Result<Entry>>`.
+/// - Lister implements `Stream<Item = Result<Entry>>`.
+/// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct Lister {
     acc: FusedAccessor,
+    lister: oio::Lister,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    buf: VecDeque<oio::Entry>,
-    lister: Option<oio::Lister>,
-    listing: Option<ListFuture>,
-
     task_queue: VecDeque<JoinHandle<(String, Result<RpStat>)>>,
     stating: Option<StatFuture>,
+    errored: bool,
 }
 
 /// # Safety
@@ -70,13 +68,12 @@ impl Lister {
 
         Ok(Self {
             acc,
+            lister,
             required_metakey,
 
-            buf: VecDeque::new(),
-            lister: Some(lister),
-            listing: None,
             task_queue: VecDeque::with_capacity(concurrent),
             stating: None,
+            errored: false,
         })
     }
 }
@@ -85,10 +82,15 @@ impl Stream for Lister {
     type Item = Result<Entry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // Returns `None` if we have errored.
+        if self.errored {
+            return Poll::Ready(None);
+        }
+
         if let Some(fut) = self.stating.as_mut() {
             let entry = ready!(fut.poll_unpin(cx));
 
-            // Make sure we will not poll this future again
+            // Make sure we will not poll this future again.
             self.stating = None;
 
             return Poll::Ready(Some(entry));
@@ -114,62 +116,39 @@ impl Stream for Lister {
             return self.poll_next(cx);
         }
 
-        while !self.buf.is_empty() {
-            if let Some(oe) = self.buf.front() {
-                let (path, metadata) = oe.clone().into_entry().into_parts();
-                // TODO: we can optimize this by checking the provided metakey provided by services.
-                if metadata.contains_metakey(self.required_metakey) {
-                    return if self.task_queue.is_empty() {
-                        self.buf.pop_front();
-                        Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+        loop {
+            match ready!(self.lister.poll_next(cx)) {
+                Ok(Some(oe)) => {
+                    let (path, metadata) = oe.into_entry().into_parts();
+                    // TODO: we can optimize this by checking the provided metakey provided by services.
+                    if metadata.contains_metakey(self.required_metakey) {
+                        return if self.task_queue.is_empty() {
+                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                        } else {
+                            self.poll_next(cx)
+                        };
+                    }
+
+                    if self.task_queue.len() < self.task_queue.capacity() {
+                        let acc = self.acc.clone();
+
+                        let fut = async move {
+                            let res = acc.stat(&path, OpStat::default()).await;
+                            (path, res)
+                        };
+
+                        self.task_queue.push_front(tokio::spawn(fut));
+                        continue
                     } else {
-                        self.poll_next(cx)
+                        return self.poll_next(cx);
                     };
                 }
-
-                if self.task_queue.len() < self.task_queue.capacity() {
-                    let acc = self.acc.clone();
-
-                    let fut = async move {
-                        let res = acc.stat(&path, OpStat::default()).await;
-                        (path, res)
-                    };
-
-                    self.task_queue.push_front(tokio::spawn(fut));
-                    self.buf.pop_front();
-                } else {
-                    return self.poll_next(cx);
-                };
-            }
-        }
-
-        if let Some(fut) = self.listing.as_mut() {
-            let (op, res) = ready!(fut.poll_unpin(cx));
-
-            // Make sure we will not poll this future again.
-            self.listing = None;
-
-            return match res? {
-                Some(oes) => {
-                    self.lister = Some(op);
-                    self.buf = oes.into();
-                    self.poll_next(cx)
+                Ok(None) => Poll::Ready(None),
+                Err(err) => {
+                    self.errored = true;
+                    Poll::Ready(Some(Err(err)))
                 }
-                None => Poll::Ready(None),
-            };
-        }
-
-        match self.lister.take() {
-            Some(mut lister) => {
-                let fut = async move {
-                    let res = lister.next().await;
-
-                    (lister, res)
-                };
-                self.listing = Some(Box::pin(fut));
-                self.poll_next(cx)
             }
-            None => Poll::Ready(None),
         }
     }
 }
@@ -177,14 +156,17 @@ impl Stream for Lister {
 /// BlockingLister is designed to list entries at given path in a blocking
 /// manner.
 ///
-/// Users can construct Lister by `blocking_lister`.
+/// Users can construct Lister by [`BlockingOperator::lister`] or [`BlockingOperator::lister_with`].
+///
+/// - Lister implements `Iterator<Item = Result<Entry>>`.
+/// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct BlockingLister {
     acc: FusedAccessor,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    lister: Option<oio::BlockingLister>,
-    buf: VecDeque<oio::Entry>,
+    lister: oio::BlockingLister,
+    errored: bool,
 }
 
 /// # Safety
@@ -202,8 +184,8 @@ impl BlockingLister {
             acc,
             required_metakey,
 
-            buf: VecDeque::new(),
-            lister: Some(lister),
+            lister,
+            errored: false,
         })
     }
 }
@@ -213,38 +195,34 @@ impl Iterator for BlockingLister {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_metakey(self.required_metakey) {
-                return Some(Ok(Entry::new(path, metadata)));
-            }
+        // Returns `None` if we have errored.
+        if self.errored {
+            return None;
+        }
 
-            let metadata = match self.acc.blocking_stat(&path, OpStat::default()) {
-                Ok(rp) => rp.into_metadata(),
-                Err(err) => return Some(Err(err)),
-            };
+        let entry = match self.lister.next() {
+            Ok(Some(entry)) => entry,
+            Ok(None) => return None,
+            Err(err) => {
+                self.errored = true;
+                return Some(Err(err));
+            }
+        };
+
+        let (path, metadata) = entry.into_entry().into_parts();
+        // TODO: we can optimize this by checking the provided metakey provided by services.
+        if metadata.contains_metakey(self.required_metakey) {
             return Some(Ok(Entry::new(path, metadata)));
         }
 
-        let lister = match self.lister.as_mut() {
-            Some(lister) => lister,
-            None => return None,
-        };
-
-        self.buf = match lister.next() {
-            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-            //
-            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-            Ok(Some(entries)) => entries.into(),
-            Ok(None) => {
-                self.lister = None;
-                return None;
+        let metadata = match self.acc.blocking_stat(&path, OpStat::default()) {
+            Ok(rp) => rp.into_metadata(),
+            Err(err) => {
+                self.errored = true;
+                return Some(Err(err));
             }
-            Err(err) => return Some(Err(err)),
         };
-
-        self.next()
+        Some(Ok(Entry::new(path, metadata)))
     }
 }
 
@@ -261,6 +239,8 @@ mod tests {
     /// Invalid lister should not panic nor endless loop.
     #[tokio::test]
     async fn test_invalid_lister() -> Result<()> {
+        let _ = tracing_subscriber::fmt().try_init();
+
         let mut builder = Azblob::default();
 
         builder

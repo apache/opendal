@@ -21,20 +21,27 @@ use std::str;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use hrana_client_proto::pipeline::{
-    ClientMsg, Response, ServerMsg, StreamExecuteReq, StreamExecuteResult, StreamRequest,
-    StreamResponse, StreamResponseError, StreamResponseOk,
-};
+use hrana_client_proto::pipeline::ClientMsg;
+use hrana_client_proto::pipeline::Response;
+use hrana_client_proto::pipeline::ServerMsg;
+use hrana_client_proto::pipeline::StreamExecuteReq;
+use hrana_client_proto::pipeline::StreamExecuteResult;
+use hrana_client_proto::pipeline::StreamRequest;
+use hrana_client_proto::pipeline::StreamResponse;
+use hrana_client_proto::pipeline::StreamResponseError;
+use hrana_client_proto::pipeline::StreamResponseOk;
 use hrana_client_proto::Error as PipelineError;
-use hrana_client_proto::{Stmt, StmtResult, Value};
-use http::{Request, Uri};
+use hrana_client_proto::Stmt;
+use hrana_client_proto::StmtResult;
+use hrana_client_proto::Value;
+use http::Request;
+use http::Uri;
 use serde::Deserialize;
 
+use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 /// Config for Libsqlservices support.
 #[derive(Default, Deserialize)]

@@ -18,18 +18,16 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use http::Request;
-
 use http::header::RANGE;
+use http::Request;
 use http::Response;
 use http::StatusCode;
-
-use serde::{Deserialize, Serialize};
-
-use crate::raw::*;
-use crate::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Debug, Serialize)]
 struct CreateFileRequest {

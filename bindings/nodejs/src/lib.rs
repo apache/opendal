@@ -731,7 +731,7 @@ impl NodeLayer for opendal::layers::RetryLayer {
 /// retry.jitter = true;
 ///
 /// op.layer(retry.build());
-///```
+/// ```
 #[derive(Default)]
 #[napi]
 pub struct RetryLayer {
@@ -821,6 +821,7 @@ impl RetryLayer {
     }
 }
 
+/// Format opendal error to napi error.
 fn format_napi_error(err: opendal::Error) -> Error {
     Error::from_reason(format!("{}", err))
 }

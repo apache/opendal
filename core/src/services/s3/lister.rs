@@ -38,9 +38,6 @@ pub struct S3Lister {
 
     /// Amazon S3 starts listing **after** this specified key
     start_after: Option<String>,
-
-    token: String,
-    done: bool,
 }
 
 impl S3Lister {
@@ -59,28 +56,26 @@ impl S3Lister {
             delimiter,
             limit,
             start_after: start_after.map(String::from),
-
-            token: "".to_string(),
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for S3Lister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for S3Lister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
             .s3_list_objects(
                 &self.path,
-                &self.token,
+                &ctx.token,
                 self.delimiter,
                 self.limit,
-                self.start_after.clone(),
+                // State after should only be set for the first page.
+                if ctx.token.is_empty() {
+                    self.start_after.clone()
+                } else {
+                    None
+                },
             )
             .await?;
 
@@ -97,16 +92,14 @@ impl oio::List for S3Lister {
         // - Check `is_truncated`
         // - Check `next_continuation_token`
         // - Check the length of `common_prefixes` and `contents` (very rarely case)
-        self.done = if let Some(is_truncated) = output.is_truncated {
+        ctx.done = if let Some(is_truncated) = output.is_truncated {
             !is_truncated
         } else if let Some(next_continuation_token) = output.next_continuation_token.as_ref() {
             next_continuation_token.is_empty()
         } else {
             output.common_prefixes.is_empty() && output.contents.is_empty()
         };
-        self.token = output.next_continuation_token.clone().unwrap_or_default();
-
-        let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
+        ctx.token = output.next_continuation_token.clone().unwrap_or_default();
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
@@ -114,7 +107,7 @@ impl oio::List for S3Lister {
                 Metadata::new(EntryMode::DIR),
             );
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
         for object in output.contents {
@@ -139,10 +132,10 @@ impl oio::List for S3Lister {
 
             let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

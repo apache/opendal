@@ -252,7 +252,7 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriters;
     type BlockingWriter = ();
-    type Lister = ObsLister;
+    type Lister = oio::PageLister<ObsLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -428,9 +428,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            ObsLister::new(self.core.clone(), path, args.recursive(), args.limit()),
-        ))
+        let l = ObsLister::new(self.core.clone(), path, args.recursive(), args.limit());
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

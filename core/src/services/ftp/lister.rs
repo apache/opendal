@@ -17,6 +17,8 @@
 
 use std::str;
 use std::str::FromStr;
+use std::task::Context;
+use std::task::Poll;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
@@ -27,15 +29,13 @@ use crate::*;
 
 pub struct FtpLister {
     path: String,
-    size: usize,
     file_iter: IntoIter<String>,
 }
 
 impl FtpLister {
-    pub fn new(path: &str, files: Vec<String>, limit: Option<usize>) -> Self {
+    pub fn new(path: &str, files: Vec<String>) -> Self {
         Self {
             path: path.to_string(),
-            size: limit.unwrap_or(1000),
             file_iter: files.into_iter(),
         }
     }
@@ -43,35 +43,29 @@ impl FtpLister {
 
 #[async_trait]
 impl oio::List for FtpLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let de = match self.file_iter.next() {
+            Some(file_str) => File::from_str(file_str.as_str()).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e)
+            })?,
+            None => return Poll::Ready(Ok(None)),
+        };
 
-        for _ in 0..self.size {
-            let de = match self.file_iter.next() {
-                Some(file_str) => File::from_str(file_str.as_str()).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e)
-                })?,
-                None => break,
-            };
+        let path = self.path.to_string() + de.name();
 
-            let path = self.path.to_string() + de.name();
+        let entry = if de.is_file() {
+            oio::Entry::new(
+                &path,
+                Metadata::new(EntryMode::FILE)
+                    .with_content_length(de.size() as u64)
+                    .with_last_modified(de.modified().into()),
+            )
+        } else if de.is_directory() {
+            oio::Entry::new(&format!("{}/", &path), Metadata::new(EntryMode::DIR))
+        } else {
+            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
+        };
 
-            let d = if de.is_file() {
-                oio::Entry::new(
-                    &path,
-                    Metadata::new(EntryMode::FILE)
-                        .with_content_length(de.size() as u64)
-                        .with_last_modified(de.modified().into()),
-                )
-            } else if de.is_directory() {
-                oio::Entry::new(&format!("{}/", &path), Metadata::new(EntryMode::DIR))
-            } else {
-                oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
-            };
-
-            oes.push(d)
-        }
-
-        Ok(if oes.is_empty() { None } else { Some(oes) })
+        Poll::Ready(Ok(Some(entry)))
     }
 }

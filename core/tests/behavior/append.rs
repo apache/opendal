@@ -55,6 +55,9 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
         .await
         .expect("append file first time must success");
 
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.content_length(), size_one as u64);
+
     op.write_with(&path, content_two.clone())
         .append(true)
         .await

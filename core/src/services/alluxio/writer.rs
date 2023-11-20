@@ -23,12 +23,10 @@ use std::task::Poll;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 
+use super::core::AlluxioCore;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
-
 use crate::*;
-
-use super::core::AlluxioCore;
 
 pub type AlluxioWriters = AlluxioWriter;
 

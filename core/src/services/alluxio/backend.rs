@@ -24,12 +24,12 @@ use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
+use super::core::AlluxioCore;
+use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::{core::AlluxioCore, lister::AlluxioLister};
+use crate::raw::*;
+use crate::*;
 
 /// Config for alluxio services support.
 #[derive(Default, Deserialize)]
@@ -185,7 +185,7 @@ impl Accessor for AlluxioBackend {
     type BlockingReader = ();
     type Writer = AlluxioWriters;
     type BlockingWriter = ();
-    type Lister = AlluxioLister;
+    type Lister = oio::PageLister<AlluxioLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -198,8 +198,6 @@ impl Accessor for AlluxioBackend {
                 read: true,
 
                 write: true,
-                /// https://github.com/Alluxio/alluxio/issues/8212
-                write_can_append: false,
                 write_can_multi: true,
 
                 create_dir: true,
@@ -253,10 +251,8 @@ impl Accessor for AlluxioBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            AlluxioLister::new(self.core.clone(), path),
-        ))
+        let l = AlluxioLister::new(self.core.clone(), path);
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

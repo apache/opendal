@@ -20,7 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-use rusqlite::{params, Connection};
+use rusqlite::params;
+use rusqlite::Connection;
 use serde::Deserialize;
 use tokio::task;
 

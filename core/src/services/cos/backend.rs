@@ -245,7 +245,7 @@ impl Accessor for CosBackend {
     type BlockingReader = ();
     type Writer = CosWriters;
     type BlockingWriter = ();
-    type Lister = CosLister;
+    type Lister = oio::PageLister<CosLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -422,9 +422,7 @@ impl Accessor for CosBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            CosLister::new(self.core.clone(), path, args.recursive(), args.limit()),
-        ))
+        let l = CosLister::new(self.core.clone(), path, args.recursive(), args.limit());
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

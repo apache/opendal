@@ -66,7 +66,7 @@ impl Accessor for IpmfsBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type BlockingWriter = ();
-    type Lister = IpmfsLister;
+    type Lister = oio::PageLister<IpmfsLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -171,10 +171,8 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            IpmfsLister::new(Arc::new(self.clone()), &self.root, path),
-        ))
+        let l = IpmfsLister::new(Arc::new(self.clone()), &self.root, path);
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 

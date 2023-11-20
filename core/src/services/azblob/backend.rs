@@ -546,7 +546,7 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriters;
     type BlockingWriter = ();
-    type Lister = AzblobLister;
+    type Lister = oio::PageLister<AzblobLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -689,14 +689,14 @@ impl Accessor for AzblobBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = AzblobLister::new(
+        let l = AzblobLister::new(
             self.core.clone(),
             path.to_string(),
             args.recursive(),
             args.limit(),
         );
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

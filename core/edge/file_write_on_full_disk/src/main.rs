@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::env;
+
 use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Result;
 use rand::prelude::*;
-use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {

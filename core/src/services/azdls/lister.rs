@@ -31,41 +31,29 @@ pub struct AzdlsLister {
 
     path: String,
     limit: Option<usize>,
-
-    continuation: String,
-    done: bool,
 }
 
 impl AzdlsLister {
     pub fn new(core: Arc<AzdlsCore>, path: String, limit: Option<usize>) -> Self {
-        Self {
-            core,
-            path,
-            limit,
-
-            continuation: "".to_string(),
-            done: false,
-        }
+        Self { core, path, limit }
     }
 }
 
 #[async_trait]
-impl oio::List for AzdlsLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for AzdlsLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azdls_list(&self.path, &self.continuation, self.limit)
+            .azdls_list(&self.path, &ctx.token, self.limit)
             .await?;
 
-        // Azdls will return not found for not-exist path.
+        // azdls will return not found for not-exist path.
         if resp.status() == http::StatusCode::NOT_FOUND {
             resp.into_body().consume().await?;
-            return Ok(None);
+            ctx.done = true;
+            return Ok(());
         }
+
         if resp.status() != http::StatusCode::OK {
             return Err(parse_error(resp).await?);
         }
@@ -76,19 +64,15 @@ impl oio::List for AzdlsLister {
                 Error::new(ErrorKind::Unexpected, "header value is not valid string")
                     .set_source(err)
             })?;
-            self.continuation = value.to_string();
+            ctx.token = value.to_string();
         } else {
-            self.continuation = "".to_string();
-            self.done = true;
+            ctx.token = "".to_string();
+            ctx.done = true;
         }
 
         let bs = resp.into_body().bytes().await?;
 
-        let output: Output = de::from_slice(&bs).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize json from response").set_source(e)
-        })?;
-
-        let mut entries = Vec::with_capacity(output.paths.len());
+        let output: Output = de::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         for object in output.paths {
             // Azdls will return `"true"` and `"false"` for is_directory.
@@ -114,10 +98,10 @@ impl oio::List for AzdlsLister {
 
             let de = oio::Entry::new(&path, meta);
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

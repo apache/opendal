@@ -16,6 +16,9 @@
 // under the License.
 
 use std::pin::Pin;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -28,43 +31,33 @@ use crate::Result;
 pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
-    limit: usize,
 }
 
 impl SftpLister {
-    pub fn new(dir: ReadDir, path: String, limit: Option<usize>) -> Self {
+    pub fn new(dir: ReadDir, path: String) -> Self {
         let prefix = if path == "/" { "".to_owned() } else { path };
-
-        let limit = limit.unwrap_or(usize::MAX);
 
         SftpLister {
             dir: Box::pin(dir),
             prefix,
-            limit,
         }
     }
 }
 
 #[async_trait]
 impl oio::List for SftpLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.limit == 0 {
-            return Ok(None);
-        }
-
-        let item = self.dir.next().await;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        let item = ready!(self.dir.poll_next_unpin(cx)).transpose()?;
 
         match item {
-            Some(Ok(e)) => {
+            Some(e) => {
                 if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
-                    self.next().await
+                    self.poll_next(cx)
                 } else {
-                    self.limit -= 1;
-                    Ok(Some(vec![map_entry(self.prefix.as_str(), e.clone())]))
+                    Poll::Ready(Ok(Some(map_entry(self.prefix.as_str(), e))))
                 }
             }
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
+            None => Poll::Ready(Ok(None)),
         }
     }
 }

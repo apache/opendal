@@ -15,18 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: persy
-description: 'Behavior test for Persy'
+name: redis_tls
+description: 'Behavior test for redis tls'
 
 runs:
   using: "composite"
   steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Redis with TLS
+      shell: bash
+      working-directory: fixtures/redis
+      run: |
+        # Install the CA in the system
+        sudo cp ssl/ca.crt /usr/local/share/ca-certificates
+        sudo update-ca-certificates
+
+        docker compose -f docker-compose-redis-tls.yml up -d --wait
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        RUST_TEST_THREADS=1
-        OPENDAL_PERSY_DATAFILE=/tmp/test.persy
-        OPENDAL_PERSY_SEGMENT=data
-        OPENDAL_PERSY_INDEX=index
+        OPENDAL_REDIS_ENDPOINT=rediss://127.0.0.1:6379
+        OPENDAL_REDIS_ROOT=/
+        OPENDAL_REDIS_DB=0
         EOF

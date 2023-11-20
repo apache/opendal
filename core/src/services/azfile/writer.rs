@@ -20,11 +20,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::AzfileCore;
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 pub type AzfileWriters =
     oio::TwoWaysWriter<oio::OneShotWriter<AzfileWriter>, oio::AppendObjectWriter<AzfileWriter>>;

@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
+use std::io::SeekFrom;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+
 use bytes::Bytes;
 use futures::AsyncRead;
 use futures::AsyncSeek;
-use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+
+use crate::raw::*;
+use crate::*;
 
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct FuturesReader<R: AsyncRead + AsyncSeek> {

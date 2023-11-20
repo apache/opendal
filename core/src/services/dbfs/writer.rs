@@ -20,12 +20,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
+use super::error::parse_error;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::services::dbfs::core::DbfsCore;
 use crate::*;
-
-use super::error::parse_error;
 
 pub struct DbfsWriter {
     core: Arc<DbfsCore>,

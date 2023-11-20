@@ -30,6 +30,7 @@ use openssh::SessionBuilder;
 use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
+use serde::Deserialize;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -37,8 +38,6 @@ use super::lister::SftpLister;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
-
-use serde::Deserialize;
 
 /// Config for Sftpservices support.
 #[derive(Default, Deserialize)]
@@ -446,7 +445,7 @@ impl Accessor for SftpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let client = self.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
@@ -467,7 +466,7 @@ impl Accessor for SftpBackend {
 
         Ok((
             RpList::default(),
-            Some(SftpLister::new(dir, path.to_owned(), args.limit())),
+            Some(SftpLister::new(dir, path.to_owned())),
         ))
     }
 }

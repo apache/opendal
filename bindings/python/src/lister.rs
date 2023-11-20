@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::TryStreamExt;
 use std::sync::Arc;
 
+use futures::TryStreamExt;
 use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;

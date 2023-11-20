@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::AsyncWriteExt;
 use log::debug;
 
 use super::lister::HdfsLister;
@@ -31,12 +32,13 @@ use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 #[doc = include_str!("docs.md")]
-#[derive(Debug, Default)]
+#[derive(Default, Debug)]
 pub struct HdfsBuilder {
     root: Option<String>,
     name_node: Option<String>,
     kerberos_ticket_cache_path: Option<String>,
     user: Option<String>,
+    enable_append: bool,
 }
 
 impl HdfsBuilder {
@@ -85,6 +87,14 @@ impl HdfsBuilder {
         }
         self
     }
+
+    /// Enable append capacity of this backend.
+    ///
+    /// This should be disabled when HDFS runs in non-distributed mode.
+    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+        self.enable_append = enable_append;
+        self
+    }
 }
 
 impl Builder for HdfsBuilder {
@@ -99,6 +109,9 @@ impl Builder for HdfsBuilder {
         map.get("kerberos_ticket_cache_path")
             .map(|v| builder.kerberos_ticket_cache_path(v));
         map.get("user").map(|v| builder.user(v));
+        map.get("enable_append").map(|v| {
+            builder.enable_append(v.parse().expect("enable_append should be true or false"))
+        });
 
         builder
     }
@@ -140,6 +153,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             root,
             client: Arc::new(client),
+            enable_append: self.enable_append,
         })
     }
 }
@@ -149,6 +163,7 @@ impl Builder for HdfsBuilder {
 pub struct HdfsBackend {
     root: String,
     client: Arc<hdrs::Client>,
+    enable_append: bool,
 }
 
 /// hdrs::Client is thread-safe.
@@ -175,8 +190,7 @@ impl Accessor for HdfsBackend {
                 read_can_seek: true,
 
                 write: true,
-                // TODO: wait for https://github.com/apache/incubator-opendal/pull/2715
-                write_can_append: false,
+                write_can_append: self.enable_append,
 
                 create_dir: true,
                 delete: true,
@@ -184,6 +198,7 @@ impl Accessor for HdfsBackend {
                 list: true,
                 list_without_recursive: true,
 
+                rename: true,
                 blocking: true,
 
                 ..Default::default()
@@ -219,20 +234,26 @@ impl Accessor for HdfsBackend {
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+        if let Err(err) = self.client.metadata(&p) {
+            // Early return if other error happened.
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(new_std_io_error(err));
+            }
 
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(new_std_io_error)?;
+            let parent = get_parent(&p);
+
+            self.client.create_dir(parent).map_err(new_std_io_error)?;
+
+            let mut f = self
+                .client
+                .open_file()
+                .create(true)
+                .write(true)
+                .async_open(&p)
+                .await
+                .map_err(new_std_io_error)?;
+            f.close().await.map_err(new_std_io_error)?;
+        }
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -248,6 +269,53 @@ impl Accessor for HdfsBackend {
             .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+
+        let to_path = build_rooted_abs_path(&self.root, to);
+        let result = self.client.metadata(&to_path);
+        match result {
+            Err(err) => {
+                // Early return if other error happened.
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+
+                let parent = PathBuf::from(&to_path)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path should have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &to_path)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(new_std_io_error)?;
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    self.client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
+                } else {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                }
+            }
+        }
+
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
+
+        Ok(RpRename::new())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -296,7 +364,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -310,7 +378,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -338,33 +406,85 @@ impl Accessor for HdfsBackend {
         Ok((RpRead::new(), r))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+    fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+        if let Err(err) = self.client.metadata(&p) {
+            // Early return if other error happened.
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(new_std_io_error(err));
+            }
 
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(new_std_io_error)?;
+            let parent = get_parent(&p);
 
-        let f = self
-            .client
-            .open_file()
-            .create(true)
-            .write(true)
-            .open(&p)
-            .map_err(new_std_io_error)?;
+            self.client.create_dir(parent).map_err(new_std_io_error)?;
+
+            self.client
+                .open_file()
+                .create(true)
+                .write(true)
+                .open(&p)
+                .map_err(new_std_io_error)?;
+        }
+
+        let mut open_options = self.client.open_file();
+        open_options.create(true);
+        if op.append() {
+            open_options.append(true);
+        } else {
+            open_options.write(true);
+        }
+
+        let f = open_options.open(&p).map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), HdfsWriter::new(f)))
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+
+        let to_path = build_rooted_abs_path(&self.root, to);
+        let result = self.client.metadata(&to_path);
+        match result {
+            Err(err) => {
+                // Early return if other error happened.
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+
+                let parent = PathBuf::from(&to_path)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path should have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &to_path)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(new_std_io_error)?;
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    self.client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
+                } else {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                }
+            }
+        }
+
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(new_std_io_error)?;
+
+        Ok(RpRename::new())
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -413,7 +533,7 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -427,7 +547,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f, args.limit());
+        let rd = HdfsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }

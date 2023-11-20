@@ -77,7 +77,6 @@ impl<W: AppendObjectWrite> AppendObjectWriter<W> {
     }
 }
 
-#[async_trait]
 impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,

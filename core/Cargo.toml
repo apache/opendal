@@ -18,7 +18,7 @@
 [package]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
-exclude = ["tests/"]
+exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"
 
@@ -111,6 +111,7 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 
+services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
   "dep:sha2",
@@ -148,7 +149,6 @@ services-gdrive = []
 services-ghac = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]
-services-alluxio = []
 services-http = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
@@ -201,10 +201,12 @@ bench = false
 [[bench]]
 harness = false
 name = "ops"
+required-features = ["tests"]
 
 [[bench]]
 harness = false
 name = "oio"
+required-features = ["tests"]
 
 [[test]]
 harness = false
@@ -254,7 +256,7 @@ mini-moka = { version = "0.10", optional = true }
 minitrace = { version = "0.6", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }
 mongodb = { version = "2.7.0", optional = true, features = ["tokio-runtime"] }
-mysql_async = { version = "0.32.2", optional = true }
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"], optional = true }
 once_cell = "1"
 openssh = { version = "0.10.0", optional = true }
 openssh-sftp-client = { version = "0.14.0", optional = true, features = [
@@ -293,14 +295,14 @@ suppaftp = { version = "5.2", default-features = false, features = [
   "async-rustls",
   "async-native-tls",
 ], optional = true }
-tikv-client = { version = "0.2.0", optional = true }
+tikv-client = { version = "0.2.0", optional = true, default-features = false }
 tokio = "1.27"
 tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
-criterion = { version = "0.4", features = ["async", "async_tokio"] }
+criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 libtest-mimic = "0.6"
 minitrace = { version = "0.6", features = ["enable"] }

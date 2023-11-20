@@ -218,7 +218,7 @@ impl Accessor for SwiftBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type BlockingWriter = ();
-    type Lister = SwiftLister;
+    type Lister = oio::PageLister<SwiftLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -329,8 +329,8 @@ impl Accessor for SwiftBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = SwiftLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let l = SwiftLister::new(self.core.clone(), path.to_string(), args.recursive());
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

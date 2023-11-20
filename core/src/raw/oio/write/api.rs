@@ -22,7 +22,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use pin_project::pin_project;
 
 use crate::raw::*;
@@ -75,7 +74,6 @@ impl From<WriteOperation> for &'static str {
 pub type Writer = Box<dyn Write>;
 
 /// Write is the trait that OpenDAL returns to callers.
-#[async_trait]
 pub trait Write: Unpin + Send + Sync {
     /// Write given bytes into writer.
     ///
@@ -95,7 +93,6 @@ pub trait Write: Unpin + Send + Sync {
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
 }
 
-#[async_trait]
 impl Write for () {
     fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         unimplemented!("write is required to be implemented for oio::Write")
@@ -119,7 +116,6 @@ impl Write for () {
 /// `Box<dyn Write>` won't implement `Write` automatically.
 ///
 /// To make Writer work as expected, we must add this impl.
-#[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         (**self).poll_write(cx, bs)

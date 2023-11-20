@@ -63,6 +63,7 @@ jobs:
         run: |
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
+          cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${{ env.HADOOP_HOME }}/etc/hadoop/hdfs-site.xml
 
           cargo test behavior --features tests,services-hdfs
         env:
@@ -70,6 +71,7 @@ jobs:
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
+          OPENDAL_HDFS_ENABLE_APPEND: false
 
   hdfs-cluster:
     runs-on: ubuntu-latest
@@ -87,6 +89,8 @@ jobs:
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
             -e HDFS_CONF_dfs_permissions_enabled=false \
+            -e HDFS_CONF_dfs_support_append=true \
+            -e HDFS_CONF_dfs_replication=1 \
             bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
 
           docker run -d \
@@ -96,6 +100,8 @@ jobs:
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
             -e HDFS_CONF_dfs_permissions_enabled=false \
+            -e HDFS_CONF_dfs_support_append=true \
+            -e HDFS_CONF_dfs_replication=1 \
             bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
@@ -121,6 +127,7 @@ jobs:
         run: |
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
+          cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${{ env.HADOOP_HOME }}/etc/hadoop/hdfs-site.xml
 
           cargo test behavior --features tests,services-hdfs
         env:
@@ -128,3 +135,4 @@ jobs:
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
+          OPENDAL_HDFS_ENABLE_APPEND: true

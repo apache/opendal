@@ -27,12 +27,11 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use serde::Deserialize;
 
 /// Config for Http service support.
 #[derive(Default, Deserialize)]
@@ -376,6 +375,11 @@ mod tests {
             )
             .mount(&mock_server)
             .await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
+            .mount(&mock_server)
+            .await;
 
         let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
@@ -403,6 +407,12 @@ mod tests {
                     .insert_header("content-length", "13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .and(basic_auth(username, password))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
             .mount(&mock_server)
             .await;
 
@@ -433,6 +443,12 @@ mod tests {
                     .insert_header("content-length", "13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .and(bearer_token(token))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
             .mount(&mock_server)
             .await;
 
@@ -483,6 +499,11 @@ mod tests {
                     .insert_header("content-length", "13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
             .mount(&mock_server)
             .await;
 

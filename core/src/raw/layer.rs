@@ -96,7 +96,11 @@ use crate::*;
 ///         self.inner.list(path, args).await
 ///     }
 ///
-///     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+///     fn blocking_list(
+///         &self,
+///         path: &str,
+///         args: OpList,
+///     ) -> Result<(RpList, Self::BlockingLister)> {
 ///         self.inner.blocking_list(path, args)
 ///     }
 /// }

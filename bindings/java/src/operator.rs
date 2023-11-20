@@ -24,10 +24,10 @@ use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
+use jni::sys::jlong;
+use jni::sys::jobject;
 use jni::sys::jsize;
-use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
-
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
 use opendal::Operator;

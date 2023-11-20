@@ -36,9 +36,6 @@ pub struct CosLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
-
-    next_marker: String,
-    done: bool,
 }
 
 impl CosLister {
@@ -49,23 +46,16 @@ impl CosLister {
             path: path.to_string(),
             delimiter,
             limit,
-
-            next_marker: "".to_string(),
-            done: false,
         }
     }
 }
 
 #[async_trait]
-impl oio::List for CosLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for CosLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .cos_list_objects(&self.path, &self.next_marker, self.delimiter, self.limit)
+            .cos_list_objects(&self.path, &ctx.token, self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -80,22 +70,19 @@ impl oio::List for CosLister {
         // Try our best to check whether this list is done.
         //
         // - Check `next_marker`
-        self.done = match output.next_marker.as_ref() {
+        ctx.done = match output.next_marker.as_ref() {
             None => true,
             Some(next_marker) => next_marker.is_empty(),
         };
-        self.next_marker = output.next_marker.clone().unwrap_or_default();
+        ctx.token = output.next_marker.clone().unwrap_or_default();
 
-        let common_prefixes = output.common_prefixes;
-        let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
-
-        for prefix in common_prefixes {
+        for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
         for object in output.contents {
@@ -107,10 +94,10 @@ impl oio::List for CosLister {
 
             let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 
-            entries.push(de);
+            ctx.entries.push_back(de);
         }
 
-        Ok(Some(entries))
+        Ok(())
     }
 }
 

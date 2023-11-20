@@ -66,7 +66,7 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type BlockingWriter = ();
-    type Lister = OnedriveLister;
+    type Lister = oio::PageLister<OnedriveLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -163,10 +163,9 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister: OnedriveLister =
-            OnedriveLister::new(self.root.clone(), path.into(), self.clone());
+        let l = OnedriveLister::new(self.root.clone(), path.into(), self.clone());
 
-        Ok((RpList::default(), lister))
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

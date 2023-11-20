@@ -312,7 +312,7 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriters;
     type BlockingWriter = ();
-    type Lister = GcsLister;
+    type Lister = oio::PageLister<GcsLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -472,16 +472,15 @@ impl Accessor for GcsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            GcsLister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            ),
-        ))
+        let l = GcsLister::new(
+            self.core.clone(),
+            path,
+            args.recursive(),
+            args.limit(),
+            args.start_after(),
+        );
+
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {

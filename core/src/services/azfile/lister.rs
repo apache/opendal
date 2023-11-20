@@ -22,49 +22,37 @@ use http::StatusCode;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::AzfileCore;
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 pub struct AzfileLister {
     core: Arc<AzfileCore>,
     path: String,
     limit: Option<usize>,
-    done: bool,
-    continuation: String,
 }
 
 impl AzfileLister {
     pub fn new(core: Arc<AzfileCore>, path: String, limit: Option<usize>) -> Self {
-        Self {
-            core,
-            path,
-            limit,
-            done: false,
-            continuation: "".to_string(),
-        }
+        Self { core, path, limit }
     }
 }
 
 #[async_trait]
-impl oio::List for AzfileLister {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.done {
-            return Ok(None);
-        }
-
+impl oio::PageList for AzfileLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azfile_list(&self.path, &self.limit, &self.continuation)
+            .azfile_list(&self.path, &self.limit, &ctx.token)
             .await?;
 
         let status = resp.status();
 
         if status != StatusCode::OK {
             if status == StatusCode::NOT_FOUND {
-                return Ok(None);
+                ctx.done = true;
+                return Ok(());
             }
             return Err(parse_error(resp).await?);
         }
@@ -73,11 +61,13 @@ impl oio::List for AzfileLister {
 
         let text = String::from_utf8(bs.to_vec()).expect("response convert to string must success");
 
-        let results: EnumerationResults = from_str(&text).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize xml from response").set_source(e)
-        })?;
+        let results: EnumerationResults = from_str(&text).map_err(new_xml_deserialize_error)?;
 
-        let mut entries = Vec::new();
+        if results.next_marker.is_empty() {
+            ctx.done = true;
+        } else {
+            ctx.token = results.next_marker;
+        }
 
         for file in results.entries.file {
             let meta = Metadata::new(EntryMode::FILE)
@@ -85,7 +75,7 @@ impl oio::List for AzfileLister {
                 .with_content_length(file.properties.content_length.unwrap_or(0))
                 .with_last_modified(parse_datetime_from_rfc2822(&file.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
-            entries.push(oio::Entry::new(&path, meta));
+            ctx.entries.push_back(oio::Entry::new(&path, meta));
         }
 
         for dir in results.entries.directory {
@@ -93,20 +83,10 @@ impl oio::List for AzfileLister {
                 .with_etag(dir.properties.etag)
                 .with_last_modified(parse_datetime_from_rfc2822(&dir.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &dir.name + "/";
-            entries.push(oio::Entry::new(&path, meta));
+            ctx.entries.push_back(oio::Entry::new(&path, meta));
         }
 
-        if results.next_marker.is_empty() {
-            self.done = true;
-        } else {
-            self.continuation = results.next_marker;
-        }
-
-        if entries.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(entries))
-        }
+        Ok(())
     }
 }
 

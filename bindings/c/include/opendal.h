@@ -77,7 +77,10 @@ typedef enum opendal_code {
  * BlockingLister is designed to list entries at given path in a blocking
  * manner.
  *
- * Users can construct Lister by `blocking_lister`.
+ * Users can construct Lister by [`BlockingOperator::lister`] or [`BlockingOperator::lister_with`].
+ *
+ * - Lister implements `Iterator<Item = Result<Entry>>`.
+ * - Lister will return `None` if there is no more entries or error has been returned.
  */
 typedef struct BlockingLister BlockingLister;
 

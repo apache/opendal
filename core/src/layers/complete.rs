@@ -27,13 +27,12 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::Entry;
+use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::HierarchyLister;
+use crate::raw::oio::LazyReader;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
-use crate::raw::oio::{into_flat_page, FileReader};
-use crate::raw::oio::{into_hierarchy_page, LazyReader};
 use crate::raw::*;
 use crate::*;
 
@@ -250,13 +249,13 @@ impl<A: Accessor> CompleteAccessor<A> {
             (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
             (true, false, true) => {
-                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
+                let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
             }
             // If recursive is false but service can't list_without_recursive
             (false, true, false) => {
                 let (_, p) = self.inner.list(path, args.with_recursive(true)).await?;
-                let p = into_hierarchy_page(p, path);
+                let p = HierarchyLister::new(p, path);
                 Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }
@@ -292,14 +291,14 @@ impl<A: Accessor> CompleteAccessor<A> {
             (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
             (true, false, true) => {
-                let p = into_flat_page(self.inner.clone(), path, args.limit().unwrap_or(1000));
+                let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
             }
             // If recursive is false but service can't list_without_recursive
             (false, true, false) => {
                 let (_, p) = self.inner.blocking_list(path, args.with_recursive(true))?;
                 let p: HierarchyLister<<A as Accessor>::BlockingLister> =
-                    into_hierarchy_page(p, path);
+                    HierarchyLister::new(p, path);
                 Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }
@@ -554,6 +553,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
+    #[inline]
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         use CompleteReader::*;
 
@@ -639,13 +639,13 @@ where
     A: Accessor<Lister = P>,
     P: oio::List,
 {
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         use CompleteLister::*;
 
         match self {
-            AlreadyComplete(p) => p.next().await,
-            NeedFlat(p) => p.next().await,
-            NeedHierarchy(p) => p.next().await,
+            AlreadyComplete(p) => p.poll_next(cx),
+            NeedFlat(p) => p.poll_next(cx),
+            NeedHierarchy(p) => p.poll_next(cx),
         }
     }
 }
@@ -655,7 +655,7 @@ where
     A: Accessor<BlockingLister = P>,
     P: oio::BlockingList,
 {
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         use CompleteLister::*;
 
         match self {
@@ -836,6 +836,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             read: true,
+            stat: true,
             ..Default::default()
         });
         let res = op.read("path").await;

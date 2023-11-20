@@ -26,13 +26,12 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::services::dropbox::error::DropboxErrorResponse;
-use crate::*;
-
 use super::core::DropboxCore;
 use super::error::parse_error;
 use super::writer::DropboxWriter;
+use crate::raw::*;
+use crate::services::dropbox::error::DropboxErrorResponse;
+use crate::*;
 
 static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
     ExponentialBuilder::default()

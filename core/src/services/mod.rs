@@ -92,6 +92,11 @@ pub use self::http::Http;
 #[cfg(feature = "services-http")]
 pub use self::http::HttpConfig;
 
+#[cfg(feature = "services-huggingface")]
+mod huggingface;
+#[cfg(feature = "services-huggingface")]
+pub use huggingface::HuggingFace;
+
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
 #[cfg(feature = "services-ipfs")]

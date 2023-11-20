@@ -38,3 +38,8 @@ aws-sdk-s3 = "0.38"
 aws-config = { version = "0.101.0", features = ["behavior-version-latest"] }
 dotenvy = "0.15"
 aws-credential-types = { version = "0.101.0", features = ["hardcoded-credentials"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }
+

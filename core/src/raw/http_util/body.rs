@@ -25,12 +25,9 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures::StreamExt;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// Body used in async HTTP requests.
 #[derive(Default)]
@@ -172,13 +169,21 @@ impl oio::Read for IncomingAsyncBody {
             chunk
         } else {
             loop {
-                match ready!(self.poll_next(cx)) {
+                match ready!(self.inner.poll_next(cx)) {
                     // It's possible for underlying stream to return empty bytes, we should continue
                     // to fetch next one.
                     Some(Ok(bs)) if bs.is_empty() => continue,
-                    Some(Ok(bs)) => break bs,
+                    Some(Ok(bs)) => {
+                        self.consumed += bs.len() as u64;
+                        break bs;
+                    }
                     Some(Err(err)) => return Poll::Ready(Err(err)),
-                    None => return Poll::Ready(Ok(0)),
+                    None => {
+                        if let Some(size) = self.size {
+                            Self::check(size, self.consumed)?;
+                        }
+                        return Poll::Ready(Ok(0));
+                    }
                 }
             }
         };
@@ -211,7 +216,7 @@ impl oio::Read for IncomingAsyncBody {
             return Poll::Ready(Some(Ok(bs)));
         }
 
-        let res = match ready!(self.inner.poll_next_unpin(cx)) {
+        let res = match ready!(self.inner.poll_next(cx)) {
             Some(Ok(bs)) => {
                 self.consumed += bs.len() as u64;
                 Some(Ok(bs))

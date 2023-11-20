@@ -27,6 +27,11 @@ use tokio::io::AsyncReadExt;
 
 fn main() {
     let _ = dotenvy::dotenv();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     let endpoint = env::var("OPENDAL_S3_ENDPOINT").unwrap();
     let access_key = env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap();
@@ -62,22 +67,13 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
     let mut group = c.benchmark_group("read");
     group.throughput(criterion::Throughput::Bytes(16 * 1024 * 1024));
 
-    let path = TEST_RUNTIME.block_on(prepare(op.clone()));
+    TEST_RUNTIME.block_on(prepare(op.clone()));
 
-    group.bench_function("aws_s3_sdk_collect", |b| {
+    group.bench_function("opendal_s3_reader", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
-            let _: Vec<u8> = s3_client
-                .get_object()
-                .bucket(bucket)
-                .key(&path)
-                .send()
-                .await
-                .unwrap()
-                .body
-                .collect()
-                .await
-                .unwrap()
-                .to_vec();
+            let mut r = op.reader("file").await.unwrap();
+            let mut bs = Vec::new();
+            let _ = r.read_to_end(&mut bs).await.unwrap();
         });
     });
     group.bench_function("aws_s3_sdk_into_async_read", |b| {
@@ -85,7 +81,7 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
             let mut r = s3_client
                 .get_object()
                 .bucket(bucket)
-                .key(&path)
+                .key("file")
                 .send()
                 .await
                 .unwrap()
@@ -95,12 +91,20 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
             let _ = r.read_to_end(&mut bs).await.unwrap();
         });
     });
-    group.bench_function("aws_s3_sdk_into_async_read_with_size_known", |b| {
+
+    group.bench_function("opendal_s3_reader_with_capacity", |b| {
+        b.to_async(&*TEST_RUNTIME).iter(|| async {
+            let mut r = op.reader("file").await.unwrap();
+            let mut bs = Vec::with_capacity(16 * 1024 * 1024);
+            let _ = r.read_to_end(&mut bs).await.unwrap();
+        });
+    });
+    group.bench_function("aws_s3_sdk_into_async_read_with_capacity", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
             let mut r = s3_client
                 .get_object()
                 .bucket(bucket)
-                .key(&path)
+                .key("file")
                 .send()
                 .await
                 .unwrap()
@@ -110,31 +114,14 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
             let _ = r.read_to_end(&mut bs).await.unwrap();
         });
     });
-    group.bench_function("opendal_s3", |b| {
-        b.to_async(&*TEST_RUNTIME).iter(|| async {
-            let _: Vec<u8> = op.read(&path).await.unwrap();
-        });
-    });
-    group.bench_function("opendal_s3_with_range", |b| {
-        b.to_async(&*TEST_RUNTIME).iter(|| async {
-            let _: Vec<u8> = op
-                .read_with(&path)
-                .range(0..16 * 1024 * 1024)
-                .await
-                .unwrap();
-        });
-    });
 
     group.finish()
 }
 
-async fn prepare(op: Operator) -> String {
+async fn prepare(op: Operator) {
     let mut rng = thread_rng();
     let mut content = vec![0; 16 * 1024 * 1024];
     rng.fill_bytes(&mut content);
 
-    let name = uuid::Uuid::new_v4().to_string();
-    op.write(&name, content).await.unwrap();
-
-    name
+    op.write("file", content.clone()).await.unwrap();
 }

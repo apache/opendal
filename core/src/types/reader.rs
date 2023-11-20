@@ -116,11 +116,9 @@ impl tokio::io::AsyncRead for Reader {
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        let b = buf.initialize_unfilled();
-        let n = ready!(self.inner.poll_read(cx, b))?;
-        unsafe {
-            buf.assume_init(n);
-        }
+        // Safety: We make sure that we will set filled correctly.
+        unsafe { buf.assume_init(buf.remaining()) }
+        let n = ready!(self.inner.poll_read(cx, buf.initialize_unfilled()))?;
         buf.advance(n);
         Poll::Ready(Ok(()))
     }

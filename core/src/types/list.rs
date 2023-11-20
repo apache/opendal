@@ -48,6 +48,7 @@ pub struct Lister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
+    buf: Option<Entry>,
     task_queue: VecDeque<JoinHandle<(String, Result<RpStat>)>>,
     stating: Option<StatFuture>,
     errored: bool,
@@ -71,6 +72,7 @@ impl Lister {
             lister,
             required_metakey,
 
+            buf: None,
             task_queue: VecDeque::with_capacity(concurrent),
             stating: None,
             errored: false,
@@ -116,8 +118,12 @@ impl Stream for Lister {
             return self.poll_next(cx);
         }
 
+        if let Some(entry) = self.buf.take() {
+            return Poll::Ready(Some(Ok(entry)));
+        }
+
         loop {
-            match ready!(self.lister.poll_next(cx)) {
+            return match ready!(self.lister.poll_next(cx)) {
                 Ok(Some(oe)) => {
                     let (path, metadata) = oe.into_entry().into_parts();
                     // TODO: we can optimize this by checking the provided metakey provided by services.
@@ -125,6 +131,7 @@ impl Stream for Lister {
                         return if self.task_queue.is_empty() {
                             Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                         } else {
+                            self.buf = Some(Entry::new(path, metadata));
                             self.poll_next(cx)
                         };
                     }
@@ -138,8 +145,9 @@ impl Stream for Lister {
                         };
 
                         self.task_queue.push_front(tokio::spawn(fut));
-                        continue
+                        continue;
                     } else {
+                        self.buf = Some(Entry::new(path, metadata));
                         return self.poll_next(cx);
                     };
                 }
@@ -148,7 +156,7 @@ impl Stream for Lister {
                     self.errored = true;
                     Poll::Ready(Some(Err(err)))
                 }
-            }
+            };
         }
     }
 }

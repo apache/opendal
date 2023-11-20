@@ -15,11 +15,11 @@ Testing read/aws_s3_sdk_collect
 Success
 Testing read/aws_s3_sdk_into_async_read
 Success
-Testing read/aws_s3_sdk_into_async_read_with_size_known
+Testing read/aws_s3_sdk_into_async_read_with_capacity
 Success
 Testing read/opendal_s3
 Success
-Testing read/opendal_s3_with_range
+Testing read/opendal_s3_with_capacity
 Success
 ```
 

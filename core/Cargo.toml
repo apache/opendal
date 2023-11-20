@@ -18,7 +18,7 @@
 [package]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
-exclude = ["tests/"]
+exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"
 

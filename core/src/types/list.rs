@@ -158,7 +158,7 @@ impl Stream for Lister {
                     } else {
                         self.poll_next(cx)
                     }
-                },
+                }
                 Err(err) => {
                     self.errored = true;
                     Poll::Ready(Some(Err(err)))

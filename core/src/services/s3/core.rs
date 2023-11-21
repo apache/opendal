@@ -761,6 +761,40 @@ pub struct DeleteObjectsResultError {
     pub message: String,
 }
 
+/// Output of ListBucket/ListObjects.
+///
+/// ## Note
+///
+/// Use `Option` in `is_truncated` and `next_continuation_token` to make
+/// the behavior more clear so that we can be compatible to more s3 services.
+///
+/// And enable `serde(default)` so that we can keep going even when some field
+/// is not exist.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct Output {
+    pub is_truncated: Option<bool>,
+    pub next_continuation_token: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub contents: Vec<OutputContent>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputContent {
+    pub key: String,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputCommonPrefix {
+    pub prefix: String,
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
@@ -891,5 +925,80 @@ mod tests {
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
+    }
+
+    #[test]
+    fn test_parse_list_output() {
+        let bs = bytes::Bytes::from(
+            r#"<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>example-bucket</Name>
+  <Prefix>photos/2006/</Prefix>
+  <KeyCount>3</KeyCount>
+  <MaxKeys>1000</MaxKeys>
+  <Delimiter>/</Delimiter>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>photos/2006</Key>
+    <LastModified>2016-04-30T23:51:29.000Z</LastModified>
+    <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
+    <Size>56</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+  <Contents>
+    <Key>photos/2007</Key>
+    <LastModified>2016-04-30T23:51:29.000Z</LastModified>
+    <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
+    <Size>100</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+  <Contents>
+    <Key>photos/2008</Key>
+    <LastModified>2016-05-30T23:51:29.000Z</LastModified>
+    <Size>42</Size>
+  </Contents>
+
+  <CommonPrefixes>
+    <Prefix>photos/2006/February/</Prefix>
+  </CommonPrefixes>
+  <CommonPrefixes>
+    <Prefix>photos/2006/January/</Prefix>
+  </CommonPrefixes>
+</ListBucketResult>"#,
+        );
+
+        let out: Output = quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert!(!out.is_truncated.unwrap());
+        assert!(out.next_continuation_token.is_none());
+        assert_eq!(
+            out.common_prefixes
+                .iter()
+                .map(|v| v.prefix.clone())
+                .collect::<Vec<String>>(),
+            vec!["photos/2006/February/", "photos/2006/January/"]
+        );
+        assert_eq!(
+            out.contents,
+            vec![
+                OutputContent {
+                    key: "photos/2006".to_string(),
+                    size: 56,
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                },
+                OutputContent {
+                    key: "photos/2007".to_string(),
+                    size: 100,
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                },
+                OutputContent {
+                    key: "photos/2008".to_string(),
+                    size: 42,
+                    last_modified: "2016-05-30T23:51:29.000Z".to_string(),
+                    etag: None,
+                },
+            ]
+        )
     }
 }

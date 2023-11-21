@@ -35,7 +35,6 @@ use crate::*;
 pub struct FsBuilder {
     root: Option<PathBuf>,
     atomic_write_dir: Option<PathBuf>,
-    enable_path_check: bool,
 }
 
 impl FsBuilder {
@@ -72,9 +71,8 @@ impl FsBuilder {
     ///
     /// Enabling this feature will lead to extra metadata call in all
     /// operations.
+    #[deprecated(note = "path always checked since RFC-3243 List Prefix")]
     pub fn enable_path_check(&mut self) -> &mut Self {
-        self.enable_path_check = true;
-
         self
     }
 }
@@ -165,7 +163,6 @@ impl Builder for FsBuilder {
         Ok(FsBackend {
             root,
             atomic_write_dir,
-            enable_path_check: self.enable_path_check,
         })
     }
 }
@@ -175,7 +172,6 @@ impl Builder for FsBuilder {
 pub struct FsBackend {
     root: PathBuf,
     atomic_write_dir: Option<PathBuf>,
-    enable_path_check: bool,
 }
 
 #[inline]
@@ -309,23 +305,6 @@ impl Accessor for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        if self.enable_path_check {
-            // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
-            let meta = f.metadata().await.map_err(new_std_io_error)?;
-            if meta.is_dir() != path.ends_with('/') {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "file mode is not match with its path",
-                ));
-            }
-            if meta.is_dir() {
-                return Err(Error::new(
-                    ErrorKind::IsADirectory,
-                    "given path is a directory",
-                ));
-            }
-        }
-
         let r = oio::TokioReader::new(f);
         Ok((RpRead::new(), r))
     }
@@ -401,10 +380,11 @@ impl Accessor for FsBackend {
 
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
 
-        if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
+        // Return not found if the path ends with `/` but meta is dir.
+        if !meta.is_dir() && path.ends_with('/') {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                "file mode is not match with its path",
+                "given path is not a directory",
             ));
         }
 
@@ -481,23 +461,6 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(new_std_io_error)?;
 
-        if self.enable_path_check {
-            // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
-            let meta = f.metadata().map_err(new_std_io_error)?;
-            if meta.is_dir() != path.ends_with('/') {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "file mode is not match with its path",
-                ));
-            }
-            if meta.is_dir() {
-                return Err(Error::new(
-                    ErrorKind::IsADirectory,
-                    "given path is a directory",
-                ));
-            }
-        }
-
         let r = oio::StdReader::new(f);
 
         Ok((RpRead::new(), r))
@@ -572,7 +535,8 @@ impl Accessor for FsBackend {
 
         let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
 
-        if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
+        // Return not found if the path ends with `/` but meta is dir.
+        if !meta.is_dir() && path.ends_with('/') {
             return Err(Error::new(
                 ErrorKind::NotFound,
                 "file mode is not match with its path",

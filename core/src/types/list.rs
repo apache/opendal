@@ -152,7 +152,13 @@ impl Stream for Lister {
                         return self.poll_next(cx);
                     };
                 }
-                Ok(None) => Poll::Ready(None),
+                Ok(None) => {
+                    return if self.task_queue.is_empty() {
+                        Poll::Ready(None)
+                    } else {
+                        self.poll_next(cx)
+                    }
+                },
                 Err(err) => {
                     self.errored = true;
                     Poll::Ready(Some(Err(err)))

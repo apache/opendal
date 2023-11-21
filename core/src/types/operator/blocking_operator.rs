@@ -141,7 +141,7 @@ impl BlockingOperator {
 
 /// # Operator blocking API.
 impl BlockingOperator {
-    /// Get current path's metadata.
+    /// Get given path's metadata.
     ///
     /// # Notes
     ///
@@ -150,6 +150,8 @@ impl BlockingOperator {
     /// so that we can avoid extra requests.
     ///
     /// # Examples
+    ///
+    /// ## Check if file exists
     ///
     /// ```
     /// # use anyhow::Result;
@@ -170,29 +172,35 @@ impl BlockingOperator {
         self.stat_with(path).call()
     }
 
-    /// Get current path's metadata **without cache** directly with extra options.
+    /// Get given path's metadata with extra options.
     ///
     /// # Notes
     ///
-    /// Use `stat` if you:
-    ///
-    /// - Want to detect the outside changes of path.
-    /// - Don't want to read from cached metadata.
-    ///
-    /// You may want to use `metadata` if you are working with entries
-    /// returned by [`Lister`]. It's highly possible that metadata
-    /// you want has already been cached.
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
+    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
+    /// so that we can avoid extra requests.
     ///
     /// # Examples
+    ///
+    /// ## Get metadata while `ETag` matches
+    ///
+    /// `stat_with` will
+    ///
+    /// - return `Ok(metadata)` if `ETag` matches
+    /// - return `Err(error)` and `error.kind() == ErrorKind::ConditionNotMatch` if file exists but
+    ///   `ETag` mismatch
+    /// - return `Err(err)` if other errors occur, for example, `NotFound`.
     ///
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::BlockingOperator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// if let Err(e) = op.stat_with("test").if_match("<etag>").call() {
+    ///     if e.kind() == ErrorKind::ConditionNotMatch {
+    ///         println!("file exists, but etag mismatch")
+    ///     }
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("file not exist")
     ///     }

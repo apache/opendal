@@ -162,6 +162,14 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else if p.ends_with('/') {
+            // FIXME: we don't need to scan the whole kv to get this info.
+            let keys = self.kv.scan(&p).await?;
+            if keys.is_empty() {
+                Err(Error::new(ErrorKind::NotFound, "kv doesn't have this dir"))
+            } else {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            }
         } else {
             let bs = self.kv.get(&p).await?;
             match bs {
@@ -178,6 +186,14 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else if p.ends_with('/') {
+            // FIXME: we don't need to scan the whole kv to get this info.
+            let keys = self.kv.blocking_scan(&p)?;
+            if keys.is_empty() {
+                Err(Error::new(ErrorKind::NotFound, "kv doesn't have this dir"))
+            } else {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            }
         } else {
             let bs = self.kv.blocking_get(&p)?;
             match bs {

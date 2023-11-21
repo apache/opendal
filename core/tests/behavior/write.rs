@@ -56,6 +56,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_write_with_content_disposition,
         test_stat_file,
         test_stat_dir,
+        test_stat_nested_parent_dir,
         test_stat_with_special_chars,
         test_stat_not_cleaned_path,
         test_stat_not_exist,
@@ -308,6 +309,25 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
     }
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat the parent dir of existing dir should return metadata
+pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
+    let parent = format!("{}", uuid::Uuid::new_v4());
+    let file = format!("{}", uuid::Uuid::new_v4());
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&format!("{parent}/{file}"), content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&format!("{parent}/")).await?;
+    assert_eq!(meta.mode(), EntryMode::DIR);
+
+    op.delete(&format!("{parent}/{file}"))
+        .await
+        .expect("delete must succeed");
     Ok(())
 }
 

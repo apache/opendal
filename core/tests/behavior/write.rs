@@ -282,6 +282,11 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
+    // Stat a file with trailing slash should return `NotFound`.
+    let result = op.stat(&format!("{path}/")).await;
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
@@ -294,6 +299,13 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
+
+    // Stat a dir without trailing slash could have two behavior.
+    let result = op.stat(path.trim_end_matches('/')).await;
+    match result {
+        Ok(meta) => assert_eq!(meta.mode(), EntryMode::DIR),
+        Err(err) => assert_eq!(err.kind(), ErrorKind::NotFound),
+    }
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
@@ -345,7 +357,13 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
+    // Stat not exist file should returns NotFound.
     let meta = op.stat(&path).await;
+    assert!(meta.is_err());
+    assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+
+    // Stat not exist dir should also returns NotFound.
+    let meta = op.stat(&format!("{path}/")).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 

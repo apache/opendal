@@ -37,3 +37,8 @@ services:
       ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
       ETCD_KEY_FILE: /opt/bitnami/etcd/conf/server-key.pem
       ETCD_CERT_FILE: /opt/bitnami/etcd/conf/server.pem
+      # Etcd returns `MY_STS_NAME` unbound error if `ETCD_ROOT_PASSWORD` has been set.
+      # We place this trick to make etcd happy.
+      #
+      # Remove this after https://github.com/bitnami/containers/issues/53068 closed.
+      MY_STS_NAME: ""

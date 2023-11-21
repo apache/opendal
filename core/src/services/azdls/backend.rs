@@ -343,15 +343,49 @@ impl Accessor for AzdlsBackend {
 
         let resp = self.core.azdls_get_properties(path).await?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => Err(parse_error(resp).await?),
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+
+        let mut meta = parse_into_metadata(path, resp.headers())?;
+        let resource = resp
+            .headers()
+            .get("x-ms-resource-type")
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's missing",
+                )
+            })?
+            .to_str()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's not a valid string",
+                )
+                .set_source(err)
+            })?;
+
+        if path.ends_with('/') && resource == "file" {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "azdls has this file, but it should not be stated as a directory",
+            ));
+        }
+
+        meta = match resource {
+            "file" => meta.with_mode(EntryMode::FILE),
+            "directory" => meta.with_mode(EntryMode::DIR),
+            v => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls returns not supported x-ms-resource-type",
+                )
+                .with_context("resource", v))
+            }
+        };
+
+        Ok(RpStat::new(meta))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

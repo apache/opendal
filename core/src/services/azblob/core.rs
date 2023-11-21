@@ -577,10 +577,11 @@ pub struct Properties {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Buf, Bytes};
+    use bytes::Buf;
+    use bytes::Bytes;
+    use quick_xml::de;
 
     use super::*;
-    use quick_xml::de;
 
     #[test]
     fn test_parse_xml() {

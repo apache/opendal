@@ -21,7 +21,8 @@ use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 
-use super::core::{Output, S3Core};
+use super::core::Output;
+use super::core::S3Core;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;

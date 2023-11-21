@@ -18,7 +18,8 @@
 use bytes::Bytes;
 
 use super::operator_functions::*;
-use crate::raw::oio::{BlockingRead, WriteBuf};
+use crate::raw::oio::BlockingRead;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 

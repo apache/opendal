@@ -1108,23 +1108,21 @@ impl Accessor for S3Backend {
                 .s3_list_objects(path, "", "", Some(1), None)
                 .await?;
 
-            let status = resp.status();
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp).await?);
+            }
 
-            return match status {
-                StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-                    let output: Output = quick_xml::de::from_reader(bs.reader())
-                        .map_err(new_xml_deserialize_error)?;
-                    if !output.contents.is_empty() {
-                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                    } else {
-                        Err(
-                            Error::new(ErrorKind::NotFound, "The directory is not found")
-                                .with_context("path", path),
-                        )
-                    }
-                }
-                _ => Err(parse_error(resp).await?),
+            let bs = resp.into_body().bytes().await?;
+            let output: Output =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+            return if !output.contents.is_empty() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(
+                    Error::new(ErrorKind::NotFound, "The directory is not found")
+                        .with_context("path", path),
+                )
             };
         }
 

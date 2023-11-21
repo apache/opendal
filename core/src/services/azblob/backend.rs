@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use bytes::Buf;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
@@ -37,7 +38,7 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
-use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::core::{AzblobCore, ListBlobsOutput};
 use crate::services::azblob::writer::AzblobWriters;
 use crate::types::Metadata;
 use crate::*;
@@ -664,15 +665,34 @@ impl Accessor for AzblobBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
+        if path.ends_with('/') {
+            let resp = self.core.azblob_list_blobs(path, "", "", Some(1)).await?;
+
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp).await?);
+            }
+
+            let bs = resp.into_body().bytes().await?;
+
+            let output: ListBlobsOutput =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+            return if !output.blobs.blob.is_empty() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(
+                    Error::new(ErrorKind::NotFound, "The directory is not exist")
+                        .with_context("path", path),
+                )
+            };
+        }
+
         let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -38,6 +38,8 @@ pub enum Scheme {
     Azblob,
     /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
     Azdls,
+    /// [B2][crate::services::B2]: Backblaze B2 Services.
+    B2,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -173,6 +175,8 @@ impl Scheme {
             Scheme::Azdls,
             #[cfg(feature = "services-azfile")]
             Scheme::Azfile,
+            #[cfg(feature = "services-b2")]
+            Scheme::B2,
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]
@@ -283,6 +287,7 @@ impl FromStr for Scheme {
             // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
+            "b2" => Ok(Scheme::B2),
             "cacache" => Ok(Scheme::Cacache),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
@@ -338,6 +343,7 @@ impl From<Scheme> for &'static str {
             Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
+            Scheme::B2 => "b2",
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",

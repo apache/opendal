@@ -86,9 +86,8 @@ impl Stream for Lister {
         if !self.task_queue.is_empty() {
             if let Some(handle) = self.task_queue.back_mut() {
                 let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(|err| {
-                    // TODO: message is not correct.
-                    Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
-                        .with_operation("http_util::IncomingAsyncBody::consume")
+                    Error::new(ErrorKind::Unexpected, "join handle error")
+                        .with_operation("types::Lister::poll_next")
                         .set_source(err)
                 })?;
 

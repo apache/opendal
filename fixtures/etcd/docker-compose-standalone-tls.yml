@@ -29,7 +29,12 @@ services:
       - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
       - ./client.pem:/opt/bitnami/etcd/client.pem
     environment:
-      ETCD_ROOT_PASSWORD: opendal
+      # Etcd returns `MY_STS_NAME` unbound error if `ETCD_ROOT_PASSWORD` has been set.
+      # We place this trick to make etcd happy.
+      #
+      # Remove this after https://github.com/bitnami/containers/issues/53068 closed.
+      # ETCD_ROOT_PASSWORD: opendal
+      ALLOW_NONE_AUTHENTICATION: "yes"
       ETCD_NAME: etcd
       ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
       ETCD_ADVERTISE_CLIENT_URLS: https://etcd:2379
@@ -37,3 +42,8 @@ services:
       ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
       ETCD_KEY_FILE: /opt/bitnami/etcd/conf/server-key.pem
       ETCD_CERT_FILE: /opt/bitnami/etcd/conf/server.pem
+      # Etcd returns `MY_STS_NAME` unbound error if `ETCD_ROOT_PASSWORD` has been set.
+      # We place this trick to make etcd happy.
+      #
+      # Remove this after https://github.com/bitnami/containers/issues/53068 closed.
+      MY_STS_NAME: ""

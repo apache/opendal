@@ -101,7 +101,7 @@ impl Stream for Lister {
                         self.errored = true;
                         Poll::Ready(Some(Err(err)))
                     }
-                }
+                };
             }
         }
 

@@ -289,3 +289,10 @@ mod alluxio;
 pub use alluxio::Alluxio;
 #[cfg(feature = "services-alluxio")]
 pub use alluxio::AlluxioConfig;
+
+#[cfg(feature = "services-b2")]
+mod b2;
+#[cfg(feature = "services-b2")]
+pub use b2::B2Config;
+#[cfg(feature = "services-b2")]
+pub use b2::B2;

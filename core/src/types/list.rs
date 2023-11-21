@@ -23,7 +23,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use flagset::FlagSet;
-use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
 use tokio::task::JoinHandle;
@@ -31,9 +30,6 @@ use tokio::task::JoinHandle;
 use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
-
-/// Future constructed by stating.
-type StatFuture = BoxFuture<'static, Result<Entry>>;
 
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
@@ -50,7 +46,6 @@ pub struct Lister {
 
     buf: Option<Entry>,
     task_queue: VecDeque<JoinHandle<(String, Result<RpStat>)>>,
-    stating: Option<StatFuture>,
     errored: bool,
 }
 
@@ -74,7 +69,6 @@ impl Lister {
 
             buf: None,
             task_queue: VecDeque::with_capacity(concurrent),
-            stating: None,
             errored: false,
         })
     }
@@ -89,37 +83,45 @@ impl Stream for Lister {
             return Poll::Ready(None);
         }
 
-        if let Some(fut) = self.stating.as_mut() {
-            let entry = ready!(fut.poll_unpin(cx));
-
-            // Make sure we will not poll this future again.
-            self.stating = None;
-
-            return Poll::Ready(Some(entry));
-        }
-
         if !self.task_queue.is_empty() {
-            let task = self.task_queue.pop_back();
-            let fut = async move {
-                if let Some(task) = task {
-                    let (path, rp) = task.await.map_err(|err| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            format!("failed to stat: {}", err).as_str(),
-                        )
-                    })?;
-                    let metadata = rp?.into_metadata();
-                    Ok(Entry::new(path, metadata))
-                } else {
-                    Err(Error::new(ErrorKind::Unexpected, "stat task is None"))
+            if let Some(handle) = self.task_queue.back_mut() {
+                let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(|err| {
+                    // TODO: message is not correct.
+                    Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
+                        .with_operation("http_util::IncomingAsyncBody::consume")
+                        .set_source(err)
+                })?;
+
+                return match rp {
+                    Ok(rp) => {
+                        self.task_queue.pop_back();
+                        let metadata = rp.into_metadata();
+                        Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                    }
+                    Err(err) => {
+                        self.errored = true;
+                        Poll::Ready(Some(Err(err)))
+                    }
                 }
-            };
-            self.stating = Some(Box::pin(fut));
-            return self.poll_next(cx);
+            }
         }
 
-        if let Some(entry) = self.buf.take() {
-            return Poll::Ready(Some(Ok(entry)));
+        if let Some(entry) = self.buf.clone() {
+            let (path, metadata) = entry.into_parts();
+            return if metadata.contains_metakey(self.required_metakey) {
+                self.buf = None;
+                Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+            } else {
+                let acc = self.acc.clone();
+                let fut = async move {
+                    let res = acc.stat(&path, OpStat::default()).await;
+                    (path, res)
+                };
+
+                self.task_queue.push_front(tokio::spawn(fut));
+                self.buf = None;
+                self.poll_next(cx)
+            };
         }
 
         loop {

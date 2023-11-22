@@ -1113,7 +1113,7 @@ impl Accessor for S3Backend {
             }
 
             let bs = resp.into_body().bytes().await?;
-            let output: Output =
+            let output: ListObjectsOutput =
                 quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
             return if !output.contents.is_empty() {

@@ -438,7 +438,7 @@ impl AzfileCore {
                 continue;
             }
 
-            return Err(parse_error(resp));
+            return Err(parse_error(resp).await?);
         }
 
         Ok(())

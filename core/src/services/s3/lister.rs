@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 
-use super::core::Output;
+use super::core::ListObjectsOutput;
 use super::core::S3Core;
 use super::error::parse_error;
 use crate::raw::*;
@@ -85,7 +85,8 @@ impl oio::PageList for S3Lister {
 
         let bs = resp.into_body().bytes().await?;
 
-        let output: Output = de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let output: ListObjectsOutput =
+            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //

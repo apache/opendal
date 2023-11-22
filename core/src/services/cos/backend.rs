@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -27,7 +28,7 @@ use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
-use super::core::CosCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::CosLister;
 use super::writer::CosWriter;
@@ -373,6 +374,27 @@ impl Accessor for CosBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
+        if path.ends_with('/') {
+            let resp = self.core.cos_list_objects(path, "", "", Some(1)).await?;
+
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp).await?);
+            }
+
+            let bs = resp.into_body().bytes().await?;
+            let output: ListObjectsOutput =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+            return if !output.contents.is_empty() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(
+                    Error::new(ErrorKind::NotFound, "The directory is not found")
+                        .with_context("path", path),
+                )
+            };
+        }
+
         let resp = self.core.cos_head_object(path, &args).await?;
 
         let status = resp.status();
@@ -380,9 +402,6 @@ impl Accessor for CosBackend {
         // The response is very similar to azblob.
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -772,16 +772,16 @@ pub struct DeleteObjectsResultError {
 /// is not exist.
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct Output {
+pub struct ListObjectsOutput {
     pub is_truncated: Option<bool>,
     pub next_continuation_token: Option<String>,
     pub common_prefixes: Vec<OutputCommonPrefix>,
-    pub contents: Vec<OutputContent>,
+    pub contents: Vec<ListObjectsOutputContent>,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct OutputContent {
+pub struct ListObjectsOutputContent {
     pub key: String,
     pub size: u64,
     pub last_modified: String,
@@ -966,7 +966,7 @@ mod tests {
 </ListBucketResult>"#,
         );
 
-        let out: Output = quick_xml::de::from_reader(bs.reader()).expect("must success");
+        let out: ListObjectsOutput = quick_xml::de::from_reader(bs.reader()).expect("must success");
 
         assert!(!out.is_truncated.unwrap());
         assert!(out.next_continuation_token.is_none());
@@ -980,19 +980,19 @@ mod tests {
         assert_eq!(
             out.contents,
             vec![
-                OutputContent {
+                ListObjectsOutputContent {
                     key: "photos/2006".to_string(),
                     size: 56,
                     etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
                 },
-                OutputContent {
+                ListObjectsOutputContent {
                     key: "photos/2007".to_string(),
                     size: 100,
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
                     etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
                 },
-                OutputContent {
+                ListObjectsOutputContent {
                     key: "photos/2008".to_string(),
                     size: 42,
                     last_modified: "2016-05-30T23:51:29.000Z".to_string(),

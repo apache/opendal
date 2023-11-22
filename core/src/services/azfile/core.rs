@@ -425,7 +425,7 @@ impl AzfileCore {
         for dir in dirs.iter().rev() {
             let resp = self.azfile_get_path_properties(dir).await?;
             if resp.status() == StatusCode::NOT_FOUND {
-                pop_dir_count -= 1; 
+                pop_dir_count -= 1;
                 continue;
             }
             break;
@@ -433,7 +433,7 @@ impl AzfileCore {
 
         for _ in 0..pop_dir_count {
             dirs.pop_front();
-        }            
+        }
 
         for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;

@@ -158,6 +158,10 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Err(self.new_unsupported_error(Operation::Stat));
         }
 
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
         // Return directly if path is not a directory or services support `stat_dir`.
         if !path.ends_with('/') || capability.stat_dir {
             return self.inner.stat(path, args).await.map(|v| {
@@ -192,6 +196,10 @@ impl<A: Accessor> CompleteAccessor<A> {
         let capability = self.meta.full_capability();
         if !capability.stat {
             return Err(self.new_unsupported_error(Operation::Stat));
+        }
+
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         // Return directly if path is not a directory or services support `stat_dir`.

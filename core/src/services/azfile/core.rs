@@ -420,12 +420,22 @@ impl AzfileCore {
             p = get_parent(p);
             dirs.push_front(p);
         }
-        for dir in dirs {
+
+        let mut pop_dir_count = dirs.len() as u8;
+        for dir in dirs.iter().rev() {
             let resp = self.azfile_get_path_properties(dir).await?;
-            if resp.status() != StatusCode::NOT_FOUND {
+            if resp.status() == StatusCode::NOT_FOUND {
+                pop_dir_count -= 1; 
                 continue;
             }
+            break;
+        }
 
+        for _ in 0..pop_dir_count {
+            dirs.pop_front();
+        }            
+
+        for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;
 
             if resp.status() != StatusCode::CREATED {

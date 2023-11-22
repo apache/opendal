@@ -288,9 +288,11 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     // Stat a file with trailing slash should return `NotFound`.
-    let result = op.stat(&format!("{path}/")).await;
-    assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+    if op.info().full_capability().stat_dir {
+        let result = op.stat(&format!("{path}/")).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+    }
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

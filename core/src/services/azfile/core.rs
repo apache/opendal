@@ -421,7 +421,7 @@ impl AzfileCore {
             dirs.push_front(p);
         }
 
-        let mut pop_dir_count = dirs.len() as u8;
+        let mut pop_dir_count = dirs.len();
         for dir in dirs.iter().rev() {
             let resp = self.azfile_get_path_properties(dir).await?;
             if resp.status() == StatusCode::NOT_FOUND {
@@ -431,9 +431,7 @@ impl AzfileCore {
             break;
         }
 
-        for _ in 0..pop_dir_count {
-            dirs.pop_front();
-        }
+        let dirs = dirs.iter().skip(pop_dir_count).collect::<VecDeque<_>>();
 
         for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;

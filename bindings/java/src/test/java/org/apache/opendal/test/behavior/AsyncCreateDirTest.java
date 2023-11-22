@@ -34,6 +34,7 @@ class AsyncCreateDirTest extends BehaviorTestBase {
     public void precondition() {
         final Capability capability = op().info.fullCapability;
         assumeTrue(capability.createDir);
+        assumeTrue(capability.statDir);
     }
 
     /**

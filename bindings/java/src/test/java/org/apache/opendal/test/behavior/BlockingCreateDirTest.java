@@ -34,6 +34,7 @@ class BlockingCreateDirTest extends BehaviorTestBase {
     public void precondition() {
         final Capability capability = blockingOp().info.fullCapability;
         assumeTrue(capability.createDir);
+        assumeTrue(capability.statDir);
     }
 
     /**

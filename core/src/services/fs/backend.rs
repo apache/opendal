@@ -380,7 +380,7 @@ impl Accessor for FsBackend {
 
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
 
-        // Return not found if the path ends with `/` but meta is dir.
+        // Return not found if the path ends with `/` but meta is file.
         if !meta.is_dir() && path.ends_with('/') {
             return Err(Error::new(
                 ErrorKind::NotFound,

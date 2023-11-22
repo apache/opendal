@@ -152,6 +152,7 @@ impl Accessor for DropboxBackend {
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
+
         let resp = self.core.dropbox_get_metadata(path).await?;
         let status = resp.status();
         match status {
@@ -164,6 +165,15 @@ impl Accessor for DropboxBackend {
                     "folder" => EntryMode::DIR,
                     _ => EntryMode::Unknown,
                 };
+
+                // Return not found if the path ends with `/` but meta is dir.
+                if path.ends_with('/') && entry_mode == EntryMode::FILE {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "given path is not a directory",
+                    ));
+                }
+
                 let mut metadata = Metadata::new(entry_mode);
                 // Only set last_modified and size if entry_mode is FILE, because Dropbox API
                 // returns last_modified and size only for files.
@@ -183,9 +193,6 @@ impl Accessor for DropboxBackend {
                     }
                 }
                 Ok(RpStat::new(metadata))
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

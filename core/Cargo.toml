@@ -125,6 +125,7 @@ services-azdls = [
   "reqsign?/reqwest_request",
 ]
 services-azfile = []
+services-b2 = []
 services-cacache = ["dep:cacache"]
 services-cloudflare-kv = []
 services-cos = [
@@ -139,7 +140,7 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
-services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
+services-ftp = ["dep:suppaftp", "dep:bb8"]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -218,7 +219,6 @@ required-features = ["tests"]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-backtrace = { version = "0.2.6", optional = true }
 async-compat = "0.2"
-async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.68"
 atomic_lib = { version = "0.34.5", optional = true }
 await-tree = { version = "0.1.1", optional = true }
@@ -280,7 +280,7 @@ redis = { version = "0.23.1", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.14.1", default-features = false, optional = true }
+reqsign = { version = "0.14.4", default-features = false, optional = true }
 reqwest = { version = "0.11.18", features = [
   "stream",
 ], default-features = false }

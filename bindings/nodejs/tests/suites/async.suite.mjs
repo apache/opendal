@@ -18,8 +18,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { expect, test } from 'vitest'
-import { generateBytes } from '../utils.mjs'
+import { test } from 'vitest'
 
 export function run(operator) {
   test('async stat not exist files', async () => {

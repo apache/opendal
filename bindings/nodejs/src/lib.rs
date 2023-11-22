@@ -18,6 +18,8 @@
 #[macro_use]
 extern crate napi_derive;
 
+mod capability;
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;

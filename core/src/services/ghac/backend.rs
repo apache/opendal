@@ -369,11 +369,14 @@ impl Accessor for GhacBackend {
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
-        } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         } else {
             return Err(parse_error(resp).await?);
         };
+
+        // If the query matches a location and path is ends with `/`, we can return directly.
+        if path.ends_with('/') {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
 
         let req = self.ghac_head_location(&location).await?;
         let resp = self.client.send(req).await?;

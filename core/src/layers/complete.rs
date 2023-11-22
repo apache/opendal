@@ -162,14 +162,28 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        // Return directly if path is not a directory or services support `stat_dir`.
-        if !path.ends_with('/') || capability.stat_dir {
+        // Return directly if path is not a directory.
+        if !path.ends_with('/') {
             return self.inner.stat(path, args).await.map(|v| {
                 v.map_metadata(|m| {
                     let bit = m.metakey();
                     m.with_metakey(bit | Metakey::Complete)
                 })
             });
+        }
+
+        // Forward to inner if stat_dir is supported.
+        if capability.stat_dir {
+            let meta = self.inner.stat(path, args).await?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         // Otherwise, we can simulate `stat_dir` via `list`.
@@ -203,13 +217,27 @@ impl<A: Accessor> CompleteAccessor<A> {
         }
 
         // Return directly if path is not a directory or services support `stat_dir`.
-        if !path.ends_with('/') || capability.stat_dir {
+        if !path.ends_with('/') {
             return self.inner.blocking_stat(path, args).map(|v| {
                 v.map_metadata(|m| {
                     let bit = m.metakey();
                     m.with_metakey(bit | Metakey::Complete)
                 })
             });
+        }
+
+        // Forward to inner if stat_dir is supported.
+        if capability.stat_dir {
+            let meta = self.inner.blocking_stat(path, args)?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         // Otherwise, we can simulate `stat_dir` via `list`.

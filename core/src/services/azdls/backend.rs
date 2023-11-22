@@ -243,6 +243,7 @@ impl Accessor for AzdlsBackend {
             .set_name(&self.core.filesystem)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_can_next: true,
@@ -365,13 +366,6 @@ impl Accessor for AzdlsBackend {
                 )
                 .set_source(err)
             })?;
-
-        if path.ends_with('/') && resource == "file" {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "azdls has this file, but it should not be stated as a directory",
-            ));
-        }
 
         meta = match resource {
             "file" => meta.with_mode(EntryMode::FILE),

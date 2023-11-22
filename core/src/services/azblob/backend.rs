@@ -661,33 +661,6 @@ impl Accessor for AzblobBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        if path.ends_with('/') {
-            let resp = self.core.azblob_list_blobs(path, "", "", Some(1)).await?;
-
-            if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp).await?);
-            }
-
-            let bs = resp.into_body().bytes().await?;
-
-            let output: ListBlobsOutput =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            return if !output.blobs.blob.is_empty() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(
-                    Error::new(ErrorKind::NotFound, "The directory is not exist")
-                        .with_context("path", path),
-                )
-            };
-        }
-
         let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();

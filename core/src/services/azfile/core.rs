@@ -421,6 +421,11 @@ impl AzfileCore {
             dirs.push_front(p);
         }
         for dir in dirs {
+            let resp = self.azfile_get_path_properties(dir).await?;
+            if resp.status() != StatusCode::NOT_FOUND {
+                continue;
+            }
+
             let resp = self.azfile_create_dir(dir).await?;
 
             if resp.status() != StatusCode::CREATED {

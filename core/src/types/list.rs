@@ -106,7 +106,7 @@ impl Stream for Lister {
                         (path, res)
                     };
 
-                    self.task_queue.push_front(tokio::spawn(fut));
+                    self.task_queue.push_back(tokio::spawn(fut));
                     continue;
                 }
                 Ok(None) => {
@@ -128,7 +128,7 @@ impl Stream for Lister {
 
             return match rp {
                 Ok(rp) => {
-                    self.task_queue.pop_back();
+                    self.task_queue.pop_front();
                     let metadata = rp.into_metadata();
                     Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                 }
@@ -151,7 +151,7 @@ impl Stream for Lister {
                     (path, res)
                 };
 
-                self.task_queue.push_front(tokio::spawn(fut));
+                self.task_queue.push_back(tokio::spawn(fut));
                 self.buf = None;
                 self.poll_next(cx)
             };

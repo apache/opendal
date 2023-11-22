@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 
-use super::core::SwiftCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
@@ -299,6 +299,31 @@ impl Accessor for SwiftBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        if path.ends_with('/') {
+            let resp = self.core.swift_list(path, "", Some(1)).await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp).await?);
+            }
+
+            let bs = resp.into_body().bytes().await?;
+            let output: Vec<ListOpResponse> =
+                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+            return if !output.is_empty() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(
+                    Error::new(ErrorKind::NotFound, "The directory is not found")
+                        .with_context("path", path),
+                )
+            };
+        }
+
         let resp = self.core.swift_get_metadata(path).await?;
 
         let status = resp.status();
@@ -307,10 +332,6 @@ impl Accessor for SwiftBackend {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
-            }
-            // If the path is a container, the server will return a 204 response.
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -329,7 +350,12 @@ impl Accessor for SwiftBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SwiftLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let l = SwiftLister::new(
+            self.core.clone(),
+            path.to_string(),
+            args.recursive(),
+            args.limit(),
+        );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

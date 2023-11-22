@@ -18,9 +18,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use serde::Deserialize;
 
-use super::core::SwiftCore;
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -29,15 +28,17 @@ pub struct SwiftLister {
     core: Arc<SwiftCore>,
     path: String,
     delimiter: &'static str,
+    limit: Option<usize>,
 }
 
 impl SwiftLister {
-    pub fn new(core: Arc<SwiftCore>, path: String, recursive: bool) -> Self {
+    pub fn new(core: Arc<SwiftCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
             path,
             delimiter,
+            limit,
         }
     }
 }
@@ -45,7 +46,10 @@ impl SwiftLister {
 #[async_trait]
 impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let response = self.core.swift_list(&self.path, self.delimiter).await?;
+        let response = self
+            .core
+            .swift_list(&self.path, self.delimiter, self.limit)
+            .await?;
 
         let status_code = response.status();
 
@@ -57,8 +61,8 @@ impl oio::PageList for SwiftLister {
         ctx.done = true;
 
         let bytes = response.into_body().bytes().await?;
-        let decoded_response = serde_json::from_slice::<Vec<ListOpResponse>>(&bytes)
-            .map_err(new_json_deserialize_error)?;
+        let decoded_response: Vec<ListOpResponse> =
+            serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
 
         for status in decoded_response {
             let entry: oio::Entry = match status {
@@ -93,82 +97,6 @@ impl oio::PageList for SwiftLister {
             };
             ctx.entries.push_back(entry);
         }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Deserialize)]
-#[serde(untagged)]
-pub(super) enum ListOpResponse {
-    Subdir {
-        subdir: String,
-    },
-    FileInfo {
-        bytes: u64,
-        hash: String,
-        name: String,
-        content_type: String,
-        last_modified: String,
-    },
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_list_response_test() -> Result<()> {
-        let resp = bytes::Bytes::from(
-            r#"
-            [
-                {
-                    "subdir": "animals/"
-                },
-                {
-                    "subdir": "fruit/"
-                },
-                {
-                    "bytes": 147,
-                    "hash": "5e6b5b70b0426b1cc1968003e1afa5ad",
-                    "name": "test.txt",
-                    "content_type": "text/plain",
-                    "last_modified": "2023-11-01T03:00:23.147480"
-                }
-            ]
-            "#,
-        );
-
-        let mut out = serde_json::from_slice::<Vec<ListOpResponse>>(&resp)
-            .map_err(new_json_deserialize_error)?;
-
-        assert_eq!(out.len(), 3);
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::FileInfo {
-                bytes: 147,
-                hash: "5e6b5b70b0426b1cc1968003e1afa5ad".to_string(),
-                name: "test.txt".to_string(),
-                content_type:
-                    "multipart/form-data;boundary=------------------------25004a866ee9c0cb"
-                        .to_string(),
-                last_modified: "2023-11-01T03:00:23.147480".to_string(),
-            }
-        );
-
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::Subdir {
-                subdir: "fruit/".to_string()
-            }
-        );
-
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::Subdir {
-                subdir: "animals/".to_string()
-            }
-        );
-
         Ok(())
     }
 }

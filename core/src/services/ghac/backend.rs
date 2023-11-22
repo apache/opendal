@@ -256,11 +256,6 @@ impl Accessor for GhacBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        // ignore creation of dir.
-        if path.ends_with('/') {
-            return Ok(RpCreateDir::default());
-        }
-
         let req = self.ghac_reserve(path).await?;
 
         let resp = self.client.send(req).await?;

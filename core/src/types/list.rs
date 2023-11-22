@@ -83,26 +83,60 @@ impl Stream for Lister {
             return Poll::Ready(None);
         }
 
-        if !self.task_queue.is_empty() {
-            if let Some(handle) = self.task_queue.back_mut() {
-                let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "join handle error")
-                        .with_operation("types::Lister::poll_next")
-                        .set_source(err)
-                })?;
+        while self.task_queue.len() < self.task_queue.capacity() {
+            match ready!(self.lister.poll_next(cx)) {
+                Ok(Some(oe)) => {
+                    let (path, metadata) = oe.into_entry().into_parts();
+                    // TODO: we can optimize this by checking the provided metakey provided by services.
+                    if metadata.contains_metakey(self.required_metakey) {
+                        // NOTE: we need to maintain the order of entries, will consume the task_queue first.
+                        return if self.task_queue.is_empty() {
+                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                        } else {
+                            // TBD: if we don't want buf, should push to task_queue?
+                            self.buf = Some(Entry::new(path, metadata));
+                            break;
+                        };
+                    }
 
-                return match rp {
-                    Ok(rp) => {
-                        self.task_queue.pop_back();
-                        let metadata = rp.into_metadata();
-                        Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                    let acc = self.acc.clone();
+
+                    let fut = async move {
+                        let res = acc.stat(&path, OpStat::default()).await;
+                        (path, res)
+                    };
+
+                    self.task_queue.push_front(tokio::spawn(fut));
+                    continue;
+                }
+                Ok(None) => {
+                    if self.task_queue.is_empty() && self.buf.is_none() {
+                        return Poll::Ready(None);
+                    } else {
+                        break;
                     }
-                    Err(err) => {
-                        self.errored = true;
-                        Poll::Ready(Some(Err(err)))
-                    }
-                };
-            }
+                }
+                Err(err) => {
+                    self.errored = true;
+                    return Poll::Ready(Some(Err(err)));
+                }
+            };
+        }
+
+        if let Some(handle) = self.task_queue.back_mut() {
+            let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;
+
+            return match rp {
+                Ok(rp) => {
+                    self.task_queue.pop_back();
+                    let metadata = rp.into_metadata();
+                    Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                }
+                Err(err) => {
+                    self.errored = true;
+                    Poll::Ready(Some(Err(err)))
+                }
+            };
         }
 
         if let Some(entry) = self.buf.clone() {
@@ -123,48 +157,7 @@ impl Stream for Lister {
             };
         }
 
-        loop {
-            return match ready!(self.lister.poll_next(cx)) {
-                Ok(Some(oe)) => {
-                    let (path, metadata) = oe.into_entry().into_parts();
-                    // TODO: we can optimize this by checking the provided metakey provided by services.
-                    if metadata.contains_metakey(self.required_metakey) {
-                        return if self.task_queue.is_empty() {
-                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
-                        } else {
-                            self.buf = Some(Entry::new(path, metadata));
-                            self.poll_next(cx)
-                        };
-                    }
-
-                    if self.task_queue.len() < self.task_queue.capacity() {
-                        let acc = self.acc.clone();
-
-                        let fut = async move {
-                            let res = acc.stat(&path, OpStat::default()).await;
-                            (path, res)
-                        };
-
-                        self.task_queue.push_front(tokio::spawn(fut));
-                        continue;
-                    } else {
-                        self.buf = Some(Entry::new(path, metadata));
-                        return self.poll_next(cx);
-                    };
-                }
-                Ok(None) => {
-                    return if self.task_queue.is_empty() {
-                        Poll::Ready(None)
-                    } else {
-                        self.poll_next(cx)
-                    }
-                }
-                Err(err) => {
-                    self.errored = true;
-                    Poll::Ready(Some(Err(err)))
-                }
-            };
-        }
+        Poll::Ready(None)
     }
 }
 

@@ -85,15 +85,19 @@ impl Accessor for GdriveBackend {
 
         let resp = self.core.gdrive_stat(path).await?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+
+        let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
+        if path.ends_with('/') && meta.mode() == EntryMode::FILE {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "given path is not a directory",
+            ));
+        }
+
+        Ok(RpStat::new(meta))
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

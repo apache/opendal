@@ -323,6 +323,14 @@ impl Accessor for HdfsBackend {
 
         let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
 
+        // Return not found if the path ends with `/` but meta is dir.
+        if path.ends_with('/') && meta.is_file() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "given path is not a directory",
+            ));
+        }
+
         let mode = if meta.is_dir() {
             EntryMode::DIR
         } else if meta.is_file() {
@@ -491,6 +499,14 @@ impl Accessor for HdfsBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
+
+        // Return not found if the path ends with `/` but meta is dir.
+        if path.ends_with('/') && meta.is_file() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "given path is not a directory",
+            ));
+        }
 
         let mode = if meta.is_dir() {
             EntryMode::DIR

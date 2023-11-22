@@ -98,6 +98,10 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
 
 /// Create dir with dir path should succeed.
 pub async fn test_create_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await?;
@@ -294,6 +298,10 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
 
 /// Stat existing file should return metadata
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("write must succeed");
@@ -314,6 +322,10 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat the parent dir of existing dir should return metadata
 pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_dir {
+        return Ok(());
+    }
+
     let parent = format!("{}", uuid::Uuid::new_v4());
     let file = format!("{}", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes(op.info().full_capability());

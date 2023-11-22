@@ -54,6 +54,7 @@ impl Accessor for GdriveBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
 
@@ -78,11 +79,6 @@ impl Accessor for GdriveBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let resp = self.core.gdrive_stat(path).await?;
 
         if resp.status() != StatusCode::OK {
@@ -90,13 +86,6 @@ impl Accessor for GdriveBackend {
         }
 
         let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
-        if path.ends_with('/') && meta.mode() == EntryMode::FILE {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "given path is not a directory",
-            ));
-        }
-
         Ok(RpStat::new(meta))
     }
 

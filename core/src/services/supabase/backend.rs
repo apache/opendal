@@ -228,11 +228,6 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         // The get_object_info does not contain the file size. Therefore
         // we first try the get the metadata through head, if we fail,
         // we then use get_object_info to get the actual error info

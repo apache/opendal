@@ -417,59 +417,34 @@ impl Accessor for GcsBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        if path.ends_with('/') {
-            let resp = self
-                .core
-                .gcs_list_objects(path, "", "", Some(1), None)
-                .await?;
-
-            let bs = resp.into_body().bytes().await?;
-            let output: ListResponse =
-                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-
-            return if !output.items.is_empty() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(
-                    Error::new(ErrorKind::NotFound, "The directory is not found")
-                        .with_context("path", path),
-                )
-            };
-        }
-
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
-        if resp.status().is_success() {
-            let slc = resp.into_body().bytes().await?;
-
-            let meta: GetObjectJsonResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
-
-            let mut m = Metadata::new(EntryMode::FILE);
-
-            m.set_etag(&meta.etag);
-            m.set_content_md5(&meta.md5_hash);
-
-            let size = meta
-                .size
-                .parse::<u64>()
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-            m.set_content_length(size);
-            if !meta.content_type.is_empty() {
-                m.set_content_type(&meta.content_type);
-            }
-
-            m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
-
-            Ok(RpStat::new(m))
-        } else {
-            Err(parse_error(resp).await?)
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
         }
+
+        let slc = resp.into_body().bytes().await?;
+
+        let meta: GetObjectJsonResponse =
+            serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+
+        let mut m = Metadata::new(EntryMode::FILE);
+
+        m.set_etag(&meta.etag);
+        m.set_content_md5(&meta.md5_hash);
+
+        let size = meta
+            .size
+            .parse::<u64>()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
+        m.set_content_length(size);
+        if !meta.content_type.is_empty() {
+            m.set_content_type(&meta.content_type);
+        }
+
+        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        Ok(RpStat::new(m))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

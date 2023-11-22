@@ -255,6 +255,7 @@ impl Accessor for SftpBackend {
             .set_scheme(Scheme::Sftp)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_can_seek: true,
@@ -385,13 +386,6 @@ impl Accessor for SftpBackend {
         fs.set_cwd(&self.root);
 
         let meta: Metadata = fs.metadata(path).await?.into();
-
-        if path.ends_with('/') && meta.is_file() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "given path is not a directory",
-            ));
-        }
 
         Ok(RpStat::new(meta))
     }

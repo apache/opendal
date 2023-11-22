@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -28,7 +27,7 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::{ListObjectsOutput, ObsCore};
+use super::core::ObsCore;
 use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
@@ -396,32 +395,6 @@ impl Accessor for ObsBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        if path.ends_with('/') {
-            let resp = self.core.obs_list_objects(path, "", "", Some(1)).await?;
-
-            if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp).await?);
-            }
-
-            let bs = resp.into_body().bytes().await?;
-            let output: ListObjectsOutput =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            return if !output.contents.is_empty() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(
-                    Error::new(ErrorKind::NotFound, "The directory is not found")
-                        .with_context("path", path),
-                )
-            };
-        }
-
         let resp = self.core.obs_head_object(path, &args).await?;
 
         let status = resp.status();

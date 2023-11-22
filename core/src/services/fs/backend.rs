@@ -253,6 +253,7 @@ impl Accessor for FsBackend {
             .set_root(&self.root.to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_can_seek: true,
@@ -379,14 +380,6 @@ impl Accessor for FsBackend {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
-        // Return not found if the path ends with `/` but meta is file.
-        if !meta.is_dir() && path.ends_with('/') {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "given path is not a directory",
-            ));
-        }
 
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -534,14 +527,6 @@ impl Accessor for FsBackend {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
-
-        // Return not found if the path ends with `/` but meta is dir.
-        if !meta.is_dir() && path.ends_with('/') {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "file mode is not match with its path",
-            ));
-        }
 
         let mode = if meta.is_dir() {
             EntryMode::DIR

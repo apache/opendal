@@ -23,7 +23,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use bytes::Buf;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
@@ -39,9 +38,7 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
-use crate::services::azblob::core::ListBlobsOutput;
 use crate::services::azblob::writer::AzblobWriters;
-use crate::types::Metadata;
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.

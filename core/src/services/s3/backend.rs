@@ -1097,35 +1097,6 @@ impl Accessor for S3Backend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        if path.ends_with('/') {
-            let resp = self
-                .core
-                .s3_list_objects(path, "", "", Some(1), None)
-                .await?;
-
-            if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp).await?);
-            }
-
-            let bs = resp.into_body().bytes().await?;
-            let output: ListObjectsOutput =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            return if !output.contents.is_empty() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(
-                    Error::new(ErrorKind::NotFound, "The directory is not found")
-                        .with_context("path", path),
-                )
-            };
-        }
-
         let resp = self
             .core
             .s3_head_object(path, args.if_none_match(), args.if_match())

@@ -407,6 +407,7 @@ impl Accessor for WebhdfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_can_next: true,
@@ -507,13 +508,6 @@ impl Accessor for WebhdfsBackend {
                 let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
                     .map_err(new_json_deserialize_error)?
                     .file_status;
-
-                if path.ends_with('/') && file_status.ty == FileStatusType::File {
-                    return Err(Error::new(
-                        ErrorKind::NotFound,
-                        "given path is not a directory",
-                    ));
-                }
 
                 let meta = match file_status.ty {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),

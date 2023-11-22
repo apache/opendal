@@ -350,11 +350,6 @@ impl Accessor for GhacBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let req = self.ghac_query(path).await?;
 
         let resp = self.client.send(req).await?;
@@ -367,11 +362,6 @@ impl Accessor for GhacBackend {
         } else {
             return Err(parse_error(resp).await?);
         };
-
-        // If the query matches a location and path is ends with `/`, we can return directly.
-        if path.ends_with('/') {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
 
         let req = self.ghac_head_location(&location).await?;
         let resp = self.client.send(req).await?;

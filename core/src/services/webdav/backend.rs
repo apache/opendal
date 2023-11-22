@@ -341,30 +341,23 @@ impl Accessor for WebdavBackend {
         let status = resp.status();
 
         if !status.is_success() {
-            match status {
-                // HTTP Server like nginx could return FORBIDDEN if auto-index
-                // is not enabled, we should ignore them.
-                StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        } else {
-            let bs = resp.into_body().bytes().await?;
-            let result: Multistatus =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-            let item = result
-                .response
-                .get(0)
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "Failed getting item stat: bad response",
-                    )
-                })?
-                .parse_into_metadata()?;
-            Ok(RpStat::new(item))
+            return Err(parse_error(resp).await?);
         }
+
+        let bs = resp.into_body().bytes().await?;
+        let result: Multistatus =
+            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let item = result
+            .response
+            .get(0)
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "Failed getting item stat: bad response",
+                )
+            })?
+            .parse_into_metadata()?;
+        Ok(RpStat::new(item))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

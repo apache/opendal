@@ -296,6 +296,7 @@ impl Accessor for FtpBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_with_range: true,
@@ -403,11 +404,6 @@ impl Accessor for FtpBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // root dir, return default Metadata with Dir EntryMode.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let file = self.ftp_stat(path).await?;
 
         let mode = if file.is_file() {
@@ -417,14 +413,6 @@ impl Accessor for FtpBackend {
         } else {
             EntryMode::Unknown
         };
-
-        // Return not found if the path ends with `/` but meta is dir.
-        if path.ends_with('/') && mode == EntryMode::FILE {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "given path is not a directory",
-            ));
-        }
 
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);

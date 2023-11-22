@@ -259,6 +259,7 @@ impl Accessor for AzfileBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_dir: true,
 
                 read: true,
                 read_can_next: true,
@@ -336,11 +337,6 @@ impl Accessor for AzfileBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let resp = self.core.azfile_get_file_properties(path).await?;
         let status = resp.status();
         match status {

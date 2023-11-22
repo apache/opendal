@@ -509,36 +509,6 @@ impl Accessor for OssBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        if path == "/" {
-            let m = Metadata::new(EntryMode::DIR);
-            return Ok(RpStat::new(m));
-        }
-
-        if path.ends_with('/') {
-            let resp = self
-                .core
-                .oss_list_object(path, "", "", Some(1), None)
-                .await?;
-
-            if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp).await?);
-            }
-
-            let bs = resp.into_body().bytes().await?;
-
-            let output: ListObjectsOutput = quick_xml::de::from_reader(bs.reader())
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
-
-            return if !output.contents.is_empty() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(
-                    Error::new(ErrorKind::NotFound, "The directory is not found")
-                        .with_context("path", path),
-                )
-            };
-        }
-
         let resp = self
             .core
             .oss_head_object(path, args.if_match(), args.if_none_match())

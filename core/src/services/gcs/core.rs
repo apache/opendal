@@ -37,6 +37,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use serde::Deserialize;
 use serde_json::json;
 
 use super::uri::percent_encode_path;
@@ -595,5 +596,179 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         self.send(req).await
+    }
+}
+
+/// Response JSON from GCS list objects API.
+///
+/// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListResponse {
+    /// The continuation token.
+    ///
+    /// If this is the last page of results, then no continuation token is returned.
+    pub next_page_token: Option<String>,
+    /// Object name prefixes for objects that matched the listing request
+    /// but were excluded from [items] because of a delimiter.
+    pub prefixes: Vec<String>,
+    /// The list of objects, ordered lexicographically by name.
+    pub items: Vec<ListResponseItem>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListResponseItem {
+    pub name: String,
+    pub size: String,
+    // metadata
+    pub etag: String,
+    pub md5_hash: String,
+    pub updated: String,
+    pub content_type: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_list_response() {
+        let content = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
+    }
+  ]
+}
+    "#;
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert!(output.next_page_token.is_none());
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
+        assert_eq!(output.items[1].content_type, "image/png");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
+    }
+
+    #[test]
+    fn test_deserialize_list_response_with_next_page_token() {
+        let content = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "nextPageToken": "CgYxMC5wbmc=",
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
+    }
+  ]
+}
+    "#;
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert_eq!(output.next_page_token, Some("CgYxMC5wbmc=".to_string()));
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }

@@ -30,7 +30,7 @@ use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
 
-use super::core::GcsCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
@@ -422,21 +422,35 @@ impl Accessor for GcsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
+        if path.ends_with('/') {
+            let resp = self
+                .core
+                .gcs_list_objects(path, "", "", Some(1), None)
+                .await?;
+
+            let bs = resp.into_body().bytes().await?;
+            let output: ListResponse =
+                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+            return if !output.items.is_empty() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(
+                    Error::new(ErrorKind::NotFound, "The directory is not found")
+                        .with_context("path", path),
+                )
+            };
+        }
+
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
         if resp.status().is_success() {
-            // read http response body
             let slc = resp.into_body().bytes().await?;
 
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
-            let mode = if path.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut m = Metadata::new(mode);
+            let mut m = Metadata::new(EntryMode::FILE);
 
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
@@ -453,8 +467,6 @@ impl Accessor for GcsBackend {
             m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
             Ok(RpStat::new(m))
-        } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             Err(parse_error(resp).await?)
         }

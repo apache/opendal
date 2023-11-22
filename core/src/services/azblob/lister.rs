@@ -85,14 +85,14 @@ impl oio::PageList for AzblobLister {
         }
 
         for object in output.blobs.blob {
-            // azblob could return the dir itself in contents
-            // which endswith `/`.
-            // We should ignore them.
-            if object.name.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.name);
+
+            // azblob could return the dir itself in contents.
+            if path == self.path {
                 continue;
             }
 
-            let meta = Metadata::new(EntryMode::FILE)
+            let meta = Metadata::new(EntryMode::from_path(&path))
                 // Keep fit with ETag header.
                 .with_etag(format!("\"{}\"", object.properties.etag.as_str()))
                 .with_content_length(object.properties.content_length)
@@ -102,8 +102,7 @@ impl oio::PageList for AzblobLister {
                     object.properties.last_modified.as_str(),
                 )?);
 
-            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
-
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 

@@ -112,14 +112,14 @@ impl oio::PageList for S3Lister {
         }
 
         for object in output.contents {
-            // s3 could return the dir itself in contents
-            // which endswith `/`.
-            // We should ignore them.
-            if object.key.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.key);
+
+            // s3 could return the dir itself in contents.
+            if path == self.path {
                 continue;
             }
 
-            let mut meta = Metadata::new(EntryMode::FILE);
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
 
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
@@ -131,8 +131,7 @@ impl oio::PageList for S3Lister {
             // nanosecond, let's trim them.
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
-
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 

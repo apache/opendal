@@ -190,7 +190,10 @@ impl<A: Accessor> CompleteAccessor<A> {
         if capability.list_with_recursive {
             let (_, mut l) = self
                 .inner
-                .list(path, OpList::default().with_recursive(true).with_limit(1))
+                .list(
+                    path.trim_end_matches('/'),
+                    OpList::default().with_recursive(true).with_limit(1),
+                )
                 .await?;
 
             return if oio::ListExt::next(&mut l).await?.is_some() {
@@ -198,7 +201,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             } else {
                 Err(Error::new(
                     ErrorKind::NotFound,
-                    "The directory is not found",
+                    "the directory is not found",
                 ))
             };
         }
@@ -242,16 +245,17 @@ impl<A: Accessor> CompleteAccessor<A> {
 
         // Otherwise, we can simulate `stat_dir` via `list`.
         if capability.list_with_recursive {
-            let (_, mut l) = self
-                .inner
-                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
+            let (_, mut l) = self.inner.blocking_list(
+                path.trim_end_matches('/'),
+                OpList::default().with_recursive(true).with_limit(1),
+            )?;
 
             return if oio::BlockingList::next(&mut l)?.is_some() {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             } else {
                 Err(Error::new(
                     ErrorKind::NotFound,
-                    "The directory is not found",
+                    "the directory is not found",
                 ))
             };
         }

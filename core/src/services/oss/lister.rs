@@ -20,7 +20,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
-use quick_xml::escape::unescape;
 
 use super::core::*;
 use super::error::parse_error;
@@ -96,26 +95,21 @@ impl oio::PageList for OssLister {
         }
 
         for object in output.contents {
-            if object.key.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.key);
+            if path == self.path {
+                continue;
+            }
+            if self.start_after.as_ref() == Some(&path) {
                 continue;
             }
 
-            // exclude the inclusive start_after itself
-            let path = &build_rel_path(&self.core.root, &object.key);
-            if self.start_after.as_ref() == Some(path) {
-                continue;
-            }
-            let mut meta = Metadata::new(EntryMode::FILE);
-
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));
             meta.set_content_length(object.size);
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            let rel = build_rel_path(&self.core.root, &object.key);
-            let path = unescape(&rel)
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
-            let de = oio::Entry::new(&path, meta);
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 

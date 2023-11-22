@@ -102,17 +102,16 @@ impl oio::PageList for GcsLister {
         }
 
         for object in output.items {
-            if object.name.ends_with('/') {
-                continue;
-            }
-
             // exclude the inclusive start_after itself
-            let path = &build_rel_path(&self.core.root, &object.name);
-            if self.start_after.as_ref() == Some(path) {
+            let path = build_rel_path(&self.core.root, &object.name);
+            if path == self.path {
+                continue;
+            }
+            if self.start_after.as_ref() == Some(&path) {
                 continue;
             }
 
-            let mut meta = Metadata::new(EntryMode::FILE);
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
 
             // set metadata fields
             meta.set_content_md5(object.md5_hash.as_str());
@@ -128,7 +127,7 @@ impl oio::PageList for GcsLister {
 
             meta.set_last_modified(parse_datetime_from_rfc3339(object.updated.as_str())?);
 
-            let de = oio::Entry::new(path, meta);
+            let de = oio::Entry::with(path, meta);
 
             ctx.entries.push_back(de);
         }

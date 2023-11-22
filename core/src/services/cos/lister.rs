@@ -83,14 +83,15 @@ impl oio::PageList for CosLister {
         }
 
         for object in output.contents {
-            if object.key.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.key);
+
+            if path == self.path {
                 continue;
             }
 
-            let meta = Metadata::new(EntryMode::FILE).with_content_length(object.size);
+            let meta = Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);
 
-            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
-
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 

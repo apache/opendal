@@ -34,6 +34,7 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use crate::raw::*;
+use crate::services::azfile::error::parse_error;
 use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
@@ -423,21 +424,21 @@ impl AzfileCore {
         for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;
 
-            if resp.status() != StatusCode::CREATED {
-                if resp
-                    .headers()
-                    .get("x-ms-error-code")
-                    .map(|value| value.to_str().unwrap_or(""))
-                    .unwrap_or_else(|| "")
-                    == "ResourceAlreadyExists"
-                {
-                    continue;
-                }
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    format!("failed to create directory: {}", dir).as_str(),
-                ));
+            if resp.status() == StatusCode::CREATED {
+                continue;
             }
+
+            if resp
+                .headers()
+                .get("x-ms-error-code")
+                .map(|value| value.to_str().unwrap_or(""))
+                .unwrap_or_else(|| "")
+                == "ResourceAlreadyExists"
+            {
+                continue;
+            }
+
+            return Err(parse_error(resp));
         }
 
         Ok(())

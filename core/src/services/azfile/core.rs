@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -413,15 +412,11 @@ impl AzfileCore {
     }
 
     pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
-        let mut dirs = VecDeque::default();
         // azure file service does not support recursive directory creation
         let mut p = path;
         while p != "/" {
             p = get_parent(p);
-            dirs.push_front(p);
-        }
-        for dir in dirs {
-            let resp = self.azfile_create_dir(dir).await?;
+            let resp = self.azfile_create_dir(p).await?;
 
             if resp.status() != StatusCode::CREATED {
                 if resp
@@ -435,7 +430,7 @@ impl AzfileCore {
                 }
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    format!("failed to create directory: {}", dir).as_str(),
+                    format!("failed to create directory: {}", p).as_str(),
                 ));
             }
         }

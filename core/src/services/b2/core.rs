@@ -15,21 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
-use http::{header, Request, Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use chrono::DateTime;
+use chrono::Utc;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::RwLock;
 
+use self::constants::X_BZ_CONTENT_SHA1;
+use self::constants::X_BZ_FILE_NAME;
 use crate::raw::*;
 use crate::services::b2::core::constants::X_BZ_PART_NUMBER;
 use crate::services::b2::error::parse_error;
 use crate::*;
-
-use self::constants::{X_BZ_CONTENT_SHA1, X_BZ_FILE_NAME};
 
 pub(super) mod constants {
     pub const X_BZ_FILE_NAME: &str = "X-Bz-File-Name";

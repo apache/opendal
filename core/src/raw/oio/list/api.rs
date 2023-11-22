@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pin_project::pin_project;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+
+use pin_project::pin_project;
 
 use crate::raw::oio::Entry;
 use crate::*;

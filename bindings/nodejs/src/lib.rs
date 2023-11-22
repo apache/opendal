@@ -58,6 +58,12 @@ impl Operator {
         Ok(Operator(op))
     }
 
+    /// Get current operator(service)'s full capability.
+    #[napi]
+    pub fn capability(&self) -> Result<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
+    }
+
     /// Get current path's metadata **without cache** directly.
     ///
     /// ### Notes

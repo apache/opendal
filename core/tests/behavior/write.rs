@@ -115,6 +115,10 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 
 /// Create dir on existing dir should succeed.
 pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await?;
@@ -397,9 +401,11 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
     // Stat not exist dir should also returns NotFound.
-    let meta = op.stat(&format!("{path}/")).await;
-    assert!(meta.is_err());
-    assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+    if op.info().full_capability().stat_dir {
+        let meta = op.stat(&format!("{path}/")).await;
+        assert!(meta.is_err());
+        assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+    }
 
     Ok(())
 }

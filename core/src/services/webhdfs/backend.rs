@@ -508,6 +508,13 @@ impl Accessor for WebhdfsBackend {
                     .map_err(new_json_deserialize_error)?
                     .file_status;
 
+                if path.ends_with('/') && file_status.ty == FileStatusType::File {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "given path is not a directory",
+                    ));
+                }
+
                 let meta = match file_status.ty {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                     FileStatusType::File => Metadata::new(EntryMode::FILE)

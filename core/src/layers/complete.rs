@@ -49,6 +49,10 @@ use crate::*;
 ///
 /// So far `CompleteLayer` will do the following things:
 ///
+/// ## Stat Completion
+///
+/// Not all services support `stat_dir` natively, but we can simulate it via list.
+///
 /// ## Read Completion
 ///
 /// OpenDAL requires all reader implements [`oio::Read`] and
@@ -148,7 +152,78 @@ impl<A: Accessor> CompleteAccessor<A> {
         .with_operation(op)
     }
 
-    async fn complete_reader(
+    async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.meta.full_capability();
+        if !capability.stat {
+            return Err(self.new_unsupported_error(Operation::Stat));
+        }
+
+        // Return directly if path is not a directory or services support `stat_dir`.
+        if !path.ends_with('/') || capability.stat_dir {
+            return self.inner.stat(path, args).await.map(|v| {
+                v.map_metadata(|m| {
+                    let bit = m.metakey();
+                    m.with_metakey(bit | Metakey::Complete)
+                })
+            });
+        }
+
+        // Otherwise, we can simulate `stat_dir` via `list`.
+        if capability.list_with_recursive {
+            let (_, mut l) = self
+                .inner
+                .list(path, OpList::default().with_recursive(true).with_limit(1))
+                .await?;
+
+            return if oio::ListExt::next(&mut l).await?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "The directory is not found",
+                ))
+            };
+        }
+
+        Err(self.new_unsupported_error(Operation::Stat))
+    }
+
+    fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.meta.full_capability();
+        if !capability.stat {
+            return Err(self.new_unsupported_error(Operation::Stat));
+        }
+
+        // Return directly if path is not a directory or services support `stat_dir`.
+        if !path.ends_with('/') || capability.stat_dir {
+            return self.inner.blocking_stat(path, args).map(|v| {
+                v.map_metadata(|m| {
+                    let bit = m.metakey();
+                    m.with_metakey(bit | Metakey::Complete)
+                })
+            });
+        }
+
+        // Otherwise, we can simulate `stat_dir` via `list`.
+        if capability.list_with_recursive {
+            let (_, mut l) = self
+                .inner
+                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
+
+            return if oio::BlockingList::next(&mut l)?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "The directory is not found",
+                ))
+            };
+        }
+
+        Err(self.new_unsupported_error(Operation::Stat))
+    }
+
+    async fn complete_read(
         &self,
         path: &str,
         args: OpRead,
@@ -184,7 +259,7 @@ impl<A: Accessor> CompleteAccessor<A> {
         }
     }
 
-    fn complete_blocking_reader(
+    fn complete_blocking_read(
         &self,
         path: &str,
         args: OpRead,
@@ -329,6 +404,9 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
             cap.read_can_next = true;
             cap.read_can_seek = true;
         }
+        if cap.list_with_recursive && cap.stat {
+            cap.stat_dir = true;
+        }
         meta
     }
 
@@ -342,7 +420,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.complete_reader(path, args).await
+        self.complete_read(path, args).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -407,17 +485,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat {
-            return Err(self.new_unsupported_error(Operation::Stat));
-        }
-
-        self.inner.stat(path, args).await.map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.complete_stat(path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
@@ -466,7 +534,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_reader(path, args)
+        self.complete_blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -509,17 +577,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingStat));
-        }
-
-        self.inner.blocking_stat(path, args).map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.complete_blocking_stat(path, args)
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {

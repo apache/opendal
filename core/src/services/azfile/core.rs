@@ -417,8 +417,8 @@ impl AzfileCore {
         // azure file service does not support recursive directory creation
         let mut p = path;
         while p != "/" {
-            p = get_parent(p);
             dirs.push_front(p);
+            p = get_parent(p);
         }
         for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;

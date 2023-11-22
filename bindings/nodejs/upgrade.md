@@ -1,6 +1,6 @@
 # Unreleased
 
-## Breaking change 
+## Breaking change
 
 Because of a TLS lib issue, we temporarily disable the `services-ftp`.
 

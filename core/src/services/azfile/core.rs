@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::path::PathBuf;
 
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -413,9 +414,14 @@ impl AzfileCore {
 
     pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
         // azure file service does not support recursive directory creation
-        let mut p = path;
-        while p != "/" {
-            p = get_parent(p);
+        let mut current_path = PathBuf::from("/");
+        for dir in path.split('/') {
+            if dir.is_empty() {
+                continue;
+            }
+
+            current_path.push(dir);
+            let p = current_path.to_str().unwrap();
             let resp = self.azfile_create_dir(p).await?;
 
             if resp.status() != StatusCode::CREATED {
@@ -434,7 +440,6 @@ impl AzfileCore {
                 ));
             }
         }
-
         Ok(())
     }
 }

@@ -341,26 +341,14 @@ impl Accessor for AzfileBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        if path.ends_with('/') {
-            let resp = self.core.azfile_get_path_properties(path).await?;
-            let status = resp.status();
-            match status {
-                StatusCode::OK => {
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok(RpStat::new(meta))
-                }
-                _ => Err(parse_error(resp).await?),
+        let resp = self.core.azfile_get_file_properties(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok(RpStat::new(meta))
             }
-        } else {
-            let resp = self.core.azfile_get_file_properties(path).await?;
-            let status = resp.status();
-            match status {
-                StatusCode::OK => {
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok(RpStat::new(meta))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 

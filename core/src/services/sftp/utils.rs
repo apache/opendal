@@ -20,6 +20,7 @@ use openssh_sftp_client::metadata::MetaData as SftpMeta;
 use crate::EntryMode;
 use crate::Metadata;
 
+/// REMOVE ME: we should not implement `From<SftpMeta> for Metadata`.
 impl From<SftpMeta> for Metadata {
     fn from(meta: SftpMeta) -> Self {
         let mode = meta

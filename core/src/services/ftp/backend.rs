@@ -417,6 +417,15 @@ impl Accessor for FtpBackend {
         } else {
             EntryMode::Unknown
         };
+
+        // Return not found if the path ends with `/` but meta is dir.
+        if path.ends_with('/') && mode == EntryMode::FILE {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "given path is not a directory",
+            ));
+        }
+
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
         meta.set_last_modified(file.modified().into());

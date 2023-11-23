@@ -2,6 +2,8 @@
 
 ## Public API
 
+### List Recursive
+
 After [RFC-3526: List Recursive](crate::docs::rfcs::rfc_3526_list_recursive) landed, we have changed the `list` API to accept `recursive` instead of `delimiter`:
 
 Users will need to change the following usage:
@@ -10,6 +12,22 @@ Users will need to change the following usage:
 - `op.list_with(path).delimiter("/")` -> `op.list_with(path).recursive(false)`
 
 `delimiter` other than `""` and `"/"` is not supported anymore.
+
+### Stat a dir path
+
+After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we have changed the behavior of `stat` a dir path:
+
+Here are the behavior list:
+
+| Case                   | Path            | Result                                     |
+|------------------------|-----------------|--------------------------------------------|
+| stat existing dir      | `abc/`          | Metadata with dir mode                     |
+| stat existing file     | `abc/def_file`  | Metadata with file mode                    |
+| stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
+| stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
+| stat not existing path | `xyz`           | Error `NotFound`                           |
+
+Services like s3, azblob can handle `stat("abc/")` correctly by check if there are objects with prefix `abc/`.
 
 ## Raw API
 

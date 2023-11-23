@@ -139,7 +139,7 @@ impl Stream for Lister {
 
                     match rp {
                         Ok(rp) => {
-                            self.task_queue.pop_back();
+                            self.task_queue.pop_front();
                             let metadata = rp.into_metadata();
                             Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                         }
@@ -153,7 +153,7 @@ impl Stream for Lister {
                     if let Some((path, metadata)) = entry.take() {
                         Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                     } else {
-                        self.task_queue.pop_back();
+                        self.task_queue.pop_front();
                         self.poll_next(cx)
                     }
                 }

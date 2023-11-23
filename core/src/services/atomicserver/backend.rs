@@ -381,7 +381,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 delete: true,
-                create_dir: true,
                 ..Default::default()
             },
         )

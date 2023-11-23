@@ -175,38 +175,12 @@ impl Accessor for SupabaseBackend {
                 read: true,
 
                 write: true,
-                create_dir: true,
                 delete: true,
 
                 ..Default::default()
             });
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .supabase_upload_object_request(path, Some(0), None, AsyncBody::Empty)?;
-
-        self.core.sign(&mut req)?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        if status.is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreateDir::default())
-        } else {
-            // create duplicate dir is ok
-            let e = parse_error(resp).await?;
-            if e.kind() == ErrorKind::AlreadyExists {
-                Ok(RpCreateDir::default())
-            } else {
-                Err(e)
-            }
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

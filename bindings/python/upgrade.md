@@ -46,3 +46,9 @@ We remove the old error classes and provide a couple of Exception based class fo
 12. `opendal.exceptions.ContentTruncated` is added.
 13. `opendal.exceptions.ContentIncomplete` is added.
 14. `opendal.exceptions.InvalidInput` is added.
+
+# Unreleased
+
+## Breaking change
+
+Because of [a TLS lib issue](https://github.com/apache/incubator-opendal/issues/3650), we temporarily disable the `services-ftp`.

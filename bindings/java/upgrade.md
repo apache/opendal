@@ -19,3 +19,10 @@ Operator.of(scheme, config);
 ```
 
 Now, there is no public constructor for operators, but only factory methods. In this way, the APIs are free to do arbitrary verifications and preparations before constructing operators.
+
+
+# Unreleased
+
+## Breaking change
+
+Because of [a TLS lib issue](https://github.com/apache/incubator-opendal/issues/3650), we temporarily disable the `services-ftp`.

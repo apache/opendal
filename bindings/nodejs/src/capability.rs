@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+
+
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -154,32 +156,32 @@ impl Capability {
     ///
     /// For example, AWS S3 supports 5GiB as max in write_multi.
     #[napi(getter)]
-    pub fn write_multi_max_size(&self) -> Option<u32> {
-        self.0.write_multi_max_size.map(|v| v as u32)
+    pub fn write_multi_max_size(&self) -> Option<usize> {
+        self.0.write_multi_max_size
     }
 
     /// write_multi_min_size is the min size that services support in write_multi.
     ///
     /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
     #[napi(getter)]
-    pub fn write_multi_min_size(&self) -> Option<u32> {
-        self.0.write_multi_min_size.map(|v| v as u32)
+    pub fn write_multi_min_size(&self) -> Option<usize> {
+        self.0.write_multi_min_size
     }
 
     /// write_multi_align_size is the align size that services required in write_multi.
     ///
     /// For example, Google GCS requires align size to 256KiB in write_multi.
     #[napi(getter)]
-    pub fn write_multi_align_size(&self) -> Option<u32> {
-        self.0.write_multi_align_size.map(|v| v as u32)
+    pub fn write_multi_align_size(&self) -> Option<usize> {
+        self.0.write_multi_align_size
     }
 
     /// write_total_max_size is the max size that services support in write_total.
     ///
     /// For example, Cloudflare D1 supports 1MB as max in write_total.
     #[napi(getter)]
-    pub fn write_total_max_size(&self) -> Option<u32> {
-        self.0.write_total_max_size.map(|v| v as u32)
+    pub fn write_total_max_size(&self) -> Option<usize> {
+        self.0.write_total_max_size
     }
 
     /// If operator supports create dir.
@@ -274,8 +276,8 @@ impl Capability {
 
     /// The max operations that operator supports in batch.
     #[napi(getter)]
-    pub fn batch_max_operations(&self) -> Option<u32> {
-        self.0.batch_max_operations.map(|v| v as u32)
+    pub fn batch_max_operations(&self) -> Option<usize> {
+        self.0.batch_max_operations
     }
 
     /// If operator supports blocking.

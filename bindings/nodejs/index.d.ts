@@ -92,25 +92,25 @@ export class Capability {
    *
    * For example, AWS S3 supports 5GiB as max in write_multi.
    */
-  get writeMultiMaxSize(): number | null
+  get writeMultiMaxSize(): bigint | null
   /**
    * write_multi_min_size is the min size that services support in write_multi.
    *
    * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
    */
-  get writeMultiMinSize(): number | null
+  get writeMultiMinSize(): bigint | null
   /**
    * write_multi_align_size is the align size that services required in write_multi.
    *
    * For example, Google GCS requires align size to 256KiB in write_multi.
    */
-  get writeMultiAlignSize(): number | null
+  get writeMultiAlignSize(): bigint | null
   /**
    * write_total_max_size is the max size that services support in write_total.
    *
    * For example, Cloudflare D1 supports 1MB as max in write_total.
    */
-  get writeTotalMaxSize(): number | null
+  get writeTotalMaxSize(): bigint | null
   /** If operator supports create dir. */
   get createDir(): boolean
   /** If operator supports delete. */
@@ -142,7 +142,7 @@ export class Capability {
   /** If operator supports batch delete. */
   get batchDelete(): boolean
   /** The max operations that operator supports in batch. */
-  get batchMaxOperations(): number | null
+  get batchMaxOperations(): bigint | null
   /** If operator supports blocking. */
   get blocking(): boolean
 }

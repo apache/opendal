@@ -17,17 +17,14 @@
  * under the License.
  */
 
-import { randomUUID } from 'node:crypto'
-import { test } from 'vitest'
-
 export function run(operator) {
-  test('async stat not exist files', async () => {
-    const filename = `random_file_${randomUUID()}`
+  test('get capability', () => {
+    assert.ok(operator.capability())
+    assert.ok(operator.capability().read)
+  })
 
-    try {
-      await operator.stat(filename)
-    } catch (error) {
-      assert.include(error.message, 'NotFound')
-    }
+  test('try to non-exist capability', () => {
+    assert.ok(operator.capability())
+    assert.ifError(operator.capability().nonExist, 'try get a non-exist capability should return undefined')
   })
 }

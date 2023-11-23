@@ -271,8 +271,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { Operator, Entry, Metadata, Lister, BlockingLister, Layer, RetryLayer } = nativeBinding
+const { Capability, Operator, Entry, Metadata, Lister, BlockingLister, Layer, RetryLayer } = nativeBinding
 
+module.exports.Capability = Capability
 module.exports.Operator = Operator
 module.exports.Entry = Entry
 module.exports.Metadata = Metadata

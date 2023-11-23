@@ -101,43 +101,37 @@ impl Stream for Lister {
                     self.listing = false;
                     self.poll_next(cx)
                 }
-                Poll::Ready(result) => {
-                    match result {
-                        Ok(Some(oe)) => {
-                            let (path, metadata) = oe.into_entry().into_parts();
-                            // TODO: we can optimize this by checking the provided metakey provided by services.
-                            if metadata.contains_metakey(self.required_metakey) {
-                                self.task_queue
-                                    .push_back(Task::KnownEntry(Box::new(Some((path, metadata)))));
-                            } else {
-                                let acc = self.acc.clone();
-
-                                let fut = async move {
-                                    let res = acc.stat(&path, OpStat::default()).await;
-                                    (path, res)
-                                };
-
-                                self.task_queue.push_back(Task::Handle(tokio::spawn(fut)));
-                            }
-                            self.poll_next(cx)
-                        }
-                        Ok(None) => {
-                            if self.task_queue.is_empty() {
-                                return Poll::Ready(None);
-                            }
-                            self.listing = false;
-                            self.poll_next(cx)
-                        }
-                        Err(err) => {
-                            self.errored = true;
-                            Poll::Ready(Some(Err(err)))
-                        }
+                Poll::Ready(Ok(Some(oe))) => {
+                    let (path, metadata) = oe.into_entry().into_parts();
+                    // TODO: we can optimize this by checking the provided metakey provided by services.
+                    if metadata.contains_metakey(self.required_metakey) {
+                        self.task_queue
+                            .push_back(Task::KnownEntry(Box::new(Some((path, metadata)))));
+                    } else {
+                        let acc = self.acc.clone();
+                        let fut = async move {
+                            let res = acc.stat(&path, OpStat::default()).await;
+                            (path, res)
+                        };
+                        self.task_queue.push_back(Task::Handle(tokio::spawn(fut)));
                     }
+                    self.poll_next(cx)
+                }
+                Poll::Ready(Ok(None)) => {
+                    if self.task_queue.is_empty() {
+                        return Poll::Ready(None);
+                    }
+                    self.listing = false;
+                    self.poll_next(cx)
+                }
+                Poll::Ready(Err(err)) => {
+                    self.errored = true;
+                    Poll::Ready(Some(Err(err)))
                 }
             };
         }
 
-        if let Some(handle) = self.task_queue.back_mut() {
+        if let Some(handle) = self.task_queue.front_mut() {
             return match handle {
                 Task::Handle(handle) => {
                     let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;

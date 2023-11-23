@@ -82,17 +82,16 @@ impl oio::PageList for SwiftLister {
                         continue;
                     }
 
-                    let mut meta = Metadata::new(EntryMode::FILE);
+                    let mut meta = Metadata::new(EntryMode::from_path(&name));
                     meta.set_content_length(bytes);
                     meta.set_content_md5(hash.as_str());
 
                     // we'll change "2023-10-28T19:18:11.682610" to "2023-10-28T19:18:11.682610Z"
                     last_modified.push('Z');
                     meta.set_last_modified(parse_datetime_from_rfc3339(last_modified.as_str())?);
-
                     meta.set_content_type(content_type.as_str());
 
-                    oio::Entry::new(&name, meta)
+                    oio::Entry::with(name, meta)
                 }
             };
             ctx.entries.push_back(entry);

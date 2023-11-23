@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 
-use http::Request;
 use http::Response;
+use http::{header, Request};
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -104,6 +104,7 @@ impl SwiftCore {
     pub async fn swift_create_object(
         &self,
         path: &str,
+        length: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -119,10 +120,7 @@ impl SwiftCore {
         let mut req = Request::put(&url);
 
         req = req.header("X-Auth-Token", &self.token);
-
-        if p.ends_with('/') {
-            req = req.header("Content-Length", "0");
-        }
+        req = req.header(header::CONTENT_LENGTH, length);
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

@@ -43,7 +43,7 @@ class AsyncListTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
         final Capability capability = op().info.fullCapability;
-        assumeTrue(capability.read && capability.write && capability.list);
+        assumeTrue(capability.read && capability.write && capability.list && capability.createDir);
     }
 
     /**

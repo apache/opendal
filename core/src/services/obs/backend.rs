@@ -291,7 +291,6 @@ impl Accessor for ObsBackend {
                 },
 
                 delete: true,
-                create_dir: true,
                 copy: true,
 
                 list: true,

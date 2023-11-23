@@ -22,6 +22,7 @@ import { Operator, layers } from '../../index.js'
 import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '../utils.mjs'
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'
+import { run as ServicesTestRun } from './services.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
 
 export function runner(testName, scheme) {
@@ -46,6 +47,7 @@ export function runner(testName, scheme) {
 
   describe.skipIf(!operator)(testName, () => {
     AsyncIOTestRun(operator)
+    ServicesTestRun(operator)
     SyncIOTestRun(operator)
   })
 }

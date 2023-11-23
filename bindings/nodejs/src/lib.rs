@@ -18,6 +18,8 @@
 #[macro_use]
 extern crate napi_derive;
 
+mod capability;
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
@@ -54,6 +56,12 @@ impl Operator {
         }
 
         Ok(Operator(op))
+    }
+
+    /// Get current operator(service)'s full capability.
+    #[napi]
+    pub fn capability(&self) -> Result<capability::Capability> {
+        Ok(capability::Capability::new(self.0.info().full_capability()))
     }
 
     /// Get current path's metadata **without cache** directly.

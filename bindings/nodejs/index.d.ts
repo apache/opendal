@@ -36,9 +36,121 @@ export interface PresignedRequest {
   /** HTTP headers of this request. */
   headers: Record<string, string>
 }
+/**
+ * Capability is used to describe what operations are supported
+ * by current Operator.
+ *
+ * Via capability, we can know:
+ *
+ * - Whether current Operator supports read or not.
+ * - Whether current Operator supports read with if match or not.
+ * - What's current Operator max supports batch operations count.
+ *
+ * Add fields of Capabilities with be public and can be accessed directly.
+ */
+export class Capability {
+  /** If operator supports stat. */
+  get stat(): boolean
+  /** If operator supports stat with if match. */
+  get statWithIfMatch(): boolean
+  /** If operator supports stat with if none match. */
+  get statWithIfNoneMatch(): boolean
+  /** If operator supports read. */
+  get read(): boolean
+  /** If operator supports seek on returning reader. */
+  get readCanSeek(): boolean
+  /** If operator supports next on returning reader. */
+  get readCanNext(): boolean
+  /** If operator supports read with range. */
+  get readWithRange(): boolean
+  /** If operator supports read with if match. */
+  get readWithIfMatch(): boolean
+  /** If operator supports read with if none match. */
+  get readWithIfNoneMatch(): boolean
+  /** if operator supports read with override cache control. */
+  get readWithOverrideCacheControl(): boolean
+  /** if operator supports read with override content disposition. */
+  get readWithOverrideContentDisposition(): boolean
+  /** if operator supports read with override content type. */
+  get readWithOverrideContentType(): boolean
+  /** If operator supports write. */
+  get write(): boolean
+  /** If operator supports write can be called in multi times. */
+  get writeCanMulti(): boolean
+  /** If operator supports write with empty content. */
+  get writeCanEmpty(): boolean
+  /** If operator supports write by append. */
+  get writeCanAppend(): boolean
+  /** If operator supports write with content type. */
+  get writeWithContentType(): boolean
+  /** If operator supports write with content disposition. */
+  get writeWithContentDisposition(): boolean
+  /** If operator supports write with cache control. */
+  get writeWithCacheControl(): boolean
+  /**
+   * write_multi_max_size is the max size that services support in write_multi.
+   *
+   * For example, AWS S3 supports 5GiB as max in write_multi.
+   */
+  get writeMultiMaxSize(): bigint | null
+  /**
+   * write_multi_min_size is the min size that services support in write_multi.
+   *
+   * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+   */
+  get writeMultiMinSize(): bigint | null
+  /**
+   * write_multi_align_size is the align size that services required in write_multi.
+   *
+   * For example, Google GCS requires align size to 256KiB in write_multi.
+   */
+  get writeMultiAlignSize(): bigint | null
+  /**
+   * write_total_max_size is the max size that services support in write_total.
+   *
+   * For example, Cloudflare D1 supports 1MB as max in write_total.
+   */
+  get writeTotalMaxSize(): bigint | null
+  /** If operator supports create dir. */
+  get createDir(): boolean
+  /** If operator supports delete. */
+  get delete(): boolean
+  /** If operator supports copy. */
+  get copy(): boolean
+  /** If operator supports rename. */
+  get rename(): boolean
+  /** If operator supports list. */
+  get list(): boolean
+  /** If backend supports list with limit. */
+  get listWithLimit(): boolean
+  /** If backend supports list with start after. */
+  get listWithStartAfter(): boolean
+  /** If backend supports list with recursive. */
+  get listWithRecursive(): boolean
+  /** If backend supports list without recursive. */
+  get listWithoutRecursive(): boolean
+  /** If operator supports presign. */
+  get presign(): boolean
+  /** If operator supports presign read. */
+  get presignRead(): boolean
+  /** If operator supports presign stat. */
+  get presignStat(): boolean
+  /** If operator supports presign write. */
+  get presignWrite(): boolean
+  /** If operator supports batch. */
+  get batch(): boolean
+  /** If operator supports batch delete. */
+  get batchDelete(): boolean
+  /** The max operations that operator supports in batch. */
+  get batchMaxOperations(): bigint | null
+  /** If operator supports blocking. */
+  get blocking(): boolean
+}
 export class Operator {
   /** @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services */
   constructor(scheme: string, options?: Record<string, string> | undefined | null)
+  /** Get current operator(service)'s full capability. */
+  capability(): Capability
   /**
    * Get current path's metadata **without cache** directly.
    *

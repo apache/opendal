@@ -878,6 +878,10 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 
 /// Read with dir path should return an error.
 pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("write must succeed");
@@ -1118,6 +1122,10 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
 
 /// Delete empty dir should succeed.
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("create must succeed");
@@ -1180,6 +1188,10 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
 
 /// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let dir = uuid::Uuid::new_v4().to_string();
     op.create_dir(&format!("{dir}/"))
         .await

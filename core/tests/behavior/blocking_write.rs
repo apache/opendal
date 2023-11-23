@@ -58,7 +58,7 @@ pub fn behavior_blocking_write_tests(op: &Operator) -> Vec<Trial> {
 
 /// Create dir with dir path should succeed.
 pub fn test_blocking_create_dir(op: BlockingOperator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -75,7 +75,7 @@ pub fn test_blocking_create_dir(op: BlockingOperator) -> Result<()> {
 
 /// Create dir on existing dir should succeed.
 pub fn test_blocking_create_dir_existing(op: BlockingOperator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -163,7 +163,7 @@ pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
 
 /// Stat existing file should return metadata
 pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 

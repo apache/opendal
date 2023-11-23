@@ -1009,7 +1009,6 @@ impl Accessor for S3Backend {
                     Some(usize::MAX)
                 },
 
-                create_dir: true,
                 delete: true,
                 copy: true,
 
@@ -1031,29 +1030,6 @@ impl Accessor for S3Backend {
             });
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.s3_put_object_request(
-            path,
-            Some(0),
-            &OpWrite::default(),
-            AsyncBody::Empty,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

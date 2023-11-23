@@ -303,7 +303,6 @@ impl Accessor for B2Backend {
                 // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
                 write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
-                create_dir: true,
                 delete: true,
                 copy: true,
 
@@ -335,23 +334,6 @@ impl Accessor for B2Backend {
                 Ok((RpRead::new().with_size(size), resp.into_body()))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp: http::Response<IncomingAsyncBody> = self
-            .core
-            .upload_file(path, Some(0), &OpWrite::default(), AsyncBody::Empty)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -185,7 +185,6 @@ impl Accessor for HdfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
                 read_can_seek: true,

@@ -57,8 +57,6 @@ use std::fmt::Debug;
 pub struct Capability {
     /// If operator supports stat.
     pub stat: bool,
-    /// If operator supports stat a dir.
-    pub stat_dir: bool,
     /// If operator supports stat with if match.
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.

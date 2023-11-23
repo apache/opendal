@@ -253,7 +253,6 @@ impl Accessor for FsBackend {
             .set_root(&self.root.to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
                 read_can_seek: true,

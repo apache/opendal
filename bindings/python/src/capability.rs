@@ -23,8 +23,6 @@ use pyo3::prelude::*;
 pub struct Capability {
     /// If operator supports stat.
     pub stat: bool,
-    /// If operator supports stat a dir.
-    pub stat_dir: bool,
     /// If operator supports stat with if match.
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
@@ -127,7 +125,6 @@ impl Capability {
     pub fn new(capability: opendal::Capability) -> Self {
         Self {
             stat: capability.stat,
-            stat_dir: capability.stat_dir,
             stat_with_if_match: capability.stat_with_if_match,
             stat_with_if_none_match: capability.stat_with_if_none_match,
             read: capability.read,

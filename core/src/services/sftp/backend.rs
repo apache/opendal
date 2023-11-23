@@ -255,7 +255,6 @@ impl Accessor for SftpBackend {
             .set_scheme(Scheme::Sftp)
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
                 read_can_seek: true,

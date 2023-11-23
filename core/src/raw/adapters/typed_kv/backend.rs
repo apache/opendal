@@ -86,7 +86,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         if kv_cap.set {
             cap.write = true;
             cap.write_can_empty = true;
-            cap.create_dir = true;
         }
 
         if kv_cap.delete {
@@ -110,19 +109,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         am.set_native_capability(cap);
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_abs_path(&self.root, path);
-        self.kv.set(&p, Value::new_dir()).await?;
-        Ok(RpCreateDir::default())
-    }
-
-    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_abs_path(&self.root, path);
-        self.kv.blocking_set(&p, Value::new_dir())?;
-
-        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

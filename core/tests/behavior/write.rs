@@ -98,7 +98,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
 
 /// Create dir with dir path should succeed.
 pub async fn test_create_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -115,7 +115,7 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 
 /// Create dir on existing dir should succeed.
 pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -292,7 +292,7 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     // Stat a file with trailing slash should return `NotFound`.
-    if op.info().full_capability().stat_dir {
+    if op.info().full_capability().create_dir {
         let result = op.stat(&format!("{path}/")).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -304,7 +304,7 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
 
 /// Stat existing file should return metadata
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -328,7 +328,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat the parent dir of existing dir should return metadata
 pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_dir {
+    if !op.info().full_capability().create_dir {
         return Ok(());
     }
 
@@ -401,7 +401,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
     // Stat not exist dir should also returns NotFound.
-    if op.info().full_capability().stat_dir {
+    if op.info().full_capability().create_dir {
         let meta = op.stat(&format!("{path}/")).await;
         assert!(meta.is_err());
         assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);

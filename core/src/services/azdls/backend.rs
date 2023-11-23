@@ -243,7 +243,6 @@ impl Accessor for AzdlsBackend {
             .set_name(&self.core.filesystem)
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
                 read_can_next: true,

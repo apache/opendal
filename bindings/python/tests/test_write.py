@@ -54,7 +54,7 @@ async def test_async_write(service_name, operator, async_operator):
     await async_operator.delete(filename)
 
 
-@pytest.mark.need_capability("create_dir", "stat", "stat_dir")
+@pytest.mark.need_capability("create_dir", "stat")
 def test_sync_create_dir(service_name, operator, async_operator):
     path = f"test_dir_{str(uuid4())}/"
     operator.create_dir(path)
@@ -66,7 +66,7 @@ def test_sync_create_dir(service_name, operator, async_operator):
 
 
 @pytest.mark.asyncio
-@pytest.mark.need_capability("create_dir", "stat", "stat_dir")
+@pytest.mark.need_capability("create_dir", "stat")
 async def test_async_create_dir(service_name, operator, async_operator):
     path = f"test_dir_{str(uuid4())}/"
     await async_operator.create_dir(path)

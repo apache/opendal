@@ -54,12 +54,10 @@ impl Accessor for GdriveBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
 
                 list: true,
-
                 list_without_recursive: true,
 
                 write: true,

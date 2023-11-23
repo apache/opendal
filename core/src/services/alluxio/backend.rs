@@ -194,7 +194,6 @@ impl Accessor for AlluxioBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_dir: true,
 
                 read: true,
 

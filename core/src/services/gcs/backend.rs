@@ -321,8 +321,6 @@ impl Accessor for GcsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
-                create_dir: true,
-
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -363,26 +361,6 @@ impl Accessor for GcsBackend {
                 ..Default::default()
             });
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.gcs_insert_object_request(
-            path,
-            Some(0),
-            &OpWrite::default(),
-            AsyncBody::Empty,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreateDir::default())
-        } else {
-            Err(parse_error(resp).await?)
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

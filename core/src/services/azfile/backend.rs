@@ -336,7 +336,12 @@ impl Accessor for AzfileBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.azfile_get_file_properties(path).await?;
+        let resp = if path.ends_with('/') {
+            self.core.azfile_get_directory_properties(path).await?
+        } else {
+            self.core.azfile_get_file_properties(path).await?
+        };
+
         let status = resp.status();
         match status {
             StatusCode::OK => {

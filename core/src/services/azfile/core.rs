@@ -214,10 +214,7 @@ impl AzfileCore {
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_start_matches('/')
-            .to_string();
-
+        let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -234,13 +231,11 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_get_path_properties(
+    pub async fn azfile_get_directory_properties(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_start_matches('/')
-            .to_string();
+        let p = build_abs_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?restype=directory",
@@ -424,7 +419,7 @@ impl AzfileCore {
 
         let mut pop_dir_count = dirs.len();
         for dir in dirs.iter().rev() {
-            let resp = self.azfile_get_path_properties(dir).await?;
+            let resp = self.azfile_get_directory_properties(dir).await?;
             if resp.status() == StatusCode::NOT_FOUND {
                 pop_dir_count -= 1;
                 continue;

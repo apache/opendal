@@ -47,11 +47,11 @@ pub struct Lister {
     /// listing is used to indicate whether we are listing entries or stat entries.
     listing: bool,
     /// task_queue is used to store tasks that are run in concurrent.
-    task_queue: VecDeque<Task>,
+    task_queue: VecDeque<StatTask>,
     errored: bool,
 }
 
-enum Task {
+enum StatTask {
     /// Handle is used to store the join handle of spawned task.
     Handle(JoinHandle<(String, Result<RpStat>)>),
     /// KnownEntry is used to store the entry that already contains the required metakey.
@@ -106,14 +106,14 @@ impl Stream for Lister {
                     // TODO: we can optimize this by checking the provided metakey provided by services.
                     if metadata.contains_metakey(self.required_metakey) {
                         self.task_queue
-                            .push_back(Task::KnownEntry(Box::new(Some((path, metadata)))));
+                            .push_back(StatTask::KnownEntry(Box::new(Some((path, metadata)))));
                     } else {
                         let acc = self.acc.clone();
                         let fut = async move {
                             let res = acc.stat(&path, OpStat::default()).await;
                             (path, res)
                         };
-                        self.task_queue.push_back(Task::Handle(tokio::spawn(fut)));
+                        self.task_queue.push_back(StatTask::Handle(tokio::spawn(fut)));
                     }
                     self.poll_next(cx)
                 }
@@ -133,7 +133,7 @@ impl Stream for Lister {
 
         if let Some(handle) = self.task_queue.front_mut() {
             return match handle {
-                Task::Handle(handle) => {
+                StatTask::Handle(handle) => {
                     let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;
 
                     match rp {
@@ -148,7 +148,7 @@ impl Stream for Lister {
                         }
                     }
                 }
-                Task::KnownEntry(entry) => {
+                StatTask::KnownEntry(entry) => {
                     if let Some((path, metadata)) = entry.take() {
                         Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                     } else {

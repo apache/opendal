@@ -233,10 +233,12 @@ impl Accessor for SwiftBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_empty: true,
                 delete: true,
 
                 list: true,
                 list_without_recursive: true,
+                list_with_recursive: true,
 
                 ..Default::default()
             });

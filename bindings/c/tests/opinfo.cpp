@@ -62,32 +62,36 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
 {
     opendal_capability full_cap = opendal_operator_info_get_full_capability(this->info);
     opendal_capability native_cap = opendal_operator_info_get_native_capability(this->info);
-    opendal_capability caps[2] = { full_cap, native_cap };
 
-    for (int i = 0; i < 2; ++i) {
-        opendal_capability cap = caps[i];
+    EXPECT_TRUE(full_cap.blocking);
+    EXPECT_TRUE(full_cap.read);
+    EXPECT_TRUE(full_cap.read_can_seek);
+    EXPECT_TRUE(full_cap.read_can_next);
+    EXPECT_TRUE(full_cap.read_with_range);
+    EXPECT_TRUE(full_cap.stat);
+    EXPECT_TRUE(full_cap.write);
+    EXPECT_TRUE(full_cap.write_can_empty);
+    EXPECT_TRUE(full_cap.create_dir);
+    EXPECT_TRUE(full_cap.delete_);
+    EXPECT_TRUE(full_cap.list);
+    EXPECT_TRUE(full_cap.list_with_recursive);
+    EXPECT_TRUE(full_cap.copy);
+    EXPECT_TRUE(full_cap.rename);
 
-        EXPECT_TRUE(cap.blocking);
-
-        EXPECT_TRUE(cap.read);
-        EXPECT_TRUE(cap.read_can_seek);
-        EXPECT_TRUE(cap.read_can_next);
-        EXPECT_TRUE(cap.read_with_range);
-        EXPECT_TRUE(cap.stat);
-
-        EXPECT_TRUE(cap.write);
-        EXPECT_TRUE(cap.write_can_empty);
-        EXPECT_TRUE(cap.create_dir);
-
-        EXPECT_TRUE(cap.delete_);
-
-        EXPECT_TRUE(cap.list);
-        EXPECT_TRUE(cap.list_with_recursive);
-
-        EXPECT_TRUE(cap.copy);
-
-        EXPECT_TRUE(cap.rename);
-    }
+    EXPECT_TRUE(native_cap.blocking);
+    EXPECT_TRUE(native_cap.read);
+    EXPECT_TRUE(native_cap.read_can_seek);
+    EXPECT_TRUE(native_cap.read_can_next);
+    EXPECT_TRUE(native_cap.read_with_range);
+    EXPECT_TRUE(native_cap.stat);
+    EXPECT_TRUE(native_cap.write);
+    EXPECT_TRUE(native_cap.write_can_empty);
+    EXPECT_FALSE(native_cap.create_dir);
+    EXPECT_TRUE(native_cap.delete_);
+    EXPECT_TRUE(native_cap.list);
+    EXPECT_TRUE(native_cap.list_with_recursive);
+    EXPECT_TRUE(native_cap.copy);
+    EXPECT_TRUE(native_cap.rename);
 }
 
 TEST_F(OpendalOperatorInfoTest, InfoTest)

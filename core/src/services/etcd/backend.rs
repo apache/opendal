@@ -380,10 +380,14 @@ impl kv::Adapter for Adapter {
         let resp = client.get(path, get_options).await?;
         let mut res = Vec::default();
         for kv in resp.kvs() {
-            res.push(kv.key_str().map(String::from).map_err(|err| {
+            let v = kv.key_str().map(String::from).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
-            })?);
+            })?;
+            if v == path {
+                continue;
+            }
+            res.push(v);
         }
 
         Ok(res)

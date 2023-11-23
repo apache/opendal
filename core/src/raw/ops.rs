@@ -92,6 +92,13 @@ pub struct OpList {
     /// - `Some(v)` means exist.
     /// - `None` means services doesn't have this meta.
     metakey: FlagSet<Metakey>,
+    /// The concurrent of stat operations inside list operation.
+    /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
+    ///
+    /// - If this is set to <= 1, the list operation will be sequential.
+    /// - If this is set to > 1, the list operation will be concurrent,
+    ///   and the maximum number of concurrent operations will be determined by this value.
+    concurrent: usize,
 }
 
 impl Default for OpList {
@@ -102,6 +109,7 @@ impl Default for OpList {
             recursive: false,
             // By default, we want to know what's the mode of this entry.
             metakey: Metakey::Mode.into(),
+            concurrent: 1,
         }
     }
 }
@@ -161,6 +169,19 @@ impl OpList {
     /// Get the current metakey.
     pub fn metakey(&self) -> FlagSet<Metakey> {
         self.metakey
+    }
+
+    /// Change the concurrent of this list operation.
+    ///
+    /// The default concurrent is 1.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
+        self
+    }
+
+    /// Get the concurrent of list operation.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
     }
 }
 

@@ -47,7 +47,7 @@ async def test_async_rename_non_exists_file(service_name, operator, async_operat
 
 
 @pytest.mark.asyncio
-@pytest.mark.need_capability("read", "write", "rename")
+@pytest.mark.need_capability("read", "write", "rename", "create_dir")
 async def test_async_rename_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(source_path)
@@ -57,7 +57,7 @@ async def test_async_rename_directory(service_name, operator, async_operator):
 
 
 @pytest.mark.asyncio
-@pytest.mark.need_capability("read", "write", "rename")
+@pytest.mark.need_capability("read", "write", "rename", "create_dir")
 async def test_async_rename_file_to_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)

@@ -326,11 +326,6 @@ impl Accessor for WebdavBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let mut header_map = HeaderMap::new();
         // not include children
         header_map.insert("Depth", "0".parse().unwrap());

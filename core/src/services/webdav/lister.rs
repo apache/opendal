@@ -87,7 +87,6 @@ pub struct ListOpResponse {
 impl ListOpResponse {
     pub fn parse_into_metadata(&self) -> Result<Metadata> {
         let ListOpResponse {
-            href,
             propstat:
                 Propstat {
                     prop:
@@ -96,10 +95,12 @@ impl ListOpResponse {
                             getcontentlength,
                             getcontenttype,
                             getetag,
+                            resourcetype,
                             ..
                         },
                     status,
                 },
+            ..
         } = self;
         if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {
             // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
@@ -112,7 +113,7 @@ impl ListOpResponse {
             }
         }
 
-        let mode: EntryMode = if href.ends_with('/') {
+        let mode: EntryMode = if resourcetype.value == Some(ResourceType::Collection) {
             EntryMode::DIR
         } else {
             EntryMode::FILE

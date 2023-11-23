@@ -79,6 +79,10 @@ pub fn test_blocking_rename_non_existing_source(op: BlockingOperator) -> Result<
 
 /// Rename a dir as source should return an error.
 pub fn test_blocking_rename_source_dir(op: BlockingOperator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -93,6 +97,10 @@ pub fn test_blocking_rename_source_dir(op: BlockingOperator) -> Result<()> {
 
 /// Rename to a dir should return an error.
 pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 

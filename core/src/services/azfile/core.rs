@@ -431,9 +431,7 @@ impl AzfileCore {
             break;
         }
 
-        let dirs = dirs.iter().skip(pop_dir_count).collect::<VecDeque<_>>();
-
-        for dir in dirs {
+        for dir in dirs.iter().skip(pop_dir_count) {
             let resp = self.azfile_create_dir(dir).await?;
 
             if resp.status() != StatusCode::CREATED {

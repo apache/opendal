@@ -113,7 +113,8 @@ impl Stream for Lister {
                             let res = acc.stat(&path, OpStat::default()).await;
                             (path, res)
                         };
-                        self.task_queue.push_back(StatTask::Handle(tokio::spawn(fut)));
+                        self.task_queue
+                            .push_back(StatTask::Handle(tokio::spawn(fut)));
                     }
                     self.poll_next(cx)
                 }

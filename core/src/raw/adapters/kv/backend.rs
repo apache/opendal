@@ -86,7 +86,6 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         if cap.write {
             cap.write_can_empty = true;
-            cap.create_dir = true;
             cap.delete = true;
         }
 
@@ -105,19 +104,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         am.set_native_capability(cap);
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_abs_path(&self.root, path);
-        self.kv.set(&p, &[]).await?;
-        Ok(RpCreateDir::default())
-    }
-
-    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_abs_path(&self.root, path);
-        self.kv.blocking_set(&p, &[])?;
-
-        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -160,7 +146,7 @@ impl<S: Adapter> Accessor for Backend<S> {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
-        if p.is_empty() || p.ends_with('/') {
+        if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             let bs = self.kv.get(&p).await?;
@@ -176,7 +162,7 @@ impl<S: Adapter> Accessor for Backend<S> {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
-        if p.is_empty() || p.ends_with('/') {
+        if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             let bs = self.kv.blocking_get(&p)?;

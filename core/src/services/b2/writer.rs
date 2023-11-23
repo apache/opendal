@@ -20,11 +20,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
+use super::core::B2Core;
+use super::core::StartLargeFileResponse;
+use super::core::UploadPartResponse;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::core::{B2Core, StartLargeFileResponse, UploadPartResponse};
-use super::error::parse_error;
 
 pub type B2Writers = oio::MultipartUploadWriter<B2Writer>;
 

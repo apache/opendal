@@ -34,9 +34,19 @@ impl EntryMode {
     pub fn is_file(self) -> bool {
         self == EntryMode::FILE
     }
+
     /// Check if this mode is DIR.
     pub fn is_dir(self) -> bool {
         self == EntryMode::DIR
+    }
+
+    /// Create entry mode from given path.
+    pub(crate) fn from_path(path: &str) -> Self {
+        if path.ends_with('/') {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        }
     }
 }
 

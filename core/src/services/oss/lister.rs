@@ -20,17 +20,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
-use quick_xml::escape::unescape;
-use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Metadata;
-use crate::Result;
+use crate::*;
 
 pub struct OssLister {
     core: Arc<OssCore>,
@@ -86,7 +80,7 @@ impl oio::PageList for OssLister {
 
         let bs = resp.into_body().bytes().await?;
 
-        let output: ListBucketOutput = de::from_reader(bs.reader())
+        let output: ListObjectsOutput = de::from_reader(bs.reader())
             .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
         ctx.done = !output.is_truncated;
@@ -101,144 +95,24 @@ impl oio::PageList for OssLister {
         }
 
         for object in output.contents {
-            if object.key.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.key);
+            if path == self.path {
+                continue;
+            }
+            if self.start_after.as_ref() == Some(&path) {
                 continue;
             }
 
-            // exclude the inclusive start_after itself
-            let path = &build_rel_path(&self.core.root, &object.key);
-            if self.start_after.as_ref() == Some(path) {
-                continue;
-            }
-            let mut meta = Metadata::new(EntryMode::FILE);
-
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));
             meta.set_content_length(object.size);
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            let rel = build_rel_path(&self.core.root, &object.key);
-            let path = unescape(&rel)
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
-            let de = oio::Entry::new(&path, meta);
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 
         Ok(())
-    }
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct ListBucketOutput {
-    prefix: String,
-    max_keys: u64,
-    encoding_type: String,
-    is_truncated: bool,
-    common_prefixes: Vec<CommonPrefix>,
-    contents: Vec<Content>,
-    key_count: u64,
-
-    next_continuation_token: Option<String>,
-}
-
-#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
-#[serde(default, rename_all = "PascalCase")]
-struct Content {
-    key: String,
-    last_modified: String,
-    #[serde(rename = "ETag")]
-    etag: String,
-    size: u64,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct CommonPrefix {
-    prefix: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_list_output() {
-        let bs = bytes::Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<ListBucketResult xmlns="https://doc.oss-cn-hangzhou.aliyuncs.com">
-    <Name>examplebucket</Name>
-    <Prefix></Prefix>
-    <StartAfter>b</StartAfter>
-    <MaxKeys>3</MaxKeys>
-    <EncodingType>url</EncodingType>
-    <IsTruncated>true</IsTruncated>
-    <NextContinuationToken>CgJiYw--</NextContinuationToken>
-    <Contents>
-        <Key>b/c</Key>
-        <LastModified>2020-05-18T05:45:54.000Z</LastModified>
-        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
-        <Size>25</Size>
-        <StorageClass>STANDARD</StorageClass>
-        <Owner>
-            <ID>1686240967192623</ID>
-            <DisplayName>1686240967192623</DisplayName>
-        </Owner>
-    </Contents>
-    <Contents>
-        <Key>ba</Key>
-        <LastModified>2020-05-18T11:17:58.000Z</LastModified>
-        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
-        <Size>25</Size>
-        <StorageClass>STANDARD</StorageClass>
-        <Owner>
-            <ID>1686240967192623</ID>
-            <DisplayName>1686240967192623</DisplayName>
-        </Owner>
-    </Contents>
-    <Contents>
-        <Key>bc</Key>
-        <LastModified>2020-05-18T05:45:59.000Z</LastModified>
-        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
-        <Size>25</Size>
-        <StorageClass>STANDARD</StorageClass>
-        <Owner>
-            <ID>1686240967192623</ID>
-            <DisplayName>1686240967192623</DisplayName>
-        </Owner>
-    </Contents>
-    <KeyCount>3</KeyCount>
-</ListBucketResult>"#,
-        );
-
-        let out: ListBucketOutput = de::from_reader(bs.reader()).expect("must_success");
-
-        assert!(out.is_truncated);
-        assert_eq!(out.next_continuation_token, Some("CgJiYw--".to_string()));
-        assert!(out.common_prefixes.is_empty());
-
-        assert_eq!(
-            out.contents,
-            vec![
-                Content {
-                    key: "b/c".to_string(),
-                    last_modified: "2020-05-18T05:45:54.000Z".to_string(),
-                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                    size: 25,
-                },
-                Content {
-                    key: "ba".to_string(),
-                    last_modified: "2020-05-18T11:17:58.000Z".to_string(),
-                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                    size: 25,
-                },
-                Content {
-                    key: "bc".to_string(),
-                    last_modified: "2020-05-18T05:45:59.000Z".to_string(),
-                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                    size: 25,
-                }
-            ]
-        )
     }
 }

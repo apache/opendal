@@ -36,7 +36,7 @@ class AsyncRenameTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
         final Capability capability = op().info.fullCapability;
-        assumeTrue(capability.read && capability.write && capability.rename);
+        assumeTrue(capability.read && capability.write && capability.rename && capability.createDir);
     }
 
     /**

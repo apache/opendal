@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 
-use super::core::SwiftCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
@@ -233,32 +233,16 @@ impl Accessor for SwiftBackend {
                 read_with_range: true,
 
                 write: true,
-                create_dir: true,
+                write_can_empty: true,
                 delete: true,
 
                 list: true,
                 list_without_recursive: true,
+                list_with_recursive: true,
 
                 ..Default::default()
             });
         am
-    }
-
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self
-            .core
-            .swift_create_object(path, AsyncBody::Empty)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -308,10 +292,6 @@ impl Accessor for SwiftBackend {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            // If the path is a container, the server will return a 204 response.
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -329,7 +309,12 @@ impl Accessor for SwiftBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SwiftLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let l = SwiftLister::new(
+            self.core.clone(),
+            path.to_string(),
+            args.recursive(),
+            args.limit(),
+        );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

@@ -37,7 +37,7 @@ class BlockingCopyTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
         final Capability capability = blockingOp().info.fullCapability;
-        assumeTrue(capability.read && capability.write && capability.copy);
+        assumeTrue(capability.read && capability.write && capability.copy && capability.createDir);
     }
 
     /**

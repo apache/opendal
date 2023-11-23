@@ -247,64 +247,11 @@ impl Accessor for GhacBackend {
 
                 write: true,
                 write_can_multi: true,
-                create_dir: true,
                 delete: true,
 
                 ..Default::default()
             });
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        // ignore creation of dir.
-        if path.ends_with('/') {
-            return Ok(RpCreateDir::default());
-        }
-
-        let req = self.ghac_reserve(path).await?;
-
-        let resp = self.client.send(req).await?;
-
-        let cache_id = if resp.status().is_success() {
-            let slc = resp.into_body().bytes().await?;
-            let reserve_resp: GhacReserveResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
-            reserve_resp.cache_id
-        } else if resp.status().as_u16() == StatusCode::CONFLICT {
-            // If the file is already exist, just return Ok.
-            return Ok(RpCreateDir::default());
-        } else {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
-        };
-
-        // Write only 1 byte to allow create.
-        let req = self
-            .ghac_upload(cache_id, 0, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
-            .await?;
-
-        let resp = self.client.send(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-        } else {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?);
-        }
-
-        let req = self.ghac_commit(cache_id, 1).await?;
-        let resp = self.client.send(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreateDir::default())
-        } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -355,11 +302,6 @@ impl Accessor for GhacBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let req = self.ghac_query(path).await?;
 
         let resp = self.client.send(req).await?;
@@ -369,8 +311,6 @@ impl Accessor for GhacBackend {
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
-        } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         } else {
             return Err(parse_error(resp).await?);
         };

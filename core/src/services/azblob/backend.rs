@@ -39,7 +39,6 @@ use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::services::azblob::writer::AzblobWriters;
-use crate::types::Metadata;
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
@@ -573,7 +572,6 @@ impl Accessor for AzblobBackend {
                 write_with_content_type: true,
 
                 delete: true,
-                create_dir: true,
                 copy: true,
 
                 list: true,
@@ -593,29 +591,6 @@ impl Accessor for AzblobBackend {
             });
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.azblob_put_blob_request(
-            path,
-            Some(0),
-            &OpWrite::default(),
-            AsyncBody::Empty,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -659,20 +634,12 @@ impl Accessor for AzblobBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
             _ => Err(parse_error(resp).await?),
         }
     }

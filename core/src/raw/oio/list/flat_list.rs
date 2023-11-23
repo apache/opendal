@@ -208,11 +208,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
     use std::collections::HashMap;
     use std::vec;
     use std::vec::IntoIter;
 
+    use async_trait::async_trait;
     use log::debug;
     use oio::BlockingList;
 

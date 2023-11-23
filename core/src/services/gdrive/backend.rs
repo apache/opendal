@@ -58,7 +58,6 @@ impl Accessor for GdriveBackend {
                 read: true,
 
                 list: true,
-
                 list_without_recursive: true,
 
                 write: true,
@@ -78,22 +77,14 @@ impl Accessor for GdriveBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let resp = self.core.gdrive_stat(path).await?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+
+        let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
+        Ok(RpStat::new(meta))
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

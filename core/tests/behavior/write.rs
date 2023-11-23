@@ -56,6 +56,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_write_with_content_disposition,
         test_stat_file,
         test_stat_dir,
+        test_stat_nested_parent_dir,
         test_stat_with_special_chars,
         test_stat_not_cleaned_path,
         test_stat_not_exist,
@@ -97,6 +98,10 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
 
 /// Create dir with dir path should succeed.
 pub async fn test_create_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await?;
@@ -110,6 +115,10 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 
 /// Create dir on existing dir should succeed.
 pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await?;
@@ -282,12 +291,23 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
+    // Stat a file with trailing slash should return `NotFound`.
+    if op.info().full_capability().create_dir {
+        let result = op.stat(&format!("{path}/")).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+    }
+
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
 /// Stat existing file should return metadata
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("write must succeed");
@@ -295,7 +315,37 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
+    // Stat a dir without trailing slash could have two behavior.
+    let result = op.stat(path.trim_end_matches('/')).await;
+    match result {
+        Ok(meta) => assert_eq!(meta.mode(), EntryMode::DIR),
+        Err(err) => assert_eq!(err.kind(), ErrorKind::NotFound),
+    }
+
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat the parent dir of existing dir should return metadata
+pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
+    let parent = format!("{}", uuid::Uuid::new_v4());
+    let file = format!("{}", uuid::Uuid::new_v4());
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&format!("{parent}/{file}"), content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&format!("{parent}/")).await?;
+    assert_eq!(meta.mode(), EntryMode::DIR);
+
+    op.delete(&format!("{parent}/{file}"))
+        .await
+        .expect("delete must succeed");
     Ok(())
 }
 
@@ -345,9 +395,17 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
+    // Stat not exist file should returns NotFound.
     let meta = op.stat(&path).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+
+    // Stat not exist dir should also returns NotFound.
+    if op.info().full_capability().create_dir {
+        let meta = op.stat(&format!("{path}/")).await;
+        assert!(meta.is_err());
+        assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+    }
 
     Ok(())
 }
@@ -820,6 +878,10 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 
 /// Read with dir path should return an error.
 pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("write must succeed");
@@ -1060,6 +1122,10 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
 
 /// Delete empty dir should succeed.
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("create must succeed");
@@ -1122,6 +1188,10 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
 
 /// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let dir = uuid::Uuid::new_v4().to_string();
     op.create_dir(&format!("{dir}/"))
         .await

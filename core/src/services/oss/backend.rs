@@ -420,7 +420,6 @@ impl Accessor for OssBackend {
                 },
 
                 delete: true,
-                create_dir: true,
                 copy: true,
 
                 list: true,
@@ -441,22 +440,6 @@ impl Accessor for OssBackend {
             });
 
         am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self
-            .core
-            .oss_put_object(path, None, &OpWrite::default(), AsyncBody::Empty)
-            .await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -509,11 +492,6 @@ impl Accessor for OssBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        if path == "/" {
-            let m = Metadata::new(EntryMode::DIR);
-            return Ok(RpStat::new(m));
-        }
-
         let resp = self
             .core
             .oss_head_object(path, args.if_match(), args.if_none_match())
@@ -523,11 +501,6 @@ impl Accessor for OssBackend {
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let m = Metadata::new(EntryMode::DIR);
-                Ok(RpStat::new(m))
-            }
-
             _ => Err(parse_error(resp).await?),
         }
     }

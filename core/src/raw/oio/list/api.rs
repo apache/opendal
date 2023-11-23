@@ -97,7 +97,7 @@ impl<P: List> List for Option<P> {
 /// Impl ListExt for all T: List
 impl<T: List> ListExt for T {}
 
-/// Extension of [`Read`] to make it easier for use.
+/// Extension of [`List`] to make it easier for use.
 pub trait ListExt: List {
     /// Build a future for `poll_next`.
     fn next(&mut self) -> NextFuture<Self> {

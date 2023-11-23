@@ -152,6 +152,8 @@ impl BlockingOperator {
     ///
     /// # Behavior
     ///
+    /// ## Services that support `create_dir`
+    ///
     /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
     /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
     /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
@@ -167,6 +169,12 @@ impl BlockingOperator {
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
     /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    ///
+    /// ## Services that not support `create_dir`
+    ///
+    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
+    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
+    /// we can do about this.
     ///
     /// # Examples
     ///
@@ -201,6 +209,8 @@ impl BlockingOperator {
     ///
     /// # Behavior
     ///
+    /// ## Services that support `create_dir`
+    ///
     /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
     /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
     /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
@@ -216,6 +226,12 @@ impl BlockingOperator {
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
     /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    ///
+    /// ## Services that not support `create_dir`
+    ///
+    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
+    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
+    /// we can do about this.
     ///
     /// # Examples
     ///

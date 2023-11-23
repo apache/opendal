@@ -98,6 +98,10 @@ pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
 
 /// Copy a dir as source should return an error.
 pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -113,6 +117,10 @@ pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
 
 /// Copy to a dir should return an error.
 pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
 

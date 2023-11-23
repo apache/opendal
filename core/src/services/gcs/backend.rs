@@ -30,7 +30,7 @@ use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
 
-use super::core::GcsCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
@@ -321,8 +321,6 @@ impl Accessor for GcsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
-                create_dir: true,
-
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -365,26 +363,6 @@ impl Accessor for GcsBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.gcs_insert_object_request(
-            path,
-            Some(0),
-            &OpWrite::default(),
-            AsyncBody::Empty,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreateDir::default())
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.gcs_get_object(path, &args).await?;
 
@@ -417,47 +395,34 @@ impl Accessor for GcsBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
-        if resp.status().is_success() {
-            // read http response body
-            let slc = resp.into_body().bytes().await?;
-
-            let meta: GetObjectJsonResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
-
-            let mode = if path.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut m = Metadata::new(mode);
-
-            m.set_etag(&meta.etag);
-            m.set_content_md5(&meta.md5_hash);
-
-            let size = meta
-                .size
-                .parse::<u64>()
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-            m.set_content_length(size);
-            if !meta.content_type.is_empty() {
-                m.set_content_type(&meta.content_type);
-            }
-
-            m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
-
-            Ok(RpStat::new(m))
-        } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-        } else {
-            Err(parse_error(resp).await?)
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
         }
+
+        let slc = resp.into_body().bytes().await?;
+
+        let meta: GetObjectJsonResponse =
+            serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+
+        let mut m = Metadata::new(EntryMode::FILE);
+
+        m.set_etag(&meta.etag);
+        m.set_content_md5(&meta.md5_hash);
+
+        let size = meta
+            .size
+            .parse::<u64>()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
+        m.set_content_length(size);
+        if !meta.content_type.is_empty() {
+            m.set_content_type(&meta.content_type);
+        }
+
+        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        Ok(RpStat::new(m))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

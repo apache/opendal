@@ -687,6 +687,36 @@ pub struct CompleteMultipartUploadResult {
     pub etag: String,
 }
 
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutput {
+    pub prefix: String,
+    pub max_keys: u64,
+    pub encoding_type: String,
+    pub is_truncated: bool,
+    pub common_prefixes: Vec<CommonPrefix>,
+    pub contents: Vec<ListObjectsOutputContent>,
+    pub key_count: u64,
+
+    pub next_continuation_token: Option<String>,
+}
+
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutputContent {
+    pub key: String,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub size: u64,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CommonPrefix {
+    pub prefix: String,
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
@@ -842,5 +872,85 @@ mod tests {
         );
         assert_eq!("oss-example", result.bucket);
         assert_eq!("multipart.data", result.key);
+    }
+
+    #[test]
+    fn test_parse_list_output() {
+        let bs = bytes::Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="https://doc.oss-cn-hangzhou.aliyuncs.com">
+    <Name>examplebucket</Name>
+    <Prefix></Prefix>
+    <StartAfter>b</StartAfter>
+    <MaxKeys>3</MaxKeys>
+    <EncodingType>url</EncodingType>
+    <IsTruncated>true</IsTruncated>
+    <NextContinuationToken>CgJiYw--</NextContinuationToken>
+    <Contents>
+        <Key>b/c</Key>
+        <LastModified>2020-05-18T05:45:54.000Z</LastModified>
+        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
+        <Size>25</Size>
+        <StorageClass>STANDARD</StorageClass>
+        <Owner>
+            <ID>1686240967192623</ID>
+            <DisplayName>1686240967192623</DisplayName>
+        </Owner>
+    </Contents>
+    <Contents>
+        <Key>ba</Key>
+        <LastModified>2020-05-18T11:17:58.000Z</LastModified>
+        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
+        <Size>25</Size>
+        <StorageClass>STANDARD</StorageClass>
+        <Owner>
+            <ID>1686240967192623</ID>
+            <DisplayName>1686240967192623</DisplayName>
+        </Owner>
+    </Contents>
+    <Contents>
+        <Key>bc</Key>
+        <LastModified>2020-05-18T05:45:59.000Z</LastModified>
+        <ETag>"35A27C2B9EAEEB6F48FD7FB5861D****"</ETag>
+        <Size>25</Size>
+        <StorageClass>STANDARD</StorageClass>
+        <Owner>
+            <ID>1686240967192623</ID>
+            <DisplayName>1686240967192623</DisplayName>
+        </Owner>
+    </Contents>
+    <KeyCount>3</KeyCount>
+</ListBucketResult>"#,
+        );
+
+        let out: ListObjectsOutput = quick_xml::de::from_reader(bs.reader()).expect("must_success");
+
+        assert!(out.is_truncated);
+        assert_eq!(out.next_continuation_token, Some("CgJiYw--".to_string()));
+        assert!(out.common_prefixes.is_empty());
+
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "b/c".to_string(),
+                    last_modified: "2020-05-18T05:45:54.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                },
+                ListObjectsOutputContent {
+                    key: "ba".to_string(),
+                    last_modified: "2020-05-18T11:17:58.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                },
+                ListObjectsOutputContent {
+                    key: "bc".to_string(),
+                    last_modified: "2020-05-18T05:45:59.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                }
+            ]
+        )
     }
 }

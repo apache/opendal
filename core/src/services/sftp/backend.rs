@@ -384,9 +384,9 @@ impl Accessor for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
-        let meta = fs.metadata(path).await?;
+        let meta: Metadata = fs.metadata(path).await?.into();
 
-        Ok(RpStat::new(meta.into()))
+        Ok(RpStat::new(meta))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

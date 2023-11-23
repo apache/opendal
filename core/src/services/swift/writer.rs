@@ -44,7 +44,7 @@ impl oio::OneShotWrite for SwiftWriter {
 
         let resp = self
             .core
-            .swift_create_object(&self.path, AsyncBody::Bytes(bs))
+            .swift_create_object(&self.path, bs.len() as u64, AsyncBody::Bytes(bs))
             .await?;
 
         let status = resp.status();

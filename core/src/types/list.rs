@@ -15,22 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use flagset::FlagSet;
-use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
+use tokio::task::JoinHandle;
 
 use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
-
-/// Future constructed by stating.
-type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
 
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
@@ -41,12 +40,20 @@ type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
 /// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct Lister {
     acc: FusedAccessor,
-    lister: oio::Lister,
+    lister: Option<oio::Lister>,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    stating: Option<StatFuture>,
+    /// task_queue is used to store tasks that are run in concurrent.
+    task_queue: VecDeque<StatTask>,
     errored: bool,
+}
+
+enum StatTask {
+    /// Handle is used to store the join handle of spawned task.
+    Handle(JoinHandle<(String, Result<RpStat>)>),
+    /// KnownEntry is used to store the entry that already contains the required metakey.
+    KnownEntry(Box<Option<(String, Metadata)>>),
 }
 
 /// # Safety
@@ -58,14 +65,16 @@ impl Lister {
     /// Create a new lister.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
+        let concurrent = cmp::max(1, args.concurrent());
+
         let (_, lister) = acc.list(path, args).await?;
 
         Ok(Self {
             acc,
-            lister,
+            lister: Some(lister),
             required_metakey,
 
-            stating: None,
+            task_queue: VecDeque::with_capacity(concurrent),
             errored: false,
         })
     }
@@ -80,44 +89,70 @@ impl Stream for Lister {
             return Poll::Ready(None);
         }
 
-        if let Some(fut) = self.stating.as_mut() {
-            let (path, rp) = ready!(fut.poll_unpin(cx));
+        let task_queue_len = self.task_queue.len();
+        let task_queue_cap = self.task_queue.capacity();
 
-            // Make sure we will not poll this future again.
-            self.stating = None;
-            let metadata = match rp {
-                Ok(rp) => rp.into_metadata(),
-                Err(err) => {
-                    self.errored = true;
-                    return Poll::Ready(Some(Err(err)));
+        if let Some(lister) = self.lister.as_mut() {
+            if task_queue_len < task_queue_cap {
+                match lister.poll_next(cx) {
+                    Poll::Pending => {
+                        if task_queue_len == 0 {
+                            return Poll::Pending;
+                        }
+                    }
+                    Poll::Ready(Ok(Some(oe))) => {
+                        let (path, metadata) = oe.into_entry().into_parts();
+                        // TODO: we can optimize this by checking the provided metakey provided by services.
+                        if metadata.contains_metakey(self.required_metakey) {
+                            self.task_queue
+                                .push_back(StatTask::KnownEntry(Box::new(Some((path, metadata)))));
+                        } else {
+                            let acc = self.acc.clone();
+                            let fut = async move {
+                                let res = acc.stat(&path, OpStat::default()).await;
+                                (path, res)
+                            };
+                            self.task_queue
+                                .push_back(StatTask::Handle(tokio::spawn(fut)));
+                        }
+                    }
+                    Poll::Ready(Ok(None)) => {
+                        self.lister = None;
+                    }
+                    Poll::Ready(Err(err)) => {
+                        self.errored = true;
+                        return Poll::Ready(Some(Err(err)));
+                    }
+                };
+            }
+        }
+
+        if let Some(handle) = self.task_queue.front_mut() {
+            return match handle {
+                StatTask::Handle(handle) => {
+                    let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;
+
+                    match rp {
+                        Ok(rp) => {
+                            self.task_queue.pop_front();
+                            let metadata = rp.into_metadata();
+                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
+                        }
+                        Err(err) => {
+                            self.errored = true;
+                            Poll::Ready(Some(Err(err)))
+                        }
+                    }
+                }
+                StatTask::KnownEntry(entry) => {
+                    let (path, metadata) = entry.take().expect("entry must be valid");
+                    self.task_queue.pop_front();
+                    Poll::Ready(Some(Ok(Entry::new(path, metadata))))
                 }
             };
-
-            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        match ready!(self.lister.poll_next(cx)) {
-            Ok(Some(oe)) => {
-                let (path, metadata) = oe.into_entry().into_parts();
-                if metadata.contains_metakey(self.required_metakey) {
-                    return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
-                }
-
-                let acc = self.acc.clone();
-                let fut = async move {
-                    let res = acc.stat(&path, OpStat::default()).await;
-
-                    (path, res)
-                };
-                self.stating = Some(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            Ok(None) => Poll::Ready(None),
-            Err(err) => {
-                self.errored = true;
-                Poll::Ready(Some(Err(err)))
-            }
-        }
+        Poll::Ready(None)
     }
 }
 

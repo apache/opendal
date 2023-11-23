@@ -15,14 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use aws_config::{BehaviorVersion, Region};
+use std::env;
+
+use aws_config::BehaviorVersion;
+use aws_config::Region;
 use aws_credential_types::Credentials;
 use criterion::Criterion;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::services;
 use opendal::Operator;
 use rand::prelude::*;
-use std::env;
 use tokio::io::AsyncReadExt;
 
 fn main() {

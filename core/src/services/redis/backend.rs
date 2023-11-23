@@ -380,7 +380,6 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
-                create_dir: true,
 
                 ..Default::default()
             },

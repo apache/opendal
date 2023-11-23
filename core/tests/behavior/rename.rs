@@ -80,6 +80,10 @@ pub async fn test_rename_non_existing_source(op: Operator) -> Result<()> {
 
 /// Rename a dir as source should return an error.
 pub async fn test_rename_source_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -95,6 +99,10 @@ pub async fn test_rename_source_dir(op: Operator) -> Result<()> {
 
 /// Rename to a dir should return an error.
 pub async fn test_rename_target_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
 

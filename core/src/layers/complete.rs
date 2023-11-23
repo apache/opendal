@@ -49,6 +49,10 @@ use crate::*;
 ///
 /// So far `CompleteLayer` will do the following things:
 ///
+/// ## Stat Completion
+///
+/// Not all services support stat dir natively, but we can simulate it via list.
+///
 /// ## Read Completion
 ///
 /// OpenDAL requires all reader implements [`oio::Read`] and
@@ -148,7 +152,138 @@ impl<A: Accessor> CompleteAccessor<A> {
         .with_operation(op)
     }
 
-    async fn complete_reader(
+    async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if capability.create_dir {
+            return self.inner().create_dir(path, args).await;
+        }
+        if capability.write_can_empty && capability.list {
+            let (_, mut w) = self.inner.write(path, OpWrite::default()).await?;
+            oio::WriteExt::close(&mut w).await?;
+            return Ok(RpCreateDir::default());
+        }
+
+        Err(self.new_unsupported_error(Operation::CreateDir))
+    }
+
+    fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if capability.create_dir && capability.blocking {
+            return self.inner().blocking_create_dir(path, args);
+        }
+        if capability.write_can_empty && capability.list && capability.blocking {
+            let (_, mut w) = self.inner.blocking_write(path, OpWrite::default())?;
+            oio::BlockingWrite::close(&mut w)?;
+            return Ok(RpCreateDir::default());
+        }
+
+        Err(self.new_unsupported_error(Operation::BlockingCreateDir))
+    }
+
+    async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.meta.full_capability();
+        if !capability.stat {
+            return Err(self.new_unsupported_error(Operation::Stat));
+        }
+
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Forward to inner if create_dir is supported.
+        if path.ends_with('/') && capability.create_dir {
+            let meta = self.inner.stat(path, args).await?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Otherwise, we can simulate stat dir via `list`.
+        if path.ends_with('/') && capability.list_with_recursive {
+            let (_, mut l) = self
+                .inner
+                .list(
+                    path.trim_end_matches('/'),
+                    OpList::default().with_recursive(true).with_limit(1),
+                )
+                .await?;
+
+            return if oio::ListExt::next(&mut l).await?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "the directory is not found",
+                ))
+            };
+        }
+
+        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        self.inner.stat(path, args).await.map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
+            })
+        })
+    }
+
+    fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.meta.full_capability();
+        if !capability.stat {
+            return Err(self.new_unsupported_error(Operation::Stat));
+        }
+
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Forward to inner if create dir is supported.
+        if path.ends_with('/') && capability.create_dir {
+            let meta = self.inner.blocking_stat(path, args)?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Otherwise, we can simulate stat a dir path via `list`.
+        if path.ends_with('/') && capability.list_with_recursive {
+            let (_, mut l) = self.inner.blocking_list(
+                path.trim_end_matches('/'),
+                OpList::default().with_recursive(true).with_limit(1),
+            )?;
+
+            return if oio::BlockingList::next(&mut l)?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "the directory is not found",
+                ))
+            };
+        }
+
+        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        self.inner.blocking_stat(path, args).map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.metakey();
+                m.with_metakey(bit | Metakey::Complete)
+            })
+        })
+    }
+
+    async fn complete_read(
         &self,
         path: &str,
         args: OpRead,
@@ -184,7 +319,7 @@ impl<A: Accessor> CompleteAccessor<A> {
         }
     }
 
-    fn complete_blocking_reader(
+    fn complete_blocking_read(
         &self,
         path: &str,
         args: OpRead,
@@ -329,20 +464,18 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
             cap.read_can_next = true;
             cap.read_can_seek = true;
         }
+        if cap.list && cap.write_can_empty {
+            cap.create_dir = true;
+        }
         meta
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir {
-            return Err(self.new_unsupported_error(Operation::CreateDir));
-        }
-
-        self.inner().create_dir(path, args).await
+        self.complete_create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.complete_reader(path, args).await
+        self.complete_read(path, args).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -407,17 +540,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat {
-            return Err(self.new_unsupported_error(Operation::Stat));
-        }
-
-        self.inner.stat(path, args).await.map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.complete_stat(path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
@@ -457,16 +580,11 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingCreateDir));
-        }
-
-        self.inner().blocking_create_dir(path, args)
+        self.complete_blocking_create_dir(path, args)
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_reader(path, args)
+        self.complete_blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -509,17 +627,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingStat));
-        }
-
-        self.inner.blocking_stat(path, args).map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.complete_blocking_stat(path, args)
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {

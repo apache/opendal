@@ -20,14 +20,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
-use serde::Deserialize;
 
-use super::core::CosCore;
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
@@ -64,8 +61,8 @@ impl oio::PageList for CosLister {
 
         let bs = resp.into_body().bytes().await?;
 
-        let output: Output = de::from_reader(bs.reader())
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
+        let output: ListObjectsOutput =
+            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //
@@ -86,113 +83,18 @@ impl oio::PageList for CosLister {
         }
 
         for object in output.contents {
-            if object.key.ends_with('/') {
+            let path = build_rel_path(&self.core.root, &object.key);
+
+            if path == self.path {
                 continue;
             }
 
-            let meta = Metadata::new(EntryMode::FILE).with_content_length(object.size);
+            let meta = Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);
 
-            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
-
+            let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
         }
 
         Ok(())
-    }
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct Output {
-    name: String,
-    prefix: String,
-    contents: Vec<Content>,
-    common_prefixes: Vec<CommonPrefix>,
-    marker: String,
-    next_marker: Option<String>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct CommonPrefix {
-    prefix: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct Content {
-    key: String,
-    size: u64,
-}
-
-#[cfg(test)]
-mod tests {
-    use bytes::Buf;
-
-    use super::*;
-
-    #[test]
-    fn test_parse_xml() {
-        let bs = bytes::Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<ListBucketResult>
-    <Name>examplebucket</Name>
-    <Prefix>obj</Prefix>
-    <Marker>obj002</Marker>
-    <NextMarker>obj004</NextMarker>
-    <MaxKeys>1000</MaxKeys>
-    <IsTruncated>false</IsTruncated>
-    <Contents>
-        <Key>obj002</Key>
-        <LastModified>2015-07-01T02:11:19.775Z</LastModified>
-        <ETag>"a72e382246ac83e86bd203389849e71d"</ETag>
-        <Size>9</Size>
-        <Owner>
-            <ID>b4bf1b36d9ca43d984fbcb9491b6fce9</ID>
-        </Owner>
-        <StorageClass>STANDARD</StorageClass>
-    </Contents>
-    <Contents>
-        <Key>obj003</Key>
-        <LastModified>2015-07-01T02:11:19.775Z</LastModified>
-        <ETag>"a72e382246ac83e86bd203389849e71d"</ETag>
-        <Size>10</Size>
-        <Owner>
-            <ID>b4bf1b36d9ca43d984fbcb9491b6fce9</ID>
-        </Owner>
-        <StorageClass>STANDARD</StorageClass>
-    </Contents>
-    <CommonPrefixes>
-        <Prefix>hello</Prefix>
-    </CommonPrefixes>
-    <CommonPrefixes>
-        <Prefix>world</Prefix>
-    </CommonPrefixes>
-</ListBucketResult>"#,
-        );
-        let out: Output = de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.name, "examplebucket".to_string());
-        assert_eq!(out.prefix, "obj".to_string());
-        assert_eq!(out.marker, "obj002".to_string());
-        assert_eq!(out.next_marker, Some("obj004".to_string()),);
-        assert_eq!(
-            out.contents
-                .iter()
-                .map(|v| v.key.clone())
-                .collect::<Vec<String>>(),
-            ["obj002", "obj003"],
-        );
-        assert_eq!(
-            out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
-            [9, 10],
-        );
-        assert_eq!(
-            out.common_prefixes
-                .iter()
-                .map(|v| v.prefix.clone())
-                .collect::<Vec<String>>(),
-            ["hello", "world"],
-        )
     }
 }

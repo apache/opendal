@@ -482,3 +482,99 @@ pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "ETag")]
     pub etag: String,
 }
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutput {
+    pub name: String,
+    pub prefix: String,
+    pub contents: Vec<ListObjectsOutputContent>,
+    pub common_prefixes: Vec<CommonPrefix>,
+    pub marker: String,
+    pub next_marker: Option<String>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CommonPrefix {
+    pub prefix: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutputContent {
+    pub key: String,
+    pub size: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Buf;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_xml() {
+        let bs = bytes::Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ListBucketResult>
+    <Name>examplebucket</Name>
+    <Prefix>obj</Prefix>
+    <Marker>obj002</Marker>
+    <NextMarker>obj004</NextMarker>
+    <MaxKeys>1000</MaxKeys>
+    <IsTruncated>false</IsTruncated>
+    <Contents>
+        <Key>obj002</Key>
+        <LastModified>2015-07-01T02:11:19.775Z</LastModified>
+        <ETag>"a72e382246ac83e86bd203389849e71d"</ETag>
+        <Size>9</Size>
+        <Owner>
+            <ID>b4bf1b36d9ca43d984fbcb9491b6fce9</ID>
+        </Owner>
+        <StorageClass>STANDARD</StorageClass>
+    </Contents>
+    <Contents>
+        <Key>obj003</Key>
+        <LastModified>2015-07-01T02:11:19.775Z</LastModified>
+        <ETag>"a72e382246ac83e86bd203389849e71d"</ETag>
+        <Size>10</Size>
+        <Owner>
+            <ID>b4bf1b36d9ca43d984fbcb9491b6fce9</ID>
+        </Owner>
+        <StorageClass>STANDARD</StorageClass>
+    </Contents>
+    <CommonPrefixes>
+        <Prefix>hello</Prefix>
+    </CommonPrefixes>
+    <CommonPrefixes>
+        <Prefix>world</Prefix>
+    </CommonPrefixes>
+</ListBucketResult>"#,
+        );
+        let out: ListObjectsOutput = quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!(out.name, "examplebucket".to_string());
+        assert_eq!(out.prefix, "obj".to_string());
+        assert_eq!(out.marker, "obj002".to_string());
+        assert_eq!(out.next_marker, Some("obj004".to_string()),);
+        assert_eq!(
+            out.contents
+                .iter()
+                .map(|v| v.key.clone())
+                .collect::<Vec<String>>(),
+            ["obj002", "obj003"],
+        );
+        assert_eq!(
+            out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
+            [9, 10],
+        );
+        assert_eq!(
+            out.common_prefixes
+                .iter()
+                .map(|v| v.prefix.clone())
+                .collect::<Vec<String>>(),
+            ["hello", "world"],
+        )
+    }
+}

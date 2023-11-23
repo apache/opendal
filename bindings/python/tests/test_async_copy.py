@@ -47,7 +47,7 @@ async def test_async_copy_non_exist(service_name, operator, async_operator):
 
 
 @pytest.mark.asyncio
-@pytest.mark.need_capability("read", "write", "copy")
+@pytest.mark.need_capability("read", "write", "copy", "create_dir")
 async def test_async_copy_source_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(source_path)
@@ -57,7 +57,7 @@ async def test_async_copy_source_directory(service_name, operator, async_operato
 
 
 @pytest.mark.asyncio
-@pytest.mark.need_capability("read", "write", "copy")
+@pytest.mark.need_capability("read", "write", "copy", "create_dir")
 async def test_async_copy_target_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)

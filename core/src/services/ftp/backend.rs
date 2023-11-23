@@ -403,11 +403,6 @@ impl Accessor for FtpBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // root dir, return default Metadata with Dir EntryMode.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let file = self.ftp_stat(path).await?;
 
         let mode = if file.is_file() {
@@ -417,6 +412,7 @@ impl Accessor for FtpBackend {
         } else {
             EntryMode::Unknown
         };
+
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
         meta.set_last_modified(file.modified().into());

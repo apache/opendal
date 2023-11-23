@@ -22,7 +22,7 @@ import pytest
 from opendal.exceptions import NotFound
 
 
-@pytest.mark.need_capability("read", "write", "delete", "list", "blocking")
+@pytest.mark.need_capability("read", "write", "delete", "list", "blocking", "create_dir")
 def test_sync_remove_all(service_name, operator, async_operator):
     parent = f"random_dir_{str(uuid4())}"
     excepted = [

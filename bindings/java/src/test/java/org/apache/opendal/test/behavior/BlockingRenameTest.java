@@ -36,7 +36,11 @@ class BlockingRenameTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
         final Capability capability = blockingOp().info.fullCapability;
-        assumeTrue(capability.read && capability.write && capability.blocking && capability.rename);
+        assumeTrue(capability.read
+                && capability.write
+                && capability.blocking
+                && capability.rename
+                && capability.createDir);
     }
 
     /**

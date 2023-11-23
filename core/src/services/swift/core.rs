@@ -17,8 +17,9 @@
 
 use std::fmt::Debug;
 
-use http::Request;
 use http::Response;
+use http::{header, Request};
+use serde::Deserialize;
 
 use crate::raw::*;
 use crate::*;
@@ -70,12 +71,13 @@ impl SwiftCore {
         &self,
         path: &str,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
-        let url = format!(
+        let mut url = format!(
             "{}/v1/{}/{}/?prefix={}&delimiter={}&format=json",
             self.endpoint,
             self.account,
@@ -83,6 +85,10 @@ impl SwiftCore {
             percent_encode_path(&p),
             delimiter
         );
+
+        if let Some(limit) = limit {
+            url += &format!("&limit={}", limit);
+        }
 
         let mut req = Request::get(&url);
 
@@ -98,6 +104,7 @@ impl SwiftCore {
     pub async fn swift_create_object(
         &self,
         path: &str,
+        length: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -113,10 +120,7 @@ impl SwiftCore {
         let mut req = Request::put(&url);
 
         req = req.header("X-Auth-Token", &self.token);
-
-        if p.ends_with('/') {
-            req = req.header("Content-Length", "0");
-        }
+        req = req.header(header::CONTENT_LENGTH, length);
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -215,5 +219,81 @@ impl SwiftCore {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum ListOpResponse {
+    Subdir {
+        subdir: String,
+    },
+    FileInfo {
+        bytes: u64,
+        hash: String,
+        name: String,
+        content_type: String,
+        last_modified: String,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_list_response_test() -> Result<()> {
+        let resp = bytes::Bytes::from(
+            r#"
+            [
+                {
+                    "subdir": "animals/"
+                },
+                {
+                    "subdir": "fruit/"
+                },
+                {
+                    "bytes": 147,
+                    "hash": "5e6b5b70b0426b1cc1968003e1afa5ad",
+                    "name": "test.txt",
+                    "content_type": "text/plain",
+                    "last_modified": "2023-11-01T03:00:23.147480"
+                }
+            ]
+            "#,
+        );
+
+        let mut out = serde_json::from_slice::<Vec<ListOpResponse>>(&resp)
+            .map_err(new_json_deserialize_error)?;
+
+        assert_eq!(out.len(), 3);
+        assert_eq!(
+            out.pop().unwrap(),
+            ListOpResponse::FileInfo {
+                bytes: 147,
+                hash: "5e6b5b70b0426b1cc1968003e1afa5ad".to_string(),
+                name: "test.txt".to_string(),
+                content_type:
+                    "multipart/form-data;boundary=------------------------25004a866ee9c0cb"
+                        .to_string(),
+                last_modified: "2023-11-01T03:00:23.147480".to_string(),
+            }
+        );
+
+        assert_eq!(
+            out.pop().unwrap(),
+            ListOpResponse::Subdir {
+                subdir: "fruit/".to_string()
+            }
+        );
+
+        assert_eq!(
+            out.pop().unwrap(),
+            ListOpResponse::Subdir {
+                subdir: "animals/".to_string()
+            }
+        );
+
+        Ok(())
     }
 }

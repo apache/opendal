@@ -17,8 +17,12 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::future::Future;
+use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+
+use pin_project::pin_project;
 
 use crate::raw::oio::Entry;
 use crate::*;
@@ -58,7 +62,7 @@ impl From<ListOperation> for &'static str {
 }
 
 /// Page trait is used by [`raw::Accessor`] to implement `list` operation.
-pub trait List: Send + Sync + 'static {
+pub trait List: Unpin + Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
@@ -87,6 +91,35 @@ impl<P: List> List for Option<P> {
             Some(p) => p.poll_next(cx),
             None => Poll::Ready(Ok(None)),
         }
+    }
+}
+
+/// Impl ListExt for all T: List
+impl<T: List> ListExt for T {}
+
+/// Extension of [`List`] to make it easier for use.
+pub trait ListExt: List {
+    /// Build a future for `poll_next`.
+    fn next(&mut self) -> NextFuture<Self> {
+        NextFuture { lister: self }
+    }
+}
+
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
+pub struct NextFuture<'a, L: List + Unpin + ?Sized> {
+    lister: &'a mut L,
+}
+
+impl<L> Future for NextFuture<'_, L>
+where
+    L: List + Unpin + ?Sized,
+{
+    type Output = Result<Option<Entry>>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+        let this = self.project();
+        Pin::new(this.lister).poll_next(cx)
     }
 }
 

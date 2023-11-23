@@ -102,7 +102,6 @@ TEST_F(OpendalBddTest, FeatureTest)
     EXPECT_FALSE(opendal_metadata_last_modified_ms(meta) != -1);
     opendal_metadata_free(meta);
 
-
     // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
     EXPECT_EQ(r.error, nullptr);

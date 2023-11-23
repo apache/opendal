@@ -18,7 +18,8 @@
 use bytes::Bytes;
 
 use super::operator_functions::*;
-use crate::raw::oio::{BlockingRead, WriteBuf};
+use crate::raw::oio::BlockingRead;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -141,7 +142,7 @@ impl BlockingOperator {
 
 /// # Operator blocking API.
 impl BlockingOperator {
-    /// Get current path's metadata.
+    /// Get given path's metadata.
     ///
     /// # Notes
     ///
@@ -149,7 +150,35 @@ impl BlockingOperator {
     /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
     /// so that we can avoid extra requests.
     ///
+    /// # Behavior
+    ///
+    /// ## Services that support `create_dir`
+    ///
+    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
+    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
+    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    ///
+    /// Here are the behavior list:
+    ///
+    /// | Case                   | Path            | Result                                     |
+    /// |------------------------|-----------------|--------------------------------------------|
+    /// | stat existing dir      | `abc/`          | Metadata with dir mode                     |
+    /// | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
+    /// | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
+    /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
+    /// | stat not existing path | `xyz`           | Error `NotFound`                           |
+    ///
+    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    ///
+    /// ## Services that not support `create_dir`
+    ///
+    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
+    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
+    /// we can do about this.
+    ///
     /// # Examples
+    ///
+    /// ## Check if file exists
     ///
     /// ```
     /// # use anyhow::Result;
@@ -170,29 +199,61 @@ impl BlockingOperator {
         self.stat_with(path).call()
     }
 
-    /// Get current path's metadata **without cache** directly with extra options.
+    /// Get given path's metadata with extra options.
     ///
     /// # Notes
     ///
-    /// Use `stat` if you:
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
+    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
+    /// so that we can avoid extra requests.
     ///
-    /// - Want to detect the outside changes of path.
-    /// - Don't want to read from cached metadata.
+    /// # Behavior
     ///
-    /// You may want to use `metadata` if you are working with entries
-    /// returned by [`Lister`]. It's highly possible that metadata
-    /// you want has already been cached.
+    /// ## Services that support `create_dir`
+    ///
+    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
+    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
+    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    ///
+    /// Here are the behavior list:
+    ///
+    /// | Case                   | Path            | Result                                     |
+    /// |------------------------|-----------------|--------------------------------------------|
+    /// | stat existing dir      | `abc/`          | Metadata with dir mode                     |
+    /// | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
+    /// | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
+    /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
+    /// | stat not existing path | `xyz`           | Error `NotFound`                           |
+    ///
+    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    ///
+    /// ## Services that not support `create_dir`
+    ///
+    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
+    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
+    /// we can do about this.
     ///
     /// # Examples
+    ///
+    /// ## Get metadata while `ETag` matches
+    ///
+    /// `stat_with` will
+    ///
+    /// - return `Ok(metadata)` if `ETag` matches
+    /// - return `Err(error)` and `error.kind() == ErrorKind::ConditionNotMatch` if file exists but
+    ///   `ETag` mismatch
+    /// - return `Err(err)` if other errors occur, for example, `NotFound`.
     ///
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::BlockingOperator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// if let Err(e) = op.stat_with("test").if_match("<etag>").call() {
+    ///     if e.kind() == ErrorKind::ConditionNotMatch {
+    ///         println!("file exists, but etag mismatch")
+    ///     }
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("file not exist")
     ///     }

@@ -29,11 +29,6 @@ public class Capability {
     public final boolean stat;
 
     /**
-     *  If operator supports stat dir.
-     */
-    public final boolean statDir;
-
-    /**
      * If operator supports stat with if matched.
      */
     public final boolean statWithIfMatch;
@@ -223,7 +218,6 @@ public class Capability {
 
     public Capability(
             boolean stat,
-            boolean statDir,
             boolean statWithIfMatch,
             boolean statWithIfNoneMatch,
             boolean read,
@@ -262,7 +256,6 @@ public class Capability {
             long batchMaxOperations,
             boolean blocking) {
         this.stat = stat;
-        this.statDir = statDir;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
         this.read = read;

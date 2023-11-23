@@ -243,7 +243,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        // Forward to inner if stat_dir is supported.
+        // Forward to inner if create dir is supported.
         if path.ends_with('/') && capability.create_dir {
             let meta = self.inner.blocking_stat(path, args)?.into_metadata();
 
@@ -257,7 +257,7 @@ impl<A: Accessor> CompleteAccessor<A> {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        // Otherwise, we can simulate `stat_dir` via `list`.
+        // Otherwise, we can simulate stat a dir path via `list`.
         if path.ends_with('/') && capability.list_with_recursive {
             let (_, mut l) = self.inner.blocking_list(
                 path.trim_end_matches('/'),

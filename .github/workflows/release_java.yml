@@ -24,6 +24,11 @@ on:
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release_java.yml"
 
 jobs:
   stage-snapshot:
@@ -62,6 +67,10 @@ jobs:
         with:
           version: "23.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup linux for zigbuild
+        if: "contains(matrix.os, 'ubuntu-latest')"
+        run: pip install cargo-zigbuild
 
       - name: Setup linux-aarch_64
         if: "contains(matrix.classifier, 'linux-aarch_64')"

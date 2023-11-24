@@ -29,9 +29,9 @@ def classifier_to_target(classifier: str) -> str:
     if classifier == 'osx-x86_64':
         return 'x86_64-apple-darwin'
     if classifier == 'linux-aarch_64':
-        return 'aarch64-unknown-linux-gnu'
+        return 'aarch64-unknown-linux-gnu.2.17'
     if classifier == 'linux-x86_64':
-        return 'x86_64-unknown-linux-gnu'
+        return 'x86_64-unknown-linux-gnu.2.17'
     if classifier == 'windows-x86_64':
         return 'x86_64-pc-windows-msvc'
     raise Exception(f'Unsupported classifier: {classifier}')
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--features', type=str, default='default')
     args = parser.parse_args()
 
-    cmd = ['cargo', 'build', '--color=always', f'--profile={args.profile}']
+    cmd = ['cargo', 'zigbuild', '--color=always', f'--profile={args.profile}']
 
     if args.features:
         cmd += ['--features', args.features]

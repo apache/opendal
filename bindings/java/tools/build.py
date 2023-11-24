@@ -67,7 +67,7 @@ if __name__ == '__main__':
     else:
         target = classifier_to_target(args.classifier)
 
-    command = ['rustup', 'target', 'add', target]
+    command = ['rustup', 'target', 'add', target.replace(".2.17", "")]
     print('$ ' + subprocess.list2cmdline(command))
     subprocess.run(command, cwd=basedir, check=True)
     cmd += ['--target', target]

@@ -24,11 +24,6 @@ on:
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/release_java.yml"
 
 jobs:
   stage-snapshot:
@@ -162,16 +157,16 @@ jobs:
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 
-#      - name: Deploy local staged artifacts
-#        if: ${{ github.event_name != 'pull_request' }}
-#        working-directory: bindings/java
-#        run: |
-#          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
-#            -DaltStagingDirectory=$LOCAL_STAGING_DIR \
-#            -DskipStagingRepositoryClose=true \
-#            -DserverId=apache.releases.https \
-#            -DnexusUrl=https://repository.apache.org
-#        env:
-#          MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
-#          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
-#          MAVEN_GPG_PASSPHRASE: ""
+      - name: Deploy local staged artifacts
+        if: ${{ github.event_name != 'pull_request' }}
+        working-directory: bindings/java
+        run: |
+          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
+            -DaltStagingDirectory=$LOCAL_STAGING_DIR \
+            -DskipStagingRepositoryClose=true \
+            -DserverId=apache.releases.https \
+            -DnexusUrl=https://repository.apache.org
+        env:
+          MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
+          MAVEN_GPG_PASSPHRASE: ""

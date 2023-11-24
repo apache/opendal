@@ -74,8 +74,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           # Setup for cargo
-          echo "[target.aarch64-unknown-linux-gnu]" >> ~/.cargo/config
-          echo "linker = \"aarch64-linux-gnu-gcc\"" >> ~/.cargo/config
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Local staging
         working-directory: bindings/java

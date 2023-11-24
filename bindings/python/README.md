@@ -18,6 +18,7 @@ pip install opendal
 
 ## Usage
 
+fs service example:
 ```python
 import opendal
 
@@ -39,6 +40,30 @@ async def main():
 
 asyncio.run(main())
 ```
+
+s3 service example: 
+```python
+import opendal
+
+op = opendal.Operator("s3", root="/tmp", bucket="your_bucket_name", region="your_region")
+op.write("test.txt", b"Hello World")
+print(op.read("test.txt"))
+print(op.stat("test.txt").content_length)
+```
+
+Or using the async API:
+
+```python
+import asyncio
+
+async def main():
+    op = opendal.AsyncOperator("s3", root="/tmp", bucket="your_bucket_name", region="your_region")
+    await op.write("test.txt", b"Hello World")
+    print(await op.read("test.txt"))
+
+asyncio.run(main())
+```
+
 
 ## Development
 

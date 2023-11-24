@@ -27,8 +27,10 @@ use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
-pub type AzblobWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
+pub type AzblobWriters = oio::TwoWaysWriter<
+    oio::MultipartUploadWriter<AzblobWriter>,
+    oio::AppendObjectWriter<AzblobWriter>,
+>;
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
@@ -40,33 +42,6 @@ pub struct AzblobWriter {
 impl AzblobWriter {
     pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
         AzblobWriter { core, op, path }
-    }
-}
-
-#[async_trait]
-impl oio::OneShotWrite for AzblobWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-        let mut req = self.core.azblob_put_blob_request(
-            &self.path,
-            Some(bs.len() as u64),
-            &self.op,
-            AsyncBody::ChunkedBytes(bs),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 }
 
@@ -136,3 +111,77 @@ impl oio::AppendObjectWrite for AzblobWriter {
         }
     }
 }
+
+#[async_trait]
+impl oio::MultipartUploadWrite for AzblobWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .azblob_put_blob_request(&self.path, Some(size), &self.op, body)?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn initiate_part(&self) -> Result<String> {
+        let resp = self
+            .core
+            .azblob_init_multipart_blob_request(
+                &self.path,
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                false,
+            )
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+
+                let result: InitiateMultipartUploadResult =
+                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
+                        .map_err(new_xml_deserialize_error)?;
+
+                Ok(result.upload_id)
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<oio::MultipartUploadPart> {
+        todo!()
+    }
+
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartUploadPart],
+    ) -> Result<()> {
+        todo!()
+    }
+
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        todo!()
+    }
+}
+

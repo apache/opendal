@@ -533,6 +533,7 @@ impl Accessor for AzblobBackend {
                 write_can_append: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_content_disposition: true,
 
                 delete: true,
                 create_dir: true,
@@ -600,7 +601,7 @@ impl Accessor for AzblobBackend {
         let w = if args.append() {
             AzblobWriters::Two(oio::AppendObjectWriter::new(w))
         } else {
-            AzblobWriters::One(oio::OneShotWriter::new(w))
+            AzblobWriters::One(oio::MultipartUploadWriter::new(w))
         };
 
         Ok((RpWrite::default(), w))

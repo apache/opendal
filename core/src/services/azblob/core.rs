@@ -369,6 +369,75 @@ impl AzblobCore {
         Ok(req)
     }
 
+
+    pub async fn azblob_init_multipart_blob_request(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
+        is_presign: bool,
+    ) -> Result<Response<IncomingAsyncBody>> {
+
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::post(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        // The content-length header must be set to zero
+        // when creating an appendable blob.
+        req = req.header(CONTENT_LENGTH, 0);
+
+
+        if let Some(ty) = args.content_type() {
+            req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+
+    /// Abort an on-going multipart upload.
+    /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
+    pub async fn azblob_abort_multipart_upload(
+        &self,
+        path: &str,
+        block_id: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?comp=appendblock",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
@@ -530,4 +599,15 @@ impl AzblobCore {
         self.sign(&mut req).await?;
         self.send(req).await
     }
+}
+
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    #[cfg(test)]
+    pub bucket: String,
+    #[cfg(test)]
+    pub key: String,
+    pub upload_id: String,
 }

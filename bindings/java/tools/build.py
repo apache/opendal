@@ -29,9 +29,9 @@ def classifier_to_target(classifier: str) -> str:
     if classifier == 'osx-x86_64':
         return 'x86_64-apple-darwin'
     if classifier == 'linux-aarch_64':
-        return 'aarch64-unknown-linux-gnu.2.17'
+        return 'aarch64-unknown-linux-gnu'
     if classifier == 'linux-x86_64':
-        return 'x86_64-unknown-linux-gnu.2.17'
+        return 'x86_64-unknown-linux-gnu'
     if classifier == 'windows-x86_64':
         return 'x86_64-pc-windows-msvc'
     raise Exception(f'Unsupported classifier: {classifier}')
@@ -55,9 +55,13 @@ if __name__ == '__main__':
     parser.add_argument('--target', type=str, default='')
     parser.add_argument('--profile', type=str, default='dev')
     parser.add_argument('--features', type=str, default='default')
+    parser.add_argument('--enable-zigbuild', type=bool)
     args = parser.parse_args()
 
-    cmd = ['cargo', 'zigbuild', '--color=always', f'--profile={args.profile}']
+    cmd = ['cargo',
+           'zigbuild' if args.enable_zigbuild else 'build',
+           '--color=always',
+           f'--profile={args.profile}']
 
     if args.features:
         cmd += ['--features', args.features]
@@ -67,10 +71,14 @@ if __name__ == '__main__':
     else:
         target = classifier_to_target(args.classifier)
 
-    command = ['rustup', 'target', 'add', target.replace(".2.17", "")]
+    command = ['rustup', 'target', 'add', target]
     print('$ ' + subprocess.list2cmdline(command))
     subprocess.run(command, cwd=basedir, check=True)
-    cmd += ['--target', target]
+    if args.enable_zigbuild:
+        # Pin glibc to 2.17 if zigbuild has been enabled.
+        cmd += ['--target', f'{target}.2.17']
+    else:
+        cmd += ['--target', target]
 
     output = basedir / 'target' / 'bindings'
     Path(output).mkdir(exist_ok=True, parents=True)

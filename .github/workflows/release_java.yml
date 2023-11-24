@@ -24,6 +24,11 @@ on:
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release_java.yml"
 
 jobs:
   stage-snapshot:
@@ -33,6 +38,8 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
+          - os: ubuntu-latest
+            classifier: linux-aarch_64
           - os: windows-latest
             classifier: windows-x86_64
           - os: macos-latest
@@ -60,6 +67,16 @@ jobs:
         with:
           version: "23.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup linux-aarch_64
+        if: "contains(matrix.classifier, 'linux-aarch_64')"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          # Setup for cargo
+          echo "[target.aarch64-unknown-linux-gnu]" >> ~/.cargo/config
+          echo "linker = \"aarch64-linux-gnu-gcc\"" >> ~/.cargo/config
+
       - name: Local staging
         working-directory: bindings/java
         shell: bash
@@ -112,11 +129,16 @@ jobs:
         with:
           name: windows-x86_64-local-staging
           path: ~/windows-x86_64-local-staging
-      - name: Download linux staging directory
+      - name: Download linux x86_64 staging directory
         uses: actions/download-artifact@v3
         with:
           name: linux-x86_64-local-staging
           path: ~/linux-x86_64-local-staging
+      - name: Download linux aarch_64 staging directory
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-aarch_64-local-staging
+          path: ~/linux-aarch_64-local-staging
       - name: Download darwin staging directory
         uses: actions/download-artifact@v3
         with:
@@ -134,22 +156,23 @@ jobs:
       - name: Merge staging repositories
         working-directory: ci-opendal
         run: |
-          bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging \
+          python ./scripts/merge_local_staging.py $LOCAL_STAGING_DIR/staging \
             ~/windows-x86_64-local-staging/staging \
             ~/linux-x86_64-local-staging/staging \
+            ~/linux-aarch_64-local-staging/staging \
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 
-      - name: Deploy local staged artifacts
-        if: ${{ github.event_name != 'pull_request' }}
-        working-directory: bindings/java
-        run: |
-          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
-            -DaltStagingDirectory=$LOCAL_STAGING_DIR \
-            -DskipStagingRepositoryClose=true \
-            -DserverId=apache.releases.https \
-            -DnexusUrl=https://repository.apache.org
-        env:
-          MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
-          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
-          MAVEN_GPG_PASSPHRASE: ""
+#      - name: Deploy local staged artifacts
+#        if: ${{ github.event_name != 'pull_request' }}
+#        working-directory: bindings/java
+#        run: |
+#          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
+#            -DaltStagingDirectory=$LOCAL_STAGING_DIR \
+#            -DskipStagingRepositoryClose=true \
+#            -DserverId=apache.releases.https \
+#            -DnexusUrl=https://repository.apache.org
+#        env:
+#          MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
+#          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
+#          MAVEN_GPG_PASSPHRASE: ""

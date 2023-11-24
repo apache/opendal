@@ -39,7 +39,4 @@ excludes = [
   # Test files
   "**/tests/data/**",
   "**/fixtures/data/**",
-
-  # Third-party source files
-  "scripts/merge_local_staging.sh",
 ]

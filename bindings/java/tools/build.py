@@ -55,11 +55,13 @@ if __name__ == '__main__':
     parser.add_argument('--target', type=str, default='')
     parser.add_argument('--profile', type=str, default='dev')
     parser.add_argument('--features', type=str, default='default')
-    parser.add_argument('--enable-zigbuild', type=bool)
+    parser.add_argument('--enable-zigbuild', type=str, default='false')
     args = parser.parse_args()
 
+    enable_zigbuild = args.enable_zigbuild == 'true'
+
     cmd = ['cargo',
-           'zigbuild' if args.enable_zigbuild else 'build',
+           'zigbuild' if enable_zigbuild else 'build',
            '--color=always',
            f'--profile={args.profile}']
 
@@ -74,7 +76,7 @@ if __name__ == '__main__':
     command = ['rustup', 'target', 'add', target]
     print('$ ' + subprocess.list2cmdline(command))
     subprocess.run(command, cwd=basedir, check=True)
-    if args.enable_zigbuild:
+    if enable_zigbuild:
         # Pin glibc to 2.17 if zigbuild has been enabled.
         cmd += ['--target', f'{target}.2.17']
     else:

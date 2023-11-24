@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::time::Duration;
 
 use bytes::Buf;
@@ -280,22 +281,18 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn stat_with(&self, path: &str) -> FutureStat {
+    pub fn stat_with(&self, path: &str) -> FutureStatX<impl Future<Output = Result<Metadata>>> {
         let path = normalize_path(path);
 
-        let fut = FutureStat(OperatorFuture::new(
-            self.inner().clone(),
+        let fut = FutureStatX(OperatorFutureX {
+            acc: self.inner().clone(),
             path,
-            OpStat::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let rp = inner.stat(&path, args).await?;
-                    Ok(rp.into_metadata())
-                };
-
-                Box::pin(fut)
+            args: OpStat::default(),
+            f: |inner, path, args| async move {
+                let rp = inner.stat(&path, args).await?;
+                Ok(rp.into_metadata())
             },
-        ));
+        });
 
         fut
     }

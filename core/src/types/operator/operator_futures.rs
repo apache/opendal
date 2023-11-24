@@ -19,6 +19,7 @@
 //!
 //! By using futures, users can add more options for operation.
 
+use std::future::IntoFuture;
 use std::mem;
 use std::ops::RangeBounds;
 use std::pin::Pin;
@@ -121,6 +122,70 @@ where
 pub struct FutureStat(pub(crate) OperatorFuture<OpStat, Metadata>);
 
 impl FutureStat {
+    /// Set the If-Match for this operation.
+    pub fn if_match(mut self, v: &str) -> Self {
+        self.0 = self.0.map_args(|args| args.with_if_match(v));
+        self
+    }
+
+    /// Set the If-None-Match for this operation.
+    pub fn if_none_match(mut self, v: &str) -> Self {
+        self.0 = self.0.map_args(|args| args.with_if_none_match(v));
+        self
+    }
+
+    /// Set the version for this operation.
+    pub fn version(mut self, v: &str) -> Self {
+        self.0 = self.0.map_args(|args| args.with_version(v));
+        self
+    }
+}
+
+pub(crate) struct OperatorFutureX<T, F> {
+    /// The accessor to the underlying object storage
+    pub acc: FusedAccessor,
+    /// The path of string
+    pub path: String,
+    /// The input args
+    pub args: T,
+    /// The function which will move all the args and return a static future
+    pub f: fn(FusedAccessor, String, T) -> F,
+}
+
+impl<T, F> OperatorFutureX<T, F> {
+    fn map_args(mut self, f: impl FnOnce(T) -> T) -> Self {
+        self.args = (f)(self.args);
+        self
+    }
+}
+
+impl<T, F> IntoFuture for OperatorFutureX<T, F>
+where
+    F: Future,
+{
+    type Output = F::Output;
+    type IntoFuture = F;
+
+    fn into_future(self) -> Self::IntoFuture {
+        (self.f)(self.acc, self.path, self.args)
+    }
+}
+
+pub struct FutureStatX<F>(pub(crate) OperatorFutureX<OpStat, F>);
+
+impl<F> IntoFuture for FutureStatX<F>
+where
+    F: Future<Output = Result<Metadata>>,
+{
+    type Output = F::Output;
+    type IntoFuture = F;
+
+    fn into_future(self) -> Self::IntoFuture {
+        self.0.into_future()
+    }
+}
+
+impl<F> FutureStatX<F> {
     /// Set the If-Match for this operation.
     pub fn if_match(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_if_match(v));

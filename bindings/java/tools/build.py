@@ -58,7 +58,18 @@ if __name__ == '__main__':
     parser.add_argument('--enable-zigbuild', type=str, default='false')
     args = parser.parse_args()
 
-    enable_zigbuild = args.enable_zigbuild == 'true'
+    if args.target:
+        target = args.target
+    else:
+        target = classifier_to_target(args.classifier)
+
+    # Setup target.
+    command = ['rustup', 'target', 'add', target]
+    print('$ ' + subprocess.list2cmdline(command))
+    subprocess.run(command, cwd=basedir, check=True)
+
+    # Enable zigbuild if flag enabled and we are building linux target
+    enable_zigbuild = args.enable_zigbuild == 'true' and 'linux' in target
 
     cmd = ['cargo',
            'zigbuild' if enable_zigbuild else 'build',
@@ -68,14 +79,6 @@ if __name__ == '__main__':
     if args.features:
         cmd += ['--features', args.features]
 
-    if args.target:
-        target = args.target
-    else:
-        target = classifier_to_target(args.classifier)
-
-    command = ['rustup', 'target', 'add', target]
-    print('$ ' + subprocess.list2cmdline(command))
-    subprocess.run(command, cwd=basedir, check=True)
     if enable_zigbuild:
         # Pin glibc to 2.17 if zigbuild has been enabled.
         cmd += ['--target', f'{target}.2.17']

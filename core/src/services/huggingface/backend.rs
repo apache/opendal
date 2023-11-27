@@ -203,7 +203,7 @@ impl Builder for HuggingFaceBuilder {
     }
 }
 
-/// Backend for DBFS service
+/// Backend for HuggingFace service
 #[derive(Debug, Clone)]
 pub struct HuggingFaceBackend {
     core: Arc<HuggingFaceCore>,

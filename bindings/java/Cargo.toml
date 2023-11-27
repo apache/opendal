@@ -74,7 +74,8 @@ services-all = [
   "services-mysql",
   "services-redb",
   "services-redis",
-  "services-rocksdb",
+  # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
+  # "services-rocksdb",
   "services-sled",
   "services-supabase",
   "services-tikv",

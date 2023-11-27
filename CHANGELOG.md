@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci(bindings/nodejs): add aarch64 build support by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3567
 * ci(planner): Polish the workflow planner code by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3570
 * ci(core): Add dry run for rc tags by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3624
-* ci: Disable persy unitl it has been fixed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3631
+* ci: Disable persy until it has been fixed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3631
 * ci: Calling cargo to make sure rust has been setup by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3633
 * ci: Fix etcd with tls and auth failed to start by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3637
 * ci(services/etcd): Use ALLOW_NONE_AUTHENTICATION as workaround by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3638

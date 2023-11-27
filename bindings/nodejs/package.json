@@ -41,6 +41,7 @@
   "files": [
     "index.d.ts",
     "index.js",
+    "generated.d.ts",
     "generated.js",
     "LICENSE",
     "NOTICE"
@@ -55,7 +56,7 @@
     "benny": "^3.7.1",
     "dotenv": "^16.0.3",
     "prettier": "^2.8.4",
-    "typedoc": "^0.24",
+    "typedoc": "^0.25",
     "typescript": "^5.0.2",
     "vitest": "^0.34.6"
   },
@@ -63,8 +64,8 @@
     "node": ">= 10"
   },
   "scripts": {
-    "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js && node ./scripts/header.js",
-    "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js && node ./scripts/header.js",
+    "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js --dts generated.d.ts && node ./scripts/header.js",
+    "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js --dts generated.d.ts && node ./scripts/header.js",
     "docs": "typedoc",
     "format": "prettier --write .",
     "test": "vitest",

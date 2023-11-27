@@ -55,6 +55,7 @@
         <!-- customized properties -->
         <cargo-build.profile>dev</cargo-build.profile>
         <cargo-build.features>default</cargo-build.features>
+        <cargo-build.enableZigbuild>false</cargo-build.enableZigbuild>
         <cargo-build.target/> <!-- override cargo build target; e.g., use musl instead -->
         <jni.classifier>${os.detected.classifier}</jni.classifier>
 
@@ -196,6 +197,8 @@
                                 <argument>${cargo-build.profile}</argument>
                                 <argument>--features</argument>
                                 <argument>${cargo-build.features}</argument>
+                                <argument>--enable-zigbuild</argument>
+                                <argument>${cargo-build.enableZigbuild}</argument>
                             </arguments>
                         </configuration>
                     </execution>

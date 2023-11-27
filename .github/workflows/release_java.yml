@@ -29,6 +29,7 @@ on:
       - main
     paths:
       - ".github/workflows/release_java.yml"
+      - "bindings/java/tools/build.py"
 
 jobs:
   stage-snapshot:

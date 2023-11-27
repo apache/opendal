@@ -1176,7 +1176,18 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
 
-    op.write(&path, content).await.expect("write must succeed");
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    op.remove(vec![path.clone()]).await?;
+
+    // Stat it again to check.
+    assert!(!op.is_exist(&path).await?);
+
+    op.write(&format!("/{path}"), content)
+        .await
+        .expect("write must succeed");
 
     op.remove(vec![path.clone()]).await?;
 

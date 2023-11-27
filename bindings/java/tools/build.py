@@ -80,8 +80,8 @@ if __name__ == '__main__':
         cmd += ['--features', args.features]
 
     if enable_zigbuild:
-        # Pin glibc to 2.26 if zigbuild has been enabled.
-        cmd += ['--target', f'{target}.2.26']
+        # Pin glibc to 2.17 if zigbuild has been enabled.
+        cmd += ['--target', f'{target}.2.17']
     else:
         cmd += ['--target', target]
 

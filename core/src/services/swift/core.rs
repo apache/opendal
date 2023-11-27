@@ -17,8 +17,9 @@
 
 use std::fmt::Debug;
 
+use http::header;
+use http::Request;
 use http::Response;
-use http::{header, Request};
 use serde::Deserialize;
 
 use crate::raw::*;

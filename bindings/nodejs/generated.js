@@ -271,12 +271,16 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { Capability, Operator, Entry, Metadata, Lister, BlockingLister, Layer, RetryLayer } = nativeBinding
+const { Capability, Operator, Entry, Metadata, BlockingReader, Reader, BlockingWriter, Writer, Lister, BlockingLister, Layer, RetryLayer } = nativeBinding
 
 module.exports.Capability = Capability
 module.exports.Operator = Operator
 module.exports.Entry = Entry
 module.exports.Metadata = Metadata
+module.exports.BlockingReader = BlockingReader
+module.exports.Reader = Reader
+module.exports.BlockingWriter = BlockingWriter
+module.exports.Writer = Writer
 module.exports.Lister = Lister
 module.exports.BlockingLister = BlockingLister
 module.exports.Layer = Layer

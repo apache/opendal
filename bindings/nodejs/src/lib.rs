@@ -24,6 +24,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
+use opendal::raw::oio::BlockingRead;
+use opendal::raw::oio::ReadExt;
+
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 
@@ -176,6 +179,15 @@ impl Operator {
         Ok(res.into())
     }
 
+    /// Create a reader to read the given path.
+    ///
+    /// It could be used to read large file in a streaming way.
+    #[napi]
+    pub async fn reader(&self, path: String) -> Result<Reader> {
+        let r = self.0.reader(&path).await.map_err(format_napi_error)?;
+        Ok(Reader(r))
+    }
+
     /// Read the whole path into a buffer synchronously.
     ///
     /// ### Example
@@ -186,6 +198,15 @@ impl Operator {
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
         Ok(res.into())
+    }
+
+    /// Create a reader to read the given path synchronously.
+    ///
+    /// It could be used to read large file in a streaming way.
+    #[napi]
+    pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
+        let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
+        Ok(BlockingReader(r))
     }
 
     /// Write bytes into path.
@@ -203,6 +224,24 @@ impl Operator {
             Either::B(s) => s.into_bytes(),
         };
         self.0.write(&path, c).await.map_err(format_napi_error)
+    }
+
+    /// Write multiple bytes into path.
+    ///
+    /// It could be used to write large file in a streaming way.
+    #[napi]
+    pub async fn writer(&self, path: String) -> Result<Writer> {
+        let w = self.0.writer(&path).await.map_err(format_napi_error)?;
+        Ok(Writer(w))
+    }
+
+    /// Write multiple bytes into path synchronously.
+    ///
+    /// It could be used to write large file in a streaming way.
+    #[napi]
+    pub fn writer_sync(&self, path: String) -> Result<BlockingWriter> {
+        let w = self.0.blocking().writer(&path).map_err(format_napi_error)?;
+        Ok(BlockingWriter(w))
     }
 
     /// Write bytes into path synchronously.
@@ -548,6 +587,7 @@ impl Operator {
     }
 }
 
+/// Entry returned by Lister or BlockingLister to represent a path and it's relative metadata.
 #[napi]
 pub struct Entry(opendal::Entry);
 
@@ -560,6 +600,7 @@ impl Entry {
     }
 }
 
+/// Metadata carries all metadata associated with a path.
 #[napi]
 pub struct Metadata(opendal::Metadata);
 
@@ -616,6 +657,132 @@ impl Metadata {
     }
 }
 
+/// BlockingReader is designed to read data from given path in an blocking
+/// manner.
+#[napi]
+pub struct BlockingReader(opendal::BlockingReader);
+
+#[napi]
+impl BlockingReader {
+    #[napi]
+    pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
+        self.0.read(buf.as_mut()).map_err(format_napi_error)
+    }
+}
+
+/// Reader is designed to read data from given path in an asynchronous
+/// manner.
+#[napi]
+pub struct Reader(opendal::Reader);
+
+#[napi]
+impl Reader {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// Read bytes from this reader into given buffer.
+    #[napi]
+    pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
+        self.0.read(buf.as_mut()).await.map_err(format_napi_error)
+    }
+}
+
+/// BlockingWriter is designed to write data into given path in an blocking
+/// manner.
+#[napi]
+pub struct BlockingWriter(opendal::BlockingWriter);
+
+#[napi]
+impl BlockingWriter {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// Write bytes into this writer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const writer = await op.writer("path/to/file");
+    /// await writer.write(Buffer.from("hello world"));
+    /// await writer.close();
+    /// ```
+    #[napi]
+    pub unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
+        self.0.write(c).map_err(format_napi_error)
+    }
+
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// Close this writer.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const writer = op.writerSync("path/to/file");
+    /// writer.write(Buffer.from("hello world"));
+    /// writer.close();
+    /// ```
+    #[napi]
+    pub unsafe fn close(&mut self) -> Result<()> {
+        self.0.close().map_err(format_napi_error)
+    }
+}
+
+/// Writer is designed to write data into given path in an asynchronous
+/// manner.
+#[napi]
+pub struct Writer(opendal::Writer);
+
+#[napi]
+impl Writer {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// Write bytes into this writer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const writer = await op.writer("path/to/file");
+    /// await writer.write(Buffer.from("hello world"));
+    /// await writer.close();
+    /// ```
+    #[napi]
+    pub async unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
+        self.0.write(c).await.map_err(format_napi_error)
+    }
+
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// Close this writer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const writer = await op.writer("path/to/file");
+    /// await writer.write(Buffer.from("hello world"));
+    /// await writer.close();
+    /// ```
+    #[napi]
+    pub async unsafe fn close(&mut self) -> Result<()> {
+        self.0.close().await.map_err(format_napi_error)
+    }
+}
+
+/// Lister is designed to list entries at given path in an asynchronous
+/// manner.
 #[napi]
 pub struct Lister(opendal::Lister);
 
@@ -638,6 +805,8 @@ impl Lister {
     }
 }
 
+/// BlockingLister is designed to list entries at given path in a blocking
+/// manner.
 #[napi]
 pub struct BlockingLister(opendal::BlockingLister);
 
@@ -658,6 +827,7 @@ impl BlockingLister {
     }
 }
 
+/// PresignedRequest is a presigned request return by `presign`.
 #[napi(object)]
 pub struct PresignedRequest {
     /// HTTP method of this request.

@@ -157,7 +157,6 @@ After bump version PR gets merged, we can create a GitHub release for the releas
 :::note
 
 Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that creates a staging Maven release on https://repository.apache.org which can be verified on voting.
-And
 
 :::
 

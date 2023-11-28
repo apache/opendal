@@ -61,7 +61,8 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     strategy:
       matrix:
-        target: [x86_64, aarch64, armv7l]
+        # remove linux aarch64/armv7l support until https://github.com/apache/incubator-opendal/issues/3673 addressed
+        target: [x86_64]
     steps:
       - uses: actions/checkout@v4
       - uses: PyO3/maturin-action@v1

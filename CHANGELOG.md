@@ -69,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: dry run publish on rc tags for python binding by @everpcpc in https://github.com/apache/incubator-opendal/pull/3645
 * ci: Add java linux arm64 build by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3660
 * ci(java/binding): Use zigbuild for glibc 2.17 support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3664
+* ci(bindings/python): remove aarch support by @G-XD in https://github.com/apache/incubator-opendal/pull/3674
 ### Chore
 * chore(servies/sftp): Upgrade openssh-sftp-client to 0.14 by @sd44 in https://github.com/apache/incubator-opendal/pull/3538
 * chore(service/tikv): rename Backend to TikvBackend by @caicancai in https://github.com/apache/incubator-opendal/pull/3545
@@ -89,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(ci): nodejs binding publish dry run by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3632
 * chore: Polish comments for `stat` and `stat_with` by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3657
 * chore: clearer doc for python binding by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3667
+* chore: Bump to v0.43.0 to start release process by @G-XD in https://github.com/apache/incubator-opendal/pull/3672
 
 ## [v0.42.0] - 2023-11-07
 

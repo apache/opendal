@@ -15,28 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! HuggingFace response messages
+//! Huggingface response messages
 
 use serde::Deserialize;
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingFaceStatus {
+pub(super) struct HuggingfaceStatus {
     #[serde(rename = "type")]
     pub type_: String,
     pub oid: String,
     pub size: u64,
-    pub lfs: Option<HuggingFaceLfs>,
+    pub lfs: Option<HuggingfaceLfs>,
     pub path: String,
-    pub last_commit: Option<HuggingFaceLastCommit>,
-    pub security: Option<HuggingFaceSecurity>,
+    pub last_commit: Option<HuggingfaceLastCommit>,
+    pub security: Option<HuggingfaceSecurity>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingFaceLfs {
+pub(super) struct HuggingfaceLfs {
     pub oid: String,
     pub size: u64,
     pub pointer_size: u64,
@@ -45,7 +45,7 @@ pub(super) struct HuggingFaceLfs {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingFaceLastCommit {
+pub(super) struct HuggingfaceLastCommit {
     pub id: String,
     pub title: String,
     pub date: String,
@@ -54,18 +54,18 @@ pub(super) struct HuggingFaceLastCommit {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingFaceSecurity {
+pub(super) struct HuggingfaceSecurity {
     pub blob_id: String,
     pub name: String,
     pub safe: bool,
-    pub av_scan: Option<HuggingFaceAvScan>,
-    pub pickle_import_scan: Option<HuggingFacePickleImportScan>,
+    pub av_scan: Option<HuggingfaceAvScan>,
+    pub pickle_import_scan: Option<HuggingfacePickleImportScan>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct HuggingFaceAvScan {
+pub(super) struct HuggingfaceAvScan {
     pub virus_found: bool,
     pub virus_names: Option<Vec<String>>,
 }
@@ -73,14 +73,14 @@ pub(super) struct HuggingFaceAvScan {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingFacePickleImportScan {
+pub(super) struct HuggingfacePickleImportScan {
     pub highest_safety_level: String,
-    pub imports: Vec<HuggingFaceImport>,
+    pub imports: Vec<HuggingfaceImport>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
-pub(super) struct HuggingFaceImport {
+pub(super) struct HuggingfaceImport {
     pub module: String,
     pub name: String,
     pub safety: String,
@@ -119,16 +119,16 @@ mod tests {
             "#,
         );
 
-        let decoded_response = serde_json::from_slice::<Vec<HuggingFaceStatus>>(&resp)
+        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&resp)
             .map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.len(), 2);
 
-        let file_entry = HuggingFaceStatus {
+        let file_entry = HuggingfaceStatus {
             type_: "file".to_string(),
             oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
             size: 69512435,
-            lfs: Some(HuggingFaceLfs {
+            lfs: Some(HuggingfaceLfs {
                 oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
                 size: 69512435,
                 pointer_size: 133,
@@ -140,7 +140,7 @@ mod tests {
 
         assert_eq!(decoded_response[0], file_entry);
 
-        let dir_entry = HuggingFaceStatus {
+        let dir_entry = HuggingfaceStatus {
             type_: "directory".to_string(),
             oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
             size: 69512435,
@@ -198,53 +198,53 @@ mod tests {
             "#,
         );
 
-        let decoded_response = serde_json::from_slice::<Vec<HuggingFaceStatus>>(&resp)
+        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&resp)
             .map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.len(), 1);
 
-        let file_info = HuggingFaceStatus {
+        let file_info = HuggingfaceStatus {
             type_: "file".to_string(),
             oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
             size: 69512435,
-            lfs: Some(HuggingFaceLfs {
+            lfs: Some(HuggingfaceLfs {
                 oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
                 size: 69512435,
                 pointer_size: 133,
             }),
             path: "maelstrom/lib/maelstrom.jar".to_string(),
-            last_commit: Some(HuggingFaceLastCommit {
+            last_commit: Some(HuggingfaceLastCommit {
                 id: "bc1ef030bf3743290d5e190695ab94582e51ae2f".to_string(),
                 title: "Upload 141 files".to_string(),
                 date: "2023-11-17T23:50:28.000Z".to_string(),
             }),
-            security: Some(HuggingFaceSecurity {
+            security: Some(HuggingfaceSecurity {
                 blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
                 name: "maelstrom/lib/maelstrom.jar".to_string(),
                 safe: true,
-                av_scan: Some(HuggingFaceAvScan {
+                av_scan: Some(HuggingfaceAvScan {
                     virus_found: false,
                     virus_names: None,
                 }),
-                pickle_import_scan: Some(HuggingFacePickleImportScan {
+                pickle_import_scan: Some(HuggingfacePickleImportScan {
                     highest_safety_level: "innocuous".to_string(),
                     imports: vec![
-                        HuggingFaceImport {
+                        HuggingfaceImport {
                             module: "torch".to_string(),
                             name: "FloatStorage".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingFaceImport {
+                        HuggingfaceImport {
                             module: "collections".to_string(),
                             name: "OrderedDict".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingFaceImport {
+                        HuggingfaceImport {
                             module: "torch".to_string(),
                             name: "LongStorage".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingFaceImport {
+                        HuggingfaceImport {
                             module: "torch._utils".to_string(),
                             name: "_rebuild_tensor_v2".to_string(),
                             safety: "innocuous".to_string(),

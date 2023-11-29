@@ -25,18 +25,18 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use super::core::HuggingFaceCore;
+use super::core::HuggingfaceCore;
 use super::error::parse_error;
-use super::lister::HuggingFaceLister;
-use super::message::HuggingFaceStatus;
+use super::lister::HuggingfaceLister;
+use super::message::HuggingfaceStatus;
 use crate::raw::*;
 use crate::*;
 
-/// Configuration for HuggingFace service support.
+/// Configuration for Huggingface service support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct HuggingFaceConfig {
+pub struct HuggingfaceConfig {
     /// Repo type of this backend. Default is model.
     ///
     /// Available values:
@@ -61,9 +61,9 @@ pub struct HuggingFaceConfig {
     pub token: Option<String>,
 }
 
-impl Debug for HuggingFaceConfig {
+impl Debug for HuggingfaceConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("HuggingFaceConfig");
+        let mut ds = f.debug_struct("HuggingfaceConfig");
 
         if let Some(repo_type) = &self.repo_type {
             ds.field("repo_type", &repo_type);
@@ -85,14 +85,14 @@ impl Debug for HuggingFaceConfig {
     }
 }
 
-/// [HuggingFace](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
+/// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
-pub struct HuggingFaceBuilder {
-    config: HuggingFaceConfig,
+pub struct HuggingfaceBuilder {
+    config: HuggingfaceConfig,
 }
 
-impl Debug for HuggingFaceBuilder {
+impl Debug for HuggingfaceBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
@@ -101,7 +101,7 @@ impl Debug for HuggingFaceBuilder {
     }
 }
 
-impl HuggingFaceBuilder {
+impl HuggingfaceBuilder {
     /// Set repo type of this backend. Default is model.
     ///
     /// Available values:
@@ -168,12 +168,12 @@ impl HuggingFaceBuilder {
     }
 }
 
-impl Builder for HuggingFaceBuilder {
-    const SCHEME: Scheme = Scheme::HuggingFace;
-    type Accessor = HuggingFaceBackend;
+impl Builder for HuggingfaceBuilder {
+    const SCHEME: Scheme = Scheme::Huggingface;
+    type Accessor = HuggingfaceBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = HuggingFaceBuilder::default();
+        let mut builder = HuggingfaceBuilder::default();
 
         map.get("repo_type").map(|v| builder.repo_type(v));
         map.get("repo_id").map(|v| builder.repo_id(v));
@@ -184,7 +184,7 @@ impl Builder for HuggingFaceBuilder {
         builder
     }
 
-    /// Build a HuggingFaceBackend.
+    /// Build a HuggingfaceBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
@@ -200,7 +200,7 @@ impl Builder for HuggingFaceBuilder {
                 format!("unknown repo_type: {}", repo_type).as_str(),
             )
             .with_operation("Builder::build")
-            .with_context("service", Scheme::HuggingFace)),
+            .with_context("service", Scheme::Huggingface)),
             None => Ok(RepoType::Model),
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);
@@ -209,7 +209,7 @@ impl Builder for HuggingFaceBuilder {
             Some(repo_id) => Ok(repo_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::HuggingFace)),
+                .with_context("service", Scheme::Huggingface)),
         }?;
         debug!("backend use repo_id: {}", &repo_id);
 
@@ -230,8 +230,8 @@ impl Builder for HuggingFaceBuilder {
         let client = HttpClient::new()?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(HuggingFaceBackend {
-            core: Arc::new(HuggingFaceCore {
+        Ok(HuggingfaceBackend {
+            core: Arc::new(HuggingfaceCore {
                 repo_type,
                 repo_id,
                 revision,
@@ -243,24 +243,24 @@ impl Builder for HuggingFaceBuilder {
     }
 }
 
-/// Backend for HuggingFace service
+/// Backend for Huggingface service
 #[derive(Debug, Clone)]
-pub struct HuggingFaceBackend {
-    core: Arc<HuggingFaceCore>,
+pub struct HuggingfaceBackend {
+    core: Arc<HuggingfaceCore>,
 }
 
 #[async_trait]
-impl Accessor for HuggingFaceBackend {
+impl Accessor for HuggingfaceBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
-    type Lister = oio::PageLister<HuggingFaceLister>;
+    type Lister = oio::PageLister<HuggingfaceLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::HuggingFace)
+        am.set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
                 stat: true,
 
@@ -307,7 +307,7 @@ impl Accessor for HuggingFaceBackend {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
                 let bs = resp.into_body().bytes().await?;
 
-                let decoded_response = serde_json::from_slice::<Vec<HuggingFaceStatus>>(&bs)
+                let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&bs)
                     .map_err(new_json_deserialize_error)?;
 
                 // NOTE: if the file is not found, the server will return 200 with an empty array
@@ -338,13 +338,13 @@ impl Accessor for HuggingFaceBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = HuggingFaceLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let l = HuggingfaceLister::new(self.core.clone(), path.to_string(), args.recursive());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 
-/// Repository type of HuggingFace. Currently, we only support `model` and `dataset`.
+/// Repository type of Huggingface. Currently, we only support `model` and `dataset`.
 /// [Reference](https://huggingface.co/docs/hub/repositories)
 #[derive(Debug, Clone, Copy)]
 pub enum RepoType {

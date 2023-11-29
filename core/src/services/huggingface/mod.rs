@@ -16,8 +16,8 @@
 // under the License.
 
 mod backend;
-pub use backend::HuggingFaceBuilder as HuggingFace;
-pub use backend::HuggingFaceConfig;
+pub use backend::HuggingfaceBuilder as Huggingface;
+pub use backend::HuggingfaceConfig;
 
 mod core;
 mod error;

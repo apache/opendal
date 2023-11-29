@@ -24,15 +24,15 @@ use serde::Deserialize;
 use crate::raw::*;
 use crate::*;
 
-/// HuggingFaceError is the error returned by HuggingFace File System.
+/// HuggingfaceError is the error returned by Huggingface File System.
 #[derive(Default, Deserialize)]
-struct HuggingFaceError {
+struct HuggingfaceError {
     error: String,
 }
 
-impl Debug for HuggingFaceError {
+impl Debug for HuggingfaceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HuggingFaceError");
+        let mut de = f.debug_struct("HuggingfaceError");
         de.field("message", &self.error.replace('\n', " "));
 
         de.finish()
@@ -54,7 +54,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match serde_json::from_slice::<HuggingFaceError>(&bs) {
+    let message = match serde_json::from_slice::<HuggingfaceError>(&bs) {
         Ok(hf_error) => format!("{:?}", hf_error.error),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
@@ -83,7 +83,7 @@ mod test {
                 "error": "Invalid username or password."
             }
             "#;
-        let decoded_response = serde_json::from_slice::<HuggingFaceError>(resp.as_bytes())
+        let decoded_response = serde_json::from_slice::<HuggingfaceError>(resp.as_bytes())
             .map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.error, "Invalid username or password.");

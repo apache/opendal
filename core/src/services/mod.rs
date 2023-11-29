@@ -95,9 +95,9 @@ pub use self::http::HttpConfig;
 #[cfg(feature = "services-huggingface")]
 mod huggingface;
 #[cfg(feature = "services-huggingface")]
-pub use huggingface::HuggingFace;
+pub use huggingface::Huggingface;
 #[cfg(feature = "services-huggingface")]
-pub use huggingface::HuggingFaceConfig;
+pub use huggingface::HuggingfaceConfig;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;

@@ -28,7 +28,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct HuggingFaceCore {
+pub struct HuggingfaceCore {
     pub repo_type: RepoType,
     pub repo_id: String,
     pub revision: String,
@@ -38,9 +38,9 @@ pub struct HuggingFaceCore {
     pub client: HttpClient,
 }
 
-impl Debug for HuggingFaceCore {
+impl Debug for HuggingfaceCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HuggingFaceCore")
+        f.debug_struct("HuggingfaceCore")
             .field("repo_type", &self.repo_type)
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
@@ -49,7 +49,7 @@ impl Debug for HuggingFaceCore {
     }
 }
 
-impl HuggingFaceCore {
+impl HuggingfaceCore {
     pub async fn hf_path_info(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')

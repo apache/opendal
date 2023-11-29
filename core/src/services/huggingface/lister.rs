@@ -19,20 +19,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::core::HuggingFaceCore;
+use super::core::HuggingfaceCore;
 use super::error::parse_error;
-use super::message::HuggingFaceStatus;
+use super::message::HuggingfaceStatus;
 use crate::raw::*;
 use crate::*;
 
-pub struct HuggingFaceLister {
-    core: Arc<HuggingFaceCore>,
+pub struct HuggingfaceLister {
+    core: Arc<HuggingfaceCore>,
     path: String,
     recursive: bool,
 }
 
-impl HuggingFaceLister {
-    pub fn new(core: Arc<HuggingFaceCore>, path: String, recursive: bool) -> Self {
+impl HuggingfaceLister {
+    pub fn new(core: Arc<HuggingfaceCore>, path: String, recursive: bool) -> Self {
         Self {
             core,
             path,
@@ -42,7 +42,7 @@ impl HuggingFaceLister {
 }
 
 #[async_trait]
-impl oio::PageList for HuggingFaceLister {
+impl oio::PageList for HuggingfaceLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self.core.hf_list(&self.path, self.recursive).await?;
 
@@ -53,7 +53,7 @@ impl oio::PageList for HuggingFaceLister {
         }
 
         let bytes = response.into_body().bytes().await?;
-        let decoded_response = serde_json::from_slice::<Vec<HuggingFaceStatus>>(&bytes)
+        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&bytes)
             .map_err(new_json_deserialize_error)?;
 
         ctx.done = true;

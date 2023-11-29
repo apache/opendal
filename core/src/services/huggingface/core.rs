@@ -69,7 +69,7 @@ impl HuggingFaceCore {
         let mut req = Request::post(&url);
 
         if let Some(token) = &self.token {
-            let auth_header_content = format!("Bearer {}", token);
+            let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
 
@@ -123,7 +123,7 @@ impl HuggingFaceCore {
         let mut req = Request::get(&url);
 
         if let Some(token) = &self.token {
-            let auth_header_content = format!("Bearer {}", token);
+            let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
 
@@ -157,7 +157,7 @@ impl HuggingFaceCore {
         let mut req = Request::get(&url);
 
         if let Some(token) = &self.token {
-            let auth_header_content = format!("Bearer {}", token);
+            let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
 

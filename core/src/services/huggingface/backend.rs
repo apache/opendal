@@ -188,21 +188,19 @@ impl Builder for HuggingFaceBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let repo_type = match &self.config.repo_type {
-            Some(repo_type) => match repo_type.as_str() {
-                "model" => Ok(RepoType::Model),
-                "dataset" => Ok(RepoType::Dataset),
-                "space" => Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "repo type \"space\" is unsupported",
-                )),
-                _ => Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    format!("unknown repo_type: {}", repo_type).as_str(),
-                )
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::HuggingFace)),
-            },
+        let repo_type = match self.config.repo_type.as_deref() {
+            Some("model") => Ok(RepoType::Model),
+            Some("dataset") => Ok(RepoType::Dataset),
+            Some("space") => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "repo type \"space\" is unsupported",
+            )),
+            Some(repo_type) => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown repo_type: {}", repo_type).as_str(),
+            )
+            .with_operation("Builder::build")
+            .with_context("service", Scheme::HuggingFace)),
             None => Ok(RepoType::Model),
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);

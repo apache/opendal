@@ -19,7 +19,7 @@
 
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct HuggingFaceStatus {
@@ -33,7 +33,7 @@ pub(super) struct HuggingFaceStatus {
     pub security: Option<HuggingFaceSecurity>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct HuggingFaceLfs {
@@ -42,7 +42,7 @@ pub(super) struct HuggingFaceLfs {
     pub pointer_size: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct HuggingFaceLastCommit {
@@ -51,7 +51,7 @@ pub(super) struct HuggingFaceLastCommit {
     pub date: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct HuggingFaceSecurity {
@@ -62,7 +62,7 @@ pub(super) struct HuggingFaceSecurity {
     pub pickle_import_scan: Option<HuggingFacePickleImportScan>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct HuggingFaceAvScan {
@@ -70,7 +70,7 @@ pub(super) struct HuggingFaceAvScan {
     pub virus_names: Option<Vec<String>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct HuggingFacePickleImportScan {
@@ -78,7 +78,7 @@ pub(super) struct HuggingFacePickleImportScan {
     pub imports: Vec<HuggingFaceImport>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
 pub(super) struct HuggingFaceImport {
     pub module: String,
@@ -124,28 +124,33 @@ mod tests {
 
         assert_eq!(decoded_response.len(), 2);
 
-        assert_eq!(decoded_response[0].type_, "file");
-        assert_eq!(
-            decoded_response[0].oid,
-            "45fa7c3d85ee7dd4139adbc056da25ae136a65f2"
-        );
-        assert_eq!(decoded_response[0].size, 69512435);
-        assert_eq!(decoded_response[0].path, "maelstrom/lib/maelstrom.jar");
+        let file_entry = HuggingFaceStatus {
+            type_: "file".to_string(),
+            oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
+            size: 69512435,
+            lfs: Some(HuggingFaceLfs {
+                oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
+                size: 69512435,
+                pointer_size: 133,
+            }),
+            path: "maelstrom/lib/maelstrom.jar".to_string(),
+            last_commit: None,
+            security: None,
+        };
 
-        assert_eq!(
-            decoded_response[0].lfs.as_ref().unwrap().oid,
-            "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c"
-        );
-        assert_eq!(decoded_response[0].lfs.as_ref().unwrap().size, 69512435);
-        assert_eq!(decoded_response[0].lfs.as_ref().unwrap().pointer_size, 133);
+        assert_eq!(decoded_response[0], file_entry);
 
-        assert_eq!(decoded_response[1].type_, "directory");
-        assert_eq!(
-            decoded_response[1].oid,
-            "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c"
-        );
-        assert_eq!(decoded_response[1].size, 69512435);
-        assert_eq!(decoded_response[1].path, "maelstrom/lib/plugins");
+        let dir_entry = HuggingFaceStatus {
+            type_: "directory".to_string(),
+            oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
+            size: 69512435,
+            lfs: None,
+            path: "maelstrom/lib/plugins".to_string(),
+            last_commit: None,
+            security: None,
+        };
+
+        assert_eq!(decoded_response[1], dir_entry);
 
         Ok(())
     }
@@ -198,203 +203,58 @@ mod tests {
 
         assert_eq!(decoded_response.len(), 1);
 
-        assert_eq!(decoded_response[0].type_, "file");
-        assert_eq!(
-            decoded_response[0].oid,
-            "45fa7c3d85ee7dd4139adbc056da25ae136a65f2"
-        );
-        assert_eq!(decoded_response[0].size, 69512435);
-        assert_eq!(decoded_response[0].path, "maelstrom/lib/maelstrom.jar");
+        let file_info = HuggingFaceStatus {
+            type_: "file".to_string(),
+            oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
+            size: 69512435,
+            lfs: Some(HuggingFaceLfs {
+                oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
+                size: 69512435,
+                pointer_size: 133,
+            }),
+            path: "maelstrom/lib/maelstrom.jar".to_string(),
+            last_commit: Some(HuggingFaceLastCommit {
+                id: "bc1ef030bf3743290d5e190695ab94582e51ae2f".to_string(),
+                title: "Upload 141 files".to_string(),
+                date: "2023-11-17T23:50:28.000Z".to_string(),
+            }),
+            security: Some(HuggingFaceSecurity {
+                blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
+                name: "maelstrom/lib/maelstrom.jar".to_string(),
+                safe: true,
+                av_scan: Some(HuggingFaceAvScan {
+                    virus_found: false,
+                    virus_names: None,
+                }),
+                pickle_import_scan: Some(HuggingFacePickleImportScan {
+                    highest_safety_level: "innocuous".to_string(),
+                    imports: vec![
+                        HuggingFaceImport {
+                            module: "torch".to_string(),
+                            name: "FloatStorage".to_string(),
+                            safety: "innocuous".to_string(),
+                        },
+                        HuggingFaceImport {
+                            module: "collections".to_string(),
+                            name: "OrderedDict".to_string(),
+                            safety: "innocuous".to_string(),
+                        },
+                        HuggingFaceImport {
+                            module: "torch".to_string(),
+                            name: "LongStorage".to_string(),
+                            safety: "innocuous".to_string(),
+                        },
+                        HuggingFaceImport {
+                            module: "torch._utils".to_string(),
+                            name: "_rebuild_tensor_v2".to_string(),
+                            safety: "innocuous".to_string(),
+                        },
+                    ],
+                }),
+            }),
+        };
 
-        assert_eq!(
-            decoded_response[0].lfs.as_ref().unwrap().oid,
-            "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c"
-        );
-
-        assert_eq!(decoded_response[0].lfs.as_ref().unwrap().size, 69512435);
-        assert_eq!(decoded_response[0].lfs.as_ref().unwrap().pointer_size, 133);
-
-        assert_eq!(
-            decoded_response[0].last_commit.as_ref().unwrap().id,
-            "bc1ef030bf3743290d5e190695ab94582e51ae2f"
-        );
-        assert_eq!(
-            decoded_response[0].last_commit.as_ref().unwrap().title,
-            "Upload 141 files"
-        );
-        assert_eq!(
-            decoded_response[0].last_commit.as_ref().unwrap().date,
-            "2023-11-17T23:50:28.000Z"
-        );
-
-        assert_eq!(
-            decoded_response[0].security.as_ref().unwrap().blob_id,
-            "45fa7c3d85ee7dd4139adbc056da25ae136a65f2"
-        );
-        assert_eq!(
-            decoded_response[0].security.as_ref().unwrap().name,
-            "maelstrom/lib/maelstrom.jar"
-        );
-        assert_eq!(decoded_response[0].security.as_ref().unwrap().safe, true);
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .av_scan
-                .as_ref()
-                .unwrap()
-                .virus_found,
-            false
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .av_scan
-                .as_ref()
-                .unwrap()
-                .virus_names,
-            None
-        );
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .highest_safety_level,
-            "innocuous"
-        );
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[0]
-                .module,
-            "torch"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[0]
-                .name,
-            "FloatStorage"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[0]
-                .safety,
-            "innocuous"
-        );
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[1]
-                .module,
-            "collections"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[1]
-                .name,
-            "OrderedDict"
-        );
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[2]
-                .module,
-            "torch"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[2]
-                .name,
-            "LongStorage"
-        );
-
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[3]
-                .module,
-            "torch._utils"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[3]
-                .name,
-            "_rebuild_tensor_v2"
-        );
-        assert_eq!(
-            decoded_response[0]
-                .security
-                .as_ref()
-                .unwrap()
-                .pickle_import_scan
-                .as_ref()
-                .unwrap()
-                .imports[3]
-                .safety,
-            "innocuous"
-        );
+        assert_eq!(decoded_response[0], file_info);
 
         Ok(())
     }

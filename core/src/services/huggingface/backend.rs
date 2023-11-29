@@ -26,9 +26,9 @@ use log::debug;
 use serde::Deserialize;
 
 use super::core::HuggingfaceCore;
+use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
-use super::message::HuggingfaceStatus;
 use crate::raw::*;
 use crate::*;
 

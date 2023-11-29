@@ -39,7 +39,7 @@ pub struct HuggingFaceBuilder {
     repo_id: Option<String>,
     revision: Option<String>,
     root: Option<String>,
-    read_token: Option<String>,
+    token: Option<String>,
 }
 
 impl Debug for HuggingFaceBuilder {
@@ -51,8 +51,8 @@ impl Debug for HuggingFaceBuilder {
         ds.field("revision", &self.revision);
         ds.field("root", &self.root);
 
-        if self.read_token.is_some() {
-            ds.field("read_token", &"<redacted>");
+        if self.token.is_some() {
+            ds.field("token", &"<redacted>");
         }
 
         ds.finish()
@@ -115,12 +115,12 @@ impl HuggingFaceBuilder {
         self
     }
 
-    /// Set the read token of this backend.
+    /// Set the token of this backend.
     ///
     /// This is optional.
-    pub fn read_token(&mut self, read_token: &str) -> &mut Self {
-        if !read_token.is_empty() {
-            self.read_token = Some(read_token.to_string());
+    pub fn token(&mut self, token: &str) -> &mut Self {
+        if !token.is_empty() {
+            self.token = Some(token.to_string());
         }
         self
     }
@@ -137,7 +137,7 @@ impl Builder for HuggingFaceBuilder {
         map.get("repo_id").map(|v| builder.repo_id(v));
         map.get("revision").map(|v| builder.revision(v));
         map.get("root").map(|v| builder.root(v));
-        map.get("read_token").map(|v| builder.read_token(v));
+        map.get("token").map(|v| builder.token(v));
 
         builder
     }
@@ -182,8 +182,8 @@ impl Builder for HuggingFaceBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root: {}", &root);
 
-        let read_token = match &self.read_token {
-            Some(read_token) => Some(read_token.clone()),
+        let token = match &self.token {
+            Some(token) => Some(token.clone()),
             None => None,
         };
 
@@ -196,7 +196,7 @@ impl Builder for HuggingFaceBuilder {
                 repo_id,
                 revision,
                 root,
-                read_token,
+                token,
                 client,
             }),
         })

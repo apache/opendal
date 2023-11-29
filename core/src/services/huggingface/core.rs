@@ -33,7 +33,7 @@ pub struct HuggingFaceCore {
     pub repo_id: String,
     pub revision: String,
     pub root: String,
-    pub read_token: Option<String>,
+    pub token: Option<String>,
 
     pub client: HttpClient,
 }
@@ -68,7 +68,7 @@ impl HuggingFaceCore {
 
         let mut req = Request::post(&url);
 
-        if let Some(token) = &self.read_token {
+        if let Some(token) = &self.token {
             let auth_header_content = format!("Bearer {}", token);
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
@@ -122,7 +122,7 @@ impl HuggingFaceCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(token) = &self.read_token {
+        if let Some(token) = &self.token {
             let auth_header_content = format!("Bearer {}", token);
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
@@ -156,7 +156,7 @@ impl HuggingFaceCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(token) = &self.read_token {
+        if let Some(token) = &self.token {
             let auth_header_content = format!("Bearer {}", token);
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }

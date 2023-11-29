@@ -25,7 +25,7 @@ This service can be used to:
 - `repo_id`: The id of the repository.
 - `revision`: The revision of the repository.
 - `root`: Set the work directory for backend.
-- `read_token`: The token for read operation.
+- `token`: The token for accessing the repository.
 
 Refer to [`Builder`]'s public API docs for more information.
 
@@ -53,8 +53,8 @@ async fn main() -> Result<()> {
     builder.revision("main");
     // set the root for HuggingFace, all operations will happen under this root
     builder.root("/path/to/dir");
-    // set the read token for builder
-    builder.read_token("access_token");
+    // set the token for accessing the repository
+    builder.token("access_token");
 
     let op: Operator = Operator::new(builder)?.finish();
 

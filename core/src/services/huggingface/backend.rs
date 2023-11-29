@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 
 use super::core::HuggingFaceCore;
 use super::error::parse_error;
@@ -31,30 +32,71 @@ use super::message::HuggingFaceStatus;
 use crate::raw::*;
 use crate::*;
 
+/// Configuration for HuggingFace service support.
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct HuggingFaceConfig {
+    /// Repo type of this backend. Default is model.
+    ///
+    /// Available values:
+    /// - model
+    /// - dataset
+    pub repo_type: Option<String>,
+    /// Repo id of this backend.
+    ///
+    /// This is required.
+    pub repo_id: Option<String>,
+    /// Revision of this backend.
+    ///
+    /// Default is main.
+    pub revision: Option<String>,
+    /// Root of this backend. Can be "/path/to/dir".
+    ///
+    /// Default is "/".
+    pub root: Option<String>,
+    /// Token of this backend.
+    ///
+    /// This is optional.
+    pub token: Option<String>,
+}
+
+impl Debug for HuggingFaceConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("HuggingFaceConfig");
+
+        if let Some(repo_type) = &self.repo_type {
+            ds.field("repo_type", &repo_type);
+        }
+        if let Some(repo_id) = &self.repo_id {
+            ds.field("repo_id", &repo_id);
+        }
+        if let Some(revision) = &self.revision {
+            ds.field("revision", &revision);
+        }
+        if let Some(root) = &self.root {
+            ds.field("root", &root);
+        }
+        if self.token.is_some() {
+            ds.field("token", &"<redacted>");
+        }
+
+        ds.finish()
+    }
+}
+
 /// [HuggingFace](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct HuggingFaceBuilder {
-    repo_type: Option<String>,
-    repo_id: Option<String>,
-    revision: Option<String>,
-    root: Option<String>,
-    token: Option<String>,
+    config: HuggingFaceConfig,
 }
 
 impl Debug for HuggingFaceBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
-        ds.field("repo_type", &self.repo_type);
-        ds.field("repo_id", &self.repo_id);
-        ds.field("revision", &self.revision);
-        ds.field("root", &self.root);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
+        ds.field("config", &self.config);
         ds.finish()
     }
 }
@@ -70,7 +112,7 @@ impl HuggingFaceBuilder {
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(&mut self, repo_type: &str) -> &mut Self {
         if !repo_type.is_empty() {
-            self.repo_type = Some(repo_type.to_string());
+            self.config.repo_type = Some(repo_type.to_string());
         }
         self
     }
@@ -86,7 +128,7 @@ impl HuggingFaceBuilder {
     /// - databricks/databricks-dolly-15k
     pub fn repo_id(&mut self, repo_id: &str) -> &mut Self {
         if !repo_id.is_empty() {
-            self.repo_id = Some(repo_id.to_string());
+            self.config.repo_id = Some(repo_id.to_string());
         }
         self
     }
@@ -100,7 +142,7 @@ impl HuggingFaceBuilder {
     /// - 1d0c4eb
     pub fn revision(&mut self, revision: &str) -> &mut Self {
         if !revision.is_empty() {
-            self.revision = Some(revision.to_string());
+            self.config.revision = Some(revision.to_string());
         }
         self
     }
@@ -110,7 +152,7 @@ impl HuggingFaceBuilder {
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string());
+            self.config.root = Some(root.to_string());
         }
         self
     }
@@ -120,7 +162,7 @@ impl HuggingFaceBuilder {
     /// This is optional.
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -146,7 +188,7 @@ impl Builder for HuggingFaceBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let repo_type = match &self.repo_type {
+        let repo_type = match &self.config.repo_type {
             Some(repo_type) => match repo_type.as_str() {
                 "model" => Ok(RepoType::Model),
                 "dataset" => Ok(RepoType::Dataset),
@@ -165,7 +207,7 @@ impl Builder for HuggingFaceBuilder {
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);
 
-        let repo_id = match &self.repo_id {
+        let repo_id = match &self.config.repo_id {
             Some(repo_id) => Ok(repo_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
                 .with_operation("Builder::build")
@@ -173,16 +215,16 @@ impl Builder for HuggingFaceBuilder {
         }?;
         debug!("backend use repo_id: {}", &repo_id);
 
-        let revision = match &self.revision {
+        let revision = match &self.config.revision {
             Some(revision) => Ok(revision.clone()),
             None => Ok("main".to_string()),
         }?;
         debug!("backend use revision: {}", &revision);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root: {}", &root);
 
-        let token = match &self.token {
+        let token = match &self.config.token {
             Some(token) => Some(token.clone()),
             None => None,
         };

@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::HuggingFaceBuilder as HuggingFace;
+pub use backend::HuggingFaceConfig;
 
 mod core;
 mod error;

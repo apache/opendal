@@ -362,7 +362,7 @@ impl From<Scheme> for &'static str {
             Scheme::Gridfs => "gridfs",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
-            Scheme::HuggingFace => "huggingface",
+            Scheme::HuggingFace => "hf",
             Scheme::Foundationdb => "foundationdb",
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",

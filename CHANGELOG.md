@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [v0.43.0] - 2023-11-27
+## [v0.43.0] - 2023-11-30
 
 ### Added
 * feat(bindings/C): Add opendal_operator_rename and opendal_operator_copy by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3517
@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(service/hdfs): enable hdfs append support by @qingwen220 in https://github.com/apache/incubator-opendal/pull/3600
 * fix(ci): fix setup node by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3611
 * fix(core): Path in remove not normalized by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3671
+* fix(core): Build with redis features and Rust < 1.72 by @vincentdephily in https://github.com/apache/incubator-opendal/pull/3683
 ### Docs
 * docs: Add questdb in users list by @caicancai in https://github.com/apache/incubator-opendal/pull/3532
 * docs: Add macos specific doc updates for hdfs by @shbhmrzd in https://github.com/apache/incubator-opendal/pull/3559
@@ -91,6 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore: Polish comments for `stat` and `stat_with` by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3657
 * chore: clearer doc for python binding by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3667
 * chore: Bump to v0.43.0 to start release process by @G-XD in https://github.com/apache/incubator-opendal/pull/3672
+* chore: Bump to v0.43.0 to start release process (Round 2) by @G-XD in https://github.com/apache/incubator-opendal/pull/3676
+* chore: add license.workspace to help cargo deny reports by @tisonkun in https://github.com/apache/incubator-opendal/pull/3679
+* chore: clearer doc for list metakey by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/3666
 
 ## [v0.42.0] - 2023-11-07
 

@@ -35,16 +35,8 @@ use crate::*;
 /// manner.
 ///
 /// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`], and can use `metakey` along with list.
-/// For example, suppose you need to access `entry.metadata().content_length()`:
-///
-/// ```rust
-/// let entries: Vec<Entry> = op
-///  .list_with("dir/")
-///  .metakey(Metakey::ContentLength).await?;
-/// for entry in entris {
-///  println!("{} {}", entry.name(), entry.metadata().content_length());
-/// }
-/// ```
+/// For example, suppose you need to access `content_length`, you can bring the corresponding field in metakey when listing:
+/// `op.list_with("dir/").metakey(Metakey::ContentLength).await?;`.
 ///
 /// - Lister implements `Stream<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.

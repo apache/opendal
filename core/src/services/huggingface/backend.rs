@@ -214,7 +214,7 @@ impl Builder for HuggingfaceBuilder {
         debug!("backend use repo_id: {}", &repo_id);
 
         let revision = match &self.config.revision {
-            Some(revision) => Ok(revision.clone()),
+            Some(revision) => Ok::<String, Error>(revision.clone()),
             None => Ok("main".to_string()),
         }?;
         debug!("backend use revision: {}", &revision);
@@ -222,10 +222,7 @@ impl Builder for HuggingfaceBuilder {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root: {}", &root);
 
-        let token = match &self.config.token {
-            Some(token) => Some(token.clone()),
-            None => None,
-        };
+        let token = self.config.token.as_ref().cloned();
 
         let client = HttpClient::new()?;
 
@@ -323,12 +320,10 @@ impl Accessor for HuggingfaceBackend {
                         "file" => meta.set_mode(EntryMode::FILE),
                         _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
                     };
+                } else if path.ends_with('/') {
+                    meta.set_mode(EntryMode::DIR);
                 } else {
-                    if path.ends_with('/') {
-                        meta.set_mode(EntryMode::DIR);
-                    } else {
-                        return Err(Error::new(ErrorKind::NotFound, "path not found"));
-                    }
+                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
                 }
 
                 Ok(RpStat::new(meta))

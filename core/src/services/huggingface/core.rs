@@ -22,7 +22,6 @@ use http::Request;
 use http::Response;
 use http::{header, StatusCode};
 use serde::Deserialize;
-use serde_json::json;
 
 use super::backend::RepoType;
 use super::error::parse_error;

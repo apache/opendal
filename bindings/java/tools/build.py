@@ -55,22 +55,35 @@ if __name__ == '__main__':
     parser.add_argument('--target', type=str, default='')
     parser.add_argument('--profile', type=str, default='dev')
     parser.add_argument('--features', type=str, default='default')
+    parser.add_argument('--enable-zigbuild', type=str, default='false')
     args = parser.parse_args()
-
-    cmd = ['cargo', 'build', '--color=always', f'--profile={args.profile}']
-
-    if args.features:
-        cmd += ['--features', args.features]
 
     if args.target:
         target = args.target
     else:
         target = classifier_to_target(args.classifier)
 
+    # Setup target.
     command = ['rustup', 'target', 'add', target]
     print('$ ' + subprocess.list2cmdline(command))
     subprocess.run(command, cwd=basedir, check=True)
-    cmd += ['--target', target]
+
+    # Enable zigbuild if flag enabled and we are building linux target
+    enable_zigbuild = args.enable_zigbuild == 'true' and 'linux' in target
+
+    cmd = ['cargo',
+           'zigbuild' if enable_zigbuild else 'build',
+           '--color=always',
+           f'--profile={args.profile}']
+
+    if args.features:
+        cmd += ['--features', args.features]
+
+    if enable_zigbuild:
+        # Pin glibc to 2.17 if zigbuild has been enabled.
+        cmd += ['--target', f'{target}.2.17']
+    else:
+        cmd += ['--target', target]
 
     output = basedir / 'target' / 'bindings'
     Path(output).mkdir(exist_ok=True, parents=True)

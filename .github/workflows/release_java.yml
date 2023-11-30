@@ -23,6 +23,12 @@ on:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release_java.yml"
+      - "bindings/java/tools/build.py"
   workflow_dispatch:
 
 jobs:
@@ -63,6 +69,10 @@ jobs:
           version: "23.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup linux for zigbuild
+        if: "contains(matrix.os, 'ubuntu-latest')"
+        run: pip install cargo-zigbuild
+
       - name: Setup linux-aarch_64
         if: "contains(matrix.classifier, 'linux-aarch_64')"
         run: |
@@ -80,6 +90,7 @@ jobs:
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
+            -Dcargo-build.enableZigbuild=true \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \

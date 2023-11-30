@@ -76,15 +76,7 @@ impl HuggingfaceCore {
 
         req = req.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
 
-        let path = percent_encode_path(&p);
-        let req_body = &json!({
-            "paths": path,
-            "expand": "True",
-        });
-
-        // NOTE: We need to transfer body to x-www-form-urlencoded format.
-        let req_body =
-            serde_urlencoded::to_string(&req_body).expect("failed to encode request body");
+        let req_body = format!("paths={}&expand=True", percent_encode_path(&p));
 
         let req = req
             .body(AsyncBody::Bytes(Bytes::from(req_body)))

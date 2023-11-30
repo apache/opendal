@@ -34,10 +34,13 @@ use crate::*;
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
 ///
-/// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`].
+/// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`], and can use `metakey` along with list.
+/// For example, suppose you need to access `content_length`, you can bring the corresponding field in metakey when listing:
+/// `op.list_with("dir/").metakey(Metakey::ContentLength).await?;`.
 ///
 /// - Lister implements `Stream<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
+///
 pub struct Lister {
     acc: FusedAccessor,
     lister: Option<oio::Lister>,

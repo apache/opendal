@@ -71,7 +71,7 @@ jobs:
           python-version: "3.8"
 
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -100,7 +100,7 @@ jobs:
           python-version: "3.8"
 
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -156,7 +156,7 @@ jobs:
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -186,7 +186,7 @@ jobs:
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -258,7 +258,7 @@ jobs:
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"

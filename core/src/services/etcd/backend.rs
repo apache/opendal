@@ -195,17 +195,10 @@ impl Builder for EtcdBuilder {
     type Accessor = EtcdBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = EtcdBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoints").map(|v| builder.endpoints(v));
-        map.get("username").map(|v| builder.username(v));
-        map.get("password").map(|v| builder.password(v));
-        map.get("ca_path").map(|v| builder.ca_path(v));
-        map.get("cert_path").map(|v| builder.cert_path(v));
-        map.get("key_path").map(|v| builder.key_path(v));
-
-        builder
+        EtcdBuilder {
+            config: EtcdConfig::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

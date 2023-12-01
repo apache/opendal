@@ -227,7 +227,7 @@ base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bb8-postgres = { version = "0.8.1", optional = true }
 bytes = "1.4"
-cacache = { version = "11.6", default-features = false, features = [
+cacache = { version = "12.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }

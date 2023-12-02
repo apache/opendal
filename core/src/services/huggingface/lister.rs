@@ -59,39 +59,31 @@ impl oio::PageList for HuggingfaceLister {
         ctx.done = true;
 
         for status in decoded_response {
-            let entry: oio::Entry = match status.type_.as_str() {
-                "directory" => {
-                    let normalized_path = format!("{}/", &status.path);
-                    let mut meta = Metadata::new(EntryMode::DIR);
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
-                    }
-                    oio::Entry::new(&normalized_path, meta)
-                }
-                "file" => {
-                    let mut meta = Metadata::new(EntryMode::FILE);
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
-                    }
-                    meta.set_content_length(status.size);
-                    oio::Entry::new(&status.path, meta)
-                }
-                _ => {
-                    let mut meta = Metadata::new(EntryMode::Unknown);
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
-                    }
-                    oio::Entry::new(&status.path, meta)
-                }
+            let entry_type = match status.type_.as_str() {
+                "directory" => EntryMode::DIR,
+                "file" => EntryMode::FILE,
+                _ => EntryMode::Unknown,
             };
-            ctx.entries.push_back(entry);
+
+            let mut meta = Metadata::new(entry_type);
+
+            if let Some(commit_info) = status.last_commit.as_ref() {
+                meta.set_last_modified(parse_datetime_from_rfc3339(commit_info.date.as_str())?);
+            }
+
+            if entry_type == EntryMode::FILE {
+                meta.set_content_length(status.size);
+            }
+
+            let path = if entry_type == EntryMode::DIR {
+                format!("{}/", &status.path)
+            } else {
+                status.path.clone()
+            };
+
+            ctx.entries.push_back(oio::Entry::new(&path, meta));
         }
+
         Ok(())
     }
 }

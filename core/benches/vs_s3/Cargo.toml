@@ -33,7 +33,7 @@ aws-config = { version = "0.101", features = ["behavior-version-latest"] }
 aws-credential-types = { version = "0.101", features = [
   "hardcoded-credentials",
 ] }
-aws-sdk-s3 = "0.38"
+aws-sdk-s3 = "1.4.0"
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 opendal = { path = "../..", features = ["tests"] }

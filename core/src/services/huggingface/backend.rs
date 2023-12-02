@@ -270,7 +270,7 @@ impl Accessor for HuggingfaceBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.hf_read(path, args).await?;
+        let resp = self.core.hf_resolve(path, args).await?;
 
         let status = resp.status();
 

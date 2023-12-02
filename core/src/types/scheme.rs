@@ -68,6 +68,8 @@ pub enum Scheme {
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
+    /// [huggingface][crate::services::Huggingface]: Huggingface services.
+    Huggingface,
     /// [alluxio][created::services::Alluxio]: Alluxio services.
     Alluxio,
 
@@ -201,6 +203,8 @@ impl Scheme {
             Scheme::Hdfs,
             #[cfg(feature = "services-http")]
             Scheme::Http,
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface,
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs,
             #[cfg(feature = "services-ipmfs")]
@@ -303,6 +307,7 @@ impl FromStr for Scheme {
             "gridfs" => Ok(Scheme::Gridfs),
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
+            "huggingface" | "hf" => Ok(Scheme::Huggingface),
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
@@ -357,6 +362,7 @@ impl From<Scheme> for &'static str {
             Scheme::Gridfs => "gridfs",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
+            Scheme::Huggingface => "huggingface",
             Scheme::Foundationdb => "foundationdb",
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",

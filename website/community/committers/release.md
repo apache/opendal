@@ -120,7 +120,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Release Maven artifacts
 - [ ] Send the announcement
 
-For details of each step, please refer to: https://opendal.apache.org/docs/contributing/release
+For details of each step, please refer to: https://opendal.apache.org/community/committers/release
 ```
 
 ## GitHub Side

@@ -57,13 +57,18 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 
     let dst_root = Path::new(&dst_path);
     let mut ds = src_op.lister_with(&src_path).recursive(true).await?;
+    let prefix = src_path.strip_prefix('/').unwrap_or(src_path.as_str());
     while let Some(de) = ds.try_next().await? {
         let meta = de.metadata();
         if meta.mode().is_dir() {
             continue;
         }
-
-        let fp = de.path().strip_prefix(&src_path).expect("invalid path");
+        let depath = de.path();
+        let fp = depath
+            .strip_prefix('/')
+            .unwrap_or(depath)
+            .strip_prefix(prefix)
+            .expect("invalid path");
         let reader = src_op.reader(de.path()).await?;
         let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
 

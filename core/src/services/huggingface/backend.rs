@@ -173,15 +173,10 @@ impl Builder for HuggingfaceBuilder {
     type Accessor = HuggingfaceBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = HuggingfaceBuilder::default();
+        let config = HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("repo_type").map(|v| builder.repo_type(v));
-        map.get("repo_id").map(|v| builder.repo_id(v));
-        map.get("revision").map(|v| builder.revision(v));
-        map.get("root").map(|v| builder.root(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+        HuggingfaceBuilder { config }
     }
 
     /// Build a HuggingfaceBackend.
@@ -214,9 +209,9 @@ impl Builder for HuggingfaceBuilder {
         debug!("backend use repo_id: {}", &repo_id);
 
         let revision = match &self.config.revision {
-            Some(revision) => Ok::<String, Error>(revision.clone()),
-            None => Ok("main".to_string()),
-        }?;
+            Some(revision) => revision.clone(),
+            None => "main".to_string(),
+        };
         debug!("backend use revision: {}", &revision);
 
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
@@ -320,8 +315,6 @@ impl Accessor for HuggingfaceBackend {
                         "file" => meta.set_mode(EntryMode::FILE),
                         _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
                     };
-                } else if path.ends_with('/') {
-                    meta.set_mode(EntryMode::DIR);
                 } else {
                     return Err(Error::new(ErrorKind::NotFound, "path not found"));
                 }

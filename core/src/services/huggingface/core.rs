@@ -155,7 +155,7 @@ impl HuggingfaceCore {
 
         let range = arg.range();
         if !range.is_full() {
-            req = req.header("Range", &range.to_header());
+            req = req.header(header::RANGE, &range.to_header());
         }
 
         let req = req

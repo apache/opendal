@@ -43,8 +43,8 @@ export default function Committers() {
             <td><img width={64} className={styles.contributorAvatar}
                      src={`https://github.com/${v.githubId}.png`} alt={v.name}/></td>
             <td>{v.isPMC ? <b>{v.name}</b> : v.name}</td>
-            <td>{v.apacheId}</td>
-            <td><a target={"_blank"} href={`https://github.com/${v.githubId}`}>{v.githubId}</a></td>
+            <td><a target='_blank' href={`https://people.apache.org/phonebook.html?uid=${v.apacheId}`}>{v.apacheId}</a></td>
+            <td><a target='_blank' href={`https://github.com/${v.githubId}`}>{v.githubId}</a></td>
           </tr>
         ))}
       </tbody>

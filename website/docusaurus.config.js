@@ -236,6 +236,11 @@ const config = {
         darkTheme: darkCodeTheme,
         additionalLanguages: ['rust', 'java', 'groovy'],
       },
+      zoom: {
+        selector: '.markdown img',
+        background: 'rgba(255, 255, 255, 0.8)',
+        config: {}
+      }
     }),
 };
 

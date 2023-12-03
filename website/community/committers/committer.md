@@ -5,7 +5,8 @@ sidebar_position: 3
 
 This document primarily serves as a guide for new committers to OpenDAL.
 
-Upon receiving an invitation email from OpenDAL's PPMC, a new committer should consider whether to accept. If they decide in favor, they should select "Reply All" and express their decision.
+Upon receiving an invitation email from OpenDAL's PPMC, a new committer should consider whether accepting.
+If they decide in favor, they should select "Reply All" and express their decision.
 
 ## Submit CLA
 
@@ -13,7 +14,7 @@ Upon receiving an invitation email from OpenDAL's PPMC, a new committer should c
 2. Complete the ICLA based on your particulars. Please note:
     - The address field should be filled out accurately and in detail.
     - You need to choose a unique ApacheID that hasn't been taken. Check https://people.apache.org/committer-index.html to see which IDs are still available.
-3. Sign document by hand or by electronic signature
+3. Sign the document by hand or by electronic signature
     - Manually sign a printed copy, then scan it to produce a pdf.
     - Digitally draw a signature on the document: [Detail Instruction](https://www.apache.org/licenses/cla-faq.html#printer).
     - Sign the document using PGP: [Detail Instruction](https://www.apache.org/licenses/contributor-agreements.html#submitting).
@@ -23,7 +24,7 @@ After waiting for some time, you will receive an email notifying you that your C
 
 ## Setup ASF Account
 
-When receive an email with the subject "Welcome to the Apache Software Foundation" from root@apache.org, we can begin setting up ASF account.
+When receiving an email with the subject "Welcome to the Apache Software Foundation" from root@apache.org, we can begin setting up an ASF account.
 
 ### Setup LDAP Password
 
@@ -36,7 +37,7 @@ When receive an email with the subject "Welcome to the Apache Software Foundatio
 2. Click "Authenticate with GitHub" and follow the given instructions to link your ASF account to GitHub.
 3. Check your email titled "[GitHub] @asfgit has invited you to join the @apache organization" and accept the invitation.
 4. Wait momentarily, and the website will refresh on its own.
-5. (If you not enable 2FA on GitHub) Please follow the [instruction](https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/configuring-two-factor-authentication).
+5. (If you do not enable 2FA on GitHub) Please follow the [instruction](https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/configuring-two-factor-authentication).
 
 Your ApacheID and GitHub ID will now both appear on https://gitbox.apache.org/boxer/. Congrats on successfully linking your ASF account to GitHub!
 
@@ -67,17 +68,17 @@ Here's an illustration for Gmail users:
 
 ![Gmail Settings](gmail-smtp-setting.jpg)
 
-### Subscribe Mailing List
+### Subscribe to Mailing List
 
 1. Send email to [dev-subscribe@opendal.apache.org](mailto:dev-subscribe@opendal.apache.org)
-2. You will receive an email with the subject "confirm subscribe to dev@opendal.apache.org"
+2. You will receive an email with the subject "confirm subscribing to dev@opendal.apache.org"
 3. Reply to the email with "Confirm" in the body
 
 If you receive an email with the subject "WELCOME to dev@opendal.apache.org", you have successfully subscribed to the mailing list.
 
 ## Setup 1password
 
-OpenDAL offers a 1password open source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PPMC members will invite you to join the team.
+OpenDAL offers a 1Password open-source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PPMC members will invite you to join the team.
 
 Please download your preferred clients to begin using it. Here are some important notes regarding the use of 1Password: 
 

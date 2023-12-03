@@ -8,7 +8,7 @@ Every volunteer project obtains its strength from the people involved in it. We 
 
 You can:
 
-* Use our project and provide a feedback.
+* Use our project and provide feedback.
 * Provide us with the use-cases.
 * Report bugs and submit patches.
 * Contribute code, documentation.
@@ -37,14 +37,14 @@ If you email us with a code snippet, make sure that:
 
 * you do not link to files in external services as such files can change, get deleted or the link might break and thus make an archived email thread useless
 * you paste text instead of screenshots of text
-* you keep formatting when pasting code in order to keep the code readable
+* you keep formatting when pasting code to keep the code readable
 * there are enough import statements to avoid ambiguities
 
 ## Issue tracker
 
 We use GitHub Issues to track all code related issues: https://github.com/apache/incubator-opendal/issues
 
-You must have a [GitHub account](https://github.com/signup) in order to log cases and issues.
+You must have a [GitHub account](https://github.com/signup) to log cases and issues.
 
 ### Bug reports
 
@@ -63,3 +63,10 @@ Enhancements or new feature proposals are also welcome. The more concrete and ra
 ## Source code
 
 * OpenDAL core repository: https://github.com/apache/incubator-opendal
+
+## People
+The list below could be outdated. Please find the most up-to-date list [here](https://people.apache.org/phonebook.html?podling=opendal).
+
+import Committers from "../src/components/Committers"
+
+<Committers/>

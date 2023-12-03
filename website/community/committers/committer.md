@@ -71,7 +71,7 @@ Here's an illustration for Gmail users:
 ### Subscribe to Mailing List
 
 1. Send email to [dev-subscribe@opendal.apache.org](mailto:dev-subscribe@opendal.apache.org)
-2. You will receive an email with the subject "confirm subscribing to dev@opendal.apache.org"
+2. You will receive an email with the subject "confirm subscribe to dev@opendal.apache.org"
 3. Reply to the email with "Confirm" in the body
 
 If you receive an email with the subject "WELCOME to dev@opendal.apache.org", you have successfully subscribed to the mailing list.

@@ -53,7 +53,12 @@ All pull requests should be reviewed by at least one OpenDAL committer.
 
 #### Merge Style
 
-All pull requests are squash merged. We generally discourage large pull requests that are over 300-500 lines of diff. If you would like to propose a change that is larger we suggest coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discuss it with us. This way we can talk through the solution and discuss if a change that large is even needed! This will produce a quicker response to the change and likely produce code that aligns better with our process.
+All pull requests are squash merged.
+We generally discourage large pull requests that are over 300–500 lines of diff.
+If you would like to propose a change that is larger, we suggest
+coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discussing it with us.
+This way we can talk through the solution and discuss if a change that large is even needed!
+This will produce a quicker response to the change and likely produce code that aligns better with our process.
 
 ### CI
 
@@ -65,7 +70,11 @@ For small or first-time contributions, we recommend the dev container method. Pr
 
 ### Using a dev container environment
 
-OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [GitHub Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
+OpenDAL provides a pre-configured [dev container](https://containers.dev/)
+that could be used in [GitHub Codespaces](https://github.com/features/codespaces),
+[VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/),
+[JupyterLab](https://jupyterlab.readthedocs.io/en/stable/).
+Please pick up your favourite runtime environment.
 
 The fastest way is:
 

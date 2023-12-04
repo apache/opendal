@@ -187,7 +187,4 @@ module Entry : sig
   val path : Opendal_core.Operator.entry -> string
   val name : Opendal_core.Operator.entry -> string
   val metadata : Opendal_core.Operator.entry -> Opendal_core.Operator.metadata
-
-  val into_parts :
-    Opendal_core.Operator.entry -> string * Opendal_core.Operator.metadata
 end

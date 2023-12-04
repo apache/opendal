@@ -14,7 +14,6 @@ type entry
 external entry_path: entry -> string  = "entry_path"
 external entry_name: entry -> string  = "entry_name"
 external entry_metadata: entry -> metadata  = "entry_metadata"
-external entry_into_parts: entry -> (string * metadata)  = "entry_into_parts"
 
 (* file: metadata.rs *)
 

@@ -59,5 +59,4 @@ module Entry = struct
   let path = Opendal_core.Operator.entry_path
   let name = Opendal_core.Operator.entry_name
   let metadata = Opendal_core.Operator.entry_metadata
-  let into_parts = Opendal_core.Operator.entry_into_parts
 end

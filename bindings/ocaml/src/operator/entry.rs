@@ -34,12 +34,3 @@ pub fn entry_name(entry: &mut Entry) -> String {
 pub fn entry_metadata(entry: &mut Entry) -> ocaml::Pointer<Metadata> {
     Metadata(entry.0.metadata().clone()).into()
 }
-
-#[ocaml::func]
-#[ocaml::sig("entry -> (string * metadata) ")]
-pub fn entry_into_parts(entry: &mut Entry) -> (String, ocaml::Pointer<Metadata>) {
-    (
-        entry.0.path().to_string(),
-        Metadata(entry.0.metadata().clone()).into(),
-    )
-}

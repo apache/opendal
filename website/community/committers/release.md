@@ -333,7 +333,7 @@ ${name}
 
 Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 
-After at least 3 `+1` binding vote (from OpenDAL Podling PMC member and committers) and no veto, claim the vote result:
+After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://opendal.apache.org/community/#committers)) and no veto, claim the vote result:
 
 Title:
 
@@ -348,13 +348,17 @@ Hello, Apache OpenDAL(incubating) Community,
 
 The vote to release Apache OpenDAL(Incubating) ${release_version} has passed.
 
-The vote PASSED with 3 binding +1 and 0 -1 vote:
+The vote PASSED with 3 +1 binding and 1 +1 non-binding votes, no +0 or -1 votes:
 
 Binding votes:
 
 - xxx
 - yyy
 - zzz
+
+Non-Binding votes:
+
+- aaa
 
 Vote thread: ${vote_thread_url}
 

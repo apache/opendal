@@ -135,6 +135,8 @@ pub use self::mini_moka::MiniMoka;
 mod moka;
 #[cfg(feature = "services-moka")]
 pub use self::moka::Moka;
+#[cfg(feature = "services-moka")]
+pub use self::moka::MokaConfig;
 
 #[cfg(feature = "services-obs")]
 mod obs;

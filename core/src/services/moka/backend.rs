@@ -49,10 +49,6 @@ pub struct MokaBuilder {
     ///
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
     num_segments: Option<usize>,
-    /// Decides whether to enable thread pool of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::thread_pool_enabled`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.thread_pool_enabled)
-    thread_pool_enabled: Option<bool>,
 }
 
 impl MokaBuilder {
@@ -102,14 +98,6 @@ impl MokaBuilder {
         self.num_segments = Some(v);
         self
     }
-
-    /// Decides whether to enable thread pool of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::thread_pool_enabled`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.thread_pool_enabled)
-    pub fn thread_pool_enabled(&mut self, v: bool) -> &mut Self {
-        self.thread_pool_enabled = Some(v);
-        self
-    }
 }
 
 impl Builder for MokaBuilder {
@@ -132,8 +120,6 @@ impl Builder for MokaBuilder {
         });
         map.get("num_segments")
             .map(|v| v.parse::<usize>().map(|v| builder.segments(v)));
-        map.get("thread_pool_enabled")
-            .map(|v| v.parse::<bool>().map(|v| builder.thread_pool_enabled(v)));
 
         builder
     }
@@ -142,8 +128,7 @@ impl Builder for MokaBuilder {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, typed_kv::Value, _> =
-            SegmentedCache::builder(self.num_segments.unwrap_or(1))
-                .thread_pool_enabled(self.thread_pool_enabled.unwrap_or(false));
+            SegmentedCache::builder(self.num_segments.unwrap_or(1));
         // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
         if let Some(v) = &self.name {

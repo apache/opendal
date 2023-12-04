@@ -21,7 +21,6 @@ This service can be used to:
 - `time_to_live`: Set the time to live of the cache.
 - `time_to_idle`: Set the time to idle of the cache.
 - `num_segments`: Set the segments number of the cache.
-- `thread_pool_enabled`: Decides whether to enable thread pool of the cache.
 
 You can refer to [`MokaBuilder`]'s docs for more information
 

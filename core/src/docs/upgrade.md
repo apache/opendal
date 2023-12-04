@@ -1,3 +1,11 @@
+# Unreleased
+
+## Public API
+
+### Moka Service Configuration
+
+- The `thread_pool_enabled` option has been removed.
+
 # Upgrade to v0.43
 
 ## Public API

@@ -193,6 +193,8 @@ impl Operator {
             Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
             #[cfg(feature = "services-http")]
             Scheme::Http => Self::from_map::<services::Http>(map)?.finish(),
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface => Self::from_map::<services::Huggingface>(map)?.finish(),
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
             #[cfg(feature = "services-ipmfs")]

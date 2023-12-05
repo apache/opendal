@@ -25,9 +25,11 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::Stream;
 use futures::StreamExt;
+use futures::TryStreamExt;
 use object_store::path::Path;
 use object_store::GetOptions;
 use object_store::GetResult;
+use object_store::GetResultPayload;
 use object_store::ListResult;
 use object_store::MultipartId;
 use object_store::ObjectMeta;
@@ -88,24 +90,39 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn get_opts(&self, location: &Path, _: GetOptions) -> Result<GetResult> {
-        let r = self
-            .inner
-            .reader(location.as_ref())
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        Ok(GetResult::Stream(Box::pin(OpendalReader { inner: r })))
+    async fn get_opts(&self, _location: &Path, _options: GetOptions) -> Result<GetResult> {
+        Err(object_store::Error::NotSupported {
+            source: Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unsupported,
+                "get_opts is not implemented so far",
+            )),
+        })
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
+        let meta = self
+            .inner
+            .stat(location.as_ref())
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        let meta = ObjectMeta {
+            location: location.clone(),
+            last_modified: meta.last_modified().unwrap_or_default(),
+            size: meta.content_length() as usize,
+            e_tag: meta.etag().map(|x| x.to_string()),
+        };
         let r = self
             .inner
             .reader(location.as_ref())
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        Ok(GetResult::Stream(Box::pin(OpendalReader { inner: r })))
+        Ok(GetResult {
+            payload: GetResultPayload::Stream(Box::pin(OpendalReader { inner: r })),
+            range: (0..meta.size),
+            meta,
+        })
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {

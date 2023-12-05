@@ -162,14 +162,7 @@ impl HuggingfaceCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(resp),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.client.send(req).await
     }
 }
 

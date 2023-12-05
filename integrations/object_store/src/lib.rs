@@ -35,6 +35,7 @@ use object_store::MultipartId;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::Result;
+use opendal::Entry;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
@@ -182,6 +183,37 @@ impl ObjectStore for OpendalStore {
         Ok(stream.boxed())
     }
 
+    async fn list_with_offset(
+        &self,
+        prefix: Option<&Path>,
+        offset: &Path,
+    ) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
+        let path = prefix.map_or("".into(), |x| format!("{}/", x));
+        let offset = offset.clone();
+        let stream = if self.inner.info().full_capability().list_with_start_after {
+            self.inner
+                .lister_with(&path)
+                .start_after(offset.as_ref())
+                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .recursive(true)
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .then(try_format_object_meta)
+                .boxed()
+        } else {
+            self.inner
+                .lister_with(&path)
+                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .recursive(true)
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
+                .then(try_format_object_meta)
+                .boxed()
+        };
+        Ok(stream)
+    }
+
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let mut stream = self
@@ -267,6 +299,13 @@ fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
         size: meta.content_length() as usize,
         e_tag: None,
     }
+}
+
+async fn try_format_object_meta(res: Result<Entry, opendal::Error>) -> Result<ObjectMeta> {
+    let entry = res.map_err(|err| format_object_store_error(err, ""))?;
+    let meta = entry.metadata();
+
+    Ok(format_object_meta(entry.path(), meta))
 }
 
 struct OpendalReader {
@@ -393,5 +432,23 @@ mod tests {
         assert_eq!(result.common_prefixes.len(), 1);
         assert_eq!(result.objects[0].location.as_ref(), "data/test.txt");
         assert_eq!(result.common_prefixes[0].as_ref(), "data/nested");
+    }
+
+    #[tokio::test]
+    async fn test_list_with_offset() {
+        let object_store = create_test_object_store().await;
+        let path: Path = "data/".try_into().unwrap();
+        let offset: Path = "data/nested/test.txt".try_into().unwrap();
+        let result = object_store
+            .list_with_offset(Some(&path), &offset)
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].as_ref().unwrap().location.as_ref(),
+            "data/test.txt"
+        );
     }
 }

@@ -18,13 +18,12 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use http::header;
 use http::Request;
 use http::Response;
-use http::{header, StatusCode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
-use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 

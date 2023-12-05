@@ -29,4 +29,5 @@ runs:
         OPENDAL_HUGGINGFACE_REPO_ID=opendal/huggingface-testdata
         OPENDAL_HUGGINGFACE_REVISION=main
         OPENDAL_HUGGINGFACE_ROOT=/testdata/
+        OPENDAL_DISABLE_RANDOM_ROOT=true
         EOF

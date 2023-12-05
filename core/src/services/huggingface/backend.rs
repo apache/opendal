@@ -310,6 +310,8 @@ impl Accessor for HuggingfaceBackend {
                         )?);
                     }
 
+                    meta.set_content_length(status.size);
+
                     match status.type_.as_str() {
                         "directory" => meta.set_mode(EntryMode::DIR),
                         "file" => meta.set_mode(EntryMode::FILE),

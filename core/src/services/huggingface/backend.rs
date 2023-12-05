@@ -275,7 +275,7 @@ impl Accessor for HuggingfaceBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
                 Ok((RpRead::new().with_size(size), resp.into_body()))
             }

@@ -28,5 +28,5 @@ runs:
         OPENDAL_HUGGINGFACE_REPO_TYPE=datasets
         OPENDAL_HUGGINGFACE_REPO_ID=opendal/huggingface-testdata
         OPENDAL_HUGGINGFACE_REVISION=main
-        OPENDAL_HUGGINGFACE_ROOT=/
+        OPENDAL_HUGGINGFACE_ROOT=/testdata/
         EOF

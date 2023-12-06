@@ -444,7 +444,6 @@ impl B2Core {
         }
 
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
             url.push_str(&format!(
                 "&startFileName={}",
                 percent_encode_path(&start_after)

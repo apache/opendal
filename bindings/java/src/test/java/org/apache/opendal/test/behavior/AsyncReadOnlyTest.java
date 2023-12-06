@@ -39,7 +39,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
     private static final String NORMAL_FILE_NAME = "normal_file.txt";
     private static final String NORMAL_DIR_NAME = "normal_dir/";
     private static final String SPECIAL_FILE_NAME = "special_file  !@#$%^&()_+-=;',.txt";
-    private static final String SPECIAL_DIR_NAME = "special_dir  !@#$%^&()_+-=;',./";
+    private static final String SPECIAL_DIR_NAME = "special_dir  !@#$%^&()_+-=;',/";
     private static final String FILE_SHA256_DIGEST = "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5";
     private static final long FILE_LENGTH = 30482L;
 

@@ -81,7 +81,10 @@ impl oio::PageList for HuggingfaceLister {
                 status.path.clone()
             };
 
-            ctx.entries.push_back(oio::Entry::new(&path, meta));
+            ctx.entries.push_back(oio::Entry::new(
+                &build_rel_path(&self.core.root, &path),
+                meta,
+            ));
         }
 
         Ok(())

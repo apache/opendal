@@ -31,7 +31,7 @@ version.workspace = true
 async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
-object_store = "0.6"
+object_store = "0.7"
 opendal.workspace = true
 tokio = "1"
 

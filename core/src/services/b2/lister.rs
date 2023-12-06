@@ -68,7 +68,9 @@ impl oio::PageList for B2Lister {
                 self.delimiter,
                 self.limit,
                 if ctx.token.is_empty() {
-                    self.start_after.clone()
+                    self.start_after
+                        .map(|v| build_abs_path(&self.core.root, &v))
+                        .clone()
                 } else {
                     Some(ctx.token.clone())
                 },

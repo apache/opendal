@@ -80,7 +80,11 @@ impl oio::PageList for B2Lister {
         let output: ListFileNamesResponse =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        ctx.done = output.next_file_name.is_none();
+        if let Some(token) = output.next_file_name {
+            ctx.token = token;
+        } else {
+            ctx.done = true;
+        }
 
         for file in output.files {
             if let Some(start_after) = self.start_after.clone() {

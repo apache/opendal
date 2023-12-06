@@ -44,6 +44,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
         // Service b2 could return 403, show the authorization error
         401 => (ErrorKind::PermissionDenied, true),
+        429 => (ErrorKind::RateLimited, true),
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };

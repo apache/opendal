@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: obs
-description: 'Behavior test for OBS'
+name: b2
+description: 'Behavior test for B2'
 
 runs:
   using: "composite"
@@ -26,7 +26,7 @@ runs:
       with:
         export-env: true
       env:
-        OPENDAL_OBS_BUCKET: op://services/obs/bucket
-        OPENDAL_OBS_ENDPOINT: op://services/obs/endpoint
-        OPENDAL_OBS_ACCESS_KEY_ID: op://services/obs/access_key_id
-        OPENDAL_OBS_SECRET_ACCESS_KEY: op://services/obs/secret_access_key
+        OPENDAL_B2_BUCKET: op://services/b2/bucket
+        OPENDAL_B2_BUCKET_ID: op://services/b2/bucket_id
+        OPENDAL_B2_APPLICATION_KEY_ID: op://services/b2/application_key_id
+        OPENDAL_B2_APPLICATION_KEY: op://services/b2/application_key

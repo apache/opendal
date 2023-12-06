@@ -82,6 +82,23 @@ let test_operator_stat test_ctxt =
   assert_equal 10L (Operator.Metadata.content_length metadata);
   ()
 
+let test_list test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore (test_check_result (Operator.create_dir bo "/testdir/"));
+  ignore
+    (test_check_result
+       (Operator.write bo "/testdir/foo" (Bytes.of_string "bar")));
+  ignore
+    (test_check_result
+       (Operator.write bo "/testdir/bar" (Bytes.of_string "foo")));
+  let array = Operator.list bo "testdir/" |> test_check_result in
+  let names = Array.map Operator.Entry.name array in
+  let expected = [| "foo"; "bar" |] in
+  Array.sort compare expected;
+  assert_equal expected names;
+  assert_equal 2 (Array.length array);
+  ()
+
 let suite =
   "suite"
   >::: [
@@ -91,6 +108,7 @@ let suite =
          "test_copy_and_read" >:: test_copy_and_read;
          "test_operator_reader" >:: test_operator_reader;
          "test_operator_stat" >:: test_operator_stat;
+         "test_list" >:: test_list;
        ]
 
 let () = run_test_tt_main suite

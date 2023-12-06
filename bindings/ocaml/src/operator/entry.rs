@@ -15,22 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// For ocaml-rs, the build order in the same build group is the order of the file names.
-// In order to use the type in the function in the generated ocaml file, it must be defined on the first generated file.
 use super::*;
 
-#[ocaml::sig]
-pub struct Operator(pub(crate) od::BlockingOperator);
-ocaml::custom!(Operator);
+#[ocaml::func]
+#[ocaml::sig("entry -> string ")]
+pub fn entry_path(entry: &mut Entry) -> String {
+    entry.0.path().to_string()
+}
 
-#[ocaml::sig]
-pub struct Reader(pub(crate) od::BlockingReader);
-ocaml::custom!(Reader);
+#[ocaml::func]
+#[ocaml::sig("entry -> string ")]
+pub fn entry_name(entry: &mut Entry) -> String {
+    entry.0.name().to_string()
+}
 
-#[ocaml::sig]
-pub struct Metadata(pub(crate) od::Metadata);
-ocaml::custom!(Metadata);
-
-#[ocaml::sig]
-pub struct Entry(pub(crate) od::Entry);
-ocaml::custom!(Entry);
+#[ocaml::func]
+#[ocaml::sig("entry -> metadata ")]
+pub fn entry_metadata(entry: &mut Entry) -> ocaml::Pointer<Metadata> {
+    Metadata(entry.0.metadata().clone()).into()
+}

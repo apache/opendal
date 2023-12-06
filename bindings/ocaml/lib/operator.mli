@@ -28,6 +28,11 @@ val new_operator :
     @return The block operator
 *)
 
+val list :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.entry array, string) result
+
 val stat :
   Opendal_core.Operator.operator ->
   string ->
@@ -176,4 +181,10 @@ module Metadata : sig
 
   val last_modified : Opendal_core.Operator.metadata -> int64 option
   (** [last_modified metadata] Last modified of this entry.*)
+end
+
+module Entry : sig
+  val path : Opendal_core.Operator.entry -> string
+  val name : Opendal_core.Operator.entry -> string
+  val metadata : Opendal_core.Operator.entry -> Opendal_core.Operator.metadata
 end

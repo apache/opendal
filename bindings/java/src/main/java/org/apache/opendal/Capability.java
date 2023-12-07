@@ -167,14 +167,9 @@ public class Capability {
     public final boolean listWithStartAfter;
 
     /**
-     * If backend support list with using slash as delimiter.
+     * If backend support list with recursive.
      */
-    public final boolean listWithDelimiterSlash;
-
-    /**
-     * If backend supports list without delimiter.
-     */
-    public final boolean listWithoutDelimiter;
+    public final boolean listWithRecursive;
 
     /**
      * If operator supports presign.
@@ -245,8 +240,7 @@ public class Capability {
             boolean list,
             boolean listWithLimit,
             boolean listWithStartAfter,
-            boolean listWithDelimiterSlash,
-            boolean listWithoutDelimiter,
+            boolean listWithRecursive,
             boolean presign,
             boolean presignRead,
             boolean presignStat,
@@ -283,8 +277,7 @@ public class Capability {
         this.list = list;
         this.listWithLimit = listWithLimit;
         this.listWithStartAfter = listWithStartAfter;
-        this.listWithDelimiterSlash = listWithDelimiterSlash;
-        this.listWithoutDelimiter = listWithoutDelimiter;
+        this.listWithRecursive = listWithRecursive;
         this.presign = presign;
         this.presignRead = presignRead;
         this.presignStat = presignStat;

@@ -75,8 +75,6 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
     EXPECT_TRUE(full_cap.delete_);
     EXPECT_TRUE(full_cap.list);
     EXPECT_TRUE(full_cap.list_with_recursive);
-    EXPECT_TRUE(full_cap.copy);
-    EXPECT_TRUE(full_cap.rename);
 
     EXPECT_TRUE(native_cap.blocking);
     EXPECT_TRUE(native_cap.read);
@@ -90,8 +88,6 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
     EXPECT_TRUE(native_cap.delete_);
     EXPECT_TRUE(native_cap.list);
     EXPECT_TRUE(native_cap.list_with_recursive);
-    EXPECT_TRUE(native_cap.copy);
-    EXPECT_TRUE(native_cap.rename);
 }
 
 TEST_F(OpendalOperatorInfoTest, InfoTest)

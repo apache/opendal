@@ -58,7 +58,6 @@ impl Accessor for GdriveBackend {
                 read: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 write: true,
 

@@ -306,7 +306,6 @@ impl Accessor for FtpBackend {
                 create_dir: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });

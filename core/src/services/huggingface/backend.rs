@@ -261,7 +261,6 @@ impl Accessor for HuggingfaceBackend {
                 read_with_range: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 ..Default::default()

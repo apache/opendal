@@ -267,7 +267,6 @@ impl Accessor for SftpBackend {
 
                 list: true,
                 list_with_limit: true,
-                list_without_recursive: true,
 
                 copy: self.copyable,
                 rename: true,

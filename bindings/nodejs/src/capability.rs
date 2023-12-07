@@ -230,12 +230,6 @@ impl Capability {
         self.0.list_with_recursive
     }
 
-    /// If backend supports list without recursive.
-    #[napi(getter)]
-    pub fn list_without_recursive(&self) -> bool {
-        self.0.list_without_recursive
-    }
-
     /// If operator supports presign.
     #[napi(getter)]
     pub fn presign(&self) -> bool {

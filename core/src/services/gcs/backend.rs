@@ -348,7 +348,6 @@ impl Accessor for GcsBackend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 batch: true,

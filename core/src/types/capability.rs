@@ -132,8 +132,6 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list with recursive.
     pub list_with_recursive: bool,
-    /// If backend supports list without recursive.
-    pub list_without_recursive: bool,
 
     /// If operator supports presign.
     pub presign: bool,

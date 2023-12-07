@@ -237,7 +237,6 @@ impl Accessor for SwiftBackend {
                 delete: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 ..Default::default()

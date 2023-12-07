@@ -248,7 +248,6 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });

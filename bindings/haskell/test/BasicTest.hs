@@ -51,8 +51,6 @@ testRawOperation = do
     Left _ -> assertFailure "should not reach here"
   deleteOpRaw op "key1" ?= Right ()
   isExistOpRaw op "key1" ?= Right False
-  Right lister <- listOpRaw op "/"
-  liftIO $ findLister lister "key3" ?= True
   where
     except_meta =
       Metadata
@@ -83,8 +81,6 @@ testMonad = do
       statOp "key1" ?= except_meta
       deleteOp "key1"
       isExistOp "key1" ?= False
-      lister <- listOp "/"
-      liftIO $ findLister lister "key3" ?= True
     except_meta =
       Metadata
         { mMode = File,

@@ -75,6 +75,11 @@ impl<P> HierarchyLister<P> {
             return false;
         }
 
+        // Don't return already visited path.
+        if self.visited.contains(e.path()) {
+            return false;
+        }
+
         let prefix_len = self.path.len();
 
         let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {

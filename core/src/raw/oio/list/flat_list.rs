@@ -84,15 +84,6 @@ where
 {
     /// Create a new flat lister
     pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
-        #[cfg(debug_assertions)]
-        {
-            let meta = acc.info();
-            debug_assert!(
-                meta.full_capability().list_without_recursive,
-                "service doesn't support list hierarchy, it must be a bug"
-            );
-        }
-
         FlatLister {
             acc: Some(acc),
             root: path.to_string(),
@@ -254,7 +245,6 @@ mod tests {
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
             am.full_capability_mut().list = true;
-            am.full_capability_mut().list_without_recursive = true;
 
             am
         }

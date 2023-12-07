@@ -204,7 +204,6 @@ impl Accessor for AlluxioBackend {
                 delete: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });

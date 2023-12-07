@@ -156,7 +156,6 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         let cap = meta.full_capability_mut();
         cap.list = true;
         cap.list_with_recursive = true;
-        cap.list_without_recursive = true;
 
         meta
     }

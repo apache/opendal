@@ -80,7 +80,6 @@ impl Accessor for OnedriveBackend {
                 delete: true,
                 create_dir: true,
                 list: true,
-                list_without_recursive: true,
                 ..Default::default()
             });
 

@@ -575,7 +575,6 @@ impl Accessor for AzblobBackend {
                 copy: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 presign: self.has_sas_token,

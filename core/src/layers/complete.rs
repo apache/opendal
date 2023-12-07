@@ -29,7 +29,6 @@ use bytes::Bytes;
 
 use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
-use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::LazyReader;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
@@ -366,32 +365,17 @@ impl<A: Accessor> CompleteAccessor<A> {
 
         let recursive = args.recursive();
 
-        match (
-            recursive,
-            cap.list_with_recursive,
-            cap.list_without_recursive,
-        ) {
-            // - If service can both list_with_recursive and list_without_recursive
-            // - If recursive is true while services can list_with_recursive
-            // - If recursive is false while services can list_without_recursive
-            (_, true, true) | (true, true, _) | (false, _, true) => {
+        match (recursive, cap.list_with_recursive) {
+            // - If service can list_with_recursive
+            // - If recursive is false
+            (_, true) | (false, _) => {
                 let (rp, p) = self.inner.list(path, args).await?;
                 Ok((rp, CompleteLister::AlreadyComplete(p)))
             }
-            // If services can't list_with_recursive nor list_without_recursive.
-            //
-            // It should be a service level bug.
-            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
-            (true, false, true) => {
+            (true, false) => {
                 let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
-            }
-            // If recursive is false but service can't list_without_recursive
-            (false, true, false) => {
-                let (_, p) = self.inner.list(path, args.with_recursive(true)).await?;
-                let p = HierarchyLister::new(p, path);
-                Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }
     }
@@ -408,33 +392,17 @@ impl<A: Accessor> CompleteAccessor<A> {
 
         let recursive = args.recursive();
 
-        match (
-            recursive,
-            cap.list_with_recursive,
-            cap.list_without_recursive,
-        ) {
-            // - If service can both list_with_recursive and list_without_recursive
-            // - If recursive is true while services can list_with_recursive
-            // - If recursive is false while services can list_without_recursive
-            (_, true, true) | (true, true, _) | (false, _, true) => {
+        match (recursive, cap.list_with_recursive) {
+            // - If service can both list_with_recursive
+            // - If recursive is false
+            (_, true) | (false, _) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
                 Ok((rp, CompleteLister::AlreadyComplete(p)))
             }
-            // If services can't list_with_recursive nor list_without_recursive.
-            //
-            // It should be a service level bug.
-            (_, false, false) => Err(self.new_unsupported_error(Operation::List)),
             // If recursive is true but service can't list_with_recursive
-            (true, false, true) => {
+            (true, false) => {
                 let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
-            }
-            // If recursive is false but service can't list_without_recursive
-            (false, true, false) => {
-                let (_, p) = self.inner.blocking_list(path, args.with_recursive(true))?;
-                let p: HierarchyLister<<A as Accessor>::BlockingLister> =
-                    HierarchyLister::new(p, path);
-                Ok((RpList::default(), CompleteLister::NeedHierarchy(p)))
             }
         }
     }
@@ -738,7 +706,6 @@ where
 pub enum CompleteLister<A: Accessor, P> {
     AlreadyComplete(P),
     NeedFlat(FlatLister<Arc<A>, P>),
-    NeedHierarchy(HierarchyLister<P>),
 }
 
 #[async_trait]
@@ -753,7 +720,6 @@ where
         match self {
             AlreadyComplete(p) => p.poll_next(cx),
             NeedFlat(p) => p.poll_next(cx),
-            NeedHierarchy(p) => p.poll_next(cx),
         }
     }
 }
@@ -769,7 +735,6 @@ where
         match self {
             AlreadyComplete(p) => p.next(),
             NeedFlat(p) => p.next(),
-            NeedHierarchy(p) => p.next(),
         }
     }
 }

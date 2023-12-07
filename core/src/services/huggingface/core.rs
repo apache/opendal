@@ -18,13 +18,12 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use http::header;
 use http::Request;
 use http::Response;
-use http::{header, StatusCode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
-use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
@@ -162,14 +161,7 @@ impl HuggingfaceCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(resp),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.client.send(req).await
     }
 }
 

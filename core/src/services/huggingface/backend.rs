@@ -275,7 +275,7 @@ impl Accessor for HuggingfaceBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
                 Ok((RpRead::new().with_size(size), resp.into_body()))
             }
@@ -309,6 +309,8 @@ impl Accessor for HuggingfaceBackend {
                             commit_info.date.as_str(),
                         )?);
                     }
+
+                    meta.set_content_length(status.size);
 
                     match status.type_.as_str() {
                         "directory" => meta.set_mode(EntryMode::DIR),

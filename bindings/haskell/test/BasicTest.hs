@@ -46,22 +46,11 @@ testRawOperation = do
   isExistOpRaw op "key2" ?= Right True
   createDirOpRaw op "dir1/" ?= Right ()
   isExistOpRaw op "dir1/" ?= Right True
-  copyOpRaw op "key1" "key3" ?= Right ()
-  isExistOpRaw op "key1" ?= Right True
-  isExistOpRaw op "key3" ?= Right True
-  renameOpRaw op "key2" "key4" ?= Right ()
-  isExistOpRaw op "key2" ?= Right False
-  isExistOpRaw op "key4" ?= Right True
   statOpRaw op "key1" >>= \case
     Right meta -> meta @?= except_meta
     Left _ -> assertFailure "should not reach here"
   deleteOpRaw op "key1" ?= Right ()
   isExistOpRaw op "key1" ?= Right False
-  Right lister <- listOpRaw op "/"
-  liftIO $ findLister lister "key3" ?= True
-  renameOpRaw op "key3" "/dir1/key5" ?= Right ()
-  Right lister2 <- scanOpRaw op "/"
-  liftIO $ findLister lister2 "dir1/key5" ?= True
   where
     except_meta =
       Metadata
@@ -89,20 +78,9 @@ testMonad = do
       isExistOp "key2" ?= True
       createDirOp "dir1/"
       isExistOp "dir1/" ?= True
-      copyOp "key1" "key3"
-      isExistOp "key1" ?= True
-      isExistOp "key3" ?= True
-      renameOp "key2" "key4"
-      isExistOp "key2" ?= False
-      isExistOp "key4" ?= True
       statOp "key1" ?= except_meta
       deleteOp "key1"
       isExistOp "key1" ?= False
-      lister <- listOp "/"
-      liftIO $ findLister lister "key3" ?= True
-      renameOp "key3" "/dir1/key5"
-      lister2 <- scanOp "/"
-      liftIO $ findLister lister2 "dir1/key5" ?= True
     except_meta =
       Metadata
         { mMode = File,

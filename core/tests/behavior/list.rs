@@ -261,7 +261,8 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
-    let dir = format!("{}/{}/", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let parent = format!("{}/", uuid::Uuid::new_v4());
+    let dir = format!("{parent}{}/", uuid::Uuid::new_v4());
 
     let file_name = uuid::Uuid::new_v4().to_string();
     let file_path = format!("{dir}{file_name}");
@@ -273,6 +274,11 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .await
         .expect("creat must succeed");
     op.create_dir(&dir_path).await.expect("creat must succeed");
+
+    let obs = op.list(&parent).await?;
+    assert_eq!(obs.len(), 1, "parent should only got 1 entry");
+    assert_eq!(obs[0].path(), dir);
+    assert_eq!(obs[0].metadata().mode(), EntryMode::DIR);
 
     let mut obs = op.lister(&dir).await?;
     let mut objects = HashMap::new();

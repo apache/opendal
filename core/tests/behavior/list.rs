@@ -39,6 +39,7 @@ pub fn behavior_list_tests(op: &Operator) -> Vec<Trial> {
         test_list_dir,
         test_list_dir_with_metakey,
         test_list_dir_with_metakey_complete,
+        test_list_prefix,
         test_list_rich_dir,
         test_list_empty_dir,
         test_list_non_exist_dir,
@@ -170,6 +171,23 @@ pub async fn test_list_dir_with_metakey_complete(op: Operator) -> Result<()> {
         }
     }
     assert!(found, "file should be found in list");
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// List prefix should return newly created file.
+pub async fn test_list_prefix(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    let obs = op.list(&path[..path.len() - 1]).await?;
+    assert_eq!(obs.len(), 1);
+    assert_eq!(obs[0].path(), path);
+    assert_eq!(obs[0].metadata().mode(), EntryMode::FILE);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
@@ -316,10 +334,17 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
 /// List with path file should auto add / suffix.
 pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
+    let file = format!("{parent}/{}", uuid::Uuid::new_v4());
 
-    let obs = op.lister(&parent).await.map(|_| ());
-    assert!(obs.is_err());
-    assert_eq!(obs.unwrap_err().kind(), ErrorKind::NotADirectory);
+    let (content, _) = gen_bytes(op.info().full_capability());
+    op.write(&file, content).await?;
+
+    let obs = op.list(&parent).await?;
+    assert_eq!(obs.len(), 1);
+    assert_eq!(obs[0].path(), format!("{parent}/"));
+    assert_eq!(obs[0].metadata().mode(), EntryMode::DIR);
+
+    op.delete(&file).await?;
 
     Ok(())
 }

@@ -28,6 +28,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use super::Adapter;
+use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::*;
 
@@ -69,8 +70,8 @@ impl<S: Adapter> Accessor for Backend<S> {
     type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Lister = KvLister;
-    type BlockingLister = KvLister;
+    type Lister = HierarchyLister<KvLister>;
+    type BlockingLister = HierarchyLister<KvLister>;
 
     fn info(&self) -> AccessorInfo {
         let mut am: AccessorInfo = self.kv.metadata().into();
@@ -185,6 +186,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.scan(&p).await?;
         let lister = KvLister::new(&self.root, res);
+        let lister = HierarchyLister::new(lister, path);
 
         Ok((RpList::default(), lister))
     }
@@ -193,6 +195,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.blocking_scan(&p)?;
         let lister = KvLister::new(&self.root, res);
+        let lister = HierarchyLister::new(lister, path);
 
         Ok((RpList::default(), lister))
     }

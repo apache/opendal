@@ -46,8 +46,8 @@ pub fn behavior_list_tests(op: &Operator) -> Vec<Trial> {
         test_list_nested_dir,
         test_list_dir_with_file_path,
         test_list_with_start_after,
-        test_scan,
-        test_scan_root,
+        test_list_with_recursive,
+        test_list_root_with_recursive,
         test_remove_all
     )
 }
@@ -365,7 +365,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_scan_root(op: Operator) -> Result<()> {
+pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
     let w = op.lister_with("").recursive(true).await?;
     let actual = w
         .try_collect::<Vec<_>>()
@@ -380,7 +380,7 @@ pub async fn test_scan_root(op: Operator) -> Result<()> {
 }
 
 // Walk top down should output as expected
-pub async fn test_scan(op: Operator) -> Result<()> {
+pub async fn test_list_with_recursive(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = [

@@ -1153,16 +1153,6 @@ impl Operator {
             OpList::default(),
             |inner, path, args| {
                 let fut = async move {
-                    if !validate_path(&path, EntryMode::DIR) {
-                        return Err(Error::new(
-                            ErrorKind::NotADirectory,
-                            "the path trying to list should end with `/`",
-                        )
-                        .with_operation("Operator::list")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-
                     let lister = Lister::create(inner, &path, args).await?;
 
                     lister.try_collect().await
@@ -1330,19 +1320,7 @@ impl Operator {
             path,
             OpList::default(),
             |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::DIR) {
-                        return Err(Error::new(
-                            ErrorKind::NotADirectory,
-                            "the path trying to list should end with `/`",
-                        )
-                        .with_operation("Operator::list")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-
-                    Lister::create(inner, &path, args).await
-                };
+                let fut = async move { Lister::create(inner, &path, args).await };
                 Box::pin(fut)
             },
         ));

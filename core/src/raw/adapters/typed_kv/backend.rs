@@ -97,13 +97,6 @@ impl<S: Adapter> Accessor for Backend<S> {
             cap.list_with_recursive = true;
         }
 
-        if cap.read && cap.write {
-            cap.copy = true;
-        }
-
-        if cap.read && cap.write && cap.delete {
-            cap.rename = true;
-        }
         cap.blocking = true;
 
         am.set_native_capability(cap);
@@ -206,66 +199,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         let lister = KvLister::new(&self.root, res);
 
         Ok((RpList::default(), lister))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.get(&from).await? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.set(&to, bs).await?;
-        self.kv.delete(&from).await?;
-        Ok(RpRename::default())
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.blocking_get(&from)? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.blocking_set(&to, bs)?;
-        self.kv.blocking_delete(&from)?;
-        Ok(RpRename::default())
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.get(&from).await? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.set(&to, bs).await?;
-
-        Ok(RpCopy::default())
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.blocking_get(&from)? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.blocking_set(&to, bs)?;
-
-        Ok(RpCopy::default())
     }
 }
 

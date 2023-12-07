@@ -182,20 +182,20 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.scan(&p).await?;
         let lister = KvLister::new(&self.root, res);
-        let lister = HierarchyLister::new(lister, path);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.blocking_scan(&p)?;
         let lister = KvLister::new(&self.root, res);
-        let lister = HierarchyLister::new(lister, path);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
     }

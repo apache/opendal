@@ -177,7 +177,6 @@ impl Accessor for DbfsBackend {
                 rename: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });

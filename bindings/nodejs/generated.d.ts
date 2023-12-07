@@ -128,8 +128,6 @@ export class Capability {
   get listWithStartAfter(): boolean
   /** If backend supports list with recursive. */
   get listWithRecursive(): boolean
-  /** If backend supports list without recursive. */
-  get listWithoutRecursive(): boolean
   /** If operator supports presign. */
   get presign(): boolean
   /** If operator supports presign read. */

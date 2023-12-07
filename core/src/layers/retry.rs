@@ -1173,7 +1173,6 @@ mod tests {
             am.set_native_capability(Capability {
                 read: true,
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
                 batch: true,
                 ..Default::default()

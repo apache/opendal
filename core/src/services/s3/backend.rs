@@ -1016,7 +1016,6 @@ impl Accessor for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_without_recursive: true,
 
                 presign: true,
                 presign_stat: true,

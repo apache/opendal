@@ -288,7 +288,6 @@ impl Accessor for CosBackend {
                 copy: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 presign: true,

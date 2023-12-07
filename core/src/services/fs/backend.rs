@@ -265,7 +265,6 @@ impl Accessor for FsBackend {
                 delete: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 copy: true,
                 rename: true,

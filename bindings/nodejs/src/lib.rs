@@ -24,11 +24,10 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use opendal::raw::oio::BlockingRead;
-use opendal::raw::oio::ReadExt;
-
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+use opendal::raw::oio::BlockingRead;
+use opendal::raw::oio::ReadExt;
 
 #[napi]
 pub struct Operator(opendal::Operator);

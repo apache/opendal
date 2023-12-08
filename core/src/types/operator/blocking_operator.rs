@@ -1024,16 +1024,6 @@ impl BlockingOperator {
             path,
             OpList::default(),
             |inner, path, args| {
-                if !validate_path(&path, EntryMode::DIR) {
-                    return Err(Error::new(
-                        ErrorKind::NotADirectory,
-                        "the path trying to list should end with `/`",
-                    )
-                    .with_operation("BlockingOperator::list")
-                    .with_context("service", inner.info().scheme().into_static())
-                    .with_context("path", &path));
-                }
-
                 let lister = BlockingLister::create(inner, &path, args)?;
 
                 lister.collect()
@@ -1197,19 +1187,7 @@ impl BlockingOperator {
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                if !validate_path(&path, EntryMode::DIR) {
-                    return Err(Error::new(
-                        ErrorKind::NotADirectory,
-                        "the path trying to list should end with `/`",
-                    )
-                    .with_operation("BlockingOperator::list")
-                    .with_context("service", inner.info().scheme().into_static())
-                    .with_context("path", &path));
-                }
-
-                BlockingLister::create(inner, &path, args)
-            },
+            |inner, path, args| BlockingLister::create(inner, &path, args),
         ))
     }
 }

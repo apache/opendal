@@ -28,7 +28,7 @@ use crate::*;
 /// ListFuture is the future returned while calling async list.
 type ListFuture<A, L> = BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>;
 
-/// ToFlatLister will walk dir in bottom up way:
+/// FlatLister will walk dir in bottom up way:
 ///
 /// - List nested dir first
 /// - Go back into parent dirs one by one

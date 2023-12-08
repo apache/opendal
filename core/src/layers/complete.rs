@@ -30,6 +30,7 @@ use bytes::Bytes;
 use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::LazyReader;
+use crate::raw::oio::PrefixLister;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
 use crate::raw::*;
@@ -105,10 +106,8 @@ use crate::*;
 /// Underlying services will return [`Capability`] to indicate the
 /// features that returning listers support.
 ///
-/// - If both `list_without_recursive` and `list_with_recursive`, return directly.
-/// - If only `list_with_recursive`, with [`oio::to_flat_lister`].
-/// - if only `list_without_recursive`, with [`oio::to_hierarchy_lister`].
-/// - If neither not supported, something must be wrong for `list` is true.
+/// - If support `list_with_recursive`, return directly.
+/// - if not, wrap with [`FlatLister`].
 ///
 /// ## Capability Check
 ///
@@ -366,9 +365,8 @@ impl<A: Accessor> CompleteAccessor<A> {
         let recursive = args.recursive();
 
         match (recursive, cap.list_with_recursive) {
-            // - If service can list_with_recursive
-            // - If recursive is false
-            (_, true) | (false, _) => {
+            // - If service can list_with_recursive, we can forward list to it directly.
+            (_, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
                 Ok((rp, CompleteLister::AlreadyComplete(p)))
             }
@@ -376,6 +374,20 @@ impl<A: Accessor> CompleteAccessor<A> {
             (true, false) => {
                 let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+            }
+            // If recursive and service doesn't support list_with_recursive, we need to handle
+            // list prefix by ourselves.
+            (false, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let (rp, p) = self.inner.list(path, args).await?;
+                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let (rp, p) = self.inner.list(parent, args).await?;
+                    let p = PrefixLister::new(p, path);
+                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                }
             }
         }
     }
@@ -393,9 +405,8 @@ impl<A: Accessor> CompleteAccessor<A> {
         let recursive = args.recursive();
 
         match (recursive, cap.list_with_recursive) {
-            // - If service can both list_with_recursive
-            // - If recursive is false
-            (_, true) | (false, _) => {
+            // - If service can list_with_recursive, we can forward list to it directly.
+            (_, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
                 Ok((rp, CompleteLister::AlreadyComplete(p)))
             }
@@ -403,6 +414,20 @@ impl<A: Accessor> CompleteAccessor<A> {
             (true, false) => {
                 let p = FlatLister::new(self.inner.clone(), path);
                 Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+            }
+            // If recursive and service doesn't support list_with_recursive, we need to handle
+            // list prefix by ourselves.
+            (false, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let (rp, p) = self.inner.blocking_list(path, args)?;
+                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let (rp, p) = self.inner.blocking_list(parent, args)?;
+                    let p = PrefixLister::new(p, path);
+                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                }
             }
         }
     }
@@ -706,6 +731,7 @@ where
 pub enum CompleteLister<A: Accessor, P> {
     AlreadyComplete(P),
     NeedFlat(FlatLister<Arc<A>, P>),
+    NeedPrefix(PrefixLister<P>),
 }
 
 #[async_trait]
@@ -720,6 +746,7 @@ where
         match self {
             AlreadyComplete(p) => p.poll_next(cx),
             NeedFlat(p) => p.poll_next(cx),
+            NeedPrefix(p) => p.poll_next(cx),
         }
     }
 }
@@ -735,6 +762,7 @@ where
         match self {
             AlreadyComplete(p) => p.next(),
             NeedFlat(p) => p.next(),
+            NeedPrefix(p) => p.next(),
         }
     }
 }

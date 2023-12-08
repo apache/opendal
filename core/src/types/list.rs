@@ -40,7 +40,6 @@ use crate::*;
 ///
 /// - Lister implements `Stream<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
-///
 pub struct Lister {
     acc: FusedAccessor,
     lister: Option<oio::Lister>,
@@ -85,8 +84,9 @@ pub struct Lister {
 ///
 /// ```rust
 /// use std::mem::size_of;
-/// use opendal::Result;
+///
 /// use opendal::Entry;
+/// use opendal::Result;
 ///
 /// assert_eq!(264, size_of::<(String, Result<opendal::raw::RpStat>)>());
 /// assert_eq!(264, size_of::<Option<Entry>>());

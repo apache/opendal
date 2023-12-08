@@ -93,13 +93,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - run: corepack enable
+        working-directory: bindings/nodejs
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs
@@ -297,14 +299,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - run: corepack enable
+        working-directory: website
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
           cache: yarn
           cache-dependency-path: "website/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
-
-      - name: Corepack
-        working-directory: website
-        run: corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v3

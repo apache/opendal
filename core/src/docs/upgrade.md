@@ -6,6 +6,10 @@
 
 - The `thread_pool_enabled` option has been removed.
 
+### List Prefix Supported
+
+After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we have changed the behavior of `list` a path without `/`. OpenDAL used to return `NotADirectory` error, but now we will return the list of entries that start with given prefix instead.
+
 # Upgrade to v0.43
 
 ## Public API

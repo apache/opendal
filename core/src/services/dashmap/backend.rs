@@ -16,7 +16,8 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use dashmap::DashMap;

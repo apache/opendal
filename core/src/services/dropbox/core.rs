@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use backon::ExponentialBuilder;
 use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
+use backon::ExponentialBuilder;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -36,7 +36,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
-use super::error::{parse_error, DropboxErrorResponse};
+use super::error::parse_error;
+use super::error::DropboxErrorResponse;
 use crate::raw::*;
 use crate::*;
 

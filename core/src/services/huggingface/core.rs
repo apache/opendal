@@ -234,10 +234,11 @@ pub(super) struct HuggingfaceImport {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
     use crate::raw::new_json_deserialize_error;
     use crate::types::Result;
-    use bytes::Bytes;
 
     #[test]
     fn parse_list_response_test() -> Result<()> {

@@ -1,3 +1,4 @@
+.npmrc
 target
 Cargo.lock
 .cargo
@@ -7,6 +8,7 @@ npm
 .prettierignore
 rustfmt.toml
 yarn.lock
+pnpm-lock.yaml
 *.node
 .yarn
 __test__

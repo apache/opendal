@@ -13,5 +13,5 @@ To run the benchmark, please make sure the following env have been set correctly
 To run the benchmark:
 
 ```shell
-yarn run bench
+pnpm bench
 ```

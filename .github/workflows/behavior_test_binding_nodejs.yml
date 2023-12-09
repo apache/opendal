@@ -54,13 +54,15 @@ jobs:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
 
       - name: Corepack
         working-directory: bindings/nodejs
@@ -68,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: bindings/nodejs
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Test Core
         uses: ./.github/actions/behavior_test_binding_nodejs

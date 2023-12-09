@@ -23,8 +23,10 @@ use http::StatusCode;
 use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::azblob::core::CompleteMultipartUploadRequestPart;
 use crate::*;
 
+use crate::services::azblob::core::InitiateMultipartUploadResult;
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 pub type AzblobWriters = oio::TwoWaysWriter<
@@ -169,7 +171,36 @@ impl oio::MultipartUploadWrite for AzblobWriter {
         size: u64,
         body: AsyncBody,
     ) -> Result<oio::MultipartUploadPart> {
-        todo!()
+        // AWS S3 requires part number must between [1..=10000]
+        let part_number = part_number + 1;
+
+        let mut req =
+            self.core
+                .azblob_upload_part_request(&self.path, upload_id, part_number, size, body)?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let etag = parse_etag(resp.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+
+                resp.into_body().consume().await?;
+
+                Ok(oio::MultipartUploadPart { part_number, etag })
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn complete_part(
@@ -177,11 +208,42 @@ impl oio::MultipartUploadWrite for AzblobWriter {
         upload_id: &str,
         parts: &[oio::MultipartUploadPart],
     ) -> Result<()> {
-        todo!()
+        let parts = parts
+            .iter()
+            .map(|p| CompleteMultipartUploadRequestPart {
+                part_number: p.part_number,
+                etag: p.etag.clone(),
+            })
+            .collect();
+
+        let resp = self
+            .core
+            .azblob_complete_multipart_upload(&self.path, upload_id, parts)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        todo!()
+        let resp = self
+            .core
+            .azblob_abort_multipart_upload(&self.path, upload_id)
+            .await?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
-

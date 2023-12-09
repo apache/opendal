@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
+use serde::Deserialize;
+use serde::Serialize;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -369,7 +372,6 @@ impl AzblobCore {
         Ok(req)
     }
 
-
     pub async fn azblob_init_multipart_blob_request(
         &self,
         path: &str,
@@ -378,7 +380,6 @@ impl AzblobCore {
         cache_control: Option<&str>,
         is_presign: bool,
     ) -> Result<Response<IncomingAsyncBody>> {
-
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -397,7 +398,6 @@ impl AzblobCore {
         // when creating an appendable blob.
         req = req.header(CONTENT_LENGTH, 0);
 
-
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
@@ -413,6 +413,72 @@ impl AzblobCore {
         Ok(req)
     }
 
+    pub fn azblob_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        // Set SSE headers.
+        let req = self.insert_sse_headers(req);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
 
     /// Abort an on-going multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
@@ -429,7 +495,6 @@ impl AzblobCore {
             self.container,
             percent_encode_path(&p)
         );
-
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
@@ -601,7 +666,6 @@ impl AzblobCore {
     }
 }
 
-
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InitiateMultipartUploadResult {
@@ -610,4 +674,42 @@ pub struct InitiateMultipartUploadResult {
     #[cfg(test)]
     pub key: String,
     pub upload_id: String,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    ///
+    /// ```ignore
+    /// #[derive(Default, Debug, Serialize)]
+    /// #[serde(default, rename_all = "PascalCase")]
+    /// struct CompleteMultipartUploadRequestPart {
+    ///     #[serde(rename = "PartNumber")]
+    ///     part_number: usize,
+    ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
+    ///     etag: String,
+    /// }
+    ///
+    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
+    /// where
+    ///     S: serde::Serializer,
+    /// {
+    ///     ser.serialize_str(&String::from_utf8_lossy(
+    ///         &quick_xml::escape::partial_escape(s.as_bytes()),
+    ///     ))
+    /// }
+    /// ```
+    ///
+    /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
 }

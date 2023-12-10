@@ -84,10 +84,10 @@ let test_list test_ctxt =
     (test_check_result
        (Operator.write bo "/testdir/bar" (Bytes.of_string "foo")));
   let array = Operator.list bo "testdir/" |> test_check_result in
-  let names = Array.map Operator.Entry.name array in
+  let actual = Array.map Operator.Entry.name array in
   let expected = [| "foo"; "bar" |] in
-  Array.sort compare expected;
-  assert_equal expected names;
+  List.iter (Array.sort compare) [ expected; actual ];
+  assert_equal expected actual;
   assert_equal 2 (Array.length array);
   ()
 

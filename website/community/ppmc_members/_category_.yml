@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-position: 3
-label: 'Committers'
+position: 4
+label: 'PPMC Members'
 collapsible: true
 collapsed: false
 link:

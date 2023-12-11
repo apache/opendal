@@ -8,8 +8,6 @@ This document primarily serves as a guide for new PPMC members to OpenDAL.
 Upon receiving an invitation email from OpenDAL's PPMC, a new PPMC member should consider whether accepting.
 If they decide in favor, they should select "Reply All" and express their decision.
 
-Please note that the 
-
 ### Subscribe to Private Mailing List
 
 1. Send email to [private-subscribe@opendal.apache.org](mailto:private-subscribe@opendal.apache.org)

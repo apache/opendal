@@ -1,6 +1,6 @@
 ---
-title: Committer onboarding
-sidebar_position: 3
+title: Onboarding
+sidebar_position: 2
 ---
 
 This document primarily serves as a guide for new committers to OpenDAL.

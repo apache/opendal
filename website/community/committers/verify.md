@@ -1,6 +1,6 @@
 ---
 title: Verify a release candidate
-sidebar_position: 2
+sidebar_position: 4
 ---
 
 To verify a release candidate, the following checklist could be used:

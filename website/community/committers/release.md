@@ -1,6 +1,6 @@
 ---
 title: Create a OpenDAL Release
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 This document mainly introduces

@@ -349,13 +349,21 @@ pub struct OperatorBuilder<A: Accessor> {
 }
 
 impl<A: Accessor> OperatorBuilder<A> {
-    /// Create a new operator builder.
+    /// Create a new operator builder with default layers.
     #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
         // Make sure error context layer has been attached.
-        OperatorBuilder { accessor }
-            .layer(ErrorContextLayer)
-            .layer(CompleteLayer)
+        Self::with_default(Self::empty(accessor))
+    }
+
+    /// Return an empty [OperatorBuilder].
+    pub fn empty(accessor: A) -> Self {
+        Self { accessor }
+    }
+
+    /// Add default layers to builder.
+    pub fn with_default(builder: OperatorBuilder<impl Accessor>) -> OperatorBuilder<impl Accessor> {
+        builder.layer(ErrorContextLayer).layer(CompleteLayer)
     }
 
     /// Create a new layer with static dispatch.

@@ -24,6 +24,9 @@ const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const repoAddress = 'https://github.com/apache/incubator-opendal';
 
+const baseUrl = process.env.BASE_URL ? process.env.BASE_URL : '/';
+const showAnnouncementBar = process.env.SHOW_ANNOUNCEMENT_BAR ? process.env.SHOW_ANNOUNCEMENT_BAR : false;
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Apache OpenDAL',
@@ -228,4 +231,17 @@ const config = {
     }),
 };
 
-module.exports = config;
+function generateConfig() {
+  config.baseUrl = baseUrl
+
+  if (showAnnouncementBar) {
+    config.themeConfig.announcementBar = {
+      id: 'announcementBar-0', // Increment on change
+      content: 'You are viewing the documentation of a <strong>historical release</strong>. <a href="https://nightlies.apache.org/opendal/opendal-docs-stable/">View the latest stable release</a>.',
+    }
+  }
+
+  return config
+}
+
+module.exports = generateConfig();

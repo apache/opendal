@@ -383,21 +383,40 @@ jobs:
           publish_dir: website/build
           publish_branch: gh-pages
 
+      - name: Clear build
+        run: rm -rf ./website/build
+
+      - name: Build for nightlies with tagged version
+        working-directory: website
+        run: pnpm build
+        env:
+          BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
+          SHOW_Announcement_Bar: true
+
       - name: Deploy to nightlies for tagged version
         uses: burnett01/rsync-deployments@5.2
-        if: "startsWith(github.ref, 'refs/tags/')"
+#        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr
           path: website/build/*
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-${{ github.ref_name }}
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-0.43.0
           remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
           remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
           remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
 
+      - name: Clear build
+        run: rm -rf ./website/build
+
+      - name: Build for nightlies with stable version
+        working-directory: website
+        run: pnpm build
+        env:
+          BASE_URL: opendal/opendal-docs-stable
+
       - name: Deploy to nightlies for stable version
         uses: burnett01/rsync-deployments@5.2
-        if: "startsWith(github.ref, 'refs/tags/')"
+#        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr --delete
           path: website/build/*

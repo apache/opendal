@@ -62,6 +62,9 @@ pub use tokio_util::*;
 mod std_io_util;
 pub use std_io_util::*;
 
+mod futures_util;
+pub use futures_util::ConcurrentFutures;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;

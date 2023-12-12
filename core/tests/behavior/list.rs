@@ -216,6 +216,23 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
+    // List concurrently.
+    let mut objects = op
+        .with_limit(10)
+        .lister_with("test_list_rich_dir/")
+        .concurrent(5)
+        .metakey(Metakey::Complete)
+        .await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+    expected.sort_unstable();
+    actual.sort_unstable();
+
+    assert_eq!(actual, expected);
+
     op.remove_all("test_list_rich_dir/").await?;
     Ok(())
 }

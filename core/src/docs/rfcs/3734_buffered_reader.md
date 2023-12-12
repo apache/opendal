@@ -11,16 +11,6 @@ Allowing the underlying reader to fetch data at the buffer's size to amortize th
 
 The objective is to mitigate the IO overhead. In certain scenarios, the reader processes the data incrementally, meaning that it utilizes the `seek()` function to navigate to a specific position within the file. Subsequently, it invokes the `read()` to reads `limit` bytes into memory and performs the decoding process.
 
-```
-File
-┌───┬───┬───┬──┐
-│   │   │   │  │
-└───┴───┴───┘▲─┘
-             │
-             │ 1. SeekFromEnd(8)
-
-               2. ReadToEnd(limit)
-```
 
 OpenDAL triggers an IO request upon invoking `read()` if the `seek()` has reset the inner state. For storage services like S3, [research](https://www.vldb.org/pvldb/vol16/p2769-durner.pdf) suggests that an optimal IO size falls within the range of 8MiB to 16MiB. If the IO size is too small, the Time To First Byte (TTFB) dominates the overall runtime, resulting in inefficiency.
 
@@ -36,6 +26,26 @@ op.reader_with(path).buffer(32 * 1024 * 1024).await
 
 # Reference-level explanation
 
+This feature will be implemented in the `CompleteLayer`, with the addition of a `BufferReader` struct in `raw/oio/reader/buffer_reader.rs`. 
+
+The `BufferReader` employs` bytes::BytesMut` as the inner buffer and utilizes `(Option<usize>, Option<usize>)` to track the buffered range of the file.
+
+
+```rust
+     ...
+     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+          BufferReader::new(self.complete_read(path, args).await)
+     }
+
+     ...
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+          BufferReader::new(self.complete_blocking_read(path, args))
+    }
+     ...
+```
+
+A `buffer` field of type `Option<usize>` will be introduced to `OpRead`. If `buffer` is set to `None`, it functions with default behavior. However, if buffer is set to `Some(n)`, it denotes the maximum buffer capability that the `BufferReader` can utilize, and buffering behaviors introduced below.
 
 **Buffering**
 
@@ -47,9 +57,9 @@ Buffer
 │       │
 └───────┘
 File
-┌───┬───┬───┬──┐
-│   │   │   │  │
-└───▲───┴───▲──┘
+┌───┬───────┬──┐
+│   │       │  │
+└───▲───────▲──┘
     │       │
     │       │ 2. ReadToEnd(limit), The limit <= Cap(Buffer).
     │
@@ -67,6 +77,21 @@ File
 │   │*******│  │
 └───▲───────▲──┘
      3. Fetches and buffers the data.
+```
+
+**Tailing Read**
+
+If a read request attempts to read the trailing bytes of the file, it only reads and buffers the `Min(Max(Limit,Cap(Buffer)),FileEnd-Cursor)` bytes.
+
+```
+File
+┌──────────────┐
+│              │
+└────────────▲─▲
+             │ │
+             │ │ 2. ReadToEnd(limit)
+             │
+             │ 1. SeekFromEnd(-8)
 ```
 
 **Overlapping Read**
@@ -88,7 +113,7 @@ File
      │ 1. SeekFromStart(128)
 ```
 
-Then, fetches and buffers data in chunks corresponding to the buffer size.
+Then, fetches and buffers data in chunks corresponding to the buffer size. Finally, it copies the another part data to the `dst` buffer.
 
 ```
 Buffer
@@ -96,9 +121,9 @@ Buffer
 │///////│
 └───────┘
 File
-┌────┬───────┬─┐
-│    │///////│ │
-└────▲─────▲─┴─┘
+┌───────┬──────┐
+│       │//////│
+└────▲──┴──▲───┘
      3. Fetches and buffers the data.
 ```
 
@@ -129,7 +154,7 @@ Buffer
 File
 ┌───────────┬──┐
 │           │**│
-└──▲───────▲┴──┘
+└──▲──────▲─┴──┘
    3. Fetches and bypasses
 ```
 

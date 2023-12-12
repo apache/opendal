@@ -382,3 +382,27 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
+
+      - name: Deploy to nightlies for tagged version
+        uses: burnett01/rsync-deployments@5.2
+        if: "startsWith(github.ref, 'refs/tags/')"
+        with:
+          switches: -avzr
+          path: website/build/*
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-${{ github.ref_name }}
+          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+
+      - name: Deploy to nightlies for stable version
+        uses: burnett01/rsync-deployments@5.2
+        if: "startsWith(github.ref, 'refs/tags/')"
+        with:
+          switches: -avzr --delete
+          path: website/build/*
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-stable
+          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}

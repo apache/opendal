@@ -20,11 +20,14 @@ import subprocess
 import os
 
 
-def run_cargo_deny(directory):
-    print(f"Checking dependencies of {directory}")
-    subprocess.run(["cargo", "deny", "check", "license"], cwd=directory)
+def generate(directory):
     print(f"Generating dependencies {directory}")
-    result = subprocess.run(["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"], cwd=directory, capture_output=True, text=True)
+    result = subprocess.run(
+        ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+    )
     with open(f"{directory}/DEPENDENCIES.rust.csv", "w") as f:
         f.write(result.stdout)
 
@@ -34,7 +37,7 @@ def main():
     for base_dir in base_dirs:
         for root, dirs, files in os.walk(base_dir):
             if "Cargo.toml" in files:
-                run_cargo_deny(root)
+                generate(root)
 
 
 if __name__ == "__main__":

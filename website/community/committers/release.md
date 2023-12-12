@@ -99,7 +99,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
   - [ ] java
   - [ ] nodejs
 - [ ] Update docs
-- [ ] Update dependencies
+- [ ] Generate dependencies list
 - [ ] Push release candidate tag to GitHub
 
 #### ASF Side
@@ -146,9 +146,9 @@ Please note that this version is the exact version of the release, not the relea
     - node.js: `bindings/nodejs/upgrade.md`
     - python: `bindings/python/upgrade.md`
 
-### Update dependencies
+### Generate dependencies list
 
-Running `python ./scripts/dependencies.py` to update the dependencies list of every package.
+Running `python ./scripts/generate_dependencies.py` to update the dependencies list of every package.
 
 ### Push release candidate tag
 

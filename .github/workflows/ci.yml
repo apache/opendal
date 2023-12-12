@@ -53,6 +53,21 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
+  check_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-deny: true
+
+      - name: Check dependencies
+        run: |
+          python ./scripts/check_dependencies.py
+          npx license-checker --producation --excludePrivatePackages --csv
+
   check_docs:
     runs-on: ubuntu-latest
     steps:

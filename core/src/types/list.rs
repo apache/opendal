@@ -16,16 +16,16 @@
 // under the License.
 
 use std::cmp;
-use std::collections::VecDeque;
+use std::future::Future;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use flagset::FlagSet;
-use futures::FutureExt;
+use futures::future::BoxFuture;
 use futures::Stream;
-use tokio::task::JoinHandle;
+use futures::StreamExt;
 
 use crate::raw::oio::List;
 use crate::raw::*;
@@ -47,7 +47,7 @@ pub struct Lister {
     required_metakey: FlagSet<Metakey>,
 
     /// tasks is used to store tasks that are run in concurrent.
-    tasks: VecDeque<StatTask>,
+    tasks: ConcurrentFutures<StatTask>,
     errored: bool,
 }
 
@@ -62,8 +62,8 @@ pub struct Lister {
 ///   --> core/src/types/list.rs:64:1
 ///    |
 /// 64 | / enum StatTask {
-/// 65 | |     /// Handle is used to store the join handle of spawned task.
-/// 66 | |     Handle(JoinHandle<(String, Result<RpStat>)>),
+/// 65 | |     /// BoxFuture is used to store the join handle of spawned task.
+/// 66 | |     Handle(BoxFuture<(String, Result<RpStat>)>),
 ///    | |     -------------------------------------------- the second-largest variant contains at least 0 bytes
 /// 67 | |     /// KnownEntry is used to store the entry that already contains the required metakey.
 /// 68 | |     KnownEntry(Option<Entry>),
@@ -96,9 +96,25 @@ pub struct Lister {
 #[allow(clippy::large_enum_variant)]
 enum StatTask {
     /// Stating is used to store the join handle of spawned task.
-    Stating(JoinHandle<(String, Result<RpStat>)>),
+    ///
+    /// TODO: Replace with static future type after rust supported.
+    Stating(BoxFuture<'static, (String, Result<Metadata>)>),
     /// Known is used to store the entry that already contains the required metakey.
-    Known(Option<Entry>),
+    Known(Option<(String, Metadata)>),
+}
+
+impl Future for StatTask {
+    type Output = (String, Result<Metadata>);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.get_mut() {
+            StatTask::Stating(fut) => Pin::new(fut).poll(cx),
+            StatTask::Known(entry) => {
+                let (path, metadata) = entry.take().expect("entry should not be None");
+                Poll::Ready((path, Ok(metadata)))
+            }
+        }
+    }
 }
 
 /// # Safety
@@ -119,7 +135,7 @@ impl Lister {
             lister: Some(lister),
             required_metakey,
 
-            tasks: VecDeque::with_capacity(concurrent),
+            tasks: ConcurrentFutures::new(concurrent),
             errored: false,
         })
     }
@@ -135,22 +151,21 @@ impl Stream for Lister {
         }
 
         // Trying to pull more tasks if there are more space.
-        if self.tasks.len() < self.tasks.capacity() {
+        if self.tasks.has_remaining() {
             if let Some(lister) = self.lister.as_mut() {
                 match lister.poll_next(cx) {
                     Poll::Pending => {}
                     Poll::Ready(Ok(Some(oe))) => {
                         let (path, metadata) = oe.into_entry().into_parts();
                         if metadata.contains_metakey(self.required_metakey) {
-                            self.tasks
-                                .push_back(StatTask::Known(Some(Entry::new(path, metadata))));
+                            self.tasks.push(StatTask::Known(Some((path, metadata))));
                         } else {
                             let acc = self.acc.clone();
                             let fut = async move {
                                 let res = acc.stat(&path, OpStat::default()).await;
-                                (path, res)
+                                (path, res.map(|rp| rp.into_metadata()))
                             };
-                            self.tasks.push_back(StatTask::Stating(tokio::spawn(fut)));
+                            self.tasks.push(StatTask::Stating(Box::pin(fut)));
                         }
                     }
                     Poll::Ready(Ok(None)) => {
@@ -164,37 +179,16 @@ impl Stream for Lister {
             }
         }
 
-        if let Some(handle) = self.tasks.front_mut() {
-            return match handle {
-                StatTask::Stating(handle) => {
-                    let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;
-
-                    // Make sure this task has been popped after it's ready.
-                    self.tasks.pop_front();
-
-                    match rp {
-                        Ok(rp) => {
-                            let metadata = rp.into_metadata();
-                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
-                        }
-                        Err(err) => {
-                            self.errored = true;
-                            Poll::Ready(Some(Err(err)))
-                        }
-                    }
-                }
-                StatTask::Known(entry) => {
-                    let entry = entry.take().expect("entry must be valid");
-                    self.tasks.pop_front();
-                    Poll::Ready(Some(Ok(entry)))
-                }
-            };
+        // Try to poll tasks
+        if let Some((path, rp)) = ready!(self.tasks.poll_next_unpin(cx)) {
+            let metadata = rp?;
+            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        if self.lister.is_none() {
-            Poll::Ready(None)
-        } else {
+        if self.lister.is_some() {
             Poll::Pending
+        } else {
+            Poll::Ready(None)
         }
     }
 }

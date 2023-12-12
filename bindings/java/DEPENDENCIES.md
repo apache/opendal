@@ -2,8 +2,8 @@
 
 ## Rust Part Dependencies
 
-Refer to [DEPENDENCIES.rust.tsv](./DEPENDENCIES.rust.tsv) for full list.
+Refer to [DEPENDENCIES.rust.tsv](DEPENDENCIES.rust.tsv) for full list.
 
 ## Java Part Dependencies
 
-No runtime extra deps.
+No extra runtime dependencies.

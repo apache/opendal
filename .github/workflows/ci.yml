@@ -64,8 +64,7 @@ jobs:
           need-deny: true
 
       - name: Check dependencies
-        run: |
-          python ./scripts/check_dependencies.py
+        run: python3 ./scripts/dependencies.py check
 
   check_website_dependencies:
     runs-on: ubuntu-latest

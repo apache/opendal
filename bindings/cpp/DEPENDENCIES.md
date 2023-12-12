@@ -2,8 +2,8 @@
 
 ## Rust Part Dependencies
 
-Refer to [DEPENDENCIES.rust.tsv](./DEPENDENCIES.rust.tsv) for full list.
+Refer to [DEPENDENCIES.rust.tsv](DEPENDENCIES.rust.tsv) for full list.
 
-## Cpp Part Dependencies
+## C++ Part Dependencies
 
-No runtime extra deps.
+No extra runtime dependencies.

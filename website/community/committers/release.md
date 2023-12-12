@@ -148,7 +148,7 @@ Please note that this version is the exact version of the release, not the relea
 
 ### Generate dependencies list
 
-Running `python ./scripts/generate_dependencies.py` to update the dependencies list of every package.
+Running `python3 ./scripts/dependencies.py generate` to update the dependencies list of every package.
 
 ### Push release candidate tag
 

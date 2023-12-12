@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,31 +16,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
+import subprocess
+import os
 
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
 
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/pnpm-lock.yaml",
+def run_cargo_deny(directory):
+    print(f"Checking dependencies of {directory}")
+    subprocess.run(["cargo", "deny", "check", "license"], cwd=directory)
+    print(f"Generating dependencies {directory}")
+    result = subprocess.run(["cargo", "deny", "list", "-f", "tsv"], cwd=directory, capture_output=True, text=True)
+    with open(f"{directory}/DEPENDENCIES.rust.csv", "w") as f:
+        f.write(result.stdout)
 
-  # Generated files to list all dependencies
-  "**/DEPENDENCIES.*.csv",
 
-  # Python binding related files
-  "**/venv/**",
+def main():
+    base_dirs = ["bindings", "bin", "core", "integrations"]
+    for base_dir in base_dirs:
+        for root, dirs, files in os.walk(base_dir):
+            if "Cargo.toml" in files:
+                run_cargo_deny(root)
 
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
 
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Test files
-  "**/tests/data/**",
-  "**/fixtures/data/**",
-]
+if __name__ == "__main__":
+    main()

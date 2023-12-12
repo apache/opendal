@@ -28,7 +28,7 @@ def generate(directory):
         capture_output=True,
         text=True,
     )
-    with open(f"{directory}/DEPENDENCIES.rust.csv", "w") as f:
+    with open(f"{directory}/DEPENDENCIES.rust.tsv", "w") as f:
         f.write(result.stdout)
 
 

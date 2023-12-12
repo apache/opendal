@@ -4,7 +4,7 @@
 
 ## Rust Part Dependencies
 
-Refer to [DEPENDENCIES.rust.csv](./DEPENDENCIES.rust.csv) for full list.
+Refer to [DEPENDENCIES.rust.tsv](./DEPENDENCIES.rust.tsv) for full list.
 
 ## Dotnet Part Dependencies
 

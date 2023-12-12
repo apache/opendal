@@ -93,7 +93,8 @@ jobs:
       - name: Check dependencies
         working-directory: website
         run: |
-          npx license-checker --producation --excludePrivatePackages --csv
+          npx license-checker --producation --excludePrivatePackages --csv > DEPENDENCIES.node.csv
+          git diff --exit-code
 
   check_docs:
     runs-on: ubuntu-latest

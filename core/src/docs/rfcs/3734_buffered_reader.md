@@ -5,11 +5,11 @@
 
 # Summary
 
-Amortize overhead of IO.
+Allowing the underlying reader to fetch data at the buffer's size to amortize the IO's overhead.
 
 # Motivation
 
-The aim is to amortize the overhead of IO. Some scenarios, such as importing data to the database, typically require supporting multiple file formats, and the size of files varies(very large or very small). Most readers of these formats may behave similarly to the `ParquetStream`; they read and decode data piece after piece.
+The objective is to mitigate the IO overhead. In certain scenarios, the reader processes the data incrementally, meaning that it utilizes the `seek()` function to navigate to a specific position within the file. Subsequently, it invokes the `read()` to reads `limit` bytes into memory and performs the decoding process.
 
 ```
 File
@@ -22,9 +22,9 @@ File
                2. ReadToEnd(limit)
 ```
 
-However, OpenDAL will yield an IO request after `seek()` and `read()` are invoked. For storage services such as S3, The [research](https://www.vldb.org/pvldb/vol16/p2769-durner.pdf) shows that the 8MiB~16MiB is the preferred IO size, If the IO size is too small, the TTFB dominates the overall runtime; too large will reach the bandwidth limit.
+OpenDAL triggers an IO request upon invoking `read()` if the `seek()` has reset the inner state. For storage services like S3, [research](https://www.vldb.org/pvldb/vol16/p2769-durner.pdf) suggests that an optimal IO size falls within the range of 8MiB to 16MiB. If the IO size is too small, the Time To First Byte (TTFB) dominates the overall runtime, resulting in inefficiency.
 
-Therefore, This RFC proposes a buffered reader to amortize the overhead of IO.
+Therefore, this RFC proposes the implementation of a buffered reader to amortize the overhead of IO.
 
 # Guide-level explanation
 
@@ -34,50 +34,87 @@ For users who want to buffered reader, they will call the new API `buffer`. And 
 op.reader_with(path).buffer(32 * 1024 * 1024).await
 ```
 
-If a user prefers to customize the `Preferred IO Size`, it provides a `read_size` option (default is 8MiB):
-
-```rust
-op.reader_with(path).buffer(32 * 1024 * 1024).read_size(8 * 1024 * 1024).await
-```
-
 # Reference-level explanation
 
-There is an invariant: the `Buffer Capability` is at least greater than or equal to the `Preferred IO Size`.
 
 **Buffering**
 
-The target file will be split into multiple segments to align with the `Preferred IO Size`, and the buffered segments also align with the `Preferred IO Size` for efficient lookup.
-
-```
-Preferred IO Size
-┌───┐
-│   │
-└───┘
-Buffer
-┌──┬────┐
-│**│    │
-└──┴────┘
-File
-┌───┬───┬───┬──┐
-│   │   │   │**│
-└───┴───┴───┘▲─┘
-             │
-             │ 3. Fetches and buffers 1 segment
-```
-
-**Buffer partial bypass**
-
-If a read request crosses multiple segments, it fetches multiple segments in a single request. If the total size of these segments is greater than the `Buffer Capability`, it prefers to buffer the last partial read segments for future use.
+When the `Buffer Capability` is specified, the underlying reader fetches and buffers data in chunks corresponding to the buffer size.
 
 ```
 Buffer
-┌──┬────┐
-│**│    │
-└──┴────┘
+┌───────┐
+│       │
+└───────┘
 File
 ┌───┬───┬───┬──┐
 │   │   │   │  │
-└──▲└───┴─▲─┴──┘
+└───▲───┴───▲──┘
+    │       │
+    │       │ 2. ReadToEnd(limit), The limit <= Cap(Buffer).
+    │
+    │ 1. SeekFromStart(128)
+
+```
+
+```
+Buffer
+┌───────┐
+│*******│
+└───────┘
+File
+┌───┬───────┬──┐
+│   │*******│  │
+└───▲───────▲──┘
+     3. Fetches and buffers the data.
+```
+
+**Overlapping Read**
+
+If a read request attempts to read data that is partially buffered, it copies the partially buffered data to the `dst` buffer first.
+
+```
+Buffer
+┌───────┐
+│*******│
+└───────┘
+File
+┌───────┬──────┐
+│*******│      │
+└────▲──┴──▲───┘
+     │     │
+     │     │ 2. ReadToEnd(limit), The limit <= Cap(Buffer).
+     │
+     │ 1. SeekFromStart(128)
+```
+
+Then, fetches and buffers data in chunks corresponding to the buffer size.
+
+```
+Buffer
+┌───────┐
+│///////│
+└───────┘
+File
+┌────┬───────┬─┐
+│    │///////│ │
+└────▲─────▲─┴─┘
+     3. Fetches and buffers the data.
+```
+
+**Bypass**
+
+If a read request attempts to read data larger than the `Buffer Capability`, it fetches the data bypassing the `Buffer` entirely.
+
+```
+Buffer
+┌───────┐
+│       │
+└───────┘
+File
+┌───────────┬──┐
+│           │**│
+└──▲──────▲─┴──┘
    │      │
    │      │ 2. ReadToEnd(limit), The limit > Cap(Buffer).
    │
@@ -86,15 +123,14 @@ File
 
 ```
 Buffer
-┌──┬───┬┐
-│**│///││
-└──┴───┴┘
+┌───────┐
+│       │
+└───────┘
 File
-┌───┬───┬───┬──┐
-│xxx│xxx│///│  │
-└───┴───┴──▲┴──┘
-           │
-           │ 3. Fetches and buffers the last partial read segment
+┌───────────┬──┐
+│           │**│
+└──▲───────▲┴──┘
+   3. Fetches and bypasses
 ```
 
 # Drawbacks
@@ -110,4 +146,5 @@ None
 None
 
 # Future possibilities
-- Concurrent fetching segments
+- Concurrent fetching.
+- Tailing buffering.

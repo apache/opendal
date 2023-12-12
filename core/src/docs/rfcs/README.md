@@ -42,8 +42,21 @@ Common preparatory steps include presenting your idea on platforms such as GitHu
 - For the accepting of an RFC, we will require approval from at least three maintainers.
 - Once the RFC is accepted, please create a tracking issue and update links in RFC. And then the PR will be merged and the RFC will become 'active' status.
 
+## Implementing an RFC
+
+An active RFC does not indicate the priority assigned to its implementation,
+nor does it imply that a developer has been specifically assigned the task of implementing the feature.
+
+The RFC author is encouraged to submit an implementation after the RFC has been accepted.
+Nevertheless, it is not obligatory for them to do so.
+
+Accepted RFCs may represent features that can wait until a developer chooses to work on them.
+Each accepted RFC is associated with an issue in the OpenDAL repository, which tracks its implementation.
+
+If you are interested in implementing an RFC but are unsure if someone else is already working on it,
+feel free to inquire by leaving a comment on the associated issue.
+
 ## Some useful tips
 
-- An active RFC means nothing about what priority is assigned to its implementation, nor does it imply anything about whether any developer has been assigned the task of implementing the feature. While it is not necessary that the author of the RFC also write the implementation, authors should also not expect that other project developers will take on responsibility for implementing their accepted feature.
 - The author of an RFC may not be the same one as the implementor. Therefore, when submitting an RFC, it is advisable to include sufficient information.
 - If modifications are needed for an accepted RFC, please submit a new pull request or create a new RFC to propose changes.

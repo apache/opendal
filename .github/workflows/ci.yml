@@ -66,6 +66,33 @@ jobs:
       - name: Check dependencies
         run: |
           python ./scripts/check_dependencies.py
+
+  check_website_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
+      - name: Install Dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Check dependencies
+        working-directory: website
+        run: |
           npx license-checker --producation --excludePrivatePackages --csv
 
   check_docs:

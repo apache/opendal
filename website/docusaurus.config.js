@@ -133,22 +133,6 @@ const config = {
                 label: 'Java Binding',
                 to: 'pathname:///docs/java/'
               },
-              {
-                label: 'C Binding',
-                to: 'pathname:///docs/c/'
-              },
-              {
-                label: 'Lua Binding',
-                to: 'pathname:///docs/lua/'
-              },
-              {
-                label: 'Haskell Binding',
-                to: 'pathname:///docs/haskell/'
-              },
-              {
-                label: 'C++ Binding',
-                to: 'pathname:///docs/cpp/'
-              }
             ]
           },
           {

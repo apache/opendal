@@ -24,7 +24,7 @@ def run_cargo_deny(directory):
     print(f"Checking dependencies of {directory}")
     subprocess.run(["cargo", "deny", "check", "license"], cwd=directory)
     print(f"Generating dependencies {directory}")
-    result = subprocess.run(["cargo", "deny", "list", "-f", "tsv"], cwd=directory, capture_output=True, text=True)
+    result = subprocess.run(["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"], cwd=directory, capture_output=True, text=True)
     with open(f"{directory}/DEPENDENCIES.rust.csv", "w") as f:
         f.write(result.stdout)
 

@@ -5283,9 +5283,9 @@ checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
 name = "persy"
-version = "1.4.5"
+version = "1.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88147b587597c600da9c52a06da6edd0000d2155324bf5caa18626e4026143be"
+checksum = "cbace0afa04e5b7ae72ef4a7ef0508f94e6514bbb134c182336eac8a767bd002"
 dependencies = [
  "crc",
  "data-encoding",

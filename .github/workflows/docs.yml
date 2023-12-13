@@ -398,8 +398,8 @@ jobs:
 #        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr
-          path: website/build/*
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-0.43.0
+          path: website/build/
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-0.43.0/
           remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
           remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
@@ -419,8 +419,8 @@ jobs:
 #        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr --delete
-          path: website/build/*
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-stable
+          path: website/build/
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-stable/
           remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
           remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}

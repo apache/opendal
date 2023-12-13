@@ -53,6 +53,48 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
+  check_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-deny: true
+
+      - name: Check dependencies
+        run: python3 ./scripts/dependencies.py check
+
+  check_website_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
+      - name: Install Dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Check dependencies
+        working-directory: website
+        run: |
+          npx license-checker --producation --excludePrivatePackages --csv > DEPENDENCIES.node.csv
+          git diff --exit-code
+
   check_docs:
     runs-on: ubuntu-latest
     steps:

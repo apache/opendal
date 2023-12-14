@@ -17,13 +17,20 @@
 
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+RSpec.describe OpenDAL do
+  before :each do
+    @op = OpenDAL::Operator.new("memory", nil)
+  end
 
-# Specify your gem's dependencies in opendal.gemspec
-gemspec
+  it "should perform basic ops" do
+    path = "/path/to/file"
+    content = "OpenDAL Ruby is ready."
+    @op.write(path, content)
 
-gem "rake", "~> 13.0"
-gem "rake-compiler", "~> 1.2.0"
-gem "rspec", "~> 3.12.0"
-gem "standard", "~> 1.3"
-gem "rb_sys", "~> 0.9.39"
+    stat = @op.stat(path)
+    expect(stat.is_file).to eq(true)
+    expect(stat.content_length).to eq(content.length)
+
+    expect(@op.read(path)).to eq(content)
+  end
+end

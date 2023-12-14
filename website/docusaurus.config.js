@@ -24,8 +24,8 @@ const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const repoAddress = 'https://github.com/apache/incubator-opendal';
 
-const baseUrl = process.env.BASE_URL ? process.env.BASE_URL : '/';
-const showAnnouncementBar = process.env.SHOW_ANNOUNCEMENT_BAR ? process.env.SHOW_ANNOUNCEMENT_BAR : false;
+const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL ? process.env.OPENDAL_WEBSITE_BASE_URL : '/';
+const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST ? process.env.OPENDAL_WEBSITE_NOT_LATEST : false;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -234,7 +234,7 @@ const config = {
 function generateConfig() {
   config.baseUrl = baseUrl
 
-  if (showAnnouncementBar) {
+  if (websiteNotLatest) {
     config.themeConfig.announcementBar = {
       id: 'announcementBar-0', // Increment on change
       content: 'You are viewing the documentation of a <strong>historical release</strong>. <a href="https://nightlies.apache.org/opendal/opendal-docs-stable/">View the latest stable release</a>.',

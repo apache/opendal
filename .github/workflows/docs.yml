@@ -390,7 +390,9 @@ jobs:
         working-directory: website
         run: pnpm build
         env:
-          BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
+          # Revert me after 0.43 has been built.
+          # BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
+          BASE_URL: opendal/opendal-docs-release-0.43.0
           SHOW_Announcement_Bar: true
 
       - name: Deploy to nightlies for tagged version

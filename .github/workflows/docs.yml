@@ -391,8 +391,8 @@ jobs:
         run: pnpm build
         env:
           # Keep this same with the remote_path below
-          BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
-          SHOW_Announcement_Bar: true
+          OPENDAL_WEBSITE_BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
+          OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
         uses: burnett01/rsync-deployments@5.2
@@ -413,7 +413,7 @@ jobs:
         working-directory: website
         run: pnpm build
         env:
-          BASE_URL: opendal/opendal-docs-stable
+          OPENDAL_WEBSITE_BASE_URL: opendal/opendal-docs-stable
 
       - name: Deploy to nightlies for stable version
         uses: burnett01/rsync-deployments@5.2

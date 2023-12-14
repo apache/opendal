@@ -145,6 +145,6 @@ doc = false
 [dependencies]
 futures = "0.3.28"
 opendal.workspace = true
-pyo3 = "0.19"
-pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
+pyo3 = "0.20"
+pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"

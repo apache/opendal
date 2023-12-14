@@ -8,4 +8,5 @@
 /tmp/
 *.bundle
 *.so
+.rspec_status
 Gemfile.lock

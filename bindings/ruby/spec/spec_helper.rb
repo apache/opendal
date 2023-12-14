@@ -17,13 +17,16 @@
 
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+require "opendal"
 
-# Specify your gem's dependencies in opendal.gemspec
-gemspec
+RSpec.configure do |config|
+  # Enable flags like --only-failures and --next-failure
+  config.example_status_persistence_file_path = ".rspec_status"
 
-gem "rake", "~> 13.0"
-gem "rake-compiler", "~> 1.2.0"
-gem "rspec", "~> 3.12.0"
-gem "standard", "~> 1.3"
-gem "rb_sys", "~> 0.9.39"
+  # Disable RSpec exposing methods globally on `Module` and `main`
+  config.disable_monkey_patching!
+
+  config.expect_with :rspec do |c|
+    c.syntax = :expect
+  end
+end

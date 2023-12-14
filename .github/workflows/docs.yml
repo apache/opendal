@@ -390,18 +390,17 @@ jobs:
         working-directory: website
         run: pnpm build
         env:
-          # Revert me after 0.43 has been built.
-          # BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
-          BASE_URL: opendal/opendal-docs-release-0.43.0
+          # Keep this same with the remote_path below
+          BASE_URL: opendal/opendal-docs-release-${{ github.ref_name }}
           SHOW_Announcement_Bar: true
 
       - name: Deploy to nightlies for tagged version
         uses: burnett01/rsync-deployments@5.2
-#        if: "startsWith(github.ref, 'refs/tags/')"
+        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr
           path: website/build/
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-0.43.0/
+          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-${{ github.ref_name }}/
           remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
           remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
@@ -418,7 +417,7 @@ jobs:
 
       - name: Deploy to nightlies for stable version
         uses: burnett01/rsync-deployments@5.2
-#        if: "startsWith(github.ref, 'refs/tags/')"
+        if: "startsWith(github.ref, 'refs/tags/')"
         with:
           switches: -avzr --delete
           path: website/build/

@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
-
 use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
@@ -32,7 +31,6 @@ use http::Uri;
 use log::debug;
 use serde::Deserialize;
 use suppaftp::list::File;
-
 
 use suppaftp::types::FileType;
 use suppaftp::types::Response;

@@ -28,7 +28,6 @@ use uuid::Uuid;
 
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
-use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 
@@ -99,6 +98,7 @@ impl HdfsBuilder {
         self
     }
 
+    /// Set temp dir for atomic write.
     pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
         self.atomic_write_dir = if dir.is_empty() {
             None
@@ -210,15 +210,11 @@ fn tmp_file_of(path: &str) -> String {
     format!("{name}.{uuid}")
 }
 impl HdfsBackend {
+    // Build write path and ensure the parent dirs created
     fn ensure_write_abs_path(&self, parent: &str, path: &str) -> Result<PathBuf> {
         let p = build_rooted_abs_path(parent, path);
 
         // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
         let parent = get_parent(p.as_str());
 
         self.client.create_dir(parent).map_err(new_std_io_error)?;
@@ -288,9 +284,9 @@ impl Accessor for HdfsBackend {
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = Self::ensure_write_abs_path(&self, &self.root, path)?;
+            let target_path = Self::ensure_write_abs_path(self, &self.root, path)?;
             let tmp_path = Self::ensure_write_abs_path(
-                &self,
+                self,
                 atomic_write_dir.to_str().unwrap(),
                 &tmp_file_of(path),
             )?;
@@ -308,7 +304,7 @@ impl Accessor for HdfsBackend {
                 (target_path, Some(tmp_path))
             }
         } else {
-            let p = Self::ensure_write_abs_path(&self, &self.root, path)?;
+            let p = Self::ensure_write_abs_path(self, &self.root, path)?;
 
             (p, None)
         };

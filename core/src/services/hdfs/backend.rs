@@ -24,11 +24,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::AsyncWriteExt;
 use log::debug;
+use uuid::Uuid;
 
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::*;
+use crate::raw::oio::WriteExt;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 #[doc = include_str!("docs.md")]
@@ -38,6 +40,7 @@ pub struct HdfsBuilder {
     name_node: Option<String>,
     kerberos_ticket_cache_path: Option<String>,
     user: Option<String>,
+    atomic_write_dir: Option<PathBuf>,
     enable_append: bool,
 }
 
@@ -95,6 +98,15 @@ impl HdfsBuilder {
         self.enable_append = enable_append;
         self
     }
+
+    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+        self.atomic_write_dir = if dir.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(dir))
+        };
+        self
+    }
 }
 
 impl Builder for HdfsBuilder {
@@ -109,6 +121,8 @@ impl Builder for HdfsBuilder {
         map.get("kerberos_ticket_cache_path")
             .map(|v| builder.kerberos_ticket_cache_path(v));
         map.get("user").map(|v| builder.user(v));
+        map.get("atomic_write_dir")
+            .map(|v|builder.atomic_write_dir(v));
         map.get("enable_append").map(|v| {
             builder.enable_append(v.parse().expect("enable_append should be true or false"))
         });
@@ -149,10 +163,28 @@ impl Builder for HdfsBuilder {
             }
         }
 
+        let atomic_write_dir = self.atomic_write_dir.take();
+
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &atomic_write_dir {
+            if let Err(e) = client.metadata(d.to_str().unwrap_or_default()) {
+                if e.kind() == io::ErrorKind::NotFound {
+                    client.create_dir(d.to_str().unwrap()).map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
+                            .with_operation("Builder::build")
+                            .with_context("atomic_write_dir", d.to_string_lossy())
+                            .set_source(e)
+                    })?;
+                }
+            }
+        }
+
+
         debug!("backend build finished: {:?}", &self);
         Ok(HdfsBackend {
             root,
             client: Arc::new(client),
+            atomic_write_dir,
             enable_append: self.enable_append,
         })
     }
@@ -163,12 +195,40 @@ impl Builder for HdfsBuilder {
 pub struct HdfsBackend {
     root: String,
     client: Arc<hdrs::Client>,
+    atomic_write_dir: Option<PathBuf>,
     enable_append: bool,
 }
 
 /// hdrs::Client is thread-safe.
 unsafe impl Send for HdfsBackend {}
 unsafe impl Sync for HdfsBackend {}
+
+#[inline]
+fn tmp_file_of(path: &str) -> String {
+    let name = get_basename(path);
+    let uuid = Uuid::new_v4().to_string();
+
+    format!("{name}.{uuid}")
+}
+impl HdfsBackend {
+    fn ensure_write_abs_path(&self, parent: &str, path: &str) -> Result<PathBuf> {
+        let p = build_rooted_abs_path(parent, path);
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = get_parent(p.as_str());
+
+        self.client
+            .create_dir(parent)
+            .map_err(new_std_io_error)?;
+
+        Ok(PathBuf::from(p))
+    }
+}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
@@ -178,7 +238,6 @@ impl Accessor for HdfsBackend {
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type Lister = Option<HdfsLister>;
     type BlockingLister = Option<HdfsLister>;
-
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Hdfs)
@@ -231,28 +290,25 @@ impl Accessor for HdfsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let target_path = Self::ensure_write_abs_path(&self,&self.root, path)?;
+            let tmp_path =
+                Self::ensure_write_abs_path(&self,atomic_write_dir.to_str().unwrap(), &tmp_file_of(path))?;
 
-        if let Err(err) = self.client.metadata(&p) {
-            // Early return if other error happened.
-            if err.kind() != io::ErrorKind::NotFound {
-                return Err(new_std_io_error(err));
+            // If the target file exists, we should append to the end of it directly.
+            if op.append()
+                && self.client.metadata(target_path.to_str().unwrap())
+                    .map_err(new_std_io_error)?.is_file()
+            {
+                (target_path, None)
+            } else {
+                (target_path, Some(tmp_path))
             }
+        } else {
+            let p = Self::ensure_write_abs_path(&self,&self.root, path)?;
 
-            let parent = get_parent(&p);
-
-            self.client.create_dir(parent).map_err(new_std_io_error)?;
-
-            let mut f = self
-                .client
-                .open_file()
-                .create(true)
-                .write(true)
-                .async_open(&p)
-                .await
-                .map_err(new_std_io_error)?;
-            f.close().await.map_err(new_std_io_error)?;
-        }
+            (p, None)
+        };
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -262,12 +318,36 @@ impl Accessor for HdfsBackend {
             open_options.write(true);
         }
 
-        let f = open_options
-            .async_open(&p)
-            .await
-            .map_err(new_std_io_error)?;
 
-        Ok((RpWrite::new(), HdfsWriter::new(f)))
+        if let Some(tmp_path)=&tmp_path {
+            let mut t =open_options
+                .async_open(tmp_path.to_str().unwrap())
+                .await
+                .map_err(new_std_io_error)?;
+
+            let tmp_path = tmp_path.clone();
+            let target_path = target_path.clone();
+
+            t.flush().await.map_err(new_std_io_error)?;
+            t.close().await.map_err(new_std_io_error)?;
+
+            self.client.rename_file(tmp_path.to_str().unwrap(), target_path.to_str().unwrap())
+                     .map_err(new_std_io_error)?;
+
+            let f = open_options
+                .async_open(target_path.to_str().unwrap())
+                .await
+                .map_err(new_std_io_error)?;
+
+            Ok((RpWrite::new(),HdfsWriter::new(f)))
+        }else {
+            let f = open_options
+                .async_open(target_path.to_str().unwrap())
+                .await
+                .map_err(new_std_io_error)?;
+
+            Ok((RpWrite::new(), HdfsWriter::new(f)))
+        }
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

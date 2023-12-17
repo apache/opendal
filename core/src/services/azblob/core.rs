@@ -372,18 +372,20 @@ impl AzblobCore {
         Ok(req)
     }
 
+    /// Init multipart blob
+    ///
+    /// # Reference
+    ///
+    /// https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
     pub async fn azblob_init_multipart_blob_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-        is_presign: bool,
+        args: &OpWrite,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}",
+            "{}/{}/{}?comp=blocklist",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
@@ -394,8 +396,7 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        // The content-length header must be set to zero
-        // when creating an appendable blob.
+        // todo: set correct CONTENT_LENGTH
         req = req.header(CONTENT_LENGTH, 0);
 
         if let Some(ty) = args.content_type() {
@@ -406,11 +407,12 @@ impl AzblobCore {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
-        let req = req
+        let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
 
-        Ok(req)
+        self.send(req).await
     }
 
     pub fn azblob_upload_part_request(
@@ -424,13 +426,11 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}?partNumber={}&uploadId={}",
+            "{}/{}/{}?comp=blocklist",
             self.endpoint,
-            percent_encode_path(&p),
-            part_number,
-            percent_encode_path(upload_id)
+            self.container,
+            percent_encode_path(&p)
         );
-
         let mut req = Request::put(&url);
 
         req = req.header(CONTENT_LENGTH, size);
@@ -481,7 +481,6 @@ impl AzblobCore {
     }
 
     /// Abort an on-going multipart upload.
-    /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
     pub async fn azblob_abort_multipart_upload(
         &self,
         path: &str,
@@ -490,12 +489,12 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}?comp=appendblock",
+            "{}/{}/{}?comp=blocklist&blockid={}",
             self.endpoint,
             self.container,
-            percent_encode_path(&p)
+            percent_encode_path(&p),
+            block_id,
         );
-
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -666,43 +665,11 @@ impl AzblobCore {
     }
 }
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct InitiateMultipartUploadResult {
-    #[cfg(test)]
-    pub bucket: String,
-    #[cfg(test)]
-    pub key: String,
-    pub upload_id: String,
-}
-
 #[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "PartNumber")]
     pub part_number: usize,
-    ///
-    /// ```ignore
-    /// #[derive(Default, Debug, Serialize)]
-    /// #[serde(default, rename_all = "PascalCase")]
-    /// struct CompleteMultipartUploadRequestPart {
-    ///     #[serde(rename = "PartNumber")]
-    ///     part_number: usize,
-    ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
-    ///     etag: String,
-    /// }
-    ///
-    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
-    /// where
-    ///     S: serde::Serializer,
-    /// {
-    ///     ser.serialize_str(&String::from_utf8_lossy(
-    ///         &quick_xml::escape::partial_escape(s.as_bytes()),
-    ///     ))
-    /// }
-    /// ```
-    ///
-    /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
     pub etag: String,
 }

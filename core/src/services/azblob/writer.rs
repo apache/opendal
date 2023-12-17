@@ -139,13 +139,7 @@ impl oio::MultipartUploadWrite for AzblobWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .azblob_init_multipart_blob_request(
-                &self.path,
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-                false,
-            )
+            .azblob_init_multipart_blob_request(&self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -171,7 +165,6 @@ impl oio::MultipartUploadWrite for AzblobWriter {
         size: u64,
         body: AsyncBody,
     ) -> Result<oio::MultipartUploadPart> {
-        // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
         let mut req =

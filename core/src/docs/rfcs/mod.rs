@@ -216,3 +216,6 @@ pub mod rfc_3526_list_recursive {}
 /// Concurrent stat in list
 #[doc = include_str!("3574_concurrent_stat_in_list.md")]
 pub mod rfc_3574_concurrent_stat_in_list {}
+
+#[doc = include_str!("3734_buffered_reader.md")]
+pub mod rfc_3734_buffered_reader {}

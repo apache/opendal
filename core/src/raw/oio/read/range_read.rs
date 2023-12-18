@@ -39,8 +39,6 @@ use crate::*;
 /// The `seek` operation on `RangeReader` is zero cost and purely in-memory. But calling `seek`
 /// while there is a pending read request will cancel the request and start a new one. This could
 /// add extra cost to the read operation.
-///
-/// TODO: Add content range support.
 pub struct RangeReader<A: Accessor, R> {
     acc: Arc<A>,
     path: Arc<String>,
@@ -52,8 +50,10 @@ pub struct RangeReader<A: Accessor, R> {
     size: Option<u64>,
     /// Cur is the current position of the reader, related to offset.
     cur: u64,
-    /// IO size is the io size sent to underlying reader.
-    io_size: Option<usize>,
+    /// Current IO size is the io size in the request sent to underlying reader.
+    cur_io_size: Option<usize>,
+    /// Current Read size is the read size in the response received from underlying reader.
+    cur_read_size: usize,
     state: State<R>,
 }
 
@@ -100,7 +100,8 @@ where
             offset,
             size,
             cur: 0,
-            io_size: None,
+            cur_io_size: None,
+            cur_read_size: 0,
             state: State::<R>::Idle,
         }
     }
@@ -137,6 +138,10 @@ where
         Ok(())
     }
 
+    /// Ensure size will use the information returned by RpRead to calculate the correct size for reader.
+    ///
+    /// - If `RpRead` returns `range`, we can calculate the correct size by `range.size()`.
+    /// - If `RpRead` returns `size`, we can use it's as the returning body's size.
     fn ensure_size(&mut self, total_size: Option<u64>, content_size: Option<u64>) {
         if let Some(total_size) = total_size {
             // It's valid for reader to seek to a position that out of the content length.
@@ -163,7 +168,7 @@ where
                 return;
             }
 
-            let calculated_size = if let Some(io_size) = self.io_size {
+            let calculated_size = if let Some(io_size) = self.cur_io_size {
                 // `content_size < io_size` means we have return the end of file.
                 if content_size < io_size as u64 {
                     content_size + self.cur
@@ -181,8 +186,16 @@ where
             // - reader's size is larger than file's size.
             if self.size.is_none() || Some(calculated_size) < self.size {
                 self.size = Some(calculated_size);
-                return;
             }
+        }
+    }
+
+    /// Is EOF will check if current reader is at the end of file by current read size.
+    #[inline]
+    fn is_eof(&self) -> bool {
+        match self.cur_io_size {
+            Some(io_size) => self.cur_read_size < io_size,
+            None => true,
         }
     }
 
@@ -199,7 +212,7 @@ where
             .offset
             .expect("offset must be set before calculating range");
 
-        let size = match (self.size, self.io_size) {
+        let size = match (self.size, self.cur_io_size) {
             (Some(size), Some(io_size)) => Some(cmp::min(size - self.cur, io_size as u64)),
             (Some(size), None) => Some(size - self.cur),
             (None, Some(io_size)) => Some(io_size as u64),
@@ -310,7 +323,8 @@ where
                     // we should stat first to get the correct offset.
                     State::SendStat(self.stat_future())
                 } else {
-                    self.io_size = Some(buf.len());
+                    self.cur_read_size = 0;
+                    self.cur_io_size = Some(buf.len());
                     State::SendRead(self.read_future())
                 };
 
@@ -340,7 +354,6 @@ where
 
                 self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
 
-                self.io_size = None;
                 self.state = State::Read(r);
                 self.poll_read(cx, buf)
             }
@@ -348,10 +361,15 @@ where
                 Ok(0) => {
                     // Reset state to Idle after all data has been consumed.
                     self.state = State::Idle;
-                    self.poll_read(cx, buf)
+                    if self.is_eof() {
+                        Poll::Ready(Ok(0))
+                    } else {
+                        self.poll_read(cx, buf)
+                    }
                 }
                 Ok(n) => {
                     self.cur += n as u64;
+                    self.cur_read_size += n;
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
@@ -438,6 +456,8 @@ where
                     // we should stat first to get the correct offset.
                     State::SendStat(self.stat_future())
                 } else {
+                    self.cur_read_size = 0;
+                    self.cur_io_size = None;
                     State::SendRead(self.read_future())
                 };
 
@@ -466,10 +486,6 @@ where
                 })?;
 
                 self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-                if rp.size() == Some(0) {
-                    self.state = State::Idle;
-                    return Poll::Ready(None);
-                }
 
                 self.state = State::Read(r);
                 self.poll_next(cx)
@@ -477,6 +493,7 @@ where
             State::Read(r) => match ready!(Pin::new(r).poll_next(cx)) {
                 Some(Ok(bs)) => {
                     self.cur += bs.len() as u64;
+                    self.cur_read_size += bs.len();
                     Poll::Ready(Some(Ok(bs)))
                 }
                 Some(Err(err)) => {
@@ -485,7 +502,11 @@ where
                 }
                 None => {
                     self.state = State::Idle;
-                    self.poll_next(cx)
+                    if self.is_eof() {
+                        Poll::Ready(None)
+                    } else {
+                        self.poll_next(cx)
+                    }
                 }
             },
         }
@@ -514,12 +535,12 @@ where
                     self.ensure_offset(length)?;
                 }
 
-                self.io_size = Some(buf.len());
+                self.cur_read_size = 0;
+                self.cur_io_size = Some(buf.len());
                 let (rp, r) = self.read_action()?;
 
                 self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
 
-                self.io_size = None;
                 self.state = State::Read(r);
                 self.read(buf)
             }
@@ -528,10 +549,15 @@ where
                     Ok(0) => {
                         // Reset state to Idle after all data has been consumed.
                         self.state = State::Idle;
-                        self.read(buf)
+                        if self.is_eof() {
+                            Ok(0)
+                        } else {
+                            self.read(buf)
+                        }
                     }
                     Ok(n) => {
                         self.cur += n as u64;
+                        self.cur_read_size += n;
                         Ok(n)
                     }
                     Err(e) => {
@@ -624,14 +650,11 @@ where
                     }
                 }
 
+                self.cur_read_size = 0;
+                self.cur_io_size = None;
                 let r = match self.read_action() {
                     Ok((rp, r)) => {
                         self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-                        if rp.size() == Some(0) {
-                            self.state = State::Idle;
-                            return None;
-                        }
-
                         r
                     }
                     Err(err) => return Some(Err(err)),
@@ -642,6 +665,7 @@ where
             State::Read(r) => match r.next() {
                 Some(Ok(bs)) => {
                     self.cur += bs.len() as u64;
+                    self.cur_read_size += bs.len();
                     Some(Ok(bs))
                 }
                 Some(Err(err)) => {
@@ -650,7 +674,11 @@ where
                 }
                 None => {
                     self.state = State::Idle;
-                    self.next()
+                    if self.is_eof() {
+                        None
+                    } else {
+                        self.next()
+                    }
                 }
             },
             State::SendStat(_) => {

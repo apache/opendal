@@ -259,9 +259,14 @@ impl Accessor for HttpBackend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
                 Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
             }
             _ => Err(parse_error(resp).await?),
@@ -370,9 +375,48 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/hello"))
+            .and(headers("range", vec!["bytes=0-12"]))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(headers("range", vec!["bytes=13-44"]))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "0"))
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
+            .mount(&mock_server)
+            .await;
+
+        let mut builder = HttpBuilder::default();
+        builder.endpoint(&mock_server.uri());
+        builder.root("/");
+        let op = Operator::new(builder)?.finish();
+
+        let bs = op.read("hello").await?;
+
+        assert_eq!(bs, b"Hello, World!");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_with_content_range() -> Result<()> {
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .insert_header("content-range", "bytes 0-12/13")
                     .set_body_string("Hello, World!"),
             )
             .mount(&mock_server)
@@ -404,11 +448,19 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/hello"))
             .and(basic_auth(username, password))
+            .and(headers("range", vec!["bytes=0-12"]))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-length", "13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(basic_auth(username, password))
+            .and(headers("range", vec!["bytes=13-44"]))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "0"))
             .mount(&mock_server)
             .await;
         Mock::given(method("HEAD"))
@@ -440,11 +492,19 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/hello"))
             .and(bearer_token(token))
+            .and(headers("range", vec!["bytes=0-12"]))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-length", "13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(bearer_token(token))
+            .and(headers("range", vec!["bytes=13-44"]))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "0"))
             .mount(&mock_server)
             .await;
         Mock::given(method("HEAD"))
@@ -499,8 +559,15 @@ mod tests {
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-length", "13")
+                    // .insert_header("content-range", "bytes 0-12/13")
                     .set_body_string("Hello, World!"),
             )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(headers("range", vec!["bytes=13-44"]))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "0"))
             .mount(&mock_server)
             .await;
         Mock::given(method("HEAD"))

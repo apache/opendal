@@ -28,7 +28,7 @@ op.reader_with(path).buffer(32 * 1024 * 1024).await
 
 This feature will be implemented in the `CompleteLayer`, with the addition of a `BufferReader` struct in `raw/oio/reader/buffer_reader.rs`. 
 
-The `BufferReader` employs` bytes::BytesMut` as the inner buffer and utilizes `(Option<usize>, Option<usize>)` to track the buffered range of the file.
+The `BufferReader` employs a `tokio::io::ReadBuf` as the inner buffer and uses `offset: Option<u64>` to track the buffered range start of the file, the buffered data should always be `file[offset..offset + buf.len()]`.
 
 
 ```rust
@@ -45,118 +45,7 @@ The `BufferReader` employs` bytes::BytesMut` as the inner buffer and utilizes `(
      ...
 ```
 
-A `buffer` field of type `Option<usize>` will be introduced to `OpRead`. If `buffer` is set to `None`, it functions with default behavior. However, if buffer is set to `Some(n)`, it denotes the maximum buffer capability that the `BufferReader` can utilize, and buffering behaviors introduced below.
-
-**Buffering**
-
-When the `Buffer Capability` is specified, the underlying reader fetches and buffers data in chunks corresponding to the buffer size.
-
-```
-Buffer
-┌───────┐
-│       │
-└───────┘
-File
-┌───┬───────┬──┐
-│   │       │  │
-└───▲───────▲──┘
-    │       │
-    │       │ 2. ReadToEnd(limit), The limit <= Cap(Buffer).
-    │
-    │ 1. SeekFromStart(128)
-
-```
-
-```
-Buffer
-┌───────┐
-│*******│
-└───────┘
-File
-┌───┬───────┬──┐
-│   │*******│  │
-└───▲───────▲──┘
-     3. Fetches and buffers the data.
-```
-
-**Tailing Read**
-
-If a read request attempts to read the trailing bytes of the file, it only reads and buffers the `Min(Max(Limit,Cap(Buffer)),FileEnd-Cursor)` bytes.
-
-```
-File
-┌──────────────┐
-│              │
-└────────────▲─▲
-             │ │
-             │ │ 2. ReadToEnd(limit)
-             │
-             │ 1. SeekFromEnd(-8)
-```
-
-**Overlapping Read**
-
-If a read request attempts to read data that is partially buffered, it copies the partially buffered data to the `dst` buffer first.
-
-```
-Buffer
-┌───────┐
-│*******│
-└───────┘
-File
-┌───────┬──────┐
-│*******│      │
-└────▲──┴──▲───┘
-     │     │
-     │     │ 2. ReadToEnd(limit), The limit <= Cap(Buffer).
-     │
-     │ 1. SeekFromStart(128)
-```
-
-Then, fetches and buffers data in chunks corresponding to the buffer size. Finally, it copies the another part data to the `dst` buffer.
-
-```
-Buffer
-┌───────┐
-│///////│
-└───────┘
-File
-┌───────┬──────┐
-│       │//////│
-└────▲──┴──▲───┘
-     3. Fetches and buffers the data.
-```
-
-**Bypass**
-
-If a read request attempts to read data larger than the `Buffer Capability`, it fetches the data bypassing the `Buffer` entirely.
-
-```
-Buffer
-┌───────┐
-│       │
-└───────┘
-File
-┌───────────┬──┐
-│           │**│
-└──▲──────▲─┴──┘
-   │      │
-   │      │ 2. ReadToEnd(limit), The limit > Cap(Buffer).
-   │
-   │ 1. SeekFromStart(128)
-```
-
-```
-Buffer
-┌───────┐
-│       │
-└───────┘
-File
-┌───────────┬──┐
-│           │**│
-└──▲──────▲─┴──┘
-   3. Fetches and bypasses
-```
+A `buffer` field of type `Option<usize>` will be introduced to `OpRead`. If `buffer` is set to `None`, it functions with default behavior. However, if buffer is set to `Some(n)`, it denotes the maximum buffer capability that the `BufferReader` can utilize. The behavior is similar to [std::io::BufReader](https://doc.rust-lang.org/std/io/struct.BufReader.html), with the difference being that our implementation always provides the `seek_relative` (without discarding the inner buffer) if it's available; And it doesn't buffer trailing reads when the read range is smaller than the buffer capability.
 
 # Drawbacks
 None

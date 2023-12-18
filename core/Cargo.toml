@@ -126,6 +126,7 @@ services-azdls = [
 ]
 services-azfile = []
 services-b2 = []
+services-seafile = []
 services-cacache = ["dep:cacache"]
 services-cloudflare-kv = []
 services-cos = [

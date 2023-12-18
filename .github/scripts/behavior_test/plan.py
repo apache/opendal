@@ -126,6 +126,14 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_python = True
             hint.binding_nodejs = True
             hint.all_service = True
+        if (
+            p.startswith(".cargo/")
+        ):
+            hint.core = True
+            hint.binding_java = True
+            hint.binding_python = True
+            hint.binding_nodejs = True
+            hint.all_service = True
 
         # language binding affected
         for language in LANGUAGE_BINDING:

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -43,9 +44,14 @@ pub struct RangeReader<A: Accessor, R> {
     path: Arc<String>,
     op: OpRead,
 
+    /// Offset is the range offset for current reader.
     offset: Option<u64>,
+    /// Size is the range size for current reader.
     size: Option<u64>,
+    /// Cur is the current position of the reader, related to offset.
     cur: u64,
+    /// IO size is the io size sent to underlying reader.
+    io_size: Option<usize>,
     state: State<R>,
 }
 
@@ -92,6 +98,7 @@ where
             offset,
             size,
             cur: 0,
+            io_size: None,
             state: State::<R>::Idle,
         }
     }
@@ -138,7 +145,14 @@ where
             .offset
             .expect("offset must be set before calculating range");
 
-        BytesRange::new(Some(offset + self.cur), self.size.map(|v| v - self.cur))
+        let size = match (self.size, self.io_size) {
+            (Some(size), Some(io_size)) => Some(cmp::min(size - self.cur, io_size as u64)),
+            (Some(size), None) => Some(size - self.cur),
+            (None, Some(io_size)) => Some(io_size as u64),
+            (None, None) => None,
+        };
+
+        BytesRange::new(Some(offset + self.cur), size)
     }
 }
 
@@ -242,6 +256,7 @@ where
                     // we should stat first to get the correct offset.
                     State::SendStat(self.stat_future())
                 } else {
+                    self.io_size = Some(buf.len());
                     State::SendRead(self.read_future())
                 };
 
@@ -274,12 +289,15 @@ where
                     err
                 })?;
 
-                // Set size if read returns size hint.
+                // Set size if read returns size is less than io size.
                 if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
-                        self.size = Some(size + self.cur);
+                    if let Some(io_size) = self.io_size {
+                        if size < io_size as u64 {
+                            self.size = Some(size + self.cur);
+                        }
                     }
                 }
+                self.io_size = None;
                 self.state = State::Read(r);
                 self.poll_read(cx, buf)
             }
@@ -287,7 +305,7 @@ where
                 Ok(0) => {
                     // Reset state to Idle after all data has been consumed.
                     self.state = State::Idle;
-                    Poll::Ready(Ok(0))
+                    self.poll_read(cx, buf)
                 }
                 Ok(n) => {
                     self.cur += n as u64;
@@ -406,7 +424,7 @@ where
 
                 // Set size if read returns size hint.
                 if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
+                    if self.size.is_none() {
                         self.size = Some(size + self.cur);
                     }
                 }
@@ -424,7 +442,7 @@ where
                 }
                 None => {
                     self.state = State::Idle;
-                    Poll::Ready(None)
+                    self.poll_next(cx)
                 }
             },
         }
@@ -453,15 +471,19 @@ where
                     self.fill_range(length)?;
                 }
 
+                self.io_size = Some(buf.len());
                 let (rp, r) = self.read_action()?;
 
                 // Set size if read returns size hint.
                 if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
-                        self.size = Some(size + self.cur);
+                    if let Some(io_size) = self.io_size {
+                        if size < io_size as u64 {
+                            self.size = Some(size + self.cur);
+                        }
                     }
                 }
 
+                self.io_size = None;
                 self.state = State::Read(r);
                 self.read(buf)
             }
@@ -470,7 +492,7 @@ where
                     Ok(0) => {
                         // Reset state to Idle after all data has been consumed.
                         self.state = State::Idle;
-                        Ok(0)
+                        self.read(buf)
                     }
                     Ok(n) => {
                         self.cur += n as u64;

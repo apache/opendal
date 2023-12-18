@@ -429,19 +429,19 @@ impl Operator {
                     }
 
                     let range = args.range();
-                    let size_hint = match range.size() {
-                        Some(v) => v,
-                        None => {
-                            let mut size = inner
-                                .stat(&path, OpStat::default())
-                                .await?
-                                .into_metadata()
-                                .content_length();
-                            size -= range.offset().unwrap_or(0);
-                            size
-                        }
+                    let size_hint = if let Some(size) = range.size() {
+                        size
+                    } else {
+                        let mut size = inner
+                            .stat(&path, OpStat::default())
+                            .await?
+                            .into_metadata()
+                            .content_length();
+                        size -= range.offset().unwrap_or_default();
+                        size
                     };
 
+                    let args = args.with_range(range.with_size(size_hint));
                     let (_, mut s) = inner.read(&path, args).await?;
                     let mut buf = Vec::with_capacity(size_hint as usize);
                     s.read_to_end(&mut buf).await?;

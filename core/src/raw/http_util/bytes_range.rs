@@ -77,9 +77,21 @@ impl BytesRange {
         self.0
     }
 
+    /// Change the offset of given range.
+    pub fn with_offset(mut self, offset: u64) -> Self {
+        self.0 = Some(offset);
+        self
+    }
+
     /// Get size of BytesRange.
     pub fn size(&self) -> Option<u64> {
         self.1
+    }
+
+    /// Change the size of given range.
+    pub fn with_size(mut self, size: u64) -> Self {
+        self.1 = Some(size);
+        self
     }
 
     /// Check if this range is full of this content.

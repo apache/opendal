@@ -39,6 +39,8 @@ use crate::*;
 /// The `seek` operation on `RangeReader` is zero cost and purely in-memory. But calling `seek`
 /// while there is a pending read request will cancel the request and start a new one. This could
 /// add extra cost to the read operation.
+///
+/// TODO: Add content range support.
 pub struct RangeReader<A: Accessor, R> {
     acc: Arc<A>,
     path: Arc<String>,

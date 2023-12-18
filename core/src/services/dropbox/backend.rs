@@ -100,8 +100,12 @@ impl Accessor for DropboxBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.dropbox_get(path, args).await?;
         let status = resp.status();
+        dbg!(resp.headers());
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                Ok((RpRead::new().with_size(size), resp.into_body()))
+            }
             StatusCode::RANGE_NOT_SATISFIABLE => {
                 Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
             }

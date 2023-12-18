@@ -21,7 +21,6 @@ use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -110,27 +109,6 @@ impl BytesContentRange {
     /// Convert bytes content range into Content-Range header.
     pub fn to_header(&self) -> String {
         format!("bytes {self}")
-    }
-
-    /// Calculate bytes content range from size and specified range.
-    pub fn from_bytes_range(total_size: u64, range: BytesRange) -> Self {
-        let (start, end) = match (range.offset(), range.size()) {
-            (Some(offset), Some(size)) => (offset, offset + size - 1),
-            (Some(offset), None) => (offset, total_size - 1),
-            (None, Some(size)) => (total_size - size, total_size - 1),
-            (None, None) => (0, total_size - 1),
-        };
-
-        Self(Some(start), Some(end), Some(total_size))
-    }
-
-    /// Calculate bytes range from bytes content range.
-    pub fn to_bytes_range(self) -> Option<BytesRange> {
-        match (self.0, self.1, self.2) {
-            (Some(start), Some(end), _) => Some(BytesRange::from(start..=end)),
-            (None, None, Some(_)) => None,
-            _ => unreachable!("invalid bytes range: {:?}", self),
-        }
     }
 }
 
@@ -231,50 +209,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[test]
-    fn test_from_bytes_range() {
-        let cases = vec![
-            (
-                "offset only",
-                BytesRange::new(Some(1024), None),
-                2048,
-                BytesContentRange::default()
-                    .with_size(2048)
-                    .with_range(1024, 2047),
-            ),
-            (
-                "size only",
-                BytesRange::new(None, Some(1024)),
-                2048,
-                BytesContentRange::default()
-                    .with_size(2048)
-                    .with_range(1024, 2047),
-            ),
-            (
-                "offset zero",
-                BytesRange::new(Some(0), Some(1024)),
-                2048,
-                BytesContentRange::default()
-                    .with_size(2048)
-                    .with_range(0, 1023),
-            ),
-            (
-                "part of data",
-                BytesRange::new(Some(1024), Some(1)),
-                4096,
-                BytesContentRange::default()
-                    .with_size(4096)
-                    .with_range(1024, 1024),
-            ),
-        ];
-
-        for (name, input, input_size, expected) in cases {
-            let actual = BytesContentRange::from_bytes_range(input_size, input);
-
-            assert_eq!(expected, actual, "{name}")
-        }
     }
 
     #[test]

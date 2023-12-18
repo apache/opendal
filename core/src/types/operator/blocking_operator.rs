@@ -399,19 +399,18 @@ impl BlockingOperator {
                 }
 
                 let range = args.range();
-                let size_hint = if let Some(size) = range.size() {
-                    size
+                let (size_hint, range) = if let Some(size) = range.size() {
+                    (size, range)
                 } else {
-                    let mut size = inner
+                    let size = inner
                         .blocking_stat(&path, OpStat::default())?
                         .into_metadata()
                         .content_length();
-                    size -= range.offset().unwrap_or_default();
-                    size
+                    let range = range.complete(size);
+                    (range.size().unwrap(), range)
                 };
 
-                let args = args.with_range(range.with_size(size_hint));
-                let (_, mut s) = inner.blocking_read(&path, args)?;
+                let (_, mut s) = inner.blocking_read(&path, args.with_range(range))?;
 
                 let mut buf = Vec::with_capacity(size_hint as usize);
                 s.read_to_end(&mut buf)?;

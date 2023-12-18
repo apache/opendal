@@ -474,12 +474,14 @@ impl Accessor for WebhdfsBackend {
                 let bs = body.bytes().await?;
                 let s = String::from_utf8_lossy(&bs);
                 if s.contains("out of the range") {
-                    Ok((RpRead::new(), IncomingAsyncBody::empty()))
+                    Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
                 } else {
                     Err(parse_error_msg(parts, &s)?)
                 }
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

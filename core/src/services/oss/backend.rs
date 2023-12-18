@@ -460,7 +460,9 @@ impl Accessor for OssBackend {
                 let size = parse_content_length(resp.headers())?;
                 Ok((RpRead::new().with_size(size), resp.into_body()))
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

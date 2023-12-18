@@ -30,7 +30,8 @@ pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
         op,
         test_fuzz_issue_2717,
         test_fuzz_pr_3395_case_1,
-        test_fuzz_pr_3395_case_2
+        test_fuzz_pr_3395_case_2,
+        test_fuzz_pr_3770
     )
 }
 
@@ -142,6 +143,39 @@ pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {
         ReadAction::Seek(SeekFrom::Current(1)),
         ReadAction::Next,
         ReadAction::Seek(SeekFrom::End(0)),
+    ];
+    test_fuzz_read(op, 1, 0.., &actions).await
+}
+
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3770>.
+///
+/// The simplified cases could be seen as:
+///
+/// ```
+/// FuzzInput {
+///      path: "a603cfd3-dd08-4524-b39e-b65b094ab117",
+///      size: 1,
+///      range: "0-",
+///      actions: [
+///          Seek(
+///              Start(
+///                  2,
+///              ),
+///          ),
+///          Next,
+///          Seek(
+///              End(
+///                  -1,
+///              ),
+///          ),
+///      ],
+///  }
+/// ```
+pub async fn test_fuzz_pr_3770(op: Operator) -> Result<()> {
+    let actions = [
+        ReadAction::Seek(SeekFrom::Start(2)),
+        ReadAction::Next,
+        ReadAction::Seek(SeekFrom::End(-1)),
     ];
     test_fuzz_read(op, 1, 0.., &actions).await
 }

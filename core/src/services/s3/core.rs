@@ -232,25 +232,47 @@ impl S3Core {
 }
 
 impl S3Core {
-    pub fn s3_head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
 
         req = self.insert_sse_headers(req, false);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -377,10 +399,9 @@ impl S3Core {
     pub async fn s3_head_object(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
+        args: OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_head_object_request(path, if_none_match, if_match)?;
+        let mut req = self.s3_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

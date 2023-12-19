@@ -62,6 +62,9 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_stat_not_exist,
         test_stat_with_if_match,
         test_stat_with_if_none_match,
+        test_stat_with_override_cache_control,
+        test_stat_with_override_content_disposition,
+        test_stat_with_override_content_type,
         test_stat_root,
         test_read_full,
         test_read_range,
@@ -475,6 +478,154 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.content_length(), meta.content_length());
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat file with override-cache-control should succeed.
+pub async fn test_stat_with_override_cache_control(op: Operator) -> Result<()> {
+    if !(op.info().full_capability().stat_with_override_cache_control
+        && op.info().full_capability().presign)
+    {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_cache_control = "no-cache, no-store, must-revalidate";
+    let signed_req = op
+        .presign_stat_with(&path, Duration::from_secs(60))
+        .override_cache_control(target_cache_control)
+        .await
+        .expect("sign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("cache-control")
+            .expect("cache-control header must exist")
+            .to_str()
+            .expect("cache-control header must be string"),
+        target_cache_control
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat file with override_content_disposition should succeed.
+pub async fn test_stat_with_override_content_disposition(op: Operator) -> Result<()> {
+    if !(op
+        .info()
+        .full_capability()
+        .stat_with_override_content_disposition
+        && op.info().full_capability().presign)
+    {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_disposition = "attachment; filename=foo.txt";
+
+    let signed_req = op
+        .presign_stat_with(&path, Duration::from_secs(60))
+        .override_content_disposition(target_content_disposition)
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(http::header::CONTENT_DISPOSITION)
+            .expect("content-disposition header must exist")
+            .to_str()
+            .expect("content-disposition header must be string"),
+        target_content_disposition
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Stat file with override_content_type should succeed.
+pub async fn test_stat_with_override_content_type(op: Operator) -> Result<()> {
+    if !(op.info().full_capability().stat_with_override_content_type
+        && op.info().full_capability().presign)
+    {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_type = "application/opendal";
+
+    let signed_req = op
+        .presign_stat_with(&path, Duration::from_secs(60))
+        .override_content_type(target_content_type)
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(http::header::CONTENT_TYPE)
+            .expect("content-type header must exist")
+            .to_str()
+            .expect("content-type header must be string"),
+        target_content_type
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 

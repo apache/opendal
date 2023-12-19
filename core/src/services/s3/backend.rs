@@ -981,6 +981,9 @@ impl Accessor for S3Backend {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_with_override_cache_control: true,
+                stat_with_override_content_disposition: true,
+                stat_with_override_content_type: true,
 
                 read: true,
                 read_can_next: true,
@@ -1072,10 +1075,7 @@ impl Accessor for S3Backend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self
-            .core
-            .s3_head_object(path, args.if_none_match(), args.if_match())
-            .await?;
+        let resp = self.core.s3_head_object(path, args).await?;
 
         let status = resp.status();
 
@@ -1112,13 +1112,12 @@ impl Accessor for S3Backend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let (expire, op) = args.into_parts();
+
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .s3_head_object_request(path, v.if_none_match(), v.if_match())?
-            }
-            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v.clone())?,
+        let mut req = match op {
+            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v)?,
             PresignOperation::Write(_) => self.core.s3_put_object_request(
                 path,
                 None,
@@ -1127,7 +1126,7 @@ impl Accessor for S3Backend {
             )?,
         };
 
-        self.core.sign_query(&mut req, args.expire()).await?;
+        self.core.sign_query(&mut req, expire).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

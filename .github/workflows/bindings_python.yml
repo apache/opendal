@@ -61,8 +61,7 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     strategy:
       matrix:
-        # remove linux aarch64/armv7l support until https://github.com/apache/incubator-opendal/issues/3673 addressed
-        target: [x86_64]
+        target: [x86_64, aarch64, armv7l]
     steps:
       - uses: actions/checkout@v4
       - uses: PyO3/maturin-action@v1
@@ -72,6 +71,9 @@ jobs:
           working-directory: "bindings/python"
           command: build
           args: --release -o dist --find-interpreter
+        env:
+          # Workaround ring 0.17 build issue
+          CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

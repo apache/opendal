@@ -312,3 +312,10 @@ mod seafile;
 pub use seafile::Seafile;
 #[cfg(feature = "services-seafile")]
 pub use seafile::SeafileConfig;
+
+#[cfg(feature = "services-upyun")]
+mod upyun;
+#[cfg(feature = "services-upyun")]
+pub use upyun::Upyun;
+#[cfg(feature = "services-upyun")]
+pub use upyun::UpyunConfig;

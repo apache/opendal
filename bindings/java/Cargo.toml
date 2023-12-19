@@ -91,6 +91,7 @@ services-all = [
   "services-alluxio",
   "services-b2",
   "services-seafile",
+  "services-upyun",
 ]
 
 # Default services provided by opendal.
@@ -113,6 +114,7 @@ services-webhdfs = ["opendal/services-webhdfs"]
 services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
+services-upyun = ["opendal/services-upyun"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]

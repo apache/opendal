@@ -42,6 +42,8 @@ pub enum Scheme {
     B2,
     /// [Seafile][crate::services::Seafile]: Seafile Services.
     Seafile,
+    /// [Upyun][crate::services::Upyun]: Upyun Services.
+    Upyun,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -243,6 +245,8 @@ impl Scheme {
             Scheme::S3,
             #[cfg(feature = "services-seafile")]
             Scheme::Seafile,
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun,
             #[cfg(feature = "services-sftp")]
             Scheme::Sftp,
             #[cfg(feature = "services-sled")]
@@ -331,6 +335,7 @@ impl FromStr for Scheme {
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
             "seafile" => Ok(Scheme::Seafile),
+            "upyun" => Ok(Scheme::Upyun),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
@@ -402,6 +407,7 @@ impl From<Scheme> for &'static str {
             Scheme::Sqlite => "sqlite",
             Scheme::Mongodb => "mongodb",
             Scheme::Alluxio => "alluxio",
+            Scheme::Upyun => "upyun",
             Scheme::Custom(v) => v,
         }
     }

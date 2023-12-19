@@ -42,7 +42,7 @@ async fn run(config: App) -> Result<(), Box<dyn std::error::Error>> {
 
     let fs = dalfs::DalFs {
         op: Operator::via_map(config.r#type, options)?.tap(|op| log::debug!("operator: {op:?}")),
-        inodes: inode::InodeStore::new(0o550, 1000, 1000), // Temporarilly hardcode
+        inodes: inode::InodeStore::new(0o550, 1000, 1000), // Temporarily hardcode
     };
 
     let mut session = Session::new(fs, config.mount_point.as_ref(), &[])?;

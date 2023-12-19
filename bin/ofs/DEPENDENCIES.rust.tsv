@@ -2,9 +2,15 @@ crate	0BSD	Apache-2.0	Apache-2.0 WITH LLVM-exception	BSD-2-Clause	BSD-3-Clause	B
 addr2line@0.21.0		X							X					
 adler@1.0.2	X	X							X					
 ahash@0.8.6		X							X					
+aho-corasick@1.1.2									X				X	
 allocator-api2@0.2.16		X							X					
 android-tzdata@0.1.1		X							X					
 android_system_properties@0.1.5		X							X					
+anstream@0.6.4		X							X					
+anstyle@1.0.4		X							X					
+anstyle-parse@0.2.2		X							X					
+anstyle-query@1.0.0		X							X					
+anstyle-wincon@3.0.1		X							X					
 anyhow@1.0.75		X							X					
 arc-swap@1.6.0		X							X					
 async-compat@0.2.3		X							X					
@@ -25,6 +31,11 @@ bytes@1.5.0									X
 cc@1.0.83		X							X					
 cfg-if@1.0.0		X							X					
 chrono@0.4.31		X							X					
+clap@4.4.8		X							X					
+clap_builder@4.4.8		X							X					
+clap_derive@4.4.7		X							X					
+clap_lex@0.6.0		X							X					
+colorchoice@1.0.0		X							X					
 concurrent_arena@0.1.8									X					
 const-oid@0.9.5		X							X					
 const-random@0.1.17		X							X					
@@ -43,12 +54,14 @@ dirs-sys@0.4.1		X							X
 dlv-list@0.5.2		X							X					
 dotenvy@0.15.7									X					
 encoding_rs@0.8.33		X			X				X					
+env_logger@0.10.1		X							X					
 equivalent@1.0.1		X							X					
 fastrand@1.9.0		X							X					
 fastrand@2.0.1		X							X					
 flagset@0.4.4		X												
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.0		X							X					
+fuser@0.13.0									X					
 futures@0.3.29		X							X					
 futures-channel@0.3.29		X							X					
 futures-core@0.3.29		X							X					
@@ -63,6 +76,7 @@ getrandom@0.2.11		X							X
 gimli@0.28.0		X							X					
 h2@0.3.22									X					
 hashbrown@0.14.2		X							X					
+heck@0.4.1		X							X					
 hermit-abi@0.3.3		X							X					
 hex@0.4.3		X							X					
 hmac@0.12.1		X							X					
@@ -71,6 +85,7 @@ http@0.2.11		X							X
 http-body@0.4.5									X					
 httparse@1.8.0		X							X					
 httpdate@1.0.3		X							X					
+humantime@2.1.0		X							X					
 hyper@0.14.27									X					
 hyper-rustls@0.24.2		X						X	X					
 iana-time-zone@0.1.58		X							X					
@@ -79,6 +94,7 @@ idna@0.4.0		X							X
 indexmap@2.1.0		X							X					
 instant@0.1.12					X									
 ipnet@2.9.0		X							X					
+is-terminal@0.4.9									X					
 itoa@1.0.9		X							X					
 jobserver@0.1.27		X							X					
 js-sys@0.3.65		X							X					
@@ -103,7 +119,7 @@ num-iter@0.1.43		X							X
 num-traits@0.2.17		X							X					
 num_cpus@1.16.0		X							X					
 object@0.32.1		X							X					
-ofs@0.43.0		X												
+ofs@0.0.1		X												
 once_cell@1.18.0		X							X					
 opendal@0.43.0		X												
 openssh@0.10.1		X							X					
@@ -115,6 +131,7 @@ openssh-sftp-protocol-error@0.1.0									X
 openssl-probe@0.1.5		X							X					
 option-ext@0.2.0										X				
 ordered-multimap@0.7.0									X					
+page_size@0.5.0		X							X					
 parking_lot@0.12.1		X							X					
 parking_lot_core@0.9.9		X							X					
 pem@3.0.2									X					
@@ -126,6 +143,7 @@ pin-project-lite@0.2.13		X							X
 pin-utils@0.1.0		X							X					
 pkcs1@0.7.5		X							X					
 pkcs8@0.10.2		X							X					
+pkg-config@0.3.27		X							X					
 powerfmt@0.2.0		X							X					
 ppv-lite86@0.2.17		X							X					
 proc-macro2@1.0.69		X							X					
@@ -137,6 +155,9 @@ rand_chacha@0.3.1		X							X
 rand_core@0.6.4		X							X					
 redox_syscall@0.4.1									X					
 redox_users@0.4.4									X					
+regex@1.10.2		X							X					
+regex-automata@0.4.3		X							X					
+regex-syntax@0.8.2		X							X					
 reqsign@0.14.4		X												
 reqwest@0.11.22		X							X					
 ring@0.17.5											X			
@@ -154,6 +175,7 @@ scopeguard@1.2.0		X							X
 sct@0.7.1		X						X	X					
 security-framework@2.9.2		X							X					
 security-framework-sys@2.9.1		X							X					
+sequence_trie@0.3.6		X							X					
 serde@1.0.193		X							X					
 serde_derive@1.0.193		X							X					
 serde_json@1.0.108		X							X					
@@ -174,12 +196,15 @@ spki@0.7.2		X							X
 ssh_format@0.14.1									X					
 ssh_format_error@0.1.0									X					
 stable_deref_trait@1.2.0		X							X					
+strsim@0.10.0									X					
 subtle@2.5.0					X									
 syn@1.0.109		X							X					
 syn@2.0.39		X							X					
 system-configuration@0.5.1		X							X					
 system-configuration-sys@0.5.0		X							X					
+tap@1.0.1									X					
 tempfile@3.8.1		X							X					
+termcolor@1.4.0									X				X	
 thin-vec@0.2.12		X							X					
 thiserror@1.0.50		X							X					
 thiserror-impl@1.0.50		X							X					
@@ -207,6 +232,7 @@ unicode-ident@1.0.12		X							X			X
 unicode-normalization@0.1.22		X							X					
 untrusted@0.9.0								X						
 url@2.4.1		X							X					
+utf8parse@0.2.1		X							X					
 uuid@1.6.1		X							X					
 valuable@0.1.0									X					
 vec-strings@0.4.8									X					
@@ -223,6 +249,7 @@ wasm-streams@0.3.0		X							X
 web-sys@0.3.65		X							X					
 winapi@0.3.9		X							X					
 winapi-i686-pc-windows-gnu@0.4.0		X							X					
+winapi-util@0.1.6									X				X	
 winapi-x86_64-pc-windows-gnu@0.4.0		X							X					
 windows-core@0.51.1		X							X					
 windows-sys@0.48.0		X							X					
@@ -235,5 +262,7 @@ windows_x86_64_gnu@0.48.5		X							X
 windows_x86_64_gnullvm@0.48.5		X							X					
 windows_x86_64_msvc@0.48.5		X							X					
 winreg@0.50.0									X					
+zerocopy@0.6.6				X										
 zerocopy@0.7.26		X		X					X					
+zerocopy-derive@0.6.6				X										
 zeroize@1.7.0		X							X					

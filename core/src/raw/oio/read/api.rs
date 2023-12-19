@@ -279,7 +279,6 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
         let this = self.project();
         let start_len = this.buf.len();
-        let start_cap = this.buf.capacity();
 
         loop {
             if this.buf.len() == this.buf.capacity() {
@@ -305,22 +304,6 @@ where
                     }
                 }
                 Err(e) => return Poll::Ready(Err(e)),
-            }
-
-            // The buffer might be an exact fit. Let's read into a probe buffer
-            // and see if it returns `Ok(0)`. If so, we've avoided an
-            // unnecessary doubling of the capacity. But if not, append the
-            // probe buffer to the primary buffer and let its capacity grow.
-            if this.buf.len() == this.buf.capacity() && this.buf.capacity() == start_cap {
-                let mut probe = [0u8; 32];
-
-                match ready!(this.reader.poll_read(cx, &mut probe)) {
-                    Ok(0) => return Poll::Ready(Ok(this.buf.len() - start_len)),
-                    Ok(n) => {
-                        this.buf.extend_from_slice(&probe[..n]);
-                    }
-                    Err(e) => return Poll::Ready(Err(e)),
-                }
             }
         }
     }

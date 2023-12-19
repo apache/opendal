@@ -39,4 +39,5 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_REGION=auto
         OPENDAL_S3_BATCH_MAX_OPERATIONS=700
+        OPENDAL_S3_DISABLE_STAT_WITH_OVERRIDE=true
         EOF

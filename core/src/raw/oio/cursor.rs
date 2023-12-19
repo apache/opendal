@@ -166,9 +166,4 @@ impl oio::Stream for Cursor {
         self.pos += bs.len() as u64;
         Poll::Ready(Some(Ok(bs)))
     }
-
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        self.pos = 0;
-        Poll::Ready(Ok(()))
-    }
 }

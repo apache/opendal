@@ -229,6 +229,8 @@ impl Operator {
             Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),
             #[cfg(feature = "services-s3")]
             Scheme::S3 => Self::from_map::<services::S3>(map)?.finish(),
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile => Self::from_map::<services::Seafile>(map)?.finish(),
             #[cfg(feature = "services-sftp")]
             Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
             #[cfg(feature = "services-sled")]

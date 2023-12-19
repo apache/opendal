@@ -305,3 +305,10 @@ mod b2;
 pub use b2::B2Config;
 #[cfg(feature = "services-b2")]
 pub use b2::B2;
+
+#[cfg(feature = "services-seafile")]
+mod seafile;
+#[cfg(feature = "services-seafile")]
+pub use seafile::Seafile;
+#[cfg(feature = "services-seafile")]
+pub use seafile::SeafileConfig;

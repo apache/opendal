@@ -204,14 +204,6 @@ impl<T: Part> Stream for MultipartStream<T> {
 
         Poll::Ready(None)
     }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "MultipartStream doesn't support reset yet",
-        )))
-    }
 }
 
 /// Part is a trait for multipart part.
@@ -291,7 +283,19 @@ impl Part for FormDataPart {
 
         // Building pre-content.
         for (k, v) in self.headers.iter() {
-            bs.extend_from_slice(k.as_str().as_bytes());
+            // Trick!
+            //
+            // Seafile could not recognize header names like `content-disposition`
+            // and requires to use `Content-Disposition`. So we hardcode the part
+            // headers name here.
+            match k.as_str() {
+                "content-disposition" => {
+                    bs.extend_from_slice("Content-Disposition".as_bytes());
+                }
+                _ => {
+                    bs.extend_from_slice(k.as_str().as_bytes());
+                }
+            }
             bs.extend_from_slice(b": ");
             bs.extend_from_slice(v.as_bytes());
             bs.extend_from_slice(b"\r\n");
@@ -343,14 +347,6 @@ impl Stream for FormDataPartStream {
         }
 
         Poll::Ready(None)
-    }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "FormDataPartStream doesn't support reset yet",
-        )))
     }
 }
 
@@ -698,14 +694,6 @@ impl Stream for MixedPartStream {
 
         Poll::Ready(None)
     }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "MixedPartStream doesn't support reset yet",
-        )))
-    }
 }
 
 #[cfg(test)]
@@ -728,11 +716,11 @@ mod tests {
         assert_eq!(size, bs.len() as u64);
 
         let expected = "--lalala\r\n\
-             content-disposition: form-data; name=\"foo\"\r\n\
+             Content-Disposition: form-data; name=\"foo\"\r\n\
              \r\n\
              bar\r\n\
              --lalala\r\n\
-             content-disposition: form-data; name=\"hello\"\r\n\
+             Content-Disposition: form-data; name=\"hello\"\r\n\
              \r\n\
              world\r\n\
              --lalala--\r\n";
@@ -764,48 +752,48 @@ mod tests {
         assert_eq!(size, bs.len() as u64);
 
         let expected = r#"--9431149156168
-content-disposition: form-data; name="key"
+Content-Disposition: form-data; name="key"
 
 user/eric/MyPicture.jpg
 --9431149156168
-content-disposition: form-data; name="acl"
+Content-Disposition: form-data; name="acl"
 
 public-read
 --9431149156168
-content-disposition: form-data; name="success_action_redirect"
+Content-Disposition: form-data; name="success_action_redirect"
 
 https://awsexamplebucket1.s3.us-west-1.amazonaws.com/successful_upload.html
 --9431149156168
-content-disposition: form-data; name="content-type"
+Content-Disposition: form-data; name="content-type"
 
 image/jpeg
 --9431149156168
-content-disposition: form-data; name="x-amz-meta-uuid"
+Content-Disposition: form-data; name="x-amz-meta-uuid"
 
 14365123651274
 --9431149156168
-content-disposition: form-data; name="x-amz-meta-tag"
+Content-Disposition: form-data; name="x-amz-meta-tag"
 
 Some,Tag,For,Picture
 --9431149156168
-content-disposition: form-data; name="AWSAccessKeyId"
+Content-Disposition: form-data; name="AWSAccessKeyId"
 
 AKIAIOSFODNN7EXAMPLE
 --9431149156168
-content-disposition: form-data; name="Policy"
+Content-Disposition: form-data; name="Policy"
 
 eyAiZXhwaXJhdGlvbiI6ICIyMDA3LTEyLTAxVDEyOjAwOjAwLjAwMFoiLAogICJjb25kaXRpb25zIjogWwogICAgeyJidWNrZXQiOiAiam9obnNtaXRoIn0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiRrZXkiLCAidXNlci9lcmljLyJdLAogICAgeyJhY2wiOiAicHVibGljLXJlYWQifSwKICAgIHsic3VjY2Vzc19hY3Rpb25fcmVkaXJlY3QiOiAiaHR0cDovL2pvaG5zbWl0aC5zMy5hbWF6b25hd3MuY29tL3N1Y2Nlc3NmdWxfdXBsb2FkLmh0bWwifSwKICAgIFsic3RhcnRzLXdpdGgiLCAiJENvbnRlbnQtVHlwZSIsICJpbWFnZS8iXSwKICAgIHsieC1hbXotbWV0YS11dWlkIjogIjE0MzY1MTIzNjUxMjc0In0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiR4LWFtei1tZXRhLXRhZyIsICIiXQogIF0KfQo=
 --9431149156168
-content-disposition: form-data; name="Signature"
+Content-Disposition: form-data; name="Signature"
 
 0RavWzkygo6QX9caELEqKi9kDbU=
 --9431149156168
-content-disposition: form-data; name="file"
+Content-Disposition: form-data; name="file"
 content-type: image/jpeg
 
 ...file content...
 --9431149156168
-content-disposition: form-data; name="submit"
+Content-Disposition: form-data; name="submit"
 
 Upload to Amazon S3
 --9431149156168--

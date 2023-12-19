@@ -43,11 +43,4 @@ where
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.try_poll_next_unpin(cx)
     }
-
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "IntoStream doesn't support reset",
-        )))
-    }
 }

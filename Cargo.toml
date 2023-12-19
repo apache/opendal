@@ -38,6 +38,7 @@ members = [
 
   "bin/oli",
   "bin/oay",
+  "bin/ofs",
 
   "integrations/object_store",
   "integrations/dav-server",

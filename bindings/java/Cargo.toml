@@ -90,6 +90,7 @@ services-all = [
   "services-swift",
   "services-alluxio",
   "services-b2",
+  "services-seafile",
 ]
 
 # Default services provided by opendal.
@@ -137,6 +138,7 @@ services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
+services-seafile = ["opendal/services-seafile"]
 services-sqlite = ["opendal/services-sqlite"]
 services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]

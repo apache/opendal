@@ -26,8 +26,8 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+use opendal::raw::oio::BlockingRead;
 use opendal::raw::oio::ReadExt;
-use opendal::raw::oio::{BlockingRead};
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -421,6 +421,7 @@ impl Operator {
                 l = l.recursive(recursive);
             }
         }
+
         Ok(l.await
             .map_err(format_napi_error)?
             .iter()

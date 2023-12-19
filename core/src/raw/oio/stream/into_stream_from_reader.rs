@@ -89,11 +89,4 @@ where
             .set_source(err)))),
         }
     }
-
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "FromReaderStream doesn't support reset",
-        )))
-    }
 }

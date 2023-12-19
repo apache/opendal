@@ -40,7 +40,8 @@ runs:
       run: |
         # Disable full debug symbol generation to speed up CI build and keep memory down
         # "1" means line tables only, which is useful for panic tracebacks.
-        echo "RUSTFLAGS=-C debuginfo=1" >> $GITHUB_ENV
+        # About `force-frame-pointers`, here's the discussion history: https://github.com/apache/incubator-opendal/issues/3756
+        echo "RUSTFLAGS=-C force-frame-pointers=yes -C debuginfo=1" >> $GITHUB_ENV
         # Enable backtraces
         echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
         # Enable logging

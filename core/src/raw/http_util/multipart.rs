@@ -204,14 +204,6 @@ impl<T: Part> Stream for MultipartStream<T> {
 
         Poll::Ready(None)
     }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "MultipartStream doesn't support reset yet",
-        )))
-    }
 }
 
 /// Part is a trait for multipart part.
@@ -343,14 +335,6 @@ impl Stream for FormDataPartStream {
         }
 
         Poll::Ready(None)
-    }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "FormDataPartStream doesn't support reset yet",
-        )))
     }
 }
 
@@ -697,14 +681,6 @@ impl Stream for MixedPartStream {
         }
 
         Poll::Ready(None)
-    }
-
-    /// It's possible to implement reset by calling stream's `poll_reset`.
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "MixedPartStream doesn't support reset yet",
-        )))
     }
 }
 

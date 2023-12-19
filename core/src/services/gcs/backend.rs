@@ -214,6 +214,8 @@ impl Builder for GcsBuilder {
         map.get("bucket").map(|v| builder.bucket(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("credential").map(|v| builder.credential(v));
+        map.get("credential_path")
+            .map(|v| builder.credential_path(v));
         map.get("scope").map(|v| builder.scope(v));
         map.get("predefined_acl").map(|v| builder.predefined_acl(v));
         map.get("default_storage_class")

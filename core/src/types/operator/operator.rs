@@ -1359,6 +1359,41 @@ impl Operator {
         Ok(rp.into_presigned_request())
     }
 
+    /// Presign an operation for stat(head).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use std::time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.presign_stat_with("test",Duration::from_secs(3600)).override_content_disposition("attachment; filename=\"othertext.txt\"").await?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_stat_with(&self, path: &str, expire: Duration) -> FuturePresignStat {
+        let path = normalize_path(path);
+
+        let fut = FuturePresignStat(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpStat::default(), expire),
+            |inner, path, (args, dur)| {
+                let fut = async move {
+                    let op = OpPresign::new(args, dur);
+                    let rp = inner.presign(&path, op).await?;
+                    Ok(rp.into_presigned_request())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
+    }
+
     /// Presign an operation for read.
     ///
     /// # Example

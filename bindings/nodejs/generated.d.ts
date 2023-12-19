@@ -350,53 +350,6 @@ export class Operator {
    */
   renameSync(from: string, to: string): void
   /**
-   * List dir in flat way.
-   *
-   * This function will create a new handle to list entries.
-   *
-   * An error will be returned if given path doesn't end with /.
-   *
-   * ### Example
-   *
-   * ```javascript
-   * const lister = await op.scan("/path/to/dir/");
-   * while (true) {
-   *   const entry = await lister.next();
-   *   if (entry === null) {
-   *     break;
-   *   }
-   *   let meta = await op.stat(entry.path);
-   *   if (meta.is_file) {
-   *     // do something
-   *   }
-   * }
-   * `````
-   */
-  scan(path: string): Promise<Lister>
-  /**
-   * List dir in flat way synchronously.
-   *
-   * This function will create a new handle to list entries.
-   *
-   * An error will be returned if given path doesn't end with /.
-   *
-   * ### Example
-   * ```javascript
-   * const lister = op.scan_sync(/path/to/dir/");
-   * while (true) {
-   *   const entry = lister.next();
-   *   if (entry === null) {
-   *     break;
-   *   }
-   *   let meta = op.statSync(entry.path);
-   *   if (meta.is_file) {
-   *     // do something
-   *   }
-   * }
-   * `````
-   */
-  scanSync(path: string): BlockingLister
-  /**
    * Delete the given path.
    *
    * ### Notes
@@ -444,18 +397,14 @@ export class Operator {
   /**
    * List given path.
    *
-   * This function will create a new handle to list entries.
+   * This function will return an array of entries.
    *
    * An error will be returned if given path doesn't end with `/`.
    *
    * ### Example
    * ```javascript
-   * const lister = await op.list("path/to/dir/");
-   * while (true) {
-   *   const entry = await lister.next();
-   *   if (entry === null) {
-   *     break;
-   *   }
+   * const list = await op.list("path/to/dir/");
+   * for (let entry of list) {
    *   let meta = await op.stat(entry.path);
    *   if (meta.isFile) {
    *     // do something
@@ -463,22 +412,18 @@ export class Operator {
    * }
    * ```
    */
-  list(path: string): Promise<Lister>
+  list(path: string): Promise<Array<Entry>>
   /**
    * List given path synchronously.
    *
-   * This function will create a new handle to list entries.
+   * This function will return a array of entries.
    *
    * An error will be returned if given path doesn't end with `/`.
    *
    * ### Example
    * ```javascript
-   * const lister = op.listSync("path/to/dir/");
-   * while (true) {
-   *   const entry = lister.next();
-   *   if (entry === null) {
-   *     break;
-   *   }
+   * const list = op.listSync("path/to/dir/");
+   * for (let entry of list) {
    *   let meta = op.statSync(entry.path);
    *   if (meta.isFile) {
    *     // do something
@@ -486,7 +431,7 @@ export class Operator {
    * }
    * ```
    */
-  listSync(path: string): BlockingLister
+  listSync(path: string): Array<Entry>
   /**
    * Get a presigned request for read.
    *

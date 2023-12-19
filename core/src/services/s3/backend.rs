@@ -196,6 +196,10 @@ pub struct S3Config {
     ///
     /// Please tune this value based on services' document.
     pub batch_max_operations: Option<usize>,
+    /// Disable stat with override so that opendal will not send stat request with override queries.
+    ///
+    /// For example, R2 doesn't support stat with `response_content_type` query.
+    pub disable_stat_with_override: bool,
 }
 
 impl Debug for S3Config {
@@ -553,6 +557,14 @@ impl S3Builder {
     /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
     pub fn enable_virtual_host_style(&mut self) -> &mut Self {
         self.config.enable_virtual_host_style = true;
+        self
+    }
+
+    /// Disable stat with override so that opendal will not send stat request with override queries.
+    ///
+    /// For example, R2 doesn't support stat with `response_content_type` query.
+    pub fn disable_stat_with_override(&mut self) -> &mut Self {
+        self.config.disable_stat_with_override = true;
         self
     }
 
@@ -948,6 +960,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
+                disable_stat_with_override: self.config.disable_stat_with_override,
                 signer,
                 loader,
                 client,
@@ -981,9 +994,9 @@ impl Accessor for S3Backend {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
-                stat_with_override_cache_control: true,
-                stat_with_override_content_disposition: true,
-                stat_with_override_content_type: true,
+                stat_with_override_cache_control: !self.core.disable_stat_with_override,
+                stat_with_override_content_disposition: !self.core.disable_stat_with_override,
+                stat_with_override_content_type: !self.core.disable_stat_with_override,
 
                 read: true,
                 read_can_next: true,

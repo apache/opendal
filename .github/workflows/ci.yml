@@ -279,6 +279,7 @@ jobs:
             # TODO: we need to find ways to using pre-install rocksdb library
             # services-rocksdb
             services-s3
+            services-seafile
             # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/incubator-opendal/issues/2963
             # services-sftp
             services-sled

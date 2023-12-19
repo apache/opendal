@@ -40,6 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [B2][crate::services::B2]: Backblaze B2 Services.
     B2,
+    /// [Seafile][crate::services::Seafile]: Seafile Services.
+    Seafile,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -239,6 +241,8 @@ impl Scheme {
             Scheme::Rocksdb,
             #[cfg(feature = "services-s3")]
             Scheme::S3,
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile,
             #[cfg(feature = "services-sftp")]
             Scheme::Sftp,
             #[cfg(feature = "services-sled")]
@@ -326,6 +330,7 @@ impl FromStr for Scheme {
             "redis" => Ok(Scheme::Redis),
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
+            "seafile" => Ok(Scheme::Seafile),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
@@ -382,6 +387,7 @@ impl From<Scheme> for &'static str {
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
+            Scheme::Seafile => "seafile",
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",

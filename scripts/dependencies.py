@@ -24,6 +24,10 @@ import os
 DIRS = [
     "core",
 
+    "bin/oli",
+    "bin/oay",
+    "bin/ofs",
+
     "bindings/c",
     "bindings/cpp",
     "bindings/dotnet",

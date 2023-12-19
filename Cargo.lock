@@ -4671,6 +4671,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ofs"
+version = "0.0.1"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
 name = "oli"
 version = "0.43.0"
 dependencies = [

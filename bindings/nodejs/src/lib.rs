@@ -26,8 +26,8 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::raw::oio::BlockingRead;
 use opendal::raw::oio::ReadExt;
+use opendal::raw::oio::{BlockingRead};
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -411,11 +411,17 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub async fn list(&self, path: String) -> Result<Vec<Entry>> {
-        Ok(self
-            .0
-            .list(&path)
-            .await
+    pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
+        let mut l = self.0.list_with(&path);
+        if let Some(options) = options {
+            if let Some(limit) = options.limit {
+                l = l.limit(limit as usize);
+            }
+            if let Some(recursive) = options.recursive {
+                l = l.recursive(recursive);
+            }
+        }
+        Ok(l.await
             .map_err(format_napi_error)?
             .iter()
             .map(|e| Entry(e.to_owned()))
@@ -439,11 +445,18 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub fn list_sync(&self, path: String) -> Result<Vec<Entry>> {
-        Ok(self
-            .0
-            .blocking()
-            .list(&path)
+    pub fn list_sync(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
+        let mut l = self.0.blocking().list_with(&path);
+        if let Some(options) = options {
+            if let Some(limit) = options.limit {
+                l = l.limit(limit as usize);
+            }
+            if let Some(recursive) = options.recursive {
+                l = l.recursive(recursive);
+            }
+        }
+
+        Ok(l.call()
             .map_err(format_napi_error)?
             .iter()
             .map(|e| Entry(e.to_owned()))
@@ -588,6 +601,12 @@ impl Metadata {
     pub fn last_modified(&self) -> Option<String> {
         self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
+}
+
+#[napi(object)]
+pub struct ListOptions {
+    pub limit: Option<u32>,
+    pub recursive: Option<bool>,
 }
 
 /// BlockingReader is designed to read data from given path in an blocking

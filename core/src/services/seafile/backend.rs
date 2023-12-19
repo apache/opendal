@@ -298,7 +298,11 @@ impl Accessor for SeafileBackend {
         match status {
             StatusCode::OK => {
                 let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
             _ => Err(parse_error(resp).await?),
         }

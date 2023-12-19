@@ -466,7 +466,11 @@ impl Accessor for WebhdfsBackend {
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
             // WebHDFS will returns 403 when range is outside of the end.
             StatusCode::FORBIDDEN => {
@@ -479,7 +483,10 @@ impl Accessor for WebhdfsBackend {
                     Err(parse_error_msg(parts, &s)?)
                 }
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

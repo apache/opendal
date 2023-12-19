@@ -28,6 +28,10 @@ export class ExternalObject<T> {
     [K: symbol]: T
   }
 }
+export interface ListOptions {
+  limit?: number
+  recursive?: boolean
+}
 /** PresignedRequest is a presigned request return by `presign`. */
 export interface PresignedRequest {
   /** HTTP method of this request. */
@@ -412,7 +416,7 @@ export class Operator {
    * }
    * ```
    */
-  list(path: string): Promise<Array<Entry>>
+  list(path: string, options?: ListOptions | undefined | null): Promise<Array<Entry>>
   /**
    * List given path synchronously.
    *
@@ -431,7 +435,7 @@ export class Operator {
    * }
    * ```
    */
-  listSync(path: string): Array<Entry>
+  listSync(path: string, options?: ListOptions | undefined | null): Array<Entry>
   /**
    * Get a presigned request for read.
    *

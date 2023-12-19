@@ -17,6 +17,7 @@
 
 use http::Request;
 
+use crate::raw::*;
 use crate::*;
 
 /// Reply for `create_dir` operation
@@ -107,6 +108,14 @@ pub struct RpRead {
     /// It's ok to leave size as empty, but it's recommended to set size if possible. We will use
     /// this size as hint to do some optimization like avoid an extra stat or read.
     size: Option<u64>,
+    /// Range is the range of the reader returned by this read operation.
+    ///
+    /// - `Some(range)` means the reader's content range inside the whole file.
+    /// - `None` means the reader's content range is unknown.
+    ///
+    /// It's ok to leave range as empty, but it's recommended to set range if possible. We will use
+    /// this range as hint to do some optimization like avoid an extra stat or read.
+    range: Option<BytesContentRange>,
 }
 
 impl RpRead {
@@ -126,6 +135,20 @@ impl RpRead {
     /// Set the size of the reader returned by this read operation.
     pub fn with_size(mut self, size: Option<u64>) -> Self {
         self.size = size;
+        self
+    }
+
+    /// Got the range of the reader returned by this read operation.
+    ///
+    /// - `Some(range)` means the reader has content range inside the whole file.
+    /// - `None` means the reader has unknown size.
+    pub fn range(&self) -> Option<BytesContentRange> {
+        self.range
+    }
+
+    /// Set the range of the reader returned by this read operation.
+    pub fn with_range(mut self, range: Option<BytesContentRange>) -> Self {
+        self.range = range;
         self
     }
 }
@@ -231,7 +254,6 @@ mod tests {
     use http::Uri;
 
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {

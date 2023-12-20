@@ -45,9 +45,22 @@ def copy_and_append_index(target, source):
                         shutil.copy2(item, dst_dir / item.name)
 
 
+def print_directory_contents(directory, prefix=""):
+    for item in directory.iterdir():
+        print(f"{prefix}{item.relative_to(directory)}")
+        if item.is_dir():
+            print_directory_contents(item, prefix + "    ")
+
+
+def print_index_contents(directory):
+    for sub_dir in directory.rglob('.index'):
+        with sub_dir.open("r") as file:
+            print(file.read())
+
+
 def main():
     if len(sys.argv) < 3:
-        print("Usage: merge_local_staging.py <targety> <source> [<source> ...]")
+        print("Usage: merge_local_staging.py <target> <source> [<source> ...]")
         sys.exit(1)
 
     target = Path(sys.argv[1])
@@ -61,6 +74,12 @@ def main():
         else:
             print(f"{dir_path} is not a valid directory.")
             sys.exit(1)
+
+    # Print content of target for debugging.
+    print(f"Content of {target}:")
+    print_directory_contents(target)
+    print(f"Content of index:")
+    print_index_contents(target)
 
 
 if __name__ == "__main__":

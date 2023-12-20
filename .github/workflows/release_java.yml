@@ -168,10 +168,6 @@ jobs:
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 
-          tree -a $LOCAL_STAGING_DIR/staging
-
-          find $LOCAL_STAGING_DIR/staging -name .index -exec cat {} \;
-
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java

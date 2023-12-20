@@ -21,27 +21,34 @@ import shutil
 import sys
 
 
-def copy_and_append_index(target_directory, dir_path):
-    sub_dir_name = os.path.basename(os.listdir(dir_path)[0])
-    sub_dir_path = os.path.join(dir_path, sub_dir_name)
+def copy_and_append_index(target_directory, staging_directory):
+    # Process all subdirectories in the staging directory
+    for sub_dir_name in os.listdir(staging_directory):
+        sub_dir_path = os.path.join(staging_directory, sub_dir_name)
 
-    # Create target subdirectory if it doesn't exist
-    target_sub_dir = os.path.join(target_directory, sub_dir_name)
-    os.makedirs(target_sub_dir, exist_ok=True)
+        # Skip if it's not a directory
+        if not os.path.isdir(sub_dir_path):
+            continue
 
-    # Append contents of .index file
-    with open(os.path.join(sub_dir_path, ".index"), "r") as index_file:
-        with open(os.path.join(target_sub_dir, ".index"), "a") as target_index_file:
-            target_index_file.write(index_file.read())
+        # Create target subdirectory if it doesn't exist
+        target_sub_dir = os.path.join(target_directory, sub_dir_name)
+        os.makedirs(target_sub_dir, exist_ok=True)
 
-    # Copy contents from source subdirectory to target subdirectory
-    for item in os.listdir(sub_dir_path):
-        s = os.path.join(sub_dir_path, item)
-        d = os.path.join(target_sub_dir, item)
-        if os.path.isdir(s):
-            shutil.copytree(s, d, dirs_exist_ok=True)
-        else:
-            shutil.copy2(s, d)
+        # Append contents of .index file if it exists
+        index_file_path = os.path.join(sub_dir_path, ".index")
+        if os.path.isfile(index_file_path):
+            with open(index_file_path, "r") as index_file:
+                with open(os.path.join(target_sub_dir, ".index"), "a") as target_index_file:
+                    target_index_file.write(index_file.read())
+
+        # Copy contents from source subdirectory to target subdirectory
+        for item in os.listdir(sub_dir_path):
+            source_item = os.path.join(sub_dir_path, item)
+            destination_item = os.path.join(target_sub_dir, item)
+            if os.path.isdir(source_item):
+                shutil.copytree(source_item, destination_item, dirs_exist_ok=True)
+            else:
+                shutil.copy2(source_item, destination_item)
 
 
 if len(sys.argv) < 3:
@@ -51,6 +58,8 @@ if len(sys.argv) < 3:
 target_directory = sys.argv[1]
 
 # Loop through each provided directory argument
-for i in range(2, len(sys.argv)):
-    dir_path = sys.argv[i]
+for dir_path in sys.argv[2:]:
+    if not os.path.isdir(dir_path):
+        print(f"Warning: {dir_path} is not a valid directory. Skipping.")
+        continue
     copy_and_append_index(target_directory, dir_path)

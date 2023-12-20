@@ -341,70 +341,6 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
-    /// List dir in flat way.
-    ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with /.
-    ///
-    /// ### Example
-    ///
-    /// ```javascript
-    /// const lister = await op.scan("/path/to/dir/");
-    /// while (true) {
-    ///   const entry = await lister.next();
-    ///   if (entry === null) {
-    ///     break;
-    ///   }
-    ///   let meta = await op.stat(entry.path);
-    ///   if (meta.is_file) {
-    ///     // do something
-    ///   }
-    /// }
-    /// `````
-    #[napi]
-    pub async fn scan(&self, path: String) -> Result<Lister> {
-        Ok(Lister(
-            self.0
-                .lister_with(&path)
-                .recursive(true)
-                .await
-                .map_err(format_napi_error)?,
-        ))
-    }
-
-    /// List dir in flat way synchronously.
-    ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with /.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// const lister = op.scan_sync(/path/to/dir/");
-    /// while (true) {
-    ///   const entry = lister.next();
-    ///   if (entry === null) {
-    ///     break;
-    ///   }
-    ///   let meta = op.statSync(entry.path);
-    ///   if (meta.is_file) {
-    ///     // do something
-    ///   }
-    /// }
-    /// `````
-    #[napi]
-    pub fn scan_sync(&self, path: String) -> Result<BlockingLister> {
-        Ok(BlockingLister(
-            self.0
-                .blocking()
-                .lister_with(&path)
-                .recursive(true)
-                .call()
-                .map_err(format_napi_error)?,
-        ))
-    }
-
     /// Delete the given path.
     ///
     /// ### Notes
@@ -460,45 +396,80 @@ impl Operator {
 
     /// List given path.
     ///
-    /// This function will create a new handle to list entries.
+    /// This function will return an array of entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
     ///
     /// ### Example
+    ///
     /// ```javascript
-    /// const lister = await op.list("path/to/dir/");
-    /// while (true) {
-    ///   const entry = await lister.next();
-    ///   if (entry === null) {
-    ///     break;
-    ///   }
+    /// const list = await op.list("path/to/dir/");
+    /// for (let entry of list) {
     ///   let meta = await op.stat(entry.path);
     ///   if (meta.isFile) {
     ///     // do something
     ///   }
     /// }
     /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const list = await op.list("path/to/dir/", { recursive: true });
+    /// for (let entry of list) {
+    ///   let meta = await op.stat(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
+    ///   }
+    /// }
+    /// ```
+    ///
     #[napi]
-    pub async fn list(&self, path: String) -> Result<Lister> {
-        Ok(Lister(
-            self.0.lister(&path).await.map_err(format_napi_error)?,
-        ))
+    pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
+        let mut l = self.0.list_with(&path);
+        if let Some(options) = options {
+            if let Some(limit) = options.limit {
+                l = l.limit(limit as usize);
+            }
+            if let Some(recursive) = options.recursive {
+                l = l.recursive(recursive);
+            }
+        }
+
+        Ok(l.await
+            .map_err(format_napi_error)?
+            .iter()
+            .map(|e| Entry(e.to_owned()))
+            .collect())
     }
 
     /// List given path synchronously.
     ///
-    /// This function will create a new handle to list entries.
+    /// This function will return a array of entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
     ///
     /// ### Example
+    ///
     /// ```javascript
-    /// const lister = op.listSync("path/to/dir/");
-    /// while (true) {
-    ///   const entry = lister.next();
-    ///   if (entry === null) {
-    ///     break;
+    /// const list = op.listSync("path/to/dir/");
+    /// for (let entry of list) {
+    ///   let meta = op.statSync(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
     ///   }
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const list = op.listSync("path/to/dir/", { recursive: true });
+    /// for (let entry of list) {
     ///   let meta = op.statSync(entry.path);
     ///   if (meta.isFile) {
     ///     // do something
@@ -506,14 +477,22 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub fn list_sync(&self, path: String) -> Result<BlockingLister> {
-        Ok(BlockingLister(
-            self.0
-                .blocking()
-                .lister_with(&path)
-                .call()
-                .map_err(format_napi_error)?,
-        ))
+    pub fn list_sync(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
+        let mut l = self.0.blocking().list_with(&path);
+        if let Some(options) = options {
+            if let Some(limit) = options.limit {
+                l = l.limit(limit as usize);
+            }
+            if let Some(recursive) = options.recursive {
+                l = l.recursive(recursive);
+            }
+        }
+
+        Ok(l.call()
+            .map_err(format_napi_error)?
+            .iter()
+            .map(|e| Entry(e.to_owned()))
+            .collect())
     }
 
     /// Get a presigned request for read.
@@ -654,6 +633,12 @@ impl Metadata {
     pub fn last_modified(&self) -> Option<String> {
         self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
+}
+
+#[napi(object)]
+pub struct ListOptions {
+    pub limit: Option<u32>,
+    pub recursive: Option<bool>,
 }
 
 /// BlockingReader is designed to read data from given path in an blocking

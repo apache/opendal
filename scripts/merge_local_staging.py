@@ -39,12 +39,14 @@ def copy_and_append_index(target_directory, staging_directory):
         if os.path.isfile(index_file_path):
             with open(index_file_path, "r") as index_file:
                 with open(os.path.join(target_sub_dir, ".index"), "a") as target_index_file:
+                    print(f"Appending {index_file_path} to {target_sub_dir}.index")
                     target_index_file.write(index_file.read())
 
         # Copy contents from source subdirectory to target subdirectory
         for item in os.listdir(sub_dir_path):
             source_item = os.path.join(sub_dir_path, item)
             destination_item = os.path.join(target_sub_dir, item)
+            print(f"Copying {source_item} to {destination_item}")
             if os.path.isdir(source_item):
                 shutil.copytree(source_item, destination_item, dirs_exist_ok=True)
             else:

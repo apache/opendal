@@ -42,9 +42,10 @@ const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct GcsBuilder {
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct GcsConfig {
     /// root URI, all operations happens under `root`
     root: Option<String>,
     /// bucket name
@@ -56,23 +57,51 @@ pub struct GcsBuilder {
     scope: Option<String>,
     /// Service Account for gcs.
     service_account: Option<String>,
-
     /// credential string for GCS service
     credential: Option<String>,
     /// credential path for GCS service.
     credential_path: Option<String>,
+    /// The predefined acl for GCS.
+    predefined_acl: Option<String>,
+    /// The default storage class used by gcs.
+    default_storage_class: Option<String>,
+}
+
+impl Debug for GcsConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GcsConfig")
+            .field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("endpoint", &self.endpoint)
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
+    }
+}
+
+/// [Google Cloud Storage](https://cloud.google.com/storage) services support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct GcsBuilder {
+    config: GcsConfig,
 
     http_client: Option<HttpClient>,
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
-    predefined_acl: Option<String>,
-    default_storage_class: Option<String>,
+}
+
+impl Debug for GcsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("GcsBuilder");
+
+        ds.field("config", &self.config);
+        ds.finish_non_exhaustive()
+    }
 }
 
 impl GcsBuilder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -80,7 +109,7 @@ impl GcsBuilder {
 
     /// set the container's name
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
-        self.bucket = bucket.to_string();
+        self.config.bucket = bucket.to_string();
         self
     }
 
@@ -97,7 +126,7 @@ impl GcsBuilder {
     /// Reference: [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication)
     pub fn scope(&mut self, scope: &str) -> &mut Self {
         if !scope.is_empty() {
-            self.scope = Some(scope.to_string())
+            self.config.scope = Some(scope.to_string())
         };
         self
     }
@@ -108,7 +137,7 @@ impl GcsBuilder {
     /// If not set, we will try to fetch with `default` service account.
     pub fn service_account(&mut self, service_account: &str) -> &mut Self {
         if !service_account.is_empty() {
-            self.service_account = Some(service_account.to_string())
+            self.config.service_account = Some(service_account.to_string())
         };
         self
     }
@@ -116,7 +145,7 @@ impl GcsBuilder {
     /// set the endpoint GCS service uses
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_string())
+            self.config.endpoint = Some(endpoint.to_string())
         };
         self
     }
@@ -124,7 +153,7 @@ impl GcsBuilder {
     /// set the base64 hashed credentials string used for OAuth2
     pub fn credential(&mut self, credential: &str) -> &mut Self {
         if !credential.is_empty() {
-            self.credential = Some(credential.to_string())
+            self.config.credential = Some(credential.to_string())
         };
         self
     }
@@ -132,7 +161,7 @@ impl GcsBuilder {
     /// set the credentials path of GCS.
     pub fn credential_path(&mut self, path: &str) -> &mut Self {
         if !path.is_empty() {
-            self.credential_path = Some(path.to_string())
+            self.config.credential_path = Some(path.to_string())
         };
         self
     }
@@ -165,7 +194,7 @@ impl GcsBuilder {
     /// - `publicRead`
     pub fn predefined_acl(&mut self, acl: &str) -> &mut Self {
         if !acl.is_empty() {
-            self.predefined_acl = Some(acl.to_string())
+            self.config.predefined_acl = Some(acl.to_string())
         };
         self
     }
@@ -179,27 +208,9 @@ impl GcsBuilder {
     /// - `ARCHIVE`
     pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
         if !class.is_empty() {
-            self.default_storage_class = Some(class.to_string())
+            self.config.default_storage_class = Some(class.to_string())
         };
         self
-    }
-}
-
-impl Debug for GcsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint);
-        if self.credential.is_some() {
-            ds.field("credentials", &"<redacted>");
-        }
-        if self.predefined_acl.is_some() {
-            ds.field("predefined_acl", &self.predefined_acl);
-        }
-        ds.field("default_storage_class", &self.default_storage_class);
-        ds.finish()
     }
 }
 
@@ -208,29 +219,24 @@ impl Builder for GcsBuilder {
     type Accessor = GcsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = GcsBuilder::default();
+        let config = GcsConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("credential").map(|v| builder.credential(v));
-        map.get("scope").map(|v| builder.scope(v));
-        map.get("predefined_acl").map(|v| builder.predefined_acl(v));
-        map.get("default_storage_class")
-            .map(|v| builder.default_storage_class(v));
-
-        builder
+        GcsBuilder {
+            config,
+            ..GcsBuilder::default()
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint and bucket name
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
+        let bucket = match self.config.bucket.is_empty() {
+            false => Ok(&self.config.bucket),
             true => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
                     .with_operation("Builder::build")
@@ -250,27 +256,28 @@ impl Builder for GcsBuilder {
         };
 
         let endpoint = self
+            .config
             .endpoint
             .clone()
             .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
         debug!("backend use endpoint: {endpoint}");
 
         let mut cred_loader = GoogleCredentialLoader::default();
-        if let Some(cred) = &self.credential {
+        if let Some(cred) = &self.config.credential {
             cred_loader = cred_loader.with_content(cred);
         }
-        if let Some(cred) = &self.credential_path {
+        if let Some(cred) = &self.config.credential_path {
             cred_loader = cred_loader.with_path(cred);
         }
 
-        let scope = if let Some(scope) = &self.scope {
+        let scope = if let Some(scope) = &self.config.scope {
             scope
         } else {
             DEFAULT_GCS_SCOPE
         };
 
         let mut token_loader = GoogleTokenLoader::new(scope, client.client());
-        if let Some(account) = &self.service_account {
+        if let Some(account) = &self.config.service_account {
             token_loader = token_loader.with_service_account(account);
         }
         if let Ok(Some(cred)) = cred_loader.load() {
@@ -291,8 +298,8 @@ impl Builder for GcsBuilder {
                 signer,
                 token_loader,
                 credential_loader: cred_loader,
-                predefined_acl: self.predefined_acl.clone(),
-                default_storage_class: self.default_storage_class.clone(),
+                predefined_acl: self.config.predefined_acl.clone(),
+                default_storage_class: self.config.default_storage_class.clone(),
             }),
         };
 

@@ -62,6 +62,6 @@ target_directory = sys.argv[1]
 # Loop through each provided directory argument
 for dir_path in sys.argv[2:]:
     if not os.path.isdir(dir_path):
-        print(f"Warning: {dir_path} is not a valid directory. Skipping.")
-        continue
+        print(f"{dir_path} is not a valid directory.")
+        sys.exit(1)
     copy_and_append_index(target_directory, dir_path)

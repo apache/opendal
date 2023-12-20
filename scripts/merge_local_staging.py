@@ -16,41 +16,71 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import shutil
 import sys
+from pathlib import Path
+import shutil
 
 
-def copy_and_append_index(target_directory, dir_path):
-    sub_dir_name = os.path.basename(os.listdir(dir_path)[0])
-    sub_dir_path = os.path.join(dir_path, sub_dir_name)
+# Copy the contents of the source directory to the target directory,
+# appending the contents of the .index file
+def copy_and_append_index(target, source):
+    for src_dir in source.iterdir():
+        if src_dir.is_dir():
+            dst_dir = target / src_dir.name
+            dst_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create target subdirectory if it doesn't exist
-    target_sub_dir = os.path.join(target_directory, sub_dir_name)
-    os.makedirs(target_sub_dir, exist_ok=True)
+            src_path = src_dir / ".index"
+            dst_path = dst_dir / ".index"
+            if src_path.exists():
+                with src_path.open("r") as src, dst_path.open("a") as dst:
+                    print(f"Appending {src_path} to {dst_path}")
+                    dst.write(src.read())
 
-    # Append contents of .index file
-    with open(os.path.join(sub_dir_path, ".index"), "r") as index_file:
-        with open(os.path.join(target_sub_dir, ".index"), "a") as target_index_file:
-            target_index_file.write(index_file.read())
+            for item in src_dir.iterdir():
+                if item.name != ".index":  # Avoid copying the .index file twice
+                    print(f"Copying {item} to {dst_dir}")
+                    if item.is_dir():
+                        shutil.copytree(item, dst_dir / item.name, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dst_dir / item.name)
 
-    # Copy contents from source subdirectory to target subdirectory
-    for item in os.listdir(sub_dir_path):
-        s = os.path.join(sub_dir_path, item)
-        d = os.path.join(target_sub_dir, item)
-        if os.path.isdir(s):
-            shutil.copytree(s, d, dirs_exist_ok=True)
+
+def print_directory_contents(directory, prefix=""):
+    for item in directory.iterdir():
+        print(f"{prefix}{item.relative_to(directory)}")
+        if item.is_dir():
+            print_directory_contents(item, prefix + "    ")
+
+
+def print_index_contents(directory):
+    for sub_dir in directory.rglob('.index'):
+        with sub_dir.open("r") as file:
+            print(file.read())
+
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: merge_local_staging.py <target> <source> [<source> ...]")
+        sys.exit(1)
+
+    target = Path(sys.argv[1])
+    print(f"Target directory set to {target}")
+
+    for dir_path in sys.argv[2:]:
+        source = Path(dir_path)
+        if source.is_dir():
+            print(f"Processing {source}")
+            copy_and_append_index(target, source)
         else:
-            shutil.copy2(s, d)
+            print(f"{dir_path} is not a valid directory.")
+            sys.exit(1)
+
+    # Print content of target for debugging.
+    print(f"Content of {target}:")
+    print_directory_contents(target)
+    print(f"Content of index:")
+    print_index_contents(target)
 
 
-if len(sys.argv) < 3:
-    print("Expected target directory and at least one local staging directory")
-    sys.exit(1)
-
-target_directory = sys.argv[1]
-
-# Loop through each provided directory argument
-for i in range(2, len(sys.argv)):
-    dir_path = sys.argv[i]
-    copy_and_append_index(target_directory, dir_path)
+if __name__ == "__main__":
+    main()

@@ -401,6 +401,7 @@ impl Operator {
     /// An error will be returned if given path doesn't end with `/`.
     ///
     /// ### Example
+    ///
     /// ```javascript
     /// const list = await op.list("path/to/dir/");
     /// for (let entry of list) {
@@ -410,6 +411,21 @@ impl Operator {
     ///   }
     /// }
     /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const list = await op.list("path/to/dir/", { recursive: true });
+    /// for (let entry of list) {
+    ///   let meta = await op.stat(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
+    ///   }
+    /// }
+    /// ```
+    ///
     #[napi]
     pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
         let mut l = self.0.list_with(&path);
@@ -436,8 +452,23 @@ impl Operator {
     /// An error will be returned if given path doesn't end with `/`.
     ///
     /// ### Example
+    ///
     /// ```javascript
     /// const list = op.listSync("path/to/dir/");
+    /// for (let entry of list) {
+    ///   let meta = op.statSync(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const list = op.listSync("path/to/dir/", { recursive: true });
     /// for (let entry of list) {
     ///   let meta = op.statSync(entry.path);
     ///   if (meta.isFile) {

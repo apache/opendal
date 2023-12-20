@@ -406,6 +406,7 @@ export class Operator {
    * An error will be returned if given path doesn't end with `/`.
    *
    * ### Example
+   *
    * ```javascript
    * const list = await op.list("path/to/dir/");
    * for (let entry of list) {
@@ -415,6 +416,21 @@ export class Operator {
    *   }
    * }
    * ```
+   *
+   * #### List recursively
+   *
+   * With `recursive` option, you can list recursively.
+   *
+   * ```javascript
+   * const list = await op.list("path/to/dir/", { recursive: true });
+   * for (let entry of list) {
+   *   let meta = await op.stat(entry.path);
+   *   if (meta.isFile) {
+   *     // do something
+   *   }
+   * }
+   * ```
+   *
    */
   list(path: string, options?: ListOptions | undefined | null): Promise<Array<Entry>>
   /**
@@ -425,8 +441,23 @@ export class Operator {
    * An error will be returned if given path doesn't end with `/`.
    *
    * ### Example
+   *
    * ```javascript
    * const list = op.listSync("path/to/dir/");
+   * for (let entry of list) {
+   *   let meta = op.statSync(entry.path);
+   *   if (meta.isFile) {
+   *     // do something
+   *   }
+   * }
+   * ```
+   *
+   * #### List recursively
+   *
+   * With `recursive` option, you can list recursively.
+   *
+   * ```javascript
+   * const list = op.listSync("path/to/dir/", { recursive: true });
    * for (let entry of list) {
    *   let meta = op.statSync(entry.path);
    *   if (meta.isFile) {

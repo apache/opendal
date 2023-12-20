@@ -21,6 +21,8 @@ import shutil
 import sys
 
 
+# copy the content from staging_directory to target_directory
+# and append the content of .index file.
 def copy_and_append_index(target_directory, staging_directory):
     # Process all subdirectories in the staging directory
     for sub_dir_name in os.listdir(staging_directory):

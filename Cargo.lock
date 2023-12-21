@@ -3903,29 +3903,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "magnus"
-version = "0.5.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b7a37670bc433d081ef5846d5589381fabd8d3410ad3b59faa6b1b4c9c3cbce"
-dependencies = [
- "bytes",
- "magnus-macros",
- "rb-sys",
- "rb-sys-env",
-]
-
-[[package]]
-name = "magnus-macros"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cc17af1d45442c011aa579d727ec6cff8a69aea8a6bbad26736e7112d749bfb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "match_cfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4836,16 +4813,6 @@ dependencies = [
  "pyo3",
  "pyo3-asyncio",
  "tokio",
-]
-
-[[package]]
-name = "opendal-ruby"
-version = "0.1.0"
-dependencies = [
- "magnus",
- "opendal",
- "rb-sys",
- "rb-sys-env",
 ]
 
 [[package]]
@@ -5937,36 +5904,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rb-sys"
-version = "0.9.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e5b8d560b60790a3e60e56e73a8c7be88ac14e6af39fc82b5eca72c71753840"
-dependencies = [
- "rb-sys-build",
-]
-
-[[package]]
-name = "rb-sys-build"
-version = "0.9.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2d2bfd00002007d7e9ad93d0397437933040caf452d260c26dbef5fd95ae1a6"
-dependencies = [
- "bindgen 0.69.1",
- "lazy_static",
- "proc-macro2",
- "quote",
- "regex",
- "shell-words",
- "syn 2.0.39",
-]
-
-[[package]]
-name = "rb-sys-env"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35802679f07360454b418a5d1735c89716bde01d35b1560fc953c1415a0b3bb"
-
-[[package]]
 name = "redb"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6784,12 +6721,6 @@ name = "shell-escape"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45bb67a18fa91266cc7807181f62f9178a6873bfad7dc788c42e6430db40184f"
-
-[[package]]
-name = "shell-words"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"

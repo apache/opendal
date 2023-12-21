@@ -212,7 +212,11 @@ impl Accessor for GdriveBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from_file_id = self.core.get_file_id_by_path(from).await?;
+        let from_file_id = self
+            .core
+            .get_file_id_by_path(from)
+            .await?
+            .ok_or(Error::new(ErrorKind::NotFound, "invalid 'from' path"))?;
 
         // split `to` into parent and name according to the last `/`
         let mut to_path_items: Vec<&str> = to.split('/').filter(|&x| !x.is_empty()).collect();
@@ -225,14 +229,26 @@ impl Accessor for GdriveBackend {
 
         let to_parent = to_path_items.join("/") + "/";
 
-        if to_parent != "/" {
-            self.create_dir(&to_parent, OpCreateDir::new()).await?;
-        }
-
-        let to_parent_id = self.core.get_file_id_by_path(to_parent.as_str()).await?;
+        let to_parent_id =
+            if let Some(id) = self.core.get_file_id_by_path(to_parent.as_str()).await? {
+                id
+            } else {
+                self.create_dir(&to_parent, OpCreateDir::new()).await?;
+                self.core
+                    .get_file_id_by_path(to_parent.as_str())
+                    .await?
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::Unexpected, "create to's parent folder failed")
+                    })?
+            };
 
         // copy will overwrite `to`, delete it if exist
-        if self.core.get_file_id_by_path(to).await.is_ok() {
+        if self
+            .core
+            .get_file_id_by_path(to)
+            .await
+            .is_ok_and(|id| id.is_some())
+        {
             self.delete(to, OpDelete::new()).await?;
         }
 

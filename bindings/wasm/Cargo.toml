@@ -15,46 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples", "bindings/ocaml", "bindings/ruby", "bindings/wasm"]
-members = [
-  "core",
-  "core/fuzz",
-  "core/edge/*",
-  "core/benches/vs_*",
+[package]
+name = "wasm"
+publish = false
+version = "0.1.0"
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/python",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/php",
-  "bindings/cpp",
-
-
-  "bin/oli",
-  "bin/oay",
-  "bin/ofs",
-
-  "integrations/object_store",
-  "integrations/dav-server",
-]
-resolver = "2"
-
-[workspace.package]
 authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.67"
-version = "0.43.0"
 
-[workspace.dependencies]
-opendal = { version = "0.43", path = "core" }
+[lib]
+crate-type = ["cdylib"]
 
-[profile.bench]
-debug = true
+[dependencies]
+gloo = "0.11.0"
+js-sys = "0.3"
+opendal = { path = "../../core", default-features = false, features = ["services-s3"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"

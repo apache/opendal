@@ -53,6 +53,3 @@ jobs:
           cd bindings/ocaml
           dune runtest
           dune build @fmt
-
-
-

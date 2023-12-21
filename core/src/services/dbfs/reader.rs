@@ -22,7 +22,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use bytes::BufMut;
@@ -94,7 +93,6 @@ enum State {
 /// We will only take `&mut Self` reference for DbfsReader.
 unsafe impl Sync for DbfsReader {}
 
-#[async_trait]
 impl oio::Read for DbfsReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
         while self.has_filled as usize != buf.len() {

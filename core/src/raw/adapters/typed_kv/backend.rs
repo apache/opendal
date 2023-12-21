@@ -58,7 +58,8 @@ where
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = oio::Cursor;
     type BlockingReader = oio::Cursor;
@@ -251,7 +252,6 @@ impl KvLister {
     }
 }
 
-#[async_trait]
 impl oio::List for KvLister {
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         Poll::Ready(Ok(self.inner_next()))
@@ -311,7 +311,6 @@ impl<S> KvWriter<S> {
     }
 }
 
-#[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if self.future.is_some() {

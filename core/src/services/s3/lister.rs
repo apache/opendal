@@ -60,7 +60,8 @@ impl S3Lister {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::PageList for S3Lister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

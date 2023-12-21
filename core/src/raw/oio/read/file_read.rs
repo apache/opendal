@@ -24,7 +24,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
 use futures::Future;
 
 use crate::raw::*;
@@ -53,10 +52,14 @@ pub struct FileReader<A: Accessor, R> {
 
 enum State<R> {
     Idle,
-    Send(BoxFuture<'static, Result<(RpRead, R)>>),
+    Send(BoxedFuture<Result<(RpRead, R)>>),
     Read(R),
 }
 
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<R> Send for State<R> {}
 /// Safety: State will only be accessed under &mut.
 unsafe impl<R> Sync for State<R> {}
 
@@ -90,7 +93,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, R)>> {
+    fn read_future(&self) -> BoxedFuture<Result<(RpRead, R)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 

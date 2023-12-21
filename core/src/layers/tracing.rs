@@ -130,7 +130,8 @@ pub struct TracingAccessor<A> {
     inner: A,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;
@@ -318,7 +319,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for TracingWrapper<R> {
     #[tracing::instrument(
         parent = &self.span,
@@ -363,7 +363,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::List> oio::List for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {

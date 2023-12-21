@@ -55,6 +55,7 @@ impl HttpClient {
     }
 
     /// Build a new http client in async context.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
         // Make sure we don't enable auto gzip decompress.
         builder = builder.no_gzip();
@@ -68,6 +69,16 @@ impl HttpClient {
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
 
+        Ok(Self {
+            client: builder.build().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+            })?,
+        })
+    }
+
+    /// Build a new http client in async context.
+    #[cfg(target_arch = "wasm32")]
+    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
         Ok(Self {
             client: builder.build().map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
@@ -95,14 +106,39 @@ impl HttpClient {
                 parts.method,
                 reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
             )
-            .version(parts.version)
             .headers(parts.headers);
+
+        // Client under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            req_builder = req_builder.version(parts.version);
+        }
 
         req_builder = match body {
             AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
             AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::ChunkedBytes(bs) => req_builder.body(reqwest::Body::wrap_stream(bs)),
-            AsyncBody::Stream(s) => req_builder.body(reqwest::Body::wrap_stream(s)),
+            AsyncBody::ChunkedBytes(bs) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    req_builder.body(reqwest::Body::wrap_stream(bs))
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let bs = oio::WriteBuf::bytes(&bs, bs.len());
+                    req_builder.body(reqwest::Body::from(bs))
+                }
+            }
+            AsyncBody::Stream(s) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    req_builder.body(reqwest::Body::wrap_stream(s))
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let bs = oio::StreamExt::collect(s).await?;
+                    req_builder.body(reqwest::Body::from(bs))
+                }
+            }
         };
 
         let mut resp = req_builder.send().await.map_err(|err| {
@@ -139,11 +175,17 @@ impl HttpClient {
         };
 
         let mut hr = Response::builder()
-            .version(resp.version())
             .status(resp.status())
             // Insert uri into response extension so that we can fetch
             // it later.
             .extension(uri.clone());
+
+        // Response builder under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            hr = hr.version(resp.version());
+        }
+
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 

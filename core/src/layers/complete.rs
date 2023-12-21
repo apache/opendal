@@ -433,7 +433,8 @@ impl<A: Accessor> CompleteAccessor<A> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
@@ -734,7 +735,6 @@ pub enum CompleteLister<A: Accessor, P> {
     NeedPrefix(PrefixLister<P>),
 }
 
-#[async_trait]
 impl<A, P> oio::List for CompleteLister<A, P>
 where
     A: Accessor<Lister = P>,
@@ -789,7 +789,6 @@ impl<W> Drop for CompleteWriter<W> {
     }
 }
 
-#[async_trait]
 impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
@@ -865,7 +864,8 @@ mod tests {
         capability: Capability,
     }
 
-    #[async_trait]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = oio::Reader;
         type BlockingReader = oio::BlockingReader;

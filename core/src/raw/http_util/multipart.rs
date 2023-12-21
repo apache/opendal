@@ -22,7 +22,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::stream;
@@ -329,7 +328,6 @@ pub struct FormDataPartStream {
     content: Option<Streamer>,
 }
 
-#[async_trait]
 impl Stream for FormDataPartStream {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(pre_content) = self.pre_content.take() {

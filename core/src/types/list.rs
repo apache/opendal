@@ -23,7 +23,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use flagset::FlagSet;
-use futures::future::BoxFuture;
 use futures::Stream;
 use futures::StreamExt;
 
@@ -98,7 +97,7 @@ enum StatTask {
     /// Stating is used to store the join handle of spawned task.
     ///
     /// TODO: Replace with static future type after rust supported.
-    Stating(BoxFuture<'static, (String, Result<Metadata>)>),
+    Stating(BoxedFuture<(String, Result<Metadata>)>),
     /// Known is used to store the entry that already contains the required metakey.
     Known(Option<(String, Metadata)>),
 }

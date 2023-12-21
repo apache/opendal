@@ -860,7 +860,10 @@ impl Builder for S3Builder {
         // This is our current config.
         let mut cfg = AwsConfig::default();
         if !self.config.disable_config_load {
-            cfg = cfg.from_profile();
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                cfg = cfg.from_profile();
+            }
             cfg = cfg.from_env();
         }
 
@@ -976,7 +979,8 @@ pub struct S3Backend {
     core: Arc<S3Core>,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();

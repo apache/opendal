@@ -211,7 +211,8 @@ pub struct LoggingAccessor<A: Accessor> {
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
@@ -1265,7 +1266,6 @@ impl<W> LoggingWriter<W> {
     }
 }
 
-#[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match ready!(self.inner.poll_write(cx, bs)) {
@@ -1474,7 +1474,8 @@ impl<P> Drop for LoggingLister<P> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<P: oio::List> oio::List for LoggingLister<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         let res = ready!(self.inner.poll_next(cx));

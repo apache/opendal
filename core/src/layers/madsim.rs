@@ -140,7 +140,8 @@ pub struct MadsimAccessor {
     addr: SocketAddr,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl LayeredAccessor for MadsimAccessor {
     type Inner = ();
     type Reader = MadsimReader;
@@ -295,7 +296,6 @@ pub struct MadsimWriter {
     addr: SocketAddr,
 }
 
-#[async_trait]
 impl oio::Write for MadsimWriter {
     fn poll_write(
         &mut self,
@@ -331,7 +331,6 @@ impl oio::Write for MadsimWriter {
 
 pub struct MadsimLister {}
 
-#[async_trait]
 impl oio::List for MadsimLister {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Option<oio::Entry>>> {
         Poll::Ready(Err(Error::new(

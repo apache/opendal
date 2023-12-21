@@ -21,7 +21,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 
 use crate::raw::*;
 use crate::*;
@@ -48,7 +47,8 @@ use crate::*;
 /// ```
 ///
 /// We will use `write_once` instead of starting a new multipart upload.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
     /// write_once is used to write the data to underlying storage at once.
     ///
@@ -115,12 +115,16 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 
 enum State<W> {
     Idle(Option<W>),
-    Init(BoxFuture<'static, (W, Result<String>)>),
-    Write(BoxFuture<'static, (W, Result<MultipartUploadPart>)>),
-    Close(BoxFuture<'static, (W, Result<()>)>),
-    Abort(BoxFuture<'static, (W, Result<()>)>),
+    Init(BoxedFuture<(W, Result<String>)>),
+    Write(BoxedFuture<(W, Result<MultipartUploadPart>)>),
+    Close(BoxedFuture<(W, Result<()>)>),
+    Abort(BoxedFuture<(W, Result<()>)>),
 }
 
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<S: MultipartUploadWrite> Send for State<S> {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for State.
@@ -139,7 +143,6 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
     }
 }
 
-#[async_trait]
 impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,

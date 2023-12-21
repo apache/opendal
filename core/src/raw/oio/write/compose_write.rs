@@ -41,8 +41,6 @@
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -56,7 +54,6 @@ pub enum TwoWaysWriter<ONE: oio::Write, TWO: oio::Write> {
     Two(TWO),
 }
 
-#[async_trait]
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match self {
@@ -92,7 +89,6 @@ pub enum ThreeWaysWriter<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> {
     Three(THREE),
 }
 
-#[async_trait]
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWaysWriter<ONE, TWO, THREE>
 {

@@ -112,7 +112,8 @@ pub struct ThrottleAccessor<A: Accessor> {
     rate_limiter: SharedRateLimiter,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
@@ -213,7 +214,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let buf_length = NonZeroU32::new(bs.remaining() as u32).unwrap();

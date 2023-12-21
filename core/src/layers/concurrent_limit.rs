@@ -79,7 +79,8 @@ pub struct ConcurrentLimitAccessor<A: Accessor> {
     semaphore: Arc<Semaphore>,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitWrapper<A::Reader>;
@@ -283,7 +284,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner.poll_write(cx, bs)
@@ -308,7 +308,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         self.inner.poll_next(cx)

@@ -277,7 +277,8 @@ impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
     type Inner = A;
     type Reader = RetryWrapper<A::Reader, I>;
@@ -870,7 +871,6 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     }
 }
 
-#[async_trait]
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
@@ -1049,7 +1049,8 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         if let Some(sleep) = self.sleep.as_mut() {
@@ -1159,7 +1160,8 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    #[async_trait]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = MockReader;
         type BlockingReader = ();
@@ -1314,7 +1316,6 @@ mod tests {
         attempt: usize,
     }
 
-    #[async_trait]
     impl oio::List for MockLister {
         fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
             self.attempt += 1;

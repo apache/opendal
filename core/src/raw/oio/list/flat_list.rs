@@ -19,14 +19,13 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
 
 /// ListFuture is the future returned while calling async list.
-type ListFuture<A, L> = BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>;
+type ListFuture<A, L> = BoxedFuture<(A, oio::Entry, Result<(RpList, L)>)>;
 
 /// FlatLister will walk dir in bottom up way:
 ///
@@ -73,6 +72,10 @@ pub struct FlatLister<A: Accessor, L> {
     list_future: Option<ListFuture<A, L>>,
 }
 
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this FlatLister.
+unsafe impl<A: Accessor, L> Send for FlatLister<A, L> {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for FsLister.

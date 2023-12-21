@@ -22,6 +22,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+/// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
+///
+/// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.
+#[cfg(not(target_arch = "wasm32"))]
+pub type BoxedFuture<T> = futures::future::BoxFuture<'static, T>;
+#[cfg(target_arch = "wasm32")]
+pub type BoxedFuture<T> = futures::future::LocalBoxFuture<'static, T>;
+
 /// CONCURRENT_LARGE_THRESHOLD is the threshold to determine whether to use
 /// [`FuturesOrdered`] or not.
 ///

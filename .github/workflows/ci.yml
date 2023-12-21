@@ -293,6 +293,20 @@ jobs:
           )
           cargo build --features "${FEATURES[*]}"
 
+  # We only support s3 services for now, but we will extend wasm support for other services.
+  build_under_wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: |
+          rustup add target wasm32-unknown-unknown
+          cargo cca --target wasm32-unknown-unknown --no-default-features --features=services-s3
+
   unit:
     runs-on: ubuntu-latest
     steps:

@@ -2930,8 +2930,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3525,11 +3527,12 @@ dependencies = [
 
 [[package]]
 name = "jsonwebtoken"
-version = "9.1.0"
+version = "9.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "155c4d7e39ad04c172c5e3a99c434ea3b4a7ba7960b38ecd562b270b097cce09"
+checksum = "5c7ea04a7c5c055c175f189b6dc6ba036fd62306b58c66c9f6389036c503a3f4"
 dependencies = [
  "base64 0.21.5",
+ "js-sys",
  "pem 3.0.2",
  "ring 0.17.5",
  "serde",
@@ -4657,6 +4660,7 @@ dependencies = [
  "flagset",
  "foundationdb",
  "futures",
+ "getrandom 0.2.11",
  "governor",
  "hdrs",
  "hrana-client-proto",
@@ -6102,15 +6106,16 @@ dependencies = [
 
 [[package]]
 name = "reqsign"
-version = "0.14.4"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c032d9e40cab6e8d3083b522a5cb5222fe6640c8b15478f1d19ac126810e8f4a"
+checksum = "dce87f66ba6c6acef277a729f989a0eca946cb9ce6a15bcc036bda0f72d4b9fd"
 dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.5",
  "chrono",
  "form_urlencoded",
+ "getrandom 0.2.11",
  "hex",
  "hmac",
  "home",

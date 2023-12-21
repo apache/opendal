@@ -135,7 +135,8 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
@@ -231,7 +232,6 @@ impl ImmutableDir {
     }
 }
 
-#[async_trait]
 impl oio::List for ImmutableDir {
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         Poll::Ready(Ok(self.inner_next()))

@@ -54,7 +54,7 @@ use blocking_list::behavior_blocking_list_tests;
 use blocking_read_only::behavior_blocking_read_only_tests;
 use blocking_rename::behavior_blocking_rename_tests;
 use blocking_write::behavior_blocking_write_tests;
-// External dependences
+// External dependencies
 use libtest_mimic::Arguments;
 use libtest_mimic::Trial;
 use opendal::raw::tests::init_test_service;

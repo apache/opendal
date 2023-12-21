@@ -65,7 +65,6 @@ impl<W: OneShotWrite> OneShotWriter<W> {
     }
 }
 
-#[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match &mut self.state {

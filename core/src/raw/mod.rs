@@ -63,6 +63,7 @@ mod std_io_util;
 pub use std_io_util::*;
 
 mod futures_util;
+pub use futures_util::BoxedFuture;
 pub use futures_util::ConcurrentFutures;
 
 // Expose as a pub mod to avoid confusing.

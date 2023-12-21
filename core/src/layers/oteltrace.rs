@@ -66,7 +66,8 @@ pub struct OtelTraceAccessor<A> {
     inner: A,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     type Inner = A;
     type Reader = OtelTraceWrapper<A::Reader>;
@@ -304,7 +305,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner.poll_write(cx, bs)
@@ -329,7 +329,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         self.inner.poll_next(cx)

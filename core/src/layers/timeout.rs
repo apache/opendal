@@ -139,7 +139,8 @@ pub struct TimeoutAccessor<A: Accessor> {
     speed: u64,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
@@ -322,7 +323,6 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match self.start {
@@ -415,7 +415,6 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         match self.start {

@@ -405,7 +405,8 @@ impl<A: Accessor> Debug for MetricsAccessor<A> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricWrapper<A::Reader>;
@@ -845,7 +846,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner

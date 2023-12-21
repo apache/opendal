@@ -22,7 +22,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::io::AsyncWrite;
@@ -56,7 +55,6 @@ impl<F> FsWriter<F> {
 /// We will only take `&mut Self` reference for FsWriter.
 unsafe impl<F> Sync for FsWriter<F> {}
 
-#[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");

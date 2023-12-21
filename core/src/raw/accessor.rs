@@ -53,7 +53,8 @@ use crate::*;
 /// - Operations with capability requirement like `presign` are optional operations.
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`ErrorKind::Unsupported`].
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Reader is the associated reader the could return in `read` operation.
     type Reader: oio::Read;
@@ -364,7 +365,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 }
 
 /// Dummy implementation of accessor.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for () {
     type Reader = ();
     type BlockingReader = ();
@@ -386,7 +388,8 @@ impl Accessor for () {
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
     type BlockingReader = T::BlockingReader;

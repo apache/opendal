@@ -28,7 +28,6 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use flagset::FlagSet;
-use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 
@@ -48,10 +47,10 @@ pub(crate) enum OperatorFuture<T, F> {
         /// The input args
         T,
         /// The function which will move all the args and return a static future
-        fn(FusedAccessor, String, T) -> BoxFuture<'static, Result<F>>,
+        fn(FusedAccessor, String, T) -> BoxedFuture<Result<F>>,
     ),
     /// Polling state, waiting for the future to be ready
-    Poll(BoxFuture<'static, Result<F>>),
+    Poll(BoxedFuture<Result<F>>),
     /// Empty state, the future has been polled and completed or
     /// something is broken during state switch.
     Empty,
@@ -62,7 +61,7 @@ impl<T, F> OperatorFuture<T, F> {
         inner: FusedAccessor,
         path: String,
         args: T,
-        f: fn(FusedAccessor, String, T) -> BoxFuture<'static, Result<F>>,
+        f: fn(FusedAccessor, String, T) -> BoxedFuture<Result<F>>,
     ) -> Self {
         OperatorFuture::Idle(inner, path, args, f)
     }

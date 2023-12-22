@@ -38,10 +38,15 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsConfig {
+    /// work dir of this backend
     pub root: Option<String>,
+    /// name node of this backend
     pub name_node: Option<String>,
+    /// kerberos_ticket_cache_path of this backend
     pub kerberos_ticket_cache_path: Option<String>,
+    /// user of this backend
     pub user: Option<String>,
+    /// enable the append capacity
     pub enable_append: bool,
 }
 

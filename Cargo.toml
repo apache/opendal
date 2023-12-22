@@ -17,7 +17,13 @@
 
 [workspace]
 default-members = ["core"]
-exclude = ["examples", "bindings/ocaml", "bindings/ruby"]
+exclude = [
+    "examples",
+
+    "bindings/ocaml",
+    "bindings/php",
+    "bindings/ruby"
+]
 members = [
   "core",
   "core/fuzz",
@@ -31,7 +37,6 @@ members = [
   "bindings/haskell",
   "bindings/lua",
   "bindings/dotnet",
-  "bindings/php",
   "bindings/cpp",
 
   "bin/oli",

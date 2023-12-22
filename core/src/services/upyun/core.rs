@@ -29,7 +29,7 @@ use crate::*;
 
 use self::constants::*;
 
-mod constants {
+pub(super) mod constants {
     pub const X_UPYUN_FILE_TYPE: &str = "x-upyun-file-type";
     pub const X_UPYUN_FILE_SIZE: &str = "x-upyun-file-size";
     pub const X_UPYUN_CACHE_CONTROL: &str = "x-upyun-meta-cache-control";
@@ -452,22 +452,8 @@ impl UpyunSigner {
     }
 }
 
-pub(super) fn parse_initiate_part(headers: &HeaderMap) -> Result<&str> {
-    match headers.get(X_UPYUN_MULTI_UUID) {
-        None => Err(Error::new(ErrorKind::Unexpected, "missing uuid")),
-        Some(v) => Ok(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("parse_initiate_part")
-            .set_source(e)
-        })?),
-    }
-}
-
 pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
-    let mode = if parse_file_type(headers)? == "file" {
+    let mode = if parse_header_to_str(headers, X_UPYUN_FILE_TYPE)? == Some("file") {
         EntryMode::FILE
     } else {
         EntryMode::DIR
@@ -475,8 +461,13 @@ pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
 
     let mut m = Metadata::new(mode);
 
-    if let Some(v) = parse_file_size(headers)? {
-        m.set_content_length(v);
+    if let Some(v) = parse_header_to_str(headers, X_UPYUN_FILE_SIZE)? {
+        let size = v.parse::<u64>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                .with_operation("parse_info")
+                .set_source(e)
+        })?;
+        m.set_content_length(size);
     }
 
     if let Some(v) = parse_content_type(headers)? {
@@ -487,80 +478,15 @@ pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
         m.set_content_md5(v);
     }
 
-    if let Some(v) = parse_cache_control(headers)? {
+    if let Some(v) = parse_header_to_str(headers, X_UPYUN_CACHE_CONTROL)? {
         m.set_cache_control(v);
     }
 
-    if let Some(v) = parse_content_disposition(headers)? {
+    if let Some(v) = parse_header_to_str(headers, X_UPYUN_CONTENT_DISPOSITION)? {
         m.set_content_disposition(v);
     }
 
     Ok(m)
-}
-
-fn parse_file_type(headers: &HeaderMap) -> Result<&str> {
-    match headers.get(X_UPYUN_FILE_TYPE) {
-        None => Err(Error::new(ErrorKind::Unexpected, "missing file type")),
-        Some(v) => Ok(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("parse_file_type")
-            .set_source(e)
-        })?),
-    }
-}
-
-fn parse_file_size(headers: &HeaderMap) -> Result<Option<u64>> {
-    match headers.get(X_UPYUN_FILE_SIZE) {
-        None => Ok(None),
-        Some(v) => Ok(Some(
-            v.to_str()
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "header value is not valid utf-8 string",
-                    )
-                    .with_operation("http_util::parse_content_length")
-                    .set_source(e)
-                })?
-                .parse::<u64>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "header value is not valid integer")
-                        .with_operation("http_util::parse_content_length")
-                        .set_source(e)
-                })?,
-        )),
-    }
-}
-
-fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(X_UPYUN_CACHE_CONTROL) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("parse_cache_control")
-            .set_source(e)
-        })?)),
-    }
-}
-
-fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(X_UPYUN_CONTENT_DISPOSITION) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("parse_content_disposition")
-            .set_source(e)
-        })?)),
-    }
 }
 
 pub fn format_md5(bs: &[u8]) -> String {

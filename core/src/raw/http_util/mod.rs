@@ -40,6 +40,7 @@ pub use header::parse_content_md5;
 pub use header::parse_content_range;
 pub use header::parse_content_type;
 pub use header::parse_etag;
+pub use header::parse_header_to_str;
 pub use header::parse_into_metadata;
 pub use header::parse_last_modified;
 pub use header::parse_location;

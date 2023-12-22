@@ -19,6 +19,7 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
+use http::header::AsHeaderName;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
@@ -194,6 +195,21 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
                 "header value has to be valid utf-8 string",
             )
             .with_operation("http_util::parse_content_disposition")
+            .set_source(e)
+        })?)),
+    }
+}
+
+/// Parse header value to string according to name.
+pub fn parse_header_to_str<K: AsHeaderName>(headers: &HeaderMap, name: K) -> Result<Option<&str>> {
+    match headers.get(name) {
+        None => Ok(None),
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value has to be valid utf-8 string",
+            )
+            .with_operation("http_util::parse_header_to_str")
             .set_source(e)
         })?)),
     }

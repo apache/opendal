@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,6 +24,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::AsyncWriteExt;
 use log::debug;
+use serde::Deserialize;
 
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
@@ -31,14 +32,46 @@ use crate::raw::*;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
+
+/// Config for Hdfs services support.
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct HdfsConfig {
+    pub root: Option<String>,
+    pub name_node: Option<String>,
+    pub kerberos_ticket_cache_path: Option<String>,
+    pub user: Option<String>,
+    pub enable_append: bool,
+}
+
+impl Debug for HdfsConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HdfsConfig")
+            .field("root", &self.root)
+            .field("name_node", &self.name_node)
+            .field(
+                "kerberos_ticket_cache_path",
+                &self.kerberos_ticket_cache_path,
+            )
+            .field("user", &self.user)
+            .field("enable_append", &self.enable_append)
+            .finish_non_exhaustive()
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct HdfsBuilder {
-    root: Option<String>,
-    name_node: Option<String>,
-    kerberos_ticket_cache_path: Option<String>,
-    user: Option<String>,
-    enable_append: bool,
+    config: HdfsConfig,
+}
+
+impl Debug for HdfsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HdfsBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl HdfsBuilder {
@@ -46,7 +79,7 @@ impl HdfsBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -64,7 +97,7 @@ impl HdfsBuilder {
     pub fn name_node(&mut self, name_node: &str) -> &mut Self {
         if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.name_node = Some(name_node.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
         }
 
         self
@@ -75,7 +108,7 @@ impl HdfsBuilder {
     /// This should be configured when kerberos is enabled.
     pub fn kerberos_ticket_cache_path(&mut self, kerberos_ticket_cache_path: &str) -> &mut Self {
         if !kerberos_ticket_cache_path.is_empty() {
-            self.kerberos_ticket_cache_path = Some(kerberos_ticket_cache_path.to_string())
+            self.config.kerberos_ticket_cache_path = Some(kerberos_ticket_cache_path.to_string())
         }
         self
     }
@@ -83,7 +116,7 @@ impl HdfsBuilder {
     /// Set user of this backend
     pub fn user(&mut self, user: &str) -> &mut Self {
         if !user.is_empty() {
-            self.user = Some(user.to_string())
+            self.config.user = Some(user.to_string())
         }
         self
     }
@@ -92,7 +125,7 @@ impl HdfsBuilder {
     ///
     /// This should be disabled when HDFS runs in non-distributed mode.
     pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
-        self.enable_append = enable_append;
+        self.config.enable_append = enable_append;
         self
     }
 }
@@ -102,24 +135,18 @@ impl Builder for HdfsBuilder {
     type Accessor = HdfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = HdfsBuilder::default();
+        // Deserialize the configuration from the HashMap.
+        let config = HdfsConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("name_node").map(|v| builder.name_node(v));
-        map.get("kerberos_ticket_cache_path")
-            .map(|v| builder.kerberos_ticket_cache_path(v));
-        map.get("user").map(|v| builder.user(v));
-        map.get("enable_append").map(|v| {
-            builder.enable_append(v.parse().expect("enable_append should be true or false"))
-        });
-
-        builder
+        // Create an HdfsBuilder instance with the deserialized config.
+        HdfsBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let name_node = match &self.name_node {
+        let name_node = match &self.config.name_node {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
@@ -127,14 +154,14 @@ impl Builder for HdfsBuilder {
             }
         };
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let mut builder = hdrs::ClientBuilder::new(name_node);
-        if let Some(ticket_cache_path) = &self.kerberos_ticket_cache_path {
+        if let Some(ticket_cache_path) = &self.config.kerberos_ticket_cache_path {
             builder = builder.with_kerberos_ticket_cache_path(ticket_cache_path.as_str());
         }
-        if let Some(user) = &self.user {
+        if let Some(user) = &self.config.user {
             builder = builder.with_user(user.as_str());
         }
 
@@ -153,7 +180,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             root,
             client: Arc::new(client),
-            enable_append: self.enable_append,
+            enable_append: self.config.enable_append,
         })
     }
 }

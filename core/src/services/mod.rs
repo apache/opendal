@@ -84,6 +84,8 @@ pub use gridfs::Gridfs;
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use hdfs::Hdfs;
+#[cfg(feature = "services-hdfs")]
+pub use hdfs::HdfsConfig;
 
 #[cfg(feature = "services-http")]
 mod http;

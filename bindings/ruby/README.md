@@ -20,8 +20,8 @@ Build bindings:
 rake compile
 ```
 
-Run some tests:
+Run tests:
 
 ```shell
-rake test
+rake spec
 ```

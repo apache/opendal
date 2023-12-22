@@ -863,8 +863,8 @@ impl Builder for S3Builder {
             #[cfg(not(target_arch = "wasm32"))]
             {
                 cfg = cfg.from_profile();
+                cfg = cfg.from_env();
             }
-            cfg = cfg.from_env();
         }
 
         if let Some(v) = self.config.region.take() {

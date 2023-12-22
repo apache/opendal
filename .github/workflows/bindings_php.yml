@@ -31,7 +31,7 @@ on:
   #    paths:
   #      - "bindings/php/**"
   #      - ".github/workflows/bindings_php.yml"
-  #  workflow_dispatch:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

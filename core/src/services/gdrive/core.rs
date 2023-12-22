@@ -24,7 +24,6 @@ use bytes;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
-use futures::stream;
 use http::header;
 use http::Request;
 use http::Response;
@@ -312,37 +311,11 @@ impl GdriveCore {
 
     pub async fn gdrive_list(
         &self,
-        path: &str,
+        file_id: &str,
         page_size: i32,
         next_page_token: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.get_file_id_by_path(path).await;
-
-        // when list over a no exist dir, we should return a empty list in this case.
-        let q = match file_id {
-            Ok(Some(file_id)) => {
-                format!("'{}' in parents and trashed = false", file_id)
-            }
-            Ok(None) => {
-                return Response::builder()
-                    .status(StatusCode::OK)
-                    .body(IncomingAsyncBody::new(
-                        Box::new(oio::into_stream(stream::empty())),
-                        Some(0),
-                    ))
-                    .map_err(|e| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("failed to create a empty response for list: {}", e),
-                        )
-                        .set_source(e)
-                    });
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
+        let q = format!("'{}' in parents and trashed = false", file_id);
         let mut url = format!(
             "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
             page_size,

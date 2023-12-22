@@ -2480,9 +2480,9 @@ dependencies = [
 
 [[package]]
 name = "ext-php-rs"
-version = "0.10.4"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "622d16bebb4742a5d9424121d16149dd147a235e10f68c57c812d8a4ca51360e"
+checksum = "761ad6d98287c4014cfd15757893a9104d24ed072c9eb948c14433f6fbac9882"
 dependencies = [
  "anyhow",
  "bindgen 0.68.1",

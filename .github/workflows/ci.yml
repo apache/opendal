@@ -304,8 +304,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
+          available_services=(
+            services-azblob
+            services-s3
+          )
+          IFS=","
           rustup target add wasm32-unknown-unknown
-          cargo build --target wasm32-unknown-unknown --no-default-features --features=services-s3
+          cargo build --target wasm32-unknown-unknown --no-default-features --features="${available_services[*]}"
 
   unit:
     runs-on: ubuntu-latest

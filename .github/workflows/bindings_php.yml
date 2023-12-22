@@ -19,18 +19,18 @@ name: Bindings PHP CI
 
 on:
   # Disable PHP build until https://github.com/apache/incubator-opendal/issues/3055 addressed
-  #
-  #  push:
-  #    branches:
-  #      - main
-  #    tags:
-  #      - '*'
-  #  pull_request:
-  #    branches:
-  #      - main
-  #    paths:
-  #      - "bindings/php/**"
-  #      - ".github/workflows/bindings_php.yml"
+
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "bindings/php/**"
+      - ".github/workflows/bindings_php.yml"
   workflow_dispatch:
 
 concurrency:

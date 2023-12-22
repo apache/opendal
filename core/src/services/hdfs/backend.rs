@@ -61,7 +61,7 @@ impl Debug for HdfsConfig {
 }
 
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct HdfsBuilder {
     config: HdfsConfig,
 }

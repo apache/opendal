@@ -40,7 +40,20 @@ impl GdriveLister {
 #[async_trait]
 impl oio::PageList for GdriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.gdrive_list(&self.path, 100, &ctx.token).await?;
+        let file_id = self.core.get_file_id_by_path(&self.path).await?;
+
+        let file_id = match file_id {
+            Some(file_id) => file_id,
+            None => {
+                ctx.done = true;
+                return Ok(());
+            }
+        };
+
+        let resp = self
+            .core
+            .gdrive_list(file_id.as_str(), 100, &ctx.token)
+            .await?;
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().bytes().await?,

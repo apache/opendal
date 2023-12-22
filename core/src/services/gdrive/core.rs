@@ -24,7 +24,6 @@ use bytes;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
-use futures::stream;
 use http::header;
 use http::Request;
 use http::Response;
@@ -77,13 +76,13 @@ impl GdriveCore {
     /// - A path is a sequence of file names separated by slashes.
     /// - A file only knows its parent id, but not its name.
     /// - To find the file id of a file, we need to traverse the path from the root to the file.
-    pub(crate) async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
+    pub(crate) async fn get_file_id_by_path(&self, file_path: &str) -> Result<Option<String>> {
         let path = build_abs_path(&self.root, file_path);
 
         let mut cache = self.path_cache.lock().await;
 
         if let Some(id) = cache.get(&path) {
-            return Ok(id.to_owned());
+            return Ok(Some(id.to_owned()));
         }
 
         let mut parent_id = "root".to_owned();
@@ -108,15 +107,11 @@ impl GdriveCore {
                 parent_id = id;
                 cache.insert(path_part, parent_id.clone());
             } else {
-                // TODO: return None instead of error.
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    &format!("path not found: {}", item),
-                ));
+                return Ok(None);
             };
         }
 
-        Ok(parent_id)
+        Ok(Some(parent_id))
     }
 
     /// Ensure the parent path exists.
@@ -277,13 +272,16 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let path_id = self.get_file_id_by_path(path).await?;
+        let path_id = self.get_file_id_by_path(path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("path not found: {}", path),
+        ))?;
 
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(&format!(
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
-            path_id.as_str()
+            path_id
         ))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -293,9 +291,14 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let path_id = self.get_file_id_by_path(path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("path not found: {}", path),
+        ))?;
+
         let url: String = format!(
             "https://www.googleapis.com/drive/v3/files/{}?alt=media",
-            self.get_file_id_by_path(path).await?
+            path_id
         );
 
         let mut req = Request::get(&url)
@@ -308,39 +311,11 @@ impl GdriveCore {
 
     pub async fn gdrive_list(
         &self,
-        path: &str,
+        file_id: &str,
         page_size: i32,
         next_page_token: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.get_file_id_by_path(path).await;
-
-        // when list over a no exist dir, `get_file_id_by_path` will return a NotFound Error, we should return a empty list in this case.
-        let q = match file_id {
-            Ok(file_id) => {
-                format!("'{}' in parents and trashed = false", file_id)
-            }
-            Err(e) => match e.kind() {
-                ErrorKind::NotFound => {
-                    return Response::builder()
-                        .status(StatusCode::OK)
-                        .body(IncomingAsyncBody::new(
-                            Box::new(oio::into_stream(stream::empty())),
-                            Some(0),
-                        ))
-                        .map_err(|e| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                &format!("failed to create a empty response for list: {}", e),
-                            )
-                            .set_source(e)
-                        });
-                }
-                _ => {
-                    return Err(e);
-                }
-            },
-        };
-
+        let q = format!("'{}' in parents and trashed = false", file_id);
         let mut url = format!(
             "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
             page_size,
@@ -364,7 +339,10 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.get_file_id_by_path(source).await?;
+        let file_id = self.get_file_id_by_path(source).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("source path not found: {}", source),
+        ))?;
 
         let parent = self.ensure_parent_path(target).await?;
 
@@ -402,10 +380,11 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files/{}",
-            self.get_file_id_by_path(path).await?
-        );
+        let file_id = self.get_file_id_by_path(path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("path not found: {}", path),
+        ))?;
+        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)

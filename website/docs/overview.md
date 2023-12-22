@@ -5,7 +5,7 @@ sidebar_position: 1
 
 OpenDAL represents **Open** **D**ata **A**ccess **L**ayer. Our vision is to **access data freely**.
 
-## What OpenDAL does?
+## What does OpenDAL do?
 
 ![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
 
@@ -29,7 +29,7 @@ For example, we DO
 
 while we DO NOT
 
-- Add support for [Google Cloud Storage(GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which more powerful
+- Add support for [Google Cloud Storage(GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which is more powerful
 - Add support for structural data in `MySQL/PostgreSQL`: We can treat a database as a simple key-value store, but we can't support unified access of structural data.
 
 ### 2. Free from implementations
@@ -55,9 +55,9 @@ For example, we DO
 - Add Python binding: Python programmers can use OpenDAL.
 - Add object_store integration: `object_store` users can adopt OpenDAL.
 
-### 4. Free to zero cost
+### 4. Free of cost
 
-OpenDAL needs to implement features in zero cost way which means:
+OpenDAL needs to implement features in a zero cost way which means:
 
 - Users need not to pay cost for unused features.
 - Users cannot write better implementation for used features.

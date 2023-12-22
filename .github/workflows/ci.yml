@@ -305,7 +305,7 @@ jobs:
       - name: Build
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo build --target wasm32-unknown-unknown --no-default-features --features=services-s3
+          cargo build --target wasm32-unknown-unknown --no-default-features --features=services-s3,services-azblob
 
   unit:
     runs-on: ubuntu-latest

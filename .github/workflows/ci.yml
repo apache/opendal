@@ -293,7 +293,7 @@ jobs:
           )
           cargo build --features "${FEATURES[*]}"
 
-  # We only support s3 services for now, but we will extend wasm support for other services.
+  # We only support some services(see `available_services` below) for now, but we will extend wasm support for other services.
   build_under_wasm:
     runs-on: ubuntu-latest
     steps:
@@ -306,6 +306,7 @@ jobs:
         run: |
           available_services=(
             services-azblob
+            services-gdrive
             services-s3
           )
           IFS=","

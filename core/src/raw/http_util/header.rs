@@ -20,7 +20,6 @@ use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header::AsHeaderName;
-use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -45,17 +44,8 @@ use crate::Result;
 /// # Note
 /// The returned value maybe a relative path, like `/index.html`, `/robots.txt`, etc.
 pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(LOCATION) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("http_util::parse_location")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, LOCATION)
+        .map_err(|e| e.with_operation("http_util::parse_location"))
 }
 
 /// Parse cache control from header map.
@@ -65,139 +55,68 @@ pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
 /// The returned value is the raw string of `cache-control` header,
 /// maybe `no-cache`, `max-age=3600`, etc.
 pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(CACHE_CONTROL) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("http_util::parse_cache_control")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, CACHE_CONTROL)
+        .map_err(|e| e.with_operation("http_util::parse_cache_control"))
 }
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
-    match headers.get(CONTENT_LENGTH) {
+    let v = parse_header_to_str(headers, CONTENT_LENGTH)
+        .map_err(|e| e.with_operation("http_util::parse_content_length"))?;
+
+    match v {
         None => Ok(None),
-        Some(v) => Ok(Some(
-            v.to_str()
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "header value is not valid utf-8 string",
-                    )
-                    .with_operation("http_util::parse_content_length")
-                    .set_source(e)
-                })?
-                .parse::<u64>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "header value is not valid integer")
-                        .with_operation("http_util::parse_content_length")
-                        .set_source(e)
-                })?,
-        )),
+        Some(v) => Ok(Some(v.parse::<u64>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                .with_operation("http_util::parse_content_length")
+                .set_source(e)
+        })?)),
     }
 }
 
 /// Parse content md5 from header map.
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(HeaderName::from_static("content-md5")) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value is not valid utf-8 string",
-            )
-            .with_operation("http_util::parse_content_md5")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, "content-md5")
+        .map_err(|e| e.with_operation("http_util::parse_content_md5"))
 }
 
 /// Parse content type from header map.
 pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(CONTENT_TYPE) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value is not valid utf-8 string",
-            )
-            .with_operation("http_util::parse_content_type")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, CONTENT_TYPE)
+        .map_err(|e| e.with_operation("http_util::parse_content_type"))
 }
 
 /// Parse content range from header map.
 pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRange>> {
-    match headers.get(CONTENT_RANGE) {
+    let v = parse_header_to_str(headers, CONTENT_RANGE)
+        .map_err(|e| e.with_operation("http_util::parse_content_range"))?;
+
+    match v {
         None => Ok(None),
-        Some(v) => Ok(Some(
-            v.to_str()
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "header value is not valid utf-8 string",
-                    )
-                    .with_operation("http_util::parse_content_range")
-                    .set_source(e)
-                })?
-                .parse()?,
-        )),
+        Some(v) => Ok(Some(v.parse()?)),
     }
 }
 
 /// Parse last modified from header map.
 pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<DateTime<Utc>>> {
-    match headers.get(LAST_MODIFIED) {
-        None => Ok(None),
-        Some(v) => {
-            let v = v.to_str().map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "header value is not valid utf-8 string",
-                )
-                .with_operation("http_util::parse_last_modified")
-                .set_source(e)
-            })?;
+    let v = parse_header_to_str(headers, LAST_MODIFIED)
+        .map_err(|e| e.with_operation("http_util::parse_content_disposition"))?;
 
-            Ok(Some(parse_datetime_from_rfc2822(v)?))
-        }
+    match v {
+        None => Ok(None),
+        Some(v) => Ok(Some(parse_datetime_from_rfc2822(v)?)),
     }
 }
 
 /// Parse etag from header map.
 pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(ETAG) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value is not valid utf-8 string",
-            )
-            .with_operation("http_util::parse_etag")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, ETAG).map_err(|e| e.with_operation("http_util::parse_etag"))
 }
 
 /// Parse Content-Disposition for header map
 pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(CONTENT_DISPOSITION) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("http_util::parse_content_disposition")
-            .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, CONTENT_DISPOSITION)
+        .map_err(|e| e.with_operation("http_util::parse_content_disposition"))
 }
 
 /// Parse header value to string according to name.

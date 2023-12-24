@@ -33,7 +33,7 @@ doc = false
 
 [dependencies]
 ocaml = { version = "^1.0.0-beta" }
-opendal = "0.43.0"
+opendal = { path = "../../core" }
 
 [build-dependencies]
 ocaml-build = { version = "^1.0.0-beta" }

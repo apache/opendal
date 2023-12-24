@@ -58,7 +58,7 @@ jobs:
         env:
           OPENDAL_FS_ROOT: /tmp/test_dir
 
-  test_wasm_action:
+  test_s3_read_on_wasm:
     runs-on: ubuntu-latest
 
     steps:

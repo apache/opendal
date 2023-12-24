@@ -23,7 +23,7 @@ This service can be used to:
 - `container`: Swift container.
 - `token`: Swift personal access token.
 
-Refer to [`Builder`]'s public API docs for more information.
+Refer to [`SwiftBuilder`]'s public API docs for more information.
 
 ## Examples
 

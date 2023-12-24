@@ -25,6 +25,7 @@ use std::collections::HashMap;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut map = HashMap::new();
+
     map.insert("repo_type".to_string(), "dataset".to_string());
     map.insert("repo_id".to_string(), "databricks/databricks-dolly-15k".to_string());
     map.insert("revision".to_string(), "main".to_string());
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
     map.insert("token".to_string(), "access_token".to_string());
 
     let op: Operator = Operator::via_map(Scheme::Huggingface, map)?;
+
     Ok(())
 }
 ```
@@ -43,7 +45,7 @@ async fn main() -> Result<()> {
 import { Operator } from "opendal";
 
 async function main() {
-  # Use `huggingface` or `hf` for scheme name
+  // Use `huggingface` or `hf` for scheme name
   const op = new Operator("huggingface", {
     repo_type: "dataset",
     repo_id: "databricks/databricks-dolly-15k",

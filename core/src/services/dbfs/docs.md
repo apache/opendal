@@ -22,7 +22,7 @@ This service can be used to:
 - `endpoint`: Set the endpoint for backend.
 - `token`: Databricks personal access token.
 
-Refer to [`Builder`]'s public API docs for more information.
+Refer to [`DbfsBuilder`]'s public API docs for more information.
 
 ## Examples
 

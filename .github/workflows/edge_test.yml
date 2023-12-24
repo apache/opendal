@@ -58,3 +58,48 @@ jobs:
         env:
           OPENDAL_FS_ROOT: /tmp/test_dir
 
+  test_s3_read_on_wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup for wasm32
+        run: |
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install Chrome Environment
+        run: |
+          mkdir -p /tmp/chrome
+          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chrome | .[] | select(.platform == "linux64") | .url')
+          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chromedriver | .[] | select(.platform == "linux64") | .url')
+          unzip chromedriver-linux64.zip
+          unzip chrome-linux64.zip
+          cp -r chrome-linux64/ /tmp/chrome/
+          cp -r chromedriver-linux64 /tmp/chrome/chromedriver
+      
+      - name: Setup wasm-pack
+        run: |
+          cargo install wasm-pack
+
+      - name: Setup MinIO Server
+        shell: bash
+        working-directory: fixtures/s3
+        run: docker compose -f docker-compose-minio.yml up -d --wait
+
+      - name: Setup test bucket
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: "minioadmin"
+          AWS_SECRET_ACCESS_KEY: "minioadmin"
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+      
+      - name: Test wasm
+        working-directory: core/edge/s3_read_on_wasm
+        run: |
+          export PATH=$PATH:/tmp/chrome/chrome-linux64/:/tmp/chrome/chromedriver-linux64/
+          wasm-pack test --chrome --headless

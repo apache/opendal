@@ -102,4 +102,4 @@ jobs:
         working-directory: core/edge/s3_read_on_wasm
         run: |
           export PATH=$PATH:/tmp/chrome/chrome-linux64/:/tmp/chrome/chromedriver-linux64/
-          wasm-pack build --target web --out-name wasm --out-dir ./static
+          wasm-pack test --chrome --headless

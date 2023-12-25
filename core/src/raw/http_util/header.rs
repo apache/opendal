@@ -19,7 +19,6 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
-use http::header::AsHeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -28,8 +27,8 @@ use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
-use http::HeaderMap;
 use http::HeaderValue;
+use http::{HeaderMap, HeaderName};
 use md5::Digest;
 
 use crate::raw::*;
@@ -45,7 +44,6 @@ use crate::Result;
 /// The returned value maybe a relative path, like `/index.html`, `/robots.txt`, etc.
 pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, LOCATION)
-        .map_err(|e| e.with_operation("http_util::parse_location"))
 }
 
 /// Parse cache control from header map.
@@ -56,82 +54,82 @@ pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
 /// maybe `no-cache`, `max-age=3600`, etc.
 pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CACHE_CONTROL)
-        .map_err(|e| e.with_operation("http_util::parse_cache_control"))
 }
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
-    let v = parse_header_to_str(headers, CONTENT_LENGTH)
-        .map_err(|e| e.with_operation("http_util::parse_content_length"))?;
-
-    match v {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.parse::<u64>().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "header value is not valid integer")
-                .with_operation("http_util::parse_content_length")
-                .set_source(e)
-        })?)),
-    }
+    parse_header_to_str(headers, CONTENT_LENGTH)?
+        .map(|v| {
+            v.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(e)
+            })
+        })
+        .transpose()
 }
 
 /// Parse content md5 from header map.
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, "content-md5")
-        .map_err(|e| e.with_operation("http_util::parse_content_md5"))
 }
 
 /// Parse content type from header map.
 pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CONTENT_TYPE)
-        .map_err(|e| e.with_operation("http_util::parse_content_type"))
 }
 
 /// Parse content range from header map.
 pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRange>> {
-    let v = parse_header_to_str(headers, CONTENT_RANGE)
-        .map_err(|e| e.with_operation("http_util::parse_content_range"))?;
-
-    match v {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.parse()?)),
-    }
+    parse_header_to_str(headers, CONTENT_RANGE)?
+        .map(|v| v.parse())
+        .transpose()
 }
 
 /// Parse last modified from header map.
 pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<DateTime<Utc>>> {
-    let v = parse_header_to_str(headers, LAST_MODIFIED)
-        .map_err(|e| e.with_operation("http_util::parse_content_disposition"))?;
-
-    match v {
-        None => Ok(None),
-        Some(v) => Ok(Some(parse_datetime_from_rfc2822(v)?)),
-    }
+    parse_header_to_str(headers, LAST_MODIFIED)?
+        .map(parse_datetime_from_rfc2822)
+        .transpose()
 }
 
 /// Parse etag from header map.
 pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, ETAG).map_err(|e| e.with_operation("http_util::parse_etag"))
+    parse_header_to_str(headers, ETAG)
 }
 
 /// Parse Content-Disposition for header map
 pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CONTENT_DISPOSITION)
-        .map_err(|e| e.with_operation("http_util::parse_content_disposition"))
 }
 
 /// Parse header value to string according to name.
-pub fn parse_header_to_str<K: AsHeaderName>(headers: &HeaderMap, name: K) -> Result<Option<&str>> {
-    match headers.get(name) {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.to_str().map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "header value has to be valid utf-8 string",
-            )
-            .with_operation("http_util::parse_header_to_str")
-            .set_source(e)
-        })?)),
-    }
+#[inline]
+pub fn parse_header_to_str<K>(headers: &HeaderMap, name: K) -> Result<Option<&str>>
+where
+    HeaderName: TryFrom<K>,
+{
+    let name = HeaderName::try_from(name).map_err(|_| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "header name must be valid http header name but not",
+        )
+        .with_operation("http_util::parse_header_to_str")
+    })?;
+
+    let value = if let Some(v) = headers.get(name.clone()) {
+        v
+    } else {
+        return Ok(None);
+    };
+
+    Ok(Some(value.to_str().map_err(|e| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "header value must be valid utf-8 string but not",
+        )
+        .with_operation("http_util::parse_header_to_str")
+        .with_context("header_name", name.as_str())
+        .set_source(e)
+    })?))
 }
 
 /// parse_into_metadata will parse standards http headers into Metadata.

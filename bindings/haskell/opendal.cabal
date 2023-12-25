@@ -41,7 +41,7 @@ source-repository head
 source-repository this
     type:     git
     location: https://github.com/apache/incubator-opendal
-    tag:      v0.43.0
+    tag:      v0.44.0
     subdir:   bindings/haskell
 
 common base

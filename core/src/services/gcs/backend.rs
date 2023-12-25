@@ -34,8 +34,8 @@ use super::core::*;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
+use super::writer::GcsWriters;
 use crate::raw::*;
-use crate::services::gcs::writer::GcsWriters;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
@@ -269,6 +269,11 @@ impl Builder for GcsBuilder {
         if let Some(cred) = &self.config.credential_path {
             cred_loader = cred_loader.with_path(cred);
         }
+        #[cfg(target_arch = "wasm32")]
+        {
+            cred_loader = cred_loader.with_disable_env();
+            cred_loader = cred_loader.with_disable_well_known_location();
+        }
 
         let scope = if let Some(scope) = &self.config.scope {
             scope
@@ -313,7 +318,8 @@ pub struct GcsBackend {
     core: Arc<GcsCore>,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();

@@ -79,8 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(bindings/python): upgrade pyo3 to 0.20 by @messense in https://github.com/apache/incubator-opendal/pull/3758
 * chore: remove unused binding feature file by @tisonkun in https://github.com/apache/incubator-opendal/pull/3757
 * chore: Bump governor from 0.5.1 to 0.6.0 by @G-XD in https://github.com/apache/incubator-opendal/pull/3761
-* chore: Split bindings/ocaml to seperate workspace by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3792
-* chore: Split bindings/ruby to seperate workspace by @ho-229 in https://github.com/apache/incubator-opendal/pull/3794
+* chore: Split bindings/ocaml to separate workspace by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3792
+* chore: Split bindings/ruby to separate workspace by @ho-229 in https://github.com/apache/incubator-opendal/pull/3794
 * chore(bindings/php): bump ext-php-rs to support latest php & separate workspace by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3799
 * chore: Address comments from hackernews by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3805
 * chore(bindings/ocaml): dep opendal point to core by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3814

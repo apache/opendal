@@ -20,7 +20,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::raw::oio::WriteBuf;
@@ -48,7 +47,8 @@ use crate::*;
 /// - Services impl `RangeWrite`
 /// - `RangeWriter` impl `Write`
 /// - Expose `RangeWriter` as `Accessor::Writer`
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait RangeWrite: Send + Sync + Unpin + 'static {
     /// write_once is used to write the data to underlying storage at once.
     ///
@@ -93,11 +93,16 @@ pub struct RangeWriter<W: RangeWrite> {
 
 enum State<W> {
     Idle(Option<W>),
-    Init(BoxFuture<'static, (W, Result<String>)>),
-    Write(BoxFuture<'static, (W, Result<u64>)>),
-    Complete(BoxFuture<'static, (W, Result<()>)>),
-    Abort(BoxFuture<'static, (W, Result<()>)>),
+    Init(BoxedFuture<(W, Result<String>)>),
+    Write(BoxedFuture<(W, Result<u64>)>),
+    Complete(BoxedFuture<(W, Result<()>)>),
+    Abort(BoxedFuture<(W, Result<()>)>),
 }
+
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<S: RangeWrite> Send for State<S> {}
 
 /// # Safety
 ///

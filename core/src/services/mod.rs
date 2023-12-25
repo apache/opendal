@@ -325,3 +325,10 @@ mod upyun;
 pub use upyun::Upyun;
 #[cfg(feature = "services-upyun")]
 pub use upyun::UpyunConfig;
+
+#[cfg(feature = "services-chainsafe")]
+mod chainsafe;
+#[cfg(feature = "services-chainsafe")]
+pub use chainsafe::Chainsafe;
+#[cfg(feature = "services-chainsafe")]
+pub use chainsafe::ChainsafeConfig;

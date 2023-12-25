@@ -23,7 +23,8 @@ use http::StatusCode;
 use crate::raw::*;
 use crate::*;
 
-use super::core::{parse_initiate_part, UpyunCore};
+use super::core::constants::X_UPYUN_MULTI_UUID;
+use super::core::UpyunCore;
 use super::error::parse_error;
 
 pub type UpyunWriters = oio::MultipartUploadWriter<UpyunWriter>;
@@ -71,7 +72,11 @@ impl oio::MultipartUploadWrite for UpyunWriter {
 
         match status {
             StatusCode::NO_CONTENT => {
-                let id = parse_initiate_part(resp.headers())?;
+                let id =
+                    parse_header_to_str(resp.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("{} header is missing", X_UPYUN_MULTI_UUID),
+                    ))?;
 
                 Ok(id.to_string())
             }
@@ -96,19 +101,13 @@ impl oio::MultipartUploadWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
+            StatusCode::NO_CONTENT | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
 
-                Ok(oio::MultipartUploadPart { part_number, etag })
+                Ok(oio::MultipartUploadPart {
+                    part_number,
+                    etag: "".to_string(),
+                })
             }
             _ => Err(parse_error(resp).await?),
         }

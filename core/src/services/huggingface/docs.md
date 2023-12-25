@@ -1,7 +1,7 @@
 This service will visit the [Huggingface API](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api) to access the Huggingface File System.
 Currently, we only support the `model` and `dataset` types of repositories, and operations are limited to reading and listing/stating.
 
-Huggingface doesn't host official HTTP API docs. Detailed HTTP request API information can be found on the [Huggingface Hub](https://github.com/huggingface/huggingface_hub).
+Huggingface doesn't host official HTTP API docs. Detailed HTTP request API information can be found on the [`huggingface_hub` Source Code](https://github.com/huggingface/huggingface_hub).
 
 ## Capabilities
 
@@ -27,7 +27,7 @@ This service can be used to:
 - `root`: Set the work directory for backend.
 - `token`: The token for accessing the repository.
 
-Refer to [`Builder`]'s public API docs for more information.
+Refer to [`HuggingfaceBuilder`]'s public API docs for more information.
 
 ## Examples
 

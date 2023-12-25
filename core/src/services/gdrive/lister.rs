@@ -37,7 +37,8 @@ impl GdriveLister {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::PageList for GdriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_id = self.core.get_file_id_by_path(&self.path).await?;

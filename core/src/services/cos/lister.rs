@@ -85,7 +85,7 @@ impl oio::PageList for CosLister {
         for object in output.contents {
             let path = build_rel_path(&self.core.root, &object.key);
 
-            if path == self.path {
+            if path == self.path || path.is_empty() {
                 continue;
             }
 

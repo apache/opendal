@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>0.43.0</version>
+    <version>0.44.0</version>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>

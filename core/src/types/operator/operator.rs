@@ -1175,7 +1175,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_with("dir/")
-    ///     // Make sure content-length and last-modified been fecthed.
+    ///     // Make sure content-length and last-modified been fetched.
     ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
     ///     .await?;
     /// for entry in entries {
@@ -1389,7 +1389,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op
     ///     .lister_with("dir/")
-    ///     // Make sure content-length and last-modified been fecthed.
+    ///     // Make sure content-length and last-modified been fetched.
     ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
     ///     .await?;
     /// while let Some(mut entry) = lister.try_next().await? {

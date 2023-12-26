@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(ocaml_binding): sort `actual` & `expected` to pass ci by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3733
 * fix(ci): Make sure merge_local_staging handles all subdir by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3788
 * fix(services/gdrive): fix return value of `get_file_id_by_path` by @G-XD in https://github.com/apache/incubator-opendal/pull/3801
+* fix(core): List root should not return itself by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3824
 ### Docs
 * docs: add maturity model check by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3680
 * docs(website): show maturity model by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3709
@@ -62,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs(community): polish events by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3768
 * docs(bindings/ruby): reflect test framework refactor by @tisonkun in https://github.com/apache/incubator-opendal/pull/3798
 * docs(website): add service Huggingface to website by @morristai in https://github.com/apache/incubator-opendal/pull/3812
+* docs: update release docs to add cargo-deny setup by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3821
 ### CI
 * build(deps): bump cacache from 11.7.1 to 12.0.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/3690
 * build(deps): bump prometheus-client from 0.21.2 to 0.22.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/3694

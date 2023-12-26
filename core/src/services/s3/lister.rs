@@ -116,7 +116,7 @@ impl oio::PageList for S3Lister {
             let path = build_rel_path(&self.core.root, &object.key);
 
             // s3 could return the dir itself in contents.
-            if path == self.path {
+            if path == self.path || path.is_empty() {
                 continue;
             }
 

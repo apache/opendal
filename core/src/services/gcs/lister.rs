@@ -105,7 +105,7 @@ impl oio::PageList for GcsLister {
         for object in output.items {
             // exclude the inclusive start_after itself
             let path = build_rel_path(&self.core.root, &object.name);
-            if path == self.path {
+            if path == self.path || path.is_empty() {
                 continue;
             }
             if self.start_after.as_ref() == Some(&path) {

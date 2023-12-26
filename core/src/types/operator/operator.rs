@@ -1012,17 +1012,17 @@ impl Operator {
         Ok(())
     }
 
-    /// List entries within a given directory.
+    /// List entries that starts with given `path` in parent dir.
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively list
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use `Operator::list_with("path").recursive(true)`
     /// instead.
     ///
-    /// ## Streaming
+    /// ## Streaming list
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -1031,12 +1031,16 @@ impl Operator {
     /// In order to avoid this, you can use [`Operator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please use [`Operator::list_with`] and `metakey`.
     ///
     /// # Examples
+    ///
+    /// ## List entries under a dir
+    ///
+    /// This example will list all entries under the dir `path/to/dir/`.
     ///
     /// ```no_run
     /// # use anyhow::Result;
@@ -1060,15 +1064,46 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// ## List entries with prefix
+    ///
+    /// This example will list all entries under the prefix `path/to/prefix`.
+    ///
+    /// NOTE: it's possible that the prefix itself is also a dir. In this case, you could get
+    /// `path/to/prefix/`, `path/to/prefix_1` and so on. If you do want to list a dir, please
+    /// make sure the path is end with `/`.
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list("path/to/prefix").await?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
         self.list_with(path).await
     }
 
-    /// List entries within a given directory with options.
+    /// List entries that starts with given `path` in parent dir with more options.
     ///
     /// # Notes
     ///
-    /// ## For streaming
+    /// ## Streaming list
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -1084,9 +1119,9 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ## List entries with prefix
+    /// ## List all entries recursively
     ///
-    /// This function can also be used to list entries in recursive way.
+    /// This example will list all entries under the dir `path/to/dir/`
     ///
     /// ```no_run
     /// # use anyhow::Result;
@@ -1095,7 +1130,34 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.list_with("prefix/").recursive(true).await?;
+    /// let mut entries = op.list_with("path/to/dir/").recursive(true).await?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List all entries start with prefix
+    ///
+    /// This example will list all entries starts with prefix `path/to/prefix`
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list_with("path/to/prefix").recursive(true).await?;
     /// for entry in entries {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
@@ -1112,6 +1174,9 @@ impl Operator {
     /// ```
     ///
     /// ## List entries with metakey for more metadata
+    ///
+    /// Some storage services like `s3` could return more metadata like `content-length` and
+    /// `last-modified`. By using `metakey`, we can fetch those metadata without an extra `stat` call.
     ///
     /// ```no_run
     /// # use anyhow::Result;
@@ -1162,21 +1227,20 @@ impl Operator {
         fut
     }
 
-    /// List entries within a given directory as a stream.
+    /// List entries that starts with given `path` in parent dir.
     ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
+    /// dropping this [`Lister`].
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively list
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use [`Operator::lister_with`] and `recursive(true)`
     /// instead.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please use [`Operator::lister_with`] and `metakey`.
@@ -1211,11 +1275,10 @@ impl Operator {
         self.lister_with(path).await
     }
 
-    /// List entries within a given directory as a stream with options.
+    /// List entries that starts with given `path` in parent dir with options.
     ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
+    /// dropping this [`Lister`].
     ///
     /// # Examples
     ///
@@ -1232,7 +1295,6 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op
     ///     .lister_with("path/to/dir/")
-    ///     .limit(10)
     ///     .start_after("start")
     ///     .await?;
     /// while let Some(mut entry) = ds.try_next().await? {

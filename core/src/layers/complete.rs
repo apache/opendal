@@ -372,8 +372,16 @@ impl<A: Accessor> CompleteAccessor<A> {
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
-                let p = FlatLister::new(self.inner.clone(), path);
-                Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let p = FlatLister::new(self.inner.clone(), path);
+                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let p = FlatLister::new(self.inner.clone(), parent);
+                    let p = PrefixLister::new(p, path);
+                    Ok((RpList::default(), CompleteLister::Both(p)))
+                }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
             // list prefix by ourselves.
@@ -412,8 +420,16 @@ impl<A: Accessor> CompleteAccessor<A> {
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
-                let p = FlatLister::new(self.inner.clone(), path);
-                Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let p = FlatLister::new(self.inner.clone(), path);
+                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let p = FlatLister::new(self.inner.clone(), parent);
+                    let p = PrefixLister::new(p, path);
+                    Ok((RpList::default(), CompleteLister::Both(p)))
+                }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
             // list prefix by ourselves.
@@ -733,6 +749,7 @@ pub enum CompleteLister<A: Accessor, P> {
     AlreadyComplete(P),
     NeedFlat(FlatLister<Arc<A>, P>),
     NeedPrefix(PrefixLister<P>),
+    Both(PrefixLister<FlatLister<Arc<A>, P>>),
 }
 
 impl<A, P> oio::List for CompleteLister<A, P>
@@ -747,6 +764,7 @@ where
             AlreadyComplete(p) => p.poll_next(cx),
             NeedFlat(p) => p.poll_next(cx),
             NeedPrefix(p) => p.poll_next(cx),
+            Both(p) => p.poll_next(cx),
         }
     }
 }
@@ -763,6 +781,7 @@ where
             AlreadyComplete(p) => p.next(),
             NeedFlat(p) => p.next(),
             NeedPrefix(p) => p.next(),
+            Both(p) => p.next(),
         }
     }
 }

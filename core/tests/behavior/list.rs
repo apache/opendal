@@ -257,7 +257,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    assert_eq!(objects.len(), 1, "dir should only return empty");
+    assert_eq!(objects.len(), 1, "only return the dir itself");
     assert_eq!(
         objects[&dir].metadata().mode(),
         EntryMode::DIR,
@@ -281,7 +281,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    assert_eq!(objects.len(), 1, "dir should only return empty");
+    assert_eq!(objects.len(), 1, "only return the dir itself");
     assert_eq!(
         objects[&dir].metadata().mode(),
         EntryMode::DIR,

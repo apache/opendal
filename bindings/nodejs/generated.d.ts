@@ -430,7 +430,6 @@ export class Operator {
    *   }
    * }
    * ```
-   *
    */
   list(path: string, options?: ListOptions | undefined | null): Promise<Array<Entry>>
   /**

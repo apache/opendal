@@ -243,14 +243,50 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
 
     op.create_dir(&dir).await.expect("write must succeed");
 
+    // List "dir/" should return empty object.
     let mut obs = op.lister(&dir).await?;
     let mut objects = HashMap::new();
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
-
     assert_eq!(objects.len(), 0, "dir should only return empty");
+
+    // List "dir" should return "dir/".
+    let mut obs = op.lister(dir.trim_end_matches('/')).await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    assert_eq!(objects.len(), 1, "only return the dir itself");
+    assert_eq!(
+        objects[&dir].metadata().mode(),
+        EntryMode::DIR,
+        "given dir should exist and must be dir"
+    );
+
+    // List "dir/" should return empty object.
+    let mut obs = op.lister_with(&dir).recursive(true).await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    assert_eq!(objects.len(), 0, "dir should only return empty");
+
+    // List "dir" should return "dir/".
+    let mut obs = op
+        .lister_with(dir.trim_end_matches('/'))
+        .recursive(true)
+        .await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    assert_eq!(objects.len(), 1, "only return the dir itself");
+    assert_eq!(
+        objects[&dir].metadata().mode(),
+        EntryMode::DIR,
+        "given dir should exist and must be dir"
+    );
 
     op.delete(&dir).await.expect("delete must succeed");
     Ok(())

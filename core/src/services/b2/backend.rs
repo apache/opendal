@@ -136,7 +136,7 @@ impl B2Builder {
     }
 
     /// Set bucket name of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.config.bucket = bucket.to_string();
 
@@ -144,7 +144,7 @@ impl B2Builder {
     }
 
     /// Set bucket id of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
         self.config.bucket_id = bucket_id.to_string();
 

@@ -118,7 +118,7 @@ impl AzfileBuilder {
     /// Set file share name of this backend.
     ///
     /// # Notes
-    /// You can find more about from: https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service
+    /// You can find more about from: <https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service>
     pub fn share_name(&mut self, share_name: &str) -> &mut Self {
         if !share_name.is_empty() {
             self.share_name = share_name.to_string();

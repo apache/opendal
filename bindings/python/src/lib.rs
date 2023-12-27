@@ -40,7 +40,7 @@ pub use utils::*;
 mod errors;
 pub use errors::*;
 
-/// Apache OpenDAL Python binding
+/// Apache OpenDAL™ Python binding
 ///
 /// ## Installation
 ///

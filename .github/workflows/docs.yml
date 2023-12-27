@@ -57,7 +57,7 @@ jobs:
           java-version: '17'
 
       - name: Build OpenDAL doc
-        run: cargo +nightly --lib --no-deps --all-features -p opendal
+        run: cargo +nightly doc --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           # Enable cfg docs to make sure docs are built.

@@ -17,7 +17,7 @@
 
 [package]
 categories = ["filesystem"]
-description = "OpenDAL: Access data freely, painlessly, and efficiently."
+description = "Apache OpenDAL™: Access data freely, painlessly, and efficiently."
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"

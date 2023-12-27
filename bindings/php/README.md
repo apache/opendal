@@ -1,4 +1,4 @@
-# Apache OpenDAL PHP Binding (WIP)
+# Apache OpenDAL™ PHP Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

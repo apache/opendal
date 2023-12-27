@@ -1,4 +1,4 @@
-# Apache OpenDAL Go Binding (WIP)
+# Apache OpenDAL™ Go Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

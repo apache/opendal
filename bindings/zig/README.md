@@ -1,4 +1,4 @@
-# Apache OpenDAL Zig Binding (WIP)
+# Apache OpenDAL™ Zig Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

@@ -1,4 +1,4 @@
-# Apache OpenDAL Python Binding
+# Apache OpenDAL™ Python Binding
 
 ![](https://img.shields.io/badge/status-released-blue)
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)

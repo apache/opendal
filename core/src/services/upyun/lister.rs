@@ -80,7 +80,7 @@ impl oio::PageList for UpyunLister {
         ctx.token = response.iter;
 
         for file in response.files {
-            let path = build_abs_path(&format!("/{}", &self.path), &file.name);
+            let path = build_abs_path(&normalize_root(&self.path), &file.name);
 
             let entry = if file.type_field == "folder" {
                 let path = format!("{}/", path);

@@ -171,7 +171,7 @@ impl Adapter {
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(&self.config.endpoint);
+                let mgr = MemcacheConnectionManager::new(&self.endpoint);
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
@@ -217,8 +217,7 @@ impl kv::Adapter for Adapter {
             &percent_encode_path(key),
             value,
             // Set expiration to 0 if ttl not set.
-            self.config
-                .default_ttl
+            self.default_ttl
                 .map(|v| v.as_secs() as u32)
                 .unwrap_or_default(),
         )

@@ -47,15 +47,21 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install nightly
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Build OpenDAL doc
-        run: cargo doc --lib --no-deps --all-features -p opendal
+        run: cargo +nightly --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          # Enable cfg docs to make sure docs are built.
+          RUSTDOCFLAGS: "--cfg docs"
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

@@ -32,6 +32,7 @@ version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docs"]
 
 [features]
 default = [
@@ -52,12 +53,6 @@ default = [
   "services-webhdfs",
   "services-azfile",
 ]
-
-# Build docs or not.
-#
-# This features is used to control whether or not to build opendal's docs.
-# And doesn't have any other effects.
-docs = []
 
 # Build test utils or not.
 #

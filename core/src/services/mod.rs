@@ -173,6 +173,8 @@ pub use self::redis::RedisConfig;
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::Rocksdb;
+#[cfg(feature = "services-rocksdb")]
+pub use self::rocksdb::RocksdbConfig;
 
 #[cfg(feature = "services-s3")]
 mod s3;

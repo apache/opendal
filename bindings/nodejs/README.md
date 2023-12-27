@@ -1,4 +1,4 @@
-# OpenDAL Node.js Binding
+# Apache OpenDAL Node.js Binding
 
 ![](https://img.shields.io/badge/status-released-blue)
 [![npm](https://img.shields.io/npm/v/opendal.svg?logo=npm)](https://www.npmjs.com/package/opendal)

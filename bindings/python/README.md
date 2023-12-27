@@ -1,4 +1,4 @@
-# OpenDAL Python Binding
+# Apache OpenDAL Python Binding
 
 ![](https://img.shields.io/badge/status-released-blue)
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)
@@ -6,7 +6,7 @@
 
 Documentation: [main](https://opendal.apache.org/docs/python/)
 
-This crate intends to build a native python binding.
+This package intends to build a native python binding for Apache OpenDAL.
 
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 

@@ -1,4 +1,4 @@
-# OpenDAL OCaml Binding (WIP)
+# Apache OpenDAL OCaml Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

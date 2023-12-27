@@ -1,4 +1,4 @@
-# OpenDAL CPP Binding (WIP)
+# Apache OpenDAL CPP Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

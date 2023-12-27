@@ -140,6 +140,12 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 
+## Branding
+
+The first and most prominent mentions must use the full form: **Apache OpenDAL®** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the Hadoop project and the Hadoop software product to the ASF as the parent organization.
+
+For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)

@@ -122,6 +122,8 @@ pub use libsql::LibsqlConfig;
 mod memcached;
 #[cfg(feature = "services-memcached")]
 pub use memcached::Memcached;
+#[cfg(feature = "services-memcached")]
+pub use memcached::MemcachedConfig;
 
 #[cfg(feature = "services-memory")]
 mod memory;

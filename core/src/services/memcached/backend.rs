@@ -22,16 +22,18 @@ use async_trait::async_trait;
 use bb8::RunError;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
-
+use serde::Deserialize;
 use super::ascii;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// [Memcached](https://memcached.org/) service support.
-#[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
-pub struct MemcachedBuilder {
+
+
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct MemcachedConfig{
     /// network address of the memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -44,13 +46,21 @@ pub struct MemcachedBuilder {
     default_ttl: Option<Duration>,
 }
 
+
+/// [Memcached](https://memcached.org/) service support.
+#[doc = include_str!("docs.md")]
+#[derive(Clone, Default)]
+pub struct MemcachedBuilder {
+   config: MemcachedConfig
+}
+
 impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_owned());
+            self.config.endpoint = Some(endpoint.to_owned());
         }
         self
     }
@@ -60,14 +70,14 @@ impl MemcachedBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
 
     /// Set the default ttl for memcached services.
     pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
-        self.default_ttl = Some(ttl);
+        self.config.default_ttl = Some(ttl);
         self
     }
 }
@@ -77,16 +87,13 @@ impl Builder for MemcachedBuilder {
     type Accessor = MemcachedBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = MemcachedBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-
-        builder
+        let config = MemcachedConfig::deserialize(ConfigDeserializer::new(map))
+        .expect("config deserialize must succeed");
+        MemcachedBuilder {config}
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoint = self.endpoint.clone().ok_or_else(|| {
+        let endpoint = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
         })?;
@@ -135,7 +142,7 @@ impl Builder for MemcachedBuilder {
         let endpoint = format!("{host}:{port}",);
 
         let root = normalize_root(
-            self.root
+            self.config.root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -145,7 +152,7 @@ impl Builder for MemcachedBuilder {
         Ok(MemcachedBackend::new(Adapter {
             endpoint,
             conn,
-            default_ttl: self.default_ttl,
+            default_ttl: self.config.default_ttl,
         })
         .with_root(&root))
     }
@@ -166,7 +173,7 @@ impl Adapter {
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(&self.endpoint);
+                let mgr = MemcacheConnectionManager::new(&self.config.endpoint);
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
@@ -212,7 +219,7 @@ impl kv::Adapter for Adapter {
             &percent_encode_path(key),
             value,
             // Set expiration to 0 if ttl not set.
-            self.default_ttl
+            self.config.default_ttl
                 .map(|v| v.as_secs() as u32)
                 .unwrap_or_default(),
         )

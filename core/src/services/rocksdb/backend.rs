@@ -44,7 +44,7 @@ pub struct RocksdbConfig {
 
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default)]
 pub struct RocksdbBuilder {
     config: RocksdbConfig,
 }

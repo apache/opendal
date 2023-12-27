@@ -74,7 +74,7 @@ impl Builder for RocksdbBuilder {
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = RocksdbConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
-        MemcachedBuilder { config }
+        RocksdbBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

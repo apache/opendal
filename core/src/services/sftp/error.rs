@@ -45,7 +45,7 @@ impl From<SftpClientError> for Error {
     }
 }
 
-/// REMOVE ME: it's not allowed to impl <T> for Error.
+/// REMOVE ME: it's not allowed to impl `<T>` for Error.
 impl From<SshError> for Error {
     fn from(e: SshError) -> Self {
         Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)

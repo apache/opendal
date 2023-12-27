@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg_attr(docs, feature(doc_auto_cfg))]
+
 //! OpenDAL is the Open Data Access Layer to **freely** access data.
 //!
 //! - Documentation: All docs are carried by self, visit [`docs`] for more.
@@ -70,7 +72,7 @@ mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
-#[cfg(feature = "docs")]
+#[cfg(docs)]
 pub mod docs;
 pub mod layers;
 pub mod raw;

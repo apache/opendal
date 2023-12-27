@@ -28,6 +28,7 @@ use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
+/// Config for MemCached services support
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]

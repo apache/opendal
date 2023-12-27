@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
-  "description": "Open Data Access Layer: Access data freely",
+  "description": "Apache OpenDAL: Access data freely",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "napi": {
     "name": "opendal",

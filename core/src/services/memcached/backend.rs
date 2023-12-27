@@ -18,22 +18,20 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use async_trait::async_trait;
-use bb8::RunError;
-use tokio::net::TcpStream;
-use tokio::sync::OnceCell;
-use serde::Deserialize;
 use super::ascii;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
-
-
+use async_trait::async_trait;
+use bb8::RunError;
+use serde::Deserialize;
+use tokio::net::TcpStream;
+use tokio::sync::OnceCell;
 
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct MemcachedConfig{
+pub struct MemcachedConfig {
     /// network address of the memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -46,12 +44,11 @@ pub struct MemcachedConfig{
     default_ttl: Option<Duration>,
 }
 
-
 /// [Memcached](https://memcached.org/) service support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct MemcachedBuilder {
-   config: MemcachedConfig
+    config: MemcachedConfig,
 }
 
 impl MemcachedBuilder {
@@ -88,8 +85,8 @@ impl Builder for MemcachedBuilder {
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = MemcachedConfig::deserialize(ConfigDeserializer::new(map))
-        .expect("config deserialize must succeed");
-        MemcachedBuilder {config}
+            .expect("config deserialize must succeed");
+        MemcachedBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -142,7 +139,8 @@ impl Builder for MemcachedBuilder {
         let endpoint = format!("{host}:{port}",);
 
         let root = normalize_root(
-            self.config.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -219,7 +217,8 @@ impl kv::Adapter for Adapter {
             &percent_encode_path(key),
             value,
             // Set expiration to 0 if ttl not set.
-            self.config.default_ttl
+            self.config
+                .default_ttl
                 .map(|v| v.as_secs() as u32)
                 .unwrap_or_default(),
         )

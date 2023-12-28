@@ -71,7 +71,8 @@ services-all = [
   "services-mysql",
   "services-redb",
   "services-redis",
-  "services-rocksdb",
+  # FIXME how to support rocksdb services in bindings?
+  # "services-rocksdb",
   "services-sled",
   "services-supabase",
   "services-swift",

@@ -1,5 +1,5 @@
 ---
-title: Welcome to Apache OpenDAL
+title: Welcome to Apache OpenDAL™
 sidebar_position: 1
 ---
 

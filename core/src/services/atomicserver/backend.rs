@@ -47,7 +47,7 @@ use crate::*;
 
 /// Atomicserver service support.
 
-/// Config for atomicserver services support
+/// Config for Atomicserver services support
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
@@ -69,7 +69,6 @@ impl Debug for AtomicserverConfig {
         f.debug_struct("AtomicserverConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("private_key", &self.private_key)
             .field("public_key", &self.public_key)
             .field("parent_resource_id", &self.parent_resource_id)
             .finish_non_exhaustive()

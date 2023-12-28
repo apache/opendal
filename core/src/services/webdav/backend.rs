@@ -29,6 +29,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
@@ -37,25 +38,47 @@ use super::writer::WebdavWriter;
 use crate::raw::*;
 use crate::*;
 
-/// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct WebdavBuilder {
+/// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct WebdavConfig {
     endpoint: Option<String>,
     username: Option<String>,
     password: Option<String>,
     token: Option<String>,
     root: Option<String>,
+}
+
+impl Debug for WebdavConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("WebdavConfig");
+
+        d.field("endpoint", &self.endpoint)
+            .field("username", &self.username)
+            .field("password", &self.password)
+            .field("token", &self.token)
+            .field("root", &self.root);
+
+        d.finish_non_exhaustive()
+    }
+}
+
+/// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct WebdavBuilder {
+    config: WebdavConfig,
     http_client: Option<HttpClient>,
 }
 
 impl Debug for WebdavBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("Builder");
-        de.field("endpoint", &self.endpoint);
-        de.field("root", &self.root);
+        let mut d = f.debug_struct("WebdavBuilder");
 
-        de.finish()
+        d.field("config", &self.config);
+
+        d.finish_non_exhaustive()
     }
 }
 
@@ -64,7 +87,7 @@ impl WebdavBuilder {
     ///
     /// For example: `https://example.com`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -78,7 +101,7 @@ impl WebdavBuilder {
     /// default: no password
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
-            self.username = Some(username.to_owned());
+            self.config.username = Some(username.to_owned());
         }
         self
     }
@@ -88,7 +111,7 @@ impl WebdavBuilder {
     /// default: no password
     pub fn password(&mut self, password: &str) -> &mut Self {
         if !password.is_empty() {
-            self.password = Some(password.to_owned());
+            self.config.password = Some(password.to_owned());
         }
         self
     }
@@ -98,14 +121,14 @@ impl WebdavBuilder {
     /// default: no access token
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_owned());
+            self.config.token = Some(token.to_owned());
         }
         self
     }
 
     /// Set root path of http backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -145,7 +168,7 @@ impl Builder for WebdavBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
@@ -162,7 +185,7 @@ impl Builder for WebdavBuilder {
         // returned in the `href`.
         let base_dir = uri.path().trim_end_matches('/');
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -175,13 +198,13 @@ impl Builder for WebdavBuilder {
         };
 
         let mut auth = None;
-        if let Some(username) = &self.username {
+        if let Some(username) = &self.config.username {
             auth = Some(format_authorization_by_basic(
                 username,
-                self.password.as_deref().unwrap_or_default(),
+                self.config.password.as_deref().unwrap_or_default(),
             )?);
         }
-        if let Some(token) = &self.token {
+        if let Some(token) = &self.config.token {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 

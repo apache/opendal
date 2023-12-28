@@ -123,6 +123,7 @@ services-azfile = []
 services-b2 = []
 services-seafile = []
 services-upyun = ["dep:hmac", "dep:sha1"]
+services-chainsafe = []
 services-cacache = ["dep:cacache"]
 services-cloudflare-kv = []
 services-cos = [

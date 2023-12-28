@@ -2279,6 +2279,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_test_aws_s3_assume_role_with_web_identity"
+version = "0.0.0"
+dependencies = [
+ "opendal",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "edge_test_file_write_on_full_disk"
 version = "0.0.0"
 dependencies = [

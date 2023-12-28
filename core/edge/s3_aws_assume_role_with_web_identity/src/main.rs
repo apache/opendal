@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
         .is_exist(&uuid::Uuid::new_v4().to_string())
         .await
         .expect("this operation should never return error");
-    assert_eq!(result, false, "the file must be not exist");
+    assert!(!result, "the file must be not exist");
 
     Ok(())
 }

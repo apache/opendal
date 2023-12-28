@@ -53,7 +53,8 @@ services-all = [
   "services-cacache",
   "services-dashmap",
   "services-dropbox",
-  "services-etcd",
+  # FIXME this service need protoc
+  # "services-etcd",
   # FIXME this requires a preinstalled fdb library
   # "services-foundationdb",
   # "services-ftp",
@@ -76,7 +77,8 @@ services-all = [
   "services-sled",
   "services-supabase",
   "services-swift",
-  "services-tikv",
+  # FIXME this service need protoc
+  # "services-tikv",
   "services-vercel-artifacts",
   "services-wasabi",
   "services-mongodb",

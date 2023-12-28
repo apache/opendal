@@ -258,6 +258,8 @@ pub use self::postgresql::PostgresqlConfig;
 mod atomicserver;
 #[cfg(feature = "services-atomicserver")]
 pub use self::atomicserver::Atomicserver;
+#[cfg(feature = "services-atomicserver")]
+pub use self::atomicserver::AtomicserverConfig;
 
 #[cfg(feature = "services-mysql")]
 mod mysql;

@@ -19,15 +19,12 @@ name: Bindings Python CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/python/**"
       - ".github/workflows/bindings_python.yml"
   workflow_dispatch:
 
@@ -41,7 +38,6 @@ permissions:
 jobs:
   sdist:
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v4
       - uses: PyO3/maturin-action@v1
@@ -57,7 +53,6 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     strategy:
       matrix:
         target: [x86_64, aarch64, armv7l]
@@ -86,7 +81,6 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v4
       - name: Install Protoc
@@ -107,7 +101,6 @@ jobs:
 
   macos:
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v4
       - name: Install Protoc

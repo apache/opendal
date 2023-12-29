@@ -16,7 +16,13 @@
 // under the License.
 
 use fuse3::path::prelude::*;
-use fuse3::MountOptions;
+use fuse3::Result;
+
+use async_trait::async_trait;
+use futures_util::stream::{Empty, Iter};
+use libc;
+use std::ffi::OsStr;
+use std::vec::IntoIter;
 
 use opendal::Operator;
 
@@ -24,7 +30,10 @@ pub struct Ofs {
     pub op: Operator,
 }
 
+#[async_trait]
 impl PathFilesystem for Ofs {
+    type DirEntryStream = Empty<Result<DirectoryEntry>>;
+    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
 
     // Init a fuse filesystem
     async fn init(&self, _req: Request) -> Result<()> {

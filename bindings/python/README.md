@@ -103,5 +103,5 @@ Build API docs:
 
 ```shell
 maturin develop -E docs
-pdoc opendal
+pdoc -t ./template opendal
 ```

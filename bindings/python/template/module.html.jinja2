@@ -1,0 +1,13 @@
+{% extends "default/module.html.jinja2" %}
+{% block nav_title %}
+<h1>Apache OpenDAL™</h1>
+{% endblock %}
+{% block module_contents %}
+{{ super() }}
+<footer>
+Copyright © 2022-<script>document.write(new Date().getFullYear())</script>,
+The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator, the Apache feather,
+the Apache Incubator logo and the Apache OpenDAL project logo are either registered trademarks or
+trademarks of the Apache Software Foundation.
+</footer>
+{% endblock %}

@@ -50,6 +50,7 @@ cabal test
 ## Doc
 
 To generate the documentation:
+
 ```bash
 cabal haddock
 ```

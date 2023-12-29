@@ -350,7 +350,7 @@ impl Accessor for WebdavBackend {
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
         let item = result
             .response
-            .get(0)
+            .first()
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,

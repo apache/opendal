@@ -19,9 +19,9 @@ cabal-version:      3.0
 name:               opendal
 version:            0.1.0.0
 license:            Apache-2.0
-synopsis:           OpenDAL Haskell Binding
+synopsis:           Apache OpenDAL™ Haskell Binding
 description:
-    OpenDAL Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
+    Apache OpenDAL™ Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
 author:             OpenDAL Contributors
 maintainer:         dev@opendal.apache.org
 category:           Storage, Binding

@@ -69,6 +69,8 @@ pub use ftp::FtpConfig;
 mod gcs;
 #[cfg(feature = "services-gcs")]
 pub use gcs::Gcs;
+#[cfg(feature = "services-gcs")]
+pub use gcs::GcsConfig;
 
 #[cfg(feature = "services-ghac")]
 mod ghac;

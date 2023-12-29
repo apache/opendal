@@ -30,5 +30,5 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-fuse3 = "0.6.1"
+fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime"] }
 opendal.workspace = true

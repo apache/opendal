@@ -2662,6 +2662,7 @@ dependencies = [
  "nix",
  "serde",
  "slab",
+ "tokio",
  "tracing",
 ]
 

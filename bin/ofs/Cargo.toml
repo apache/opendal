@@ -30,4 +30,5 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+fuse3 = "0.6.1"
 opendal.workspace = true

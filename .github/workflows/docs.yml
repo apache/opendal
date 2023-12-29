@@ -142,7 +142,7 @@ jobs:
 
       - name: Build Docs
         working-directory: bindings/python
-        run: pdoc --output-dir ./docs opendal
+        run: pdoc -t ./template --output-dir ./docs opendal
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

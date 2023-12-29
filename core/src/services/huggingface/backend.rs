@@ -309,7 +309,7 @@ impl Accessor for HuggingfaceBackend {
                     .map_err(new_json_deserialize_error)?;
 
                 // NOTE: if the file is not found, the server will return 200 with an empty array
-                if let Some(status) = decoded_response.get(0) {
+                if let Some(status) = decoded_response.first() {
                     if let Some(commit_info) = status.last_commit.as_ref() {
                         meta.set_last_modified(parse_datetime_from_rfc3339(
                             commit_info.date.as_str(),

@@ -74,9 +74,9 @@ impl PathFilesystem for Ofs {
     async fn mkdir(
         &self,
         _req: Request,
-        parent: &OsStr,
-        name: &OsStr,
-        mode: u32,
+        _parent: &OsStr,
+        _name: &OsStr,
+        _mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
         // TODO
@@ -161,6 +161,7 @@ impl PathFilesystem for Ofs {
     }
 
     async fn unlink(&self, _req: Request, _parent: &OsStr, _name: &OsStr) -> Result<()> {
+        // TODO
         Err(libc::ENOSYS.into())
     }
 }

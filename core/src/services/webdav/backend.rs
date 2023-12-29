@@ -43,11 +43,16 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct WebdavConfig {
-    endpoint: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    token: Option<String>,
-    root: Option<String>,
+    /// endpoint of this backend
+    pub endpoint: Option<String>,
+    /// username of this backend
+    pub username: Option<String>,
+    /// password of this backend
+    pub password: Option<String>,
+    /// token of this backend
+    pub token: Option<String>,
+    /// root of this backend
+    pub root: Option<String>,
 }
 
 impl Debug for WebdavConfig {
@@ -56,8 +61,6 @@ impl Debug for WebdavConfig {
 
         d.field("endpoint", &self.endpoint)
             .field("username", &self.username)
-            .field("password", &self.password)
-            .field("token", &self.token)
             .field("root", &self.root);
 
         d.finish_non_exhaustive()

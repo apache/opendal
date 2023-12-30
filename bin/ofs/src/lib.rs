@@ -20,6 +20,7 @@ use fuse3::Result;
 
 use async_trait::async_trait;
 use futures_util::stream::{Empty, Iter};
+use log;
 use std::ffi::OsStr;
 use std::vec::IntoIter;
 
@@ -50,117 +51,177 @@ impl PathFilesystem for Ofs {
     async fn getattr(
         &self,
         _req: Request,
-        _path: Option<&OsStr>,
+        path: Option<&OsStr>,
         _fh: Option<u64>,
         _flags: u32,
     ) -> Result<ReplyAttr> {
         // TODO
+        log::debug!("getattr(path={:?})", path);
+
         Err(libc::ENOSYS.into())
     }
 
     async fn read(
         &self,
         _req: Request,
-        _path: Option<&OsStr>,
-        _fh: u64,
-        _offset: u64,
-        _size: u32,
+        path: Option<&OsStr>,
+        fh: u64,
+        offset: u64,
+        size: u32,
     ) -> Result<ReplyData> {
         // TODO
+        log::debug!(
+            "read(path={:?}, fh={}, offset={}, size={})",
+            path,
+            fh,
+            offset,
+            size
+        );
+
         Err(libc::ENOSYS.into())
     }
 
     async fn mkdir(
         &self,
         _req: Request,
-        _parent: &OsStr,
-        _name: &OsStr,
-        _mode: u32,
+        parent: &OsStr,
+        name: &OsStr,
+        mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
         // TODO
+        log::debug!(
+            "mkdir(parent={:?}, name={:?}, mode=0o{:o})",
+            parent,
+            name,
+            mode
+        );
+
         Err(libc::ENOSYS.into())
     }
 
     async fn readdir(
         &self,
         _req: Request,
-        _path: &OsStr,
-        _fh: u64,
-        _offset: i64,
+        path: &OsStr,
+        fh: u64,
+        offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
         // TODO
+        log::debug!("readdir(path={:?}, fh={}, offset={})", path, fh, offset);
+
         Err(libc::ENOSYS.into())
     }
 
     async fn mknod(
         &self,
         _req: Request,
-        _parent: &OsStr,
-        _name: &OsStr,
-        _mode: u32,
+        parent: &OsStr,
+        name: &OsStr,
+        mode: u32,
         _rdev: u32,
     ) -> Result<ReplyEntry> {
         // TODO
+        log::debug!(
+            "mknod(parent={:?}, name={:?}, mode=0o{:o})",
+            parent,
+            name,
+            mode
+        );
+
         Err(libc::ENOSYS.into())
     }
 
-    async fn open(&self, _req: Request, _path: &OsStr, _flags: u32) -> Result<ReplyOpen> {
+    async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
         // TODO
+        log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
+
         Err(libc::ENOSYS.into())
     }
 
     async fn setattr(
         &self,
         _req: Request,
-        _path: Option<&OsStr>,
+        path: Option<&OsStr>,
         _fh: Option<u64>,
         _set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
         // TODO
+        log::debug!(
+            "setattr(path={:?})",
+            path
+        );
+
         Err(libc::ENOSYS.into())
     }
 
     async fn write(
         &self,
         _req: Request,
-        _path: Option<&OsStr>,
-        _fh: u64,
-        _offset: u64,
-        _data: &[u8],
-        _flags: u32,
+        path: Option<&OsStr>,
+        fh: u64,
+        offset: u64,
+        data: &[u8],
+        flags: u32,
     ) -> Result<ReplyWrite> {
         // TODO
+        log::debug!(
+            "write(path={:?}, fh={}, offset={}, len={}, flags=0x{:x})",
+            path,
+            fh,
+            offset,
+            data.len(),
+            flags
+        );
+
         Err(libc::ENOSYS.into())
     }
 
     async fn release(
         &self,
         _req: Request,
-        _path: Option<&OsStr>,
-        _fh: u64,
-        _flags: u32,
+        path: Option<&OsStr>,
+        fh: u64,
+        flags: u32,
         _lock_owner: u64,
-        _flush: bool,
+        flush: bool,
     ) -> Result<()> {
         // TODO
+        log::debug!(
+            "release(path={:?}, fh={}, flags={}, flush={})",
+            path,
+            fh,
+            flags,
+            flush
+        );
+
         Err(libc::ENOSYS.into())
     }
 
     async fn rename(
         &self,
         _req: Request,
-        _origin_parent: &OsStr,
-        _origin_name: &OsStr,
-        _parent: &OsStr,
-        _name: &OsStr,
+        origin_parent: &OsStr,
+        origin_name: &OsStr,
+        parent: &OsStr,
+        name: &OsStr,
     ) -> Result<()> {
         // TODO
+        log::debug!(
+            "rename(p={:?}, name={:?}, newp={:?}, newname={:?})",
+            origin_parent,
+            origin_name,
+            parent,
+            name
+        );
+
         Err(libc::ENOSYS.into())
     }
 
-    async fn unlink(&self, _req: Request, _parent: &OsStr, _name: &OsStr) -> Result<()> {
+    async fn unlink(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<()> {
         // TODO
+        log::debug!("unlink(parent={:?}, name={:?})", parent, name);
+
         Err(libc::ENOSYS.into())
     }
 }

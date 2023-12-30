@@ -41,6 +41,10 @@ tracing-subscriber = { version = "0.3", features = [
 uuid = { version = "1", features = ["v4"] }
 
 [[bin]]
+name = "fuzz_reader_with_buffer"
+path = "fuzz_reader_with_buffer.rs"
+
+[[bin]]
 name = "fuzz_reader"
 path = "fuzz_reader.rs"
 

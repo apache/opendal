@@ -65,6 +65,7 @@ jobs:
           name: fuzz_targets
           path: |
             ./target/x86_64-unknown-linux-gnu/release/fuzz_reader
+            ./target/x86_64-unknown-linux-gnu/release/fuzz_reader_with_buffer
             ./target/x86_64-unknown-linux-gnu/release/fuzz_writer
 
   fuzz-test-s3:
@@ -81,7 +82,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
@@ -116,7 +117,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
@@ -141,7 +142,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev

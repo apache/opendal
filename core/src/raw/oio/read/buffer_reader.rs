@@ -96,21 +96,22 @@ where
     }
 
     fn consume(&mut self, amt: usize) {
-        self.pos = min(self.pos + amt, self.filled);
+        let new_pos = min(self.pos + amt, self.filled);
+        let amt = new_pos - self.pos;
+
+        self.pos = new_pos;
         self.cur += amt as u64;
     }
 
     fn seek_relative(&mut self, offset: i64) -> Option<u64> {
         let pos = self.pos as u64;
-        if offset < 0 {
-            if let Some(new_pos) = pos.checked_sub((-offset) as u64) {
-                self.cur -= (-offset) as u64;
-                self.pos = new_pos as usize;
-                return Some(self.cur);
-            }
-        } else if let Some(new_pos) = pos.checked_add(offset as u64) {
+
+        if let (Some(new_pos), Some(new_cur)) = (
+            pos.checked_add_signed(offset),
+            self.cur.checked_add_signed(offset),
+        ) {
             if new_pos <= self.filled as u64 {
-                self.cur += offset as u64;
+                self.cur = new_cur;
                 self.pos = new_pos as usize;
                 return Some(self.cur);
             }
@@ -148,7 +149,6 @@ where
         }
 
         let rem = ready!(self.poll_fill_buf(cx))?;
-
         let amt = min(rem.len(), dst.len());
         dst.put(&rem[..amt]);
         self.consume(amt);
@@ -161,12 +161,7 @@ where
                 // TODO(weny): Check the overflowing.
                 match (new_pos as i64).checked_sub(self.cur as i64) {
                     Some(n) => n,
-                    _ => {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "invalid seek to a negative or overflowing position",
-                        )))
-                    }
+                    _ => return self.poll_inner_seek(cx, pos),
                 }
             }
             SeekFrom::Current(offset) => offset,

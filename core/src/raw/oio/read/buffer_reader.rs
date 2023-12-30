@@ -92,6 +92,10 @@ impl<R> BufferReader<R> {
 
         None
     }
+
+    fn unconsumed_buffer_len(&self) -> i64 {
+        (self.filled as i64) - (self.pos as i64)
+    }
 }
 
 impl<R> BufferReader<R>
@@ -172,7 +176,8 @@ where
             }
             SeekFrom::Current(offset) => match self.seek_relative(offset) {
                 Some(cur) => Poll::Ready(Ok(cur)),
-                None => self.poll_inner_seek(cx, pos),
+                None => self
+                    .poll_inner_seek(cx, SeekFrom::Current(offset - self.unconsumed_buffer_len())),
             },
             SeekFrom::End(_) => self.poll_inner_seek(cx, pos),
         }
@@ -272,7 +277,7 @@ where
             }
             SeekFrom::Current(offset) => match self.seek_relative(offset) {
                 Some(cur) => Ok(cur),
-                None => self.inner_seek(pos),
+                None => self.inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len())),
             },
             SeekFrom::End(_) => self.inner_seek(pos),
         }
@@ -521,6 +526,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_bypass_seek_relative() -> anyhow::Result<()> {
+        let bs = Bytes::copy_from_slice(
+            &b"Hello, World! I'm going to tests a seek relative related bug!"[..],
+        );
+        let acc = Arc::new(MockReadService::new(bs.clone()));
+        let r = Box::new(RangeReader::new(
+            acc,
+            "x",
+            OpRead::default().with_range(BytesRange::from(..)),
+        )) as oio::Reader;
+        let mut r = Box::new(BufferReader::new(r, 10)) as oio::Reader;
+
+        let mut cur = 0;
+        for _ in 0..3 {
+            let mut dst = [0u8; 5];
+            let nread = r.read(&mut dst).await?;
+            assert_eq!(nread, 5);
+            cur += 5;
+        }
+
+        let ret_cur = r.seek(SeekFrom::Current(-15)).await?;
+        assert_eq!(cur - 15, ret_cur);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_read_part() -> anyhow::Result<()> {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
@@ -668,6 +700,28 @@ mod tests {
             format!("{:x}", Sha256::digest(&buf)),
             "read twice content"
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_blocking_bypass_seek_relative() -> anyhow::Result<()> {
+        let bs = Bytes::copy_from_slice(
+            &b"Hello, World! I'm going to tests a seek relative related bug!"[..],
+        );
+        let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
+        let mut r = Box::new(BufferReader::new(r, 10)) as oio::BlockingReader;
+
+        let mut cur = 0;
+        for _ in 0..3 {
+            let mut dst = [0u8; 5];
+            let nread = r.read(&mut dst)?;
+            assert_eq!(nread, 5);
+            cur += 5;
+        }
+
+        let ret_cur = r.seek(SeekFrom::Current(-15))?;
+        assert_eq!(cur - 15, ret_cur);
 
         Ok(())
     }

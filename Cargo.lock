@@ -4483,6 +4483,7 @@ dependencies = [
  "fuse3",
  "futures-util",
  "libc",
+ "log",
  "opendal",
 ]
 

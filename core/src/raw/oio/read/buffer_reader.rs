@@ -29,6 +29,8 @@ use std::task::Poll;
 use crate::raw::*;
 use crate::*;
 
+use super::BlockingRead;
+
 /// [BufferReader] allows the underlying reader to fetch data at the buffer's size
 /// and is used to amortize the IO's overhead.
 pub struct BufferReader<R> {
@@ -65,6 +67,31 @@ impl<R> BufferReader<R> {
     fn capacity(&self) -> usize {
         self.buf.capacity()
     }
+
+    fn consume(&mut self, amt: usize) {
+        let new_pos = min(self.pos + amt, self.filled);
+        let amt = new_pos - self.pos;
+
+        self.pos = new_pos;
+        self.cur += amt as u64;
+    }
+
+    fn seek_relative(&mut self, offset: i64) -> Option<u64> {
+        let pos = self.pos as u64;
+
+        if let (Some(new_pos), Some(new_cur)) = (
+            pos.checked_add_signed(offset),
+            self.cur.checked_add_signed(offset),
+        ) {
+            if new_pos <= self.filled as u64 {
+                self.cur = new_cur;
+                self.pos = new_pos as usize;
+                return Some(self.cur);
+            }
+        }
+
+        None
+    }
 }
 
 impl<R> BufferReader<R>
@@ -93,31 +120,6 @@ where
         }
 
         Poll::Ready(Ok(&self.buf[self.pos..self.filled]))
-    }
-
-    fn consume(&mut self, amt: usize) {
-        let new_pos = min(self.pos + amt, self.filled);
-        let amt = new_pos - self.pos;
-
-        self.pos = new_pos;
-        self.cur += amt as u64;
-    }
-
-    fn seek_relative(&mut self, offset: i64) -> Option<u64> {
-        let pos = self.pos as u64;
-
-        if let (Some(new_pos), Some(new_cur)) = (
-            pos.checked_add_signed(offset),
-            self.cur.checked_add_signed(offset),
-        ) {
-            if new_pos <= self.filled as u64 {
-                self.cur = new_cur;
-                self.pos = new_pos as usize;
-                return Some(self.cur);
-            }
-        }
-
-        None
     }
 
     fn poll_inner_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
@@ -188,6 +190,106 @@ where
                 Poll::Ready(Some(Ok(bytes)))
             }
             Err(err) => Poll::Ready(Some(Err(err))),
+        }
+    }
+}
+
+impl<R> BufferReader<R>
+where
+    R: BlockingRead,
+{
+    fn fill_buf(&mut self) -> Result<&[u8]> {
+        // If we've reached the end of our internal buffer then we need to fetch
+        // some more data from the underlying reader.
+        // Branch using `>=` instead of the more correct `==`
+        // to tell the compiler that the pos..cap slice is always valid.
+        if self.pos >= self.filled {
+            debug_assert!(self.pos == self.filled);
+
+            let cap = self.capacity();
+            self.buf.clear();
+            let dst = self.buf.spare_capacity_mut();
+            let mut buf = ReadBuf::uninit(dst);
+            unsafe { buf.assume_init(cap) };
+
+            let n = self.r.read(buf.initialized_mut())?;
+            unsafe { self.buf.set_len(n) }
+
+            self.pos = 0;
+            self.filled = n;
+        }
+
+        Ok(&self.buf[self.pos..self.filled])
+    }
+
+    fn inner_seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let cur = self.r.seek(pos)?;
+        self.discard_buffer();
+        self.cur = cur;
+
+        Ok(cur)
+    }
+}
+
+impl<R> BlockingRead for BufferReader<R>
+where
+    R: BlockingRead,
+{
+    fn read(&mut self, mut dst: &mut [u8]) -> Result<usize> {
+        // Sanity check for normal cases.
+        if dst.is_empty() {
+            return Ok(0);
+        }
+
+        // If we don't have any buffered data and we're doing a massive read
+        // (larger than our internal buffer), bypass our internal buffer
+        // entirely.
+        if self.pos == self.filled && dst.len() >= self.capacity() {
+            let res = self.r.read(dst);
+            self.discard_buffer();
+            return res;
+        }
+
+        let rem = self.fill_buf()?;
+        let amt = min(rem.len(), dst.len());
+        dst.put(&rem[..amt]);
+        self.consume(amt);
+        Ok(amt)
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        match pos {
+            SeekFrom::Start(new_pos) => {
+                // TODO(weny): Check the overflowing.
+                let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
+                    return self.inner_seek(pos);
+                };
+
+                match self.seek_relative(offset) {
+                    Some(cur) => Ok(cur),
+                    None => self.inner_seek(pos),
+                }
+            }
+            SeekFrom::Current(offset) => match self.seek_relative(offset) {
+                Some(cur) => Ok(cur),
+                None => self.inner_seek(pos),
+            },
+            SeekFrom::End(_) => self.inner_seek(pos),
+        }
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        match self.fill_buf() {
+            Ok(bytes) => {
+                if bytes.is_empty() {
+                    return None;
+                }
+
+                let bytes = Bytes::copy_from_slice(bytes);
+                self.consume(bytes.len());
+                Some(Ok(bytes))
+            }
+            Err(err) => Some(Err(err)),
         }
     }
 }

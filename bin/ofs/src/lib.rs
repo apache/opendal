@@ -147,10 +147,7 @@ impl PathFilesystem for Ofs {
         _set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
         // TODO
-        log::debug!(
-            "setattr(path={:?})",
-            path
-        );
+        log::debug!("setattr(path={:?})", path);
 
         Err(libc::ENOSYS.into())
     }

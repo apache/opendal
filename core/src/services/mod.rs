@@ -206,6 +206,8 @@ pub use supabase::Supabase;
 mod webdav;
 #[cfg(feature = "services-webdav")]
 pub use webdav::Webdav;
+#[cfg(feature = "services-webdav")]
+pub use webdav::WebdavConfig;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;

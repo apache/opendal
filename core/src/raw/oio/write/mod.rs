@@ -25,7 +25,6 @@ pub use api::Writer;
 
 mod compose_write;
 pub use compose_write::ThreeWaysWriter;
-pub use compose_write::TwoWaysWriter;
 
 mod multipart_upload_write;
 pub use multipart_upload_write::MultipartUploadPart;

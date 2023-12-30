@@ -71,3 +71,6 @@ pub mod adapters;
 pub mod oio;
 #[cfg(feature = "tests")]
 pub mod tests;
+
+mod enum_utils;
+pub use enum_utils::TwoWays;

@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type CosWriters =
-    oio::TwoWaysWriter<oio::MultipartUploadWriter<CosWriter>, oio::AppendObjectWriter<CosWriter>>;
+    TwoWays<oio::MultipartUploadWriter<CosWriter>, oio::AppendObjectWriter<CosWriter>>;
 
 pub struct CosWriter {
     core: Arc<CosCore>,

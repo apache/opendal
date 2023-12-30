@@ -21,29 +21,21 @@ use std::task::{Context, Poll};
 use crate::raw::*;
 use crate::*;
 
-/// FourWaysReader is used to implement [`Read`] based on four ways.
+/// TwoWays is used to implement [`Read`] or [`Writer`] based on two ways.
 ///
-/// Users can wrap four different readers together.
-pub enum FourWaysReader<ONE, TWO, THREE, FOUR> {
-    /// The first type for the [`FourWaysReader`].
+/// Users can wrap two different readers/writers together.
+pub enum TwoWays<ONE, TWO> {
+    /// The first type for the [`TwoWays`].
     One(ONE),
-    /// The second type for the [`FourWaysReader`].
+    /// The second type for the [`TwoWays`].
     Two(TWO),
-    /// The third type for the [`FourWaysReader`].
-    Three(THREE),
-    /// The fourth type for the [`FourWaysReader`].
-    Four(FOUR),
 }
 
-impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Read
-    for FourWaysReader<ONE, TWO, THREE, FOUR>
-{
+impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match self {
             Self::One(one) => one.poll_read(cx, buf),
             Self::Two(two) => two.poll_read(cx, buf),
-            Self::Three(three) => three.poll_read(cx, buf),
-            Self::Four(four) => four.poll_read(cx, buf),
         }
     }
 
@@ -51,8 +43,6 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Rea
         match self {
             Self::One(one) => one.poll_seek(cx, pos),
             Self::Two(two) => two.poll_seek(cx, pos),
-            Self::Three(three) => three.poll_seek(cx, pos),
-            Self::Four(four) => four.poll_seek(cx, pos),
         }
     }
 
@@ -60,25 +50,15 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Rea
         match self {
             Self::One(one) => one.poll_next(cx),
             Self::Two(two) => two.poll_next(cx),
-            Self::Three(three) => three.poll_next(cx),
-            Self::Four(four) => four.poll_next(cx),
         }
     }
 }
 
-impl<
-        ONE: oio::BlockingRead,
-        TWO: oio::BlockingRead,
-        THREE: oio::BlockingRead,
-        FOUR: oio::BlockingRead,
-    > oio::BlockingRead for FourWaysReader<ONE, TWO, THREE, FOUR>
-{
+impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
             Self::One(one) => one.read(buf),
             Self::Two(two) => two.read(buf),
-            Self::Three(three) => three.read(buf),
-            Self::Four(four) => four.read(buf),
         }
     }
 
@@ -86,8 +66,6 @@ impl<
         match self {
             Self::One(one) => one.seek(pos),
             Self::Two(two) => two.seek(pos),
-            Self::Three(three) => three.seek(pos),
-            Self::Four(four) => four.seek(pos),
         }
     }
 
@@ -95,8 +73,29 @@ impl<
         match self {
             Self::One(one) => one.next(),
             Self::Two(two) => two.next(),
-            Self::Three(three) => three.next(),
-            Self::Four(four) => four.next(),
+        }
+    }
+}
+
+impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        match self {
+            Self::One(one) => one.poll_write(cx, bs),
+            Self::Two(two) => two.poll_write(cx, bs),
+        }
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        match self {
+            Self::One(one) => one.poll_close(cx),
+            Self::Two(two) => two.poll_close(cx),
+        }
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        match self {
+            Self::One(one) => one.poll_abort(cx),
+            Self::Two(two) => two.poll_abort(cx),
         }
     }
 }

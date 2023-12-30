@@ -33,7 +33,7 @@ use crate::raw::oio::LazyReader;
 use crate::raw::oio::PrefixLister;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
-use crate::raw::oio::TwoWaysReader;
+use crate::raw::TwoWays;
 use crate::raw::*;
 use crate::*;
 
@@ -471,10 +471,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = oio::TwoWaysWriter<
-        CompleteWriter<A::Writer>,
-        oio::ExactBufWriter<CompleteWriter<A::Writer>>,
-    >;
+    type Writer =
+        TwoWays<CompleteWriter<A::Writer>, oio::ExactBufWriter<CompleteWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
@@ -540,8 +538,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         let w = CompleteWriter::new(w);
 
         let w = match buffer_size {
-            None => oio::TwoWaysWriter::One(w),
-            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size)),
+            None => TwoWays::One(w),
+            Some(size) => TwoWays::Two(oio::ExactBufWriter::new(w, size)),
         };
 
         Ok((rp, w))
@@ -676,7 +674,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 }
 
 pub type CompleteReader<A, R> =
-    TwoWaysReader<InnerCompleteReader<A, R>, BufferReader<InnerCompleteReader<A, R>>>;
+    TwoWays<InnerCompleteReader<A, R>, BufferReader<InnerCompleteReader<A, R>>>;
 
 type InnerCompleteReader<A, R> = FourWaysReader<
     LazyReader<A, R>,

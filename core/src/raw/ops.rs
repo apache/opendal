@@ -307,6 +307,9 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    /// The maximum buffer capability.
+    /// `None` stand for disable buffer.
+    buffer: Option<usize>,
 }
 
 impl OpRead {
@@ -408,6 +411,18 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+
+    /// Set the buffer capability.
+    pub fn with_buffer(mut self, buffer: usize) -> Self {
+        self.buffer = Some(buffer);
+
+        self
+    }
+
+    /// Get buffer from option.
+    pub fn buffer(&self) -> Option<usize> {
+        self.buffer
     }
 }
 

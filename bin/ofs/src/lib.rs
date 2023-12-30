@@ -20,7 +20,6 @@ use fuse3::Result;
 
 use async_trait::async_trait;
 use futures_util::stream::{Empty, Iter};
-use log;
 use std::ffi::OsStr;
 use std::vec::IntoIter;
 

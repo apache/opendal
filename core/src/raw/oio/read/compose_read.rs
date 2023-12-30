@@ -15,87 +15,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{
-    io::SeekFrom,
-    task::{Context, Poll},
-};
+use std::io::SeekFrom;
+use std::task::{Context, Poll};
 
 use crate::raw::*;
-
-/// TwoWaysReader is used to implement [`Read`] based on two ways.
-///
-/// Users can wrap two different readers together.
-pub enum TwoWaysReader<ONE, TWO> {
-    /// The first type for the [`TwoWaysReader`].
-    One(ONE),
-    /// The second type for the [`TwoWaysReader`].
-    Two(TWO),
-}
-
-impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWaysReader<ONE, TWO> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
-        match self {
-            Self::One(one) => one.poll_read(cx, buf),
-            Self::Two(two) => two.poll_read(cx, buf),
-        }
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<crate::Result<u64>> {
-        match self {
-            Self::One(one) => one.poll_seek(cx, pos),
-            Self::Two(two) => two.poll_seek(cx, pos),
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<bytes::Bytes>>> {
-        match self {
-            Self::One(one) => one.poll_next(cx),
-            Self::Two(two) => two.poll_next(cx),
-        }
-    }
-}
-
-impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWaysReader<ONE, TWO> {
-    fn read(&mut self, buf: &mut [u8]) -> crate::Result<usize> {
-        match self {
-            Self::One(one) => one.read(buf),
-            Self::Two(two) => two.read(buf),
-        }
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> crate::Result<u64> {
-        match self {
-            Self::One(one) => one.seek(pos),
-            Self::Two(two) => two.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<crate::Result<bytes::Bytes>> {
-        match self {
-            Self::One(one) => one.next(),
-            Self::Two(two) => two.next(),
-        }
-    }
-}
+use crate::*;
 
 /// FourWaysReader is used to implement [`Read`] based on four ways.
 ///
 /// Users can wrap four different readers together.
 pub enum FourWaysReader<ONE, TWO, THREE, FOUR> {
-    /// The first type for the [`TwoWaysReader`].
+    /// The first type for the [`FourWaysReader`].
     One(ONE),
-    /// The second type for the [`TwoWaysReader`].
+    /// The second type for the [`FourWaysReader`].
     Two(TWO),
-    /// The third type for the [`TwoWaysReader`].
+    /// The third type for the [`FourWaysReader`].
     Three(THREE),
-    /// The fourth type for the [`TwoWaysReader`].
+    /// The fourth type for the [`FourWaysReader`].
     Four(FOUR),
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Read
     for FourWaysReader<ONE, TWO, THREE, FOUR>
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match self {
             Self::One(one) => one.poll_read(cx, buf),
             Self::Two(two) => two.poll_read(cx, buf),
@@ -104,7 +47,7 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Rea
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<crate::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         match self {
             Self::One(one) => one.poll_seek(cx, pos),
             Self::Two(two) => two.poll_seek(cx, pos),
@@ -113,7 +56,7 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read, FOUR: oio::Read> oio::Rea
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
         match self {
             Self::One(one) => one.poll_next(cx),
             Self::Two(two) => two.poll_next(cx),
@@ -130,7 +73,7 @@ impl<
         FOUR: oio::BlockingRead,
     > oio::BlockingRead for FourWaysReader<ONE, TWO, THREE, FOUR>
 {
-    fn read(&mut self, buf: &mut [u8]) -> crate::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
             Self::One(one) => one.read(buf),
             Self::Two(two) => two.read(buf),
@@ -139,7 +82,7 @@ impl<
         }
     }
 
-    fn seek(&mut self, pos: SeekFrom) -> crate::Result<u64> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
             Self::One(one) => one.seek(pos),
             Self::Two(two) => two.seek(pos),
@@ -148,7 +91,7 @@ impl<
         }
     }
 
-    fn next(&mut self) -> Option<crate::Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
         match self {
             Self::One(one) => one.next(),
             Self::Two(two) => two.next(),

@@ -54,4 +54,3 @@ pub use buffer_reader::BufferReader;
 
 mod compose_read;
 pub use compose_read::FourWaysReader;
-pub use compose_read::TwoWaysReader;

@@ -27,7 +27,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type ObsWriters =
-    oio::TwoWaysWriter<oio::MultipartUploadWriter<ObsWriter>, oio::AppendObjectWriter<ObsWriter>>;
+    TwoWays<oio::MultipartUploadWriter<ObsWriter>, oio::AppendObjectWriter<ObsWriter>>;
 
 pub struct ObsWriter {
     core: Arc<ObsCore>,

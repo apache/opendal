@@ -40,6 +40,7 @@ struct FuzzInput {
     size: usize,
     range: BytesRange,
     actions: Vec<ReadAction>,
+    buffer: usize,
 }
 
 impl Debug for FuzzInput {
@@ -52,6 +53,7 @@ impl Debug for FuzzInput {
         f.debug_struct("FuzzInput")
             .field("path", &self.path)
             .field("size", &self.size)
+            .field("buffer", &self.buffer)
             .field("range", &self.range.to_string())
             .field("actions", &actions)
             .finish()
@@ -61,6 +63,7 @@ impl Debug for FuzzInput {
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let total_size = u.int_in_range(1..=MAX_DATA_SIZE)?;
+        let buffer = u.int_in_range(1..=MAX_DATA_SIZE + 1024)?;
 
         // TODO: it's valid that size is larger than total_size.
         let (offset, size) = match u.int_in_range(0..=3)? {
@@ -122,6 +125,7 @@ impl Arbitrary<'_> for FuzzInput {
             size: total_size,
             range,
             actions,
+            buffer,
         })
     }
 }
@@ -133,7 +137,7 @@ async fn fuzz_reader_with_buffer(op: Operator, input: FuzzInput) -> Result<()> {
     let r = op
         .reader_with(&input.path)
         .range(input.range.to_range())
-        .buffer(4096)
+        .buffer(input.buffer)
         .await?;
 
     checker.check(r, &input.actions).await;

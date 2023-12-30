@@ -70,14 +70,20 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_read_range,
         test_read_large_range,
         test_reader_range,
+        test_reader_range_with_buffer,
         test_reader_from,
+        test_reader_from_with_buffer,
         test_reader_tail,
+        test_reader_tail_with_buffer,
         test_read_not_exist,
         test_read_with_if_match,
         test_read_with_if_none_match,
         test_fuzz_reader_with_range,
+        test_fuzz_reader_with_range_and_buffer,
         test_fuzz_offset_reader,
+        test_fuzz_offset_reader_with_buffer,
         test_fuzz_part_reader,
+        test_fuzz_part_reader_with_buffer,
         test_read_with_dir_path,
         test_read_with_special_chars,
         test_read_with_override_cache_control,
@@ -756,6 +762,43 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Read range content should match.
+pub async fn test_reader_range_with_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes(op.info().full_capability());
+    let (offset, length) = gen_offset_length(size);
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut r = op
+        .reader_with(&path)
+        .range(offset..offset + length)
+        .buffer(4096)
+        .await?;
+
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
+
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!(
+            "{:x}",
+            Sha256::digest(&content[offset as usize..(offset + length) as usize])
+        ),
+        "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Read range from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
     if !op.info().full_capability().read_with_range {
@@ -787,6 +830,37 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Read range from should match.
+pub async fn test_reader_from_with_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes(op.info().full_capability());
+    let (offset, _) = gen_offset_length(size);
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut r = op.reader_with(&path).range(offset..).buffer(4096).await?;
+
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
+
+    assert_eq!(bs.len(), size - offset as usize, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Read range tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
     if !op.info().full_capability().read_with_range {
@@ -803,6 +877,45 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let mut r = match op.reader_with(&path).range(..length).await {
+        Ok(r) => r,
+        // Not all services support range with tail range, let's tolerate this.
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support range with tail");
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
+
+    assert_eq!(bs.len(), length as usize, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[size - length as usize..])),
+        "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Read range tail should match.
+pub async fn test_reader_tail_with_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes(op.info().full_capability());
+    let (_, length) = gen_offset_length(size);
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut r = match op.reader_with(&path).range(..length).buffer(4096).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -943,6 +1056,51 @@ pub async fn test_fuzz_reader_with_range(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_fuzz_reader_with_range_and_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
+    let mut o = op
+        .reader_with(&path)
+        .range(0..content.len() as u64)
+        .buffer(4096)
+        .await?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs).await?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos).await?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o
+                    .next()
+                    .await
+                    .map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
     if !op.info().full_capability().read_with_range {
         return Ok(());
@@ -958,6 +1116,47 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
     let mut o = op.reader_with(&path).range(0..).await?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs).await?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos).await?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o
+                    .next()
+                    .await
+                    .map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_fuzz_offset_reader_with_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
+    let mut o = op.reader_with(&path).range(0..).buffer(4096).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -1001,6 +1200,53 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
     let mut fuzzer =
         ObjectReaderFuzzer::new(&path, content.clone(), offset as usize, length as usize);
     let mut o = op.reader_with(&path).range(offset..offset + length).await?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs).await?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos).await?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o
+                    .next()
+                    .await
+                    .map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_fuzz_part_reader_with_buffer(op: Operator) -> Result<()> {
+    if !op.info().full_capability().read_with_range {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes(op.info().full_capability());
+    let (offset, length) = gen_offset_length(size);
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut fuzzer =
+        ObjectReaderFuzzer::new(&path, content.clone(), offset as usize, length as usize);
+    let mut o = op
+        .reader_with(&path)
+        .range(offset..offset + length)
+        .buffer(4096)
+        .await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

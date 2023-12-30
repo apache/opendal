@@ -409,6 +409,12 @@ impl FutureReader {
         self.0 = self.0.map_args(|args| args.with_if_none_match(v));
         self
     }
+
+    /// Set the buffer capability to enable `BufferReader`.
+    pub fn buffer(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_buffer(v));
+        self
+    }
 }
 
 impl Future for FutureReader {

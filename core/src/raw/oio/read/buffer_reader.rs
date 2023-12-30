@@ -156,21 +156,23 @@ where
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let offset = match pos {
+        match pos {
             SeekFrom::Start(new_pos) => {
                 // TODO(weny): Check the overflowing.
-                match (new_pos as i64).checked_sub(self.cur as i64) {
-                    Some(n) => n,
-                    _ => return self.poll_inner_seek(cx, pos),
+                let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
+                    return self.poll_inner_seek(cx, pos);
+                };
+
+                match self.seek_relative(offset) {
+                    Some(cur) => Poll::Ready(Ok(cur)),
+                    None => self.poll_inner_seek(cx, pos),
                 }
             }
-            SeekFrom::Current(offset) => offset,
-            _ => return self.poll_inner_seek(cx, pos),
-        };
-
-        match self.seek_relative(offset) {
-            Some(cur) => Poll::Ready(Ok(cur)),
-            None => self.poll_inner_seek(cx, pos),
+            SeekFrom::Current(offset) => match self.seek_relative(offset) {
+                Some(cur) => Poll::Ready(Ok(cur)),
+                None => self.poll_inner_seek(cx, pos),
+            },
+            SeekFrom::End(_) => self.poll_inner_seek(cx, pos),
         }
     }
 

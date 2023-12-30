@@ -78,9 +78,9 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
     }
 }
 
-/// FourWaysReader is used to implement [`Read`] based on two ways.
+/// FourWaysReader is used to implement [`Read`] based on four ways.
 ///
-/// Users can wrap two different readers together.
+/// Users can wrap four different readers together.
 pub enum FourWaysReader<ONE, TWO, THREE, FOUR> {
     /// The first type for the [`TwoWaysReader`].
     One(ONE),

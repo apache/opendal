@@ -220,7 +220,7 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
 
 /// FourWays is used to implement traits that based on four ways.
 ///
-/// Users can wrap two different trait types together.
+/// Users can wrap four different trait types together.
 pub enum FourWays<ONE, TWO, THREE, FOUR> {
     /// The first type for the [`FourWays`].
     One(ONE),

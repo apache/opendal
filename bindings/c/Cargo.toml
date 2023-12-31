@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.67"
-version = "0.44.0"
+version = "0.44.1"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]

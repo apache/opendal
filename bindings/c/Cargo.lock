@@ -921,7 +921,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "opendal"
-version = "0.44.0"
+version = "0.44.1"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -952,7 +952,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-c"
-version = "0.44.0"
+version = "0.44.1"
 dependencies = [
  "bytes",
  "cbindgen",

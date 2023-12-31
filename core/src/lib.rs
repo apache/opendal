@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL is the Open Data Access Layer to **freely** access data.
+#![cfg_attr(docs, feature(doc_auto_cfg))]
+
+//! Apache OpenDAL™ is a data access layer that allows users to easily and
+//! efficiently retrieve data from various storage services in a unified way.
 //!
 //! - Documentation: All docs are carried by self, visit [`docs`] for more.
 //! - Services: All supported services could be found at [`services`].
@@ -70,7 +73,7 @@ mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
-#[cfg(feature = "docs")]
+#[cfg(docs)]
 pub mod docs;
 pub mod layers;
 pub mod raw;

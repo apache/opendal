@@ -16,7 +16,7 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.10)
-project(opendal-cpp VERSION 0.43.0 LANGUAGES CXX)
+project(opendal-cpp VERSION 0.44.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

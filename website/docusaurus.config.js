@@ -29,15 +29,12 @@ const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST ? process.env.OP
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Apache OpenDAL',
+  title: 'Apache OpenDAL™',
   tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
   favicon: 'img/favicon.ico',
 
   url: 'https://opendal.apache.org/',
   baseUrl: '/',
-
-  organizationName: 'Apache',
-  projectName: 'OpenDAL',
 
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',

@@ -3,7 +3,7 @@ title: Quickstart
 sidebar_position: 3
 ---
 
-OpenDAL can be easily integrated into different software with its Rust core and multilingual bindings.
+Apache OpenDAL™ can be easily integrated into different software with its Rust core and multilingual bindings.
 
 ## Rust core
 

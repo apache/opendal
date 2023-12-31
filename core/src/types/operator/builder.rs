@@ -159,6 +159,8 @@ impl Operator {
             Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
             #[cfg(feature = "services-upyun")]
             Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
+            #[cfg(feature = "services-chainsafe")]
+            Scheme::Chainsafe => Self::from_map::<services::Chainsafe>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
             #[cfg(feature = "services-azdls")]

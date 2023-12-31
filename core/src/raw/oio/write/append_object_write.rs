@@ -20,7 +20,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 
 use crate::raw::*;
 use crate::*;
@@ -34,7 +33,8 @@ use crate::*;
 /// - Services impl `AppendObjectWrite`
 /// - `AppendObjectWriter` impl `Write`
 /// - Expose `AppendObjectWriter` as `Accessor::Writer`
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait AppendObjectWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
@@ -58,9 +58,14 @@ pub struct AppendObjectWriter<W: AppendObjectWrite> {
 
 enum State<W> {
     Idle(Option<W>),
-    Offset(BoxFuture<'static, (W, Result<u64>)>),
-    Append(BoxFuture<'static, (W, Result<usize>)>),
+    Offset(BoxedFuture<(W, Result<u64>)>),
+    Append(BoxedFuture<(W, Result<usize>)>),
 }
+
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<S: AppendObjectWrite> Send for State<S> {}
 
 /// # Safety
 ///

@@ -425,7 +425,6 @@ impl Operator {
     ///   }
     /// }
     /// ```
-    ///
     #[napi]
     pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
         let mut l = self.0.list_with(&path);

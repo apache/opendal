@@ -148,6 +148,8 @@ Please note that this version is the exact version of the release, not the relea
 
 ### Generate dependencies list
 
+Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html). 
+
 Running `python3 ./scripts/dependencies.py generate` to update the dependencies list of every package.
 
 ### Push release candidate tag
@@ -156,8 +158,7 @@ After bump version PR gets merged, we can create a GitHub release for the releas
 
 - Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
-- Create Release on the newly created tag
-    - If there are breaking changes, please add the content from `upgrade.md` before.
+
 
 :::note
 

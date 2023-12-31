@@ -49,6 +49,7 @@ pub struct HdfsConfig {
     pub user: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
+
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,
 }
@@ -149,7 +150,6 @@ impl HdfsBuilder {
         } else {
             Some(String::from(dir))
         };
-
         self
     }
 }

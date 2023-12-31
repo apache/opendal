@@ -27,7 +27,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type AzdlsWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<AzdlsWriter>, oio::AppendObjectWriter<AzdlsWriter>>;
+    TwoWays<oio::OneShotWriter<AzdlsWriter>, oio::AppendObjectWriter<AzdlsWriter>>;
 
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,

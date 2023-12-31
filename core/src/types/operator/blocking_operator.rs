@@ -886,17 +886,17 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// List entries within a given directory.
+    /// List entries that starts with given `path` in parent dir.
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use `BlockingOperator::list_with("path").recursive(true)`
     /// instead.
     ///
-    /// ## Streaming
+    /// ## Streaming List
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -905,7 +905,7 @@ impl BlockingOperator {
     /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please use [`BlockingOperator::list_with`] and `metakey`.
@@ -937,20 +937,20 @@ impl BlockingOperator {
         self.list_with(path).call()
     }
 
-    /// List entries within a given directory with options.
+    /// List entries that starts with given `path` in parent dir. with options.
     ///
     /// # Notes
     ///
-    /// ## For streaming
+    /// ## Streaming List
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
     /// contains a lot of entries.
     ///
-    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please specify the `metakey`.
@@ -1029,15 +1029,14 @@ impl BlockingOperator {
         ))
     }
 
-    /// List entries within a given directory as an iterator.
+    /// List entries that starts with given `path` in parent dir.
     ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// This function will create a new [`BlockingLister`] to list entries. Users can stop listing
+    /// via dropping this [`Lister`].
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use [`BlockingOperator::lister_with`] and `delimiter("")`

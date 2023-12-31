@@ -1,4 +1,4 @@
-# OpenDAL Java Bindings
+# Apache OpenDAL™ Java Bindings
 
 ![](https://img.shields.io/badge/status-released-blue)
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal-java&smo=true)

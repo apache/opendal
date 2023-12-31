@@ -20,6 +20,7 @@ default-members = ["core"]
 exclude = [
     "examples",
 
+    "bindings/c",
     "bindings/ocaml",
     "bindings/php",
     "bindings/ruby"
@@ -30,7 +31,6 @@ members = [
   "core/edge/*",
   "core/benches/vs_*",
 
-  "bindings/c",
   "bindings/nodejs",
   "bindings/python",
   "bindings/java",
@@ -55,10 +55,10 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.67"
-version = "0.43.0"
+version = "0.44.1"
 
 [workspace.dependencies]
-opendal = { version = "0.43", path = "core" }
+opendal = { version = "0.44", path = "core" }
 
 [profile.bench]
 debug = true

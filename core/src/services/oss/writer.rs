@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type OssWriters =
-    oio::TwoWaysWriter<oio::MultipartUploadWriter<OssWriter>, oio::AppendObjectWriter<OssWriter>>;
+    TwoWays<oio::MultipartUploadWriter<OssWriter>, oio::AppendObjectWriter<OssWriter>>;
 
 pub struct OssWriter {
     core: Arc<OssCore>,

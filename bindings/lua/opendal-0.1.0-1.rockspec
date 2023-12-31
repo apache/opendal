@@ -6,7 +6,7 @@ source = {
 }
 
 description = {
-    summary = "Apache OpenDAL LUA binding: access data freely. ",
+    summary = "Apache OpenDAL™ LUA binding: access data freely. ",
     detailed = [[
         OpenDAL is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
     ]],

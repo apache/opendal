@@ -272,7 +272,6 @@ impl Accessor for UpyunBackend {
 
                 list: true,
                 list_with_limit: true,
-                list_with_recursive: true,
 
                 ..Default::default()
             });

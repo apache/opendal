@@ -87,7 +87,8 @@ impl GdriveWriter {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let bs = bs.bytes(bs.remaining());

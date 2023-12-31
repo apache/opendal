@@ -1,4 +1,4 @@
-# OpenDAL Lua Binding (WIP)
+# Apache OpenDAL™ Lua Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-darwin-x64",
-  "version": "0.43.0",
+  "version": "0.44.1",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "os": [
     "darwin"

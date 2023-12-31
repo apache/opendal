@@ -43,7 +43,8 @@ impl GcsWriter {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::RangeWrite for GcsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(

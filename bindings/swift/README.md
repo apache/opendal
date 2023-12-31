@@ -1,4 +1,4 @@
-# OpenDAL Swift Binding (WIP)
+# Apache OpenDAL™ Swift Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 

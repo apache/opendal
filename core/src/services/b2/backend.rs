@@ -136,7 +136,7 @@ impl B2Builder {
     }
 
     /// Set bucket name of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.config.bucket = bucket.to_string();
 
@@ -144,7 +144,7 @@ impl B2Builder {
     }
 
     /// Set bucket id of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
         self.config.bucket_id = bucket_id.to_string();
 
@@ -301,7 +301,11 @@ impl Accessor for B2Backend {
                 // The max multipart size of b2 is 5 Gb.
                 //
                 // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 copy: true,

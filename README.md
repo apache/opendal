@@ -1,4 +1,4 @@
-# Apache OpenDAL
+# Apache OpenDAL™
 
 **OpenDAL** is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
 
@@ -139,6 +139,12 @@ OpenDAL is an active open-source project. We are always open to people who want 
 ### Java Binding
 
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
+
+## Branding
+
+The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.
+
+For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
 
 ## License
 

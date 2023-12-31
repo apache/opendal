@@ -260,9 +260,11 @@ impl bb8::ManageConnection for Manager {
         conn.noop().await
     }
 
-    /// Always allow reuse conn.
+    /// Don't allow reuse conn.
+    ///
+    /// We need to investigate why reuse conn will cause error.
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+        true
     }
 }
 

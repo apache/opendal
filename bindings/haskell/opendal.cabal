@@ -19,13 +19,13 @@ cabal-version:      3.0
 name:               opendal
 version:            0.1.0.0
 license:            Apache-2.0
-synopsis:           OpenDAL Haskell Binding
+synopsis:           Apache OpenDAL™ Haskell Binding
 description:
-    OpenDAL Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
+    Apache OpenDAL™ Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
 author:             OpenDAL Contributors
 maintainer:         dev@opendal.apache.org
 category:           Storage, Binding
-tested-with:        GHC ==9.2.7
+tested-with:        GHC ==9.4.8
 extra-doc-files:    README.md, CONTRIBUTING.md
 extra-source-files: src/*.rs, Cargo.toml
 
@@ -41,19 +41,19 @@ source-repository head
 source-repository this
     type:     git
     location: https://github.com/apache/incubator-opendal
-    tag:      v0.43.0
+    tag:      v0.44.0
     subdir:   bindings/haskell
 
 common base
     ghc-options:      -Wall
     build-depends:
-        base >= 4.10 && < 4.17,
+        base >= 4.10 && < 5,
         bytestring >= 0.11.4 && < 0.12,
         mtl >= 2.2.2 && < 2.3,
         text (>= 2.0.2 && < 2.1) || (>= 1.2.5 && < 1.3),
         time >= 1.11.1 && < 1.12,
         unordered-containers >= 0.2.19 && < 0.3,
-        co-log >= 0.5.0 && < 0.6,
+        co-log >= 0.5.0 && < 0.7,
     default-language: Haskell2010
     default-extensions:
         OverloadedStrings,

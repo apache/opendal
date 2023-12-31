@@ -1,4 +1,4 @@
-# OpenDAL Haskell Binding (WIP)
+# Apache OpenDAL™ Haskell Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
@@ -50,6 +50,7 @@ cabal test
 ## Doc
 
 To generate the documentation:
+
 ```bash
 cabal haddock
 ```

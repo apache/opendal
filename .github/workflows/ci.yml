@@ -293,7 +293,7 @@ jobs:
           )
           cargo build --features "${FEATURES[*]}"
 
-  # We only support s3 services for now, but we will extend wasm support for other services.
+  # We only support some services(see `available_services` below) for now.
   build_under_wasm:
     runs-on: ubuntu-latest
     steps:
@@ -304,8 +304,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
+          FEATURES=(
+            services-azblob
+            services-gdrive
+            services-s3
+          )
           rustup target add wasm32-unknown-unknown
-          cargo build --target wasm32-unknown-unknown --no-default-features --features=services-s3
+          cargo build --target wasm32-unknown-unknown --no-default-features --features="${FEATURES[*]}"
 
   unit:
     runs-on: ubuntu-latest

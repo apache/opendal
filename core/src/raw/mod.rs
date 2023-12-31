@@ -66,11 +66,11 @@ mod futures_util;
 pub use futures_util::BoxedFuture;
 pub use futures_util::ConcurrentFutures;
 
+mod enum_utils;
+pub use enum_utils::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;
 #[cfg(feature = "tests")]
 pub mod tests;
-
-mod enum_utils;
-pub use enum_utils::TwoWays;

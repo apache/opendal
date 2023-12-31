@@ -15,24 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::future::BoxFuture;
 use std::io::Write;
+use std::path::PathBuf;
 use std::pin::Pin;
-use std::task::Context;
+use std::sync::Arc;
 use std::task::Poll;
+use std::task::{ready, Context};
 
 use async_trait::async_trait;
-use futures::AsyncWrite;
+use futures::{AsyncWrite, FutureExt};
 
 use crate::raw::*;
 use crate::*;
 
 pub struct HdfsWriter<F> {
+    target_path: String,
+    tmp_path: Option<String>,
     f: F,
+    client: Arc<hdrs::Client>,
+    fut: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<F> HdfsWriter<F> {
-    pub fn new(f: F) -> Self {
-        Self { f }
+    pub fn new(
+        target_path: String,
+        tmp_path: Option<String>,
+        f: F,
+        client: Arc<hdrs::Client>,
+    ) -> Self {
+        Self {
+            target_path,
+            tmp_path,
+            f,
+            client,
+            fut: None,
+        }
     }
 }
 
@@ -52,9 +70,31 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut self.f)
-            .poll_close(cx)
-            .map_err(new_std_io_error)
+        loop {
+            if let Some(fut) = self.fut.as_mut() {
+                let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
+                return Poll::Ready(res);
+            }
+
+            let _ = Pin::new(&mut self.f)
+                .poll_close(cx)
+                .map_err(new_std_io_error);
+
+            // Clone client to allow move into the future.
+            let client = self.client.clone();
+            let tmp_path = self.tmp_path.clone();
+            let target_path = self.target_path.clone();
+            self.fut = Some(Box::pin(async move {
+                if let Some(tmp_path) = &tmp_path {
+                    client
+                        .rename_file(tmp_path, target_path.as_str())
+                        .map_err(new_std_io_error)?;
+                }
+
+                Ok(())
+            }));
+        }
     }
 }
 
@@ -65,6 +105,13 @@ impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
 
     fn close(&mut self) -> Result<()> {
         self.f.flush().map_err(new_std_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            &self
+                .client
+                .rename_file(tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?;
+        }
 
         Ok(())
     }

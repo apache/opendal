@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: Add trademark sign for core by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3833
 * docs: Enable doc_auto_cfg when docs cfg has been enabled by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3835
 * docs: Address branding for haskell and C bindings by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3840
+* doc: add 0.44.0 release link to download.md by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3868
 ### CI
 * ci: Remove workflows that not running or ready by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3842
 * ci: Migrate ftp to test planner by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3843

@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Suppress clippy::redundant_closure warning from pyo3 generated code
-#![allow(clippy::redundant_closure)]
-
 // expose the opendal rust core as `core`.
 // We will use `ocore::Xxx` to represents all types from opendal rust core.
 pub use ::opendal as ocore;

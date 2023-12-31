@@ -126,7 +126,7 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
 
 /// ThreeWays is used to implement traits that based on three ways.
 ///
-/// Users can wrap two different trait types together.
+/// Users can wrap three different trait types together.
 pub enum ThreeWays<ONE, TWO, THREE> {
     /// The first type for the [`ThreeWays`].
     One(ONE),

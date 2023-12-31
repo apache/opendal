@@ -8,7 +8,7 @@ android_system_properties@0.1.5		X							X
 anyhow@1.0.75		X							X					
 arc-swap@1.6.0		X							X					
 async-compat@0.2.3		X							X					
-async-trait@0.1.74		X							X					
+async-trait@0.1.75		X							X					
 autocfg@1.1.0		X							X					
 awaitable@0.4.0									X					
 awaitable-error@0.1.0									X					
@@ -55,14 +55,14 @@ flagset@0.4.4		X
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.0		X							X					
 futures@0.3.29		X							X					
-futures-channel@0.3.29		X							X					
-futures-core@0.3.29		X							X					
+futures-channel@0.3.30		X							X					
+futures-core@0.3.30		X							X					
 futures-executor@0.3.29		X							X					
-futures-io@0.3.29		X							X					
-futures-macro@0.3.29		X							X					
-futures-sink@0.3.29		X							X					
-futures-task@0.3.29		X							X					
-futures-util@0.3.29		X							X					
+futures-io@0.3.30		X							X					
+futures-macro@0.3.30		X							X					
+futures-sink@0.3.30		X							X					
+futures-task@0.3.30		X							X					
+futures-util@0.3.30		X							X					
 generic-array@0.14.7									X					
 getrandom@0.2.11		X							X					
 gimli@0.28.0		X							X					
@@ -89,7 +89,7 @@ jobserver@0.1.27		X							X
 js-sys@0.3.66		X							X					
 jsonwebtoken@9.2.0									X					
 lazy_static@1.4.0		X							X					
-libc@0.2.150		X							X					
+libc@0.2.151		X							X					
 libm@0.2.8		X							X					
 libredox@0.0.1									X					
 link-cplusplus@1.0.9		X							X					
@@ -110,8 +110,8 @@ num-traits@0.2.17		X							X
 num_cpus@1.16.0		X							X					
 object@0.32.1		X							X					
 once_cell@1.18.0		X							X					
-opendal@0.44.0		X												
-opendal-cpp@0.44.0		X												
+opendal@0.44.1		X												
+opendal-cpp@0.44.1		X												
 openssh@0.10.1		X							X					
 openssh-sftp-client@0.14.1									X					
 openssh-sftp-client-lowlevel@0.6.0									X					

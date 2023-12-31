@@ -51,6 +51,3 @@ pub use lazy_read::LazyReader;
 
 mod buffer_reader;
 pub use buffer_reader::BufferReader;
-
-mod compose_read;
-pub use compose_read::FourWaysReader;

@@ -28,7 +28,6 @@ use async_trait::async_trait;
 use crate::raw::oio::BufferReader;
 use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
-use crate::raw::oio::FourWaysReader;
 use crate::raw::oio::LazyReader;
 use crate::raw::oio::PrefixLister;
 use crate::raw::oio::RangeReader;
@@ -384,19 +383,19 @@ impl<A: Accessor> CompleteAccessor<A> {
             // - If service can list_with_recursive, we can forward list to it directly.
             (_, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompleteLister::AlreadyComplete(p)))
+                Ok((rp, CompleteLister::One(p)))
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                    Ok((RpList::default(), CompleteLister::Two(p)))
                 } else {
                     let parent = get_parent(path);
                     let p = FlatLister::new(self.inner.clone(), parent);
                     let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Both(p)))
+                    Ok((RpList::default(), CompleteLister::Four(p)))
                 }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
@@ -405,12 +404,12 @@ impl<A: Accessor> CompleteAccessor<A> {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let (rp, p) = self.inner.list(path, args).await?;
-                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                    Ok((rp, CompleteLister::One(p)))
                 } else {
                     let parent = get_parent(path);
                     let (rp, p) = self.inner.list(parent, args).await?;
                     let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                    Ok((rp, CompleteLister::Three(p)))
                 }
             }
         }
@@ -432,19 +431,19 @@ impl<A: Accessor> CompleteAccessor<A> {
             // - If service can list_with_recursive, we can forward list to it directly.
             (_, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompleteLister::AlreadyComplete(p)))
+                Ok((rp, CompleteLister::One(p)))
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                    Ok((RpList::default(), CompleteLister::Two(p)))
                 } else {
                     let parent = get_parent(path);
                     let p = FlatLister::new(self.inner.clone(), parent);
                     let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Both(p)))
+                    Ok((RpList::default(), CompleteLister::Four(p)))
                 }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
@@ -453,12 +452,12 @@ impl<A: Accessor> CompleteAccessor<A> {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let (rp, p) = self.inner.blocking_list(path, args)?;
-                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                    Ok((rp, CompleteLister::One(p)))
                 } else {
                     let parent = get_parent(path);
                     let (rp, p) = self.inner.blocking_list(parent, args)?;
                     let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                    Ok((rp, CompleteLister::Three(p)))
                 }
             }
         }
@@ -676,53 +675,15 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 pub type CompleteReader<A, R> =
     TwoWays<InnerCompleteReader<A, R>, BufferReader<InnerCompleteReader<A, R>>>;
 
-type InnerCompleteReader<A, R> = FourWaysReader<
+type InnerCompleteReader<A, R> = FourWays<
     LazyReader<A, R>,
     FileReader<A, R>,
     RangeReader<A, R>,
     StreamableReader<RangeReader<A, R>>,
 >;
 
-pub enum CompleteLister<A: Accessor, P> {
-    AlreadyComplete(P),
-    NeedFlat(FlatLister<Arc<A>, P>),
-    NeedPrefix(PrefixLister<P>),
-    Both(PrefixLister<FlatLister<Arc<A>, P>>),
-}
-
-impl<A, P> oio::List for CompleteLister<A, P>
-where
-    A: Accessor<Lister = P>,
-    P: oio::List,
-{
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        use CompleteLister::*;
-
-        match self {
-            AlreadyComplete(p) => p.poll_next(cx),
-            NeedFlat(p) => p.poll_next(cx),
-            NeedPrefix(p) => p.poll_next(cx),
-            Both(p) => p.poll_next(cx),
-        }
-    }
-}
-
-impl<A, P> oio::BlockingList for CompleteLister<A, P>
-where
-    A: Accessor<BlockingLister = P>,
-    P: oio::BlockingList,
-{
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        use CompleteLister::*;
-
-        match self {
-            AlreadyComplete(p) => p.next(),
-            NeedFlat(p) => p.next(),
-            NeedPrefix(p) => p.next(),
-            Both(p) => p.next(),
-        }
-    }
-}
+pub type CompleteLister<A, P> =
+    FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,

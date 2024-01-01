@@ -82,7 +82,7 @@ source venv/bin/activate
 Install `maturin`:
 
 ```shell
-pip install maturin[patchelf]
+pip install maturin
 ```
 
 Build bindings:

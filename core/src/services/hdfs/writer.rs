@@ -29,29 +29,18 @@ use futures::{AsyncWrite, FutureExt};
 use crate::raw::*;
 use crate::*;
 
-// A simple wrapper around a future that implements Future + Send + Sync
-struct SyncFutureWrapper(pub BoxFuture<'static, Result<()>>);
-
-impl Future for SyncFutureWrapper {
-    type Output = Result<()>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Delegate the polling to the inner future
-        Pin::new(&mut self.get_mut().0).poll(cx)
-    }
-}
-
-// Explicitly mark SyncFutureWrapper as Send and Sync
-unsafe impl Send for SyncFutureWrapper {}
-unsafe impl Sync for SyncFutureWrapper {}
-
 pub struct HdfsWriter<F> {
     target_path: String,
     tmp_path: Option<String>,
     f: F,
     client: Arc<hdrs::Client>,
-    fut: Option<SyncFutureWrapper>,
+    fut: Option<BoxFuture<'static, Result<()>>>,
 }
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for HdfsWriter.
+unsafe impl<F> Sync for HdfsWriter<F> {}
 
 impl<F> HdfsWriter<F> {
     pub fn new(
@@ -91,10 +80,10 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
             // Clone client to allow move into the future.
             let tmp_path = self.tmp_path.clone();
-            let client = Arc::clone(&self.client);
+            let client = self.client.clone();
             let target_path = self.target_path.clone();
 
-            let fut = SyncFutureWrapper(Box::pin(async move {
+            self.fut = Some(Box::pin(async move {
                 if let Some(tmp_path) = tmp_path {
                     client
                         .rename_file(&tmp_path, &target_path)
@@ -103,8 +92,6 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
                 Ok(())
             }));
-
-            self.fut = Some(fut);
         }
     }
 

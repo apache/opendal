@@ -37,7 +37,8 @@ lua52 = ["mlua", "mlua/lua52"]
 crate-type = ["cdylib"]
 
 [dependencies]
-mlua = { version = "0.8", features = [
+mlua = { version = "0.9", features = [
   "module",
+  "macros",
 ], default-features = false, optional = true }
 opendal.workspace = true

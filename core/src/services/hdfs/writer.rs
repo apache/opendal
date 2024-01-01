@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use futures::future::BoxFuture;
+use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -96,7 +96,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
             let fut = SyncFutureWrapper(Box::pin(async move {
                 if let Some(tmp_path) = tmp_path {
-                    client.rename_file(&tmp_path, &target_path)
+                    client
+                        .rename_file(&tmp_path, &target_path)
                         .map_err(new_std_io_error)?;
                 }
 

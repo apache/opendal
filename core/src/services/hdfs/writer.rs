@@ -69,8 +69,9 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
-            if let Some(mut fut) = self.fut.take() {
+            if let Some(mut fut) = self.fut.as_mut() {
                 let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
                 return Poll::Ready(res);
             }
 

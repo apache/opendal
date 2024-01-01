@@ -114,7 +114,7 @@ jobs:
       id-token: write
     needs: [macos, linux, windows]
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist

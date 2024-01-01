@@ -45,7 +45,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v3.6.1
+        uses: korandoru/hawkeye@v4.0.4
 
       - name: Cargo format
         run: cargo fmt --all -- --check
@@ -108,7 +108,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
@@ -137,7 +137,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
@@ -194,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env
@@ -224,7 +224,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env
@@ -317,7 +317,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env

@@ -60,7 +60,7 @@ jobs:
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Install Protoc
@@ -100,7 +100,7 @@ jobs:
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
           MAVEN_GPG_PASSPHRASE: ""
       - name: Upload local staging directory
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.classifier }}-local-staging
           path: bindings/java/local-staging
@@ -130,27 +130,27 @@ jobs:
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
 
       - name: Download windows staging directory
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-x86_64-local-staging
           path: ~/windows-x86_64-local-staging
       - name: Download linux x86_64 staging directory
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux-x86_64-local-staging
           path: ~/linux-x86_64-local-staging
       - name: Download linux aarch_64 staging directory
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux-aarch_64-local-staging
           path: ~/linux-aarch_64-local-staging
       - name: Download darwin staging directory
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: osx-x86_64-local-staging
           path: ~/osx-x86_64-local-staging
       - name: Download darwin (aarch64) staging directory
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: osx-aarch_64-local-staging
           path: ~/osx-aarch_64-local-staging

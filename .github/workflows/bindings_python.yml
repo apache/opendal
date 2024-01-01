@@ -46,7 +46,7 @@ jobs:
           command: sdist
           args: -o dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -69,7 +69,7 @@ jobs:
           # Workaround ring 0.17 build issue
           CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -84,7 +84,7 @@ jobs:
           command: build
           args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -100,7 +100,7 @@ jobs:
           target: universal2-apple-darwin
           args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -114,7 +114,7 @@ jobs:
       id-token: write
     needs: [macos, linux, windows]
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist

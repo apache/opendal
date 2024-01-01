@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use futures::future::BoxFuture;
 use std::io::Write;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll;
@@ -29,12 +29,28 @@ use futures::{AsyncWrite, FutureExt};
 use crate::raw::*;
 use crate::*;
 
+// A simple wrapper around a future that implements Future + Send + Sync
+struct SyncFutureWrapper(pub BoxFuture<'static, Result<()>>);
+
+impl Future for SyncFutureWrapper {
+    type Output = Result<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Delegate the polling to the inner future
+        Pin::new(&mut self.get_mut().0).poll(cx)
+    }
+}
+
+// Explicitly mark SyncFutureWrapper as Send and Sync
+unsafe impl Send for SyncFutureWrapper {}
+unsafe impl Sync for SyncFutureWrapper {}
+
 pub struct HdfsWriter<F> {
     target_path: String,
     tmp_path: Option<String>,
     f: F,
     client: Arc<hdrs::Client>,
-    fut: Option<BoxFuture<'static, Result<()>>>,
+    fut: Option<SyncFutureWrapper>,
 }
 
 impl<F> HdfsWriter<F> {
@@ -64,9 +80,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
-            if let Some(fut) = self.fut.as_mut() {
+            if let Some(mut fut) = self.fut.take() {
                 let res = ready!(fut.poll_unpin(cx));
-                self.fut = None;
                 return Poll::Ready(res);
             }
 
@@ -75,18 +90,20 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
                 .map_err(new_std_io_error);
 
             // Clone client to allow move into the future.
-            let client = Arc::as_ref(&self.client);
             let tmp_path = self.tmp_path.clone();
+            let client = Arc::clone(&self.client);
             let target_path = self.target_path.clone();
-            self.fut = Some(Box::pin(async move {
-                if let Some(tmp_path) = &tmp_path {
-                    client
-                        .rename_file(tmp_path, target_path.as_str())
+
+            let fut = SyncFutureWrapper(Box::pin(async move {
+                if let Some(tmp_path) = tmp_path {
+                    client.rename_file(&tmp_path, &target_path)
                         .map_err(new_std_io_error)?;
                 }
 
                 Ok(())
             }));
+
+            self.fut = Some(fut);
         }
     }
 

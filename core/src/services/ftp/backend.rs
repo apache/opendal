@@ -33,6 +33,7 @@ use serde::Deserialize;
 use suppaftp::list::File;
 
 use suppaftp::types::FileType;
+use suppaftp::types::Response;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
@@ -246,7 +247,6 @@ impl bb8::ManageConnection for Manager {
                 ftp_stream.cwd(&self.root).await?;
             }
             // Other errors, return.
-            // Err(e) => return Err(e),
             Err(e) => return Err(e),
             // Do nothing if success.
             Ok(_) => (),
@@ -327,7 +327,17 @@ impl Accessor for FtpBackend {
 
         for path in paths {
             curr_path.push_str(path);
-            ftp_stream.mkdir(&curr_path).await.map_err(parse_error)?;
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(parse_error(e));
+                }
+            }
         }
 
         return Ok(RpCreateDir::default());
@@ -386,9 +396,20 @@ impl Accessor for FtpBackend {
         // TODO: we can optimize this by checking dir existence first.
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
         let mut curr_path = String::new();
+
         for path in paths {
             curr_path.push_str(path);
-            ftp_stream.mkdir(&curr_path).await.map_err(parse_error)?;
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(parse_error(e));
+                }
+            }
         }
 
         let w = FtpWriter::new(self.clone(), path.to_string());
@@ -424,7 +445,16 @@ impl Accessor for FtpBackend {
             ftp_stream.rm(&path).await
         };
 
-        result.map_err(parse_error)?;
+        match result {
+            Err(FtpError::UnexpectedResponse(Response {
+                status: Status::FileUnavailable,
+                ..
+            }))
+            | Ok(_) => (),
+            Err(e) => {
+                return Err(parse_error(e));
+            }
+        }
 
         Ok(RpDelete::default())
     }
@@ -457,9 +487,9 @@ impl FtpBackend {
                         enable_secure: self.enable_secure,
                     })
                     .await
-                    .map_err(parse_error)
             })
-            .await?;
+            .await
+            .map_err(parse_error)?;
 
         pool.get_owned().await.map_err(|err| match err {
             RunError::User(err) => parse_error(err),

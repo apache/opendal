@@ -35,8 +35,6 @@ pub fn parse_error(err: FtpError) -> Error {
         // Allow retry bad response.
         FtpError::BadResponse => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
-        // FtpError::InvalidAddress(_) => ErrorKind::ConfigInvalid,
-        // _ =>ErrorKind::Unexpected,
     };
 
     let mut err = Error::new(kind, "ftp error").set_source(err);
@@ -47,30 +45,3 @@ pub fn parse_error(err: FtpError) -> Error {
 
     err
 }
-
-// impl From<FtpError> for Error {
-//     fn from(e: FtpError) -> Self {
-//         let (kind, retryable) = match e {
-//             // Allow retry for error
-//             //
-//             // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
-//             FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
-//                 (ErrorKind::Unexpected, true)
-//             }
-//             FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
-//                 (ErrorKind::NotFound, false)
-//             }
-//             // Allow retry bad response.
-//             FtpError::BadResponse => (ErrorKind::Unexpected, true),
-//             _ => (ErrorKind::Unexpected, false),
-//         };
-//
-//         let mut err = Error::new(kind, "ftp error").set_source(e);
-//
-//         if retryable {
-//             err = err.set_temporary();
-//         }
-//
-//         err
-//     }
-// }

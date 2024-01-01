@@ -420,14 +420,14 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "atomic_lib"
-version = "0.34.5"
+version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbfa18995efa467c85a990d0504a6bbc3570b980b38890098232ca61fc45cf81"
+checksum = "18b7c1e31847f76a1dd3aae20313129a360000200cd4d7e8eb41ab6dfd5eb9df"
 dependencies = [
  "base64 0.21.5",
  "rand 0.8.5",
  "regex",
- "ring 0.16.20",
+ "ring 0.17.7",
  "serde",
  "serde_json",
  "tracing",
@@ -500,7 +500,7 @@ dependencies = [
  "hex",
  "http",
  "hyper",
- "ring 0.17.5",
+ "ring 0.17.7",
  "time",
  "tokio",
  "tracing",
@@ -675,7 +675,7 @@ dependencies = [
  "p256",
  "percent-encoding",
  "regex",
- "ring 0.17.5",
+ "ring 0.17.7",
  "sha2",
  "subtle",
  "time",
@@ -3426,7 +3426,7 @@ dependencies = [
  "base64 0.21.5",
  "js-sys",
  "pem 3.0.2",
- "ring 0.17.5",
+ "ring 0.17.7",
  "serde",
  "serde_json",
  "simple_asn1",
@@ -6034,9 +6034,9 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.17.5"
+version = "0.17.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb0205304757e5d899b9c2e448b867ffd03ae7f988002e47cd24954391394d0b"
+checksum = "688c63d65483050968b2a8937f7995f443e27041a0f7700aa59b0822aedebb74"
 dependencies = [
  "cc",
  "getrandom 0.2.11",
@@ -6253,7 +6253,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "629648aced5775d558af50b2b4c7b02983a04b312126d45eeead26e7caa498b9"
 dependencies = [
  "log",
- "ring 0.17.5",
+ "ring 0.17.7",
  "rustls-webpki 0.101.7",
  "sct",
 ]
@@ -6295,7 +6295,7 @@ version = "0.101.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
 dependencies = [
- "ring 0.17.5",
+ "ring 0.17.7",
  "untrusted 0.9.0",
 ]
 
@@ -6368,7 +6368,7 @@ version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da046153aa2352493d6cb7da4b6e5c0c057d8a1d0a9aa8560baffdd945acd414"
 dependencies = [
- "ring 0.17.5",
+ "ring 0.17.7",
  "untrusted 0.9.0",
 ]
 
@@ -7979,7 +7979,7 @@ version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed63aea5ce73d0ff405984102c42de94fc55a6b75765d621c65262469b3c9b53"
 dependencies = [
- "ring 0.17.5",
+ "ring 0.17.7",
  "untrusted 0.9.0",
 ]
 

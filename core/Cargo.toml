@@ -219,7 +219,7 @@ anyhow = { version = "1.0.30", features = ["std"] }
 async-backtrace = { version = "0.2.6", optional = true }
 async-compat = "0.2"
 async-trait = "0.1.68"
-atomic_lib = { version = "0.34.5", optional = true }
+atomic_lib = { version = "0.36.1", optional = true }
 await-tree = { version = "0.1.1", optional = true }
 backon = "0.4.1"
 base64 = "0.21"

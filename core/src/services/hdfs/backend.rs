@@ -49,7 +49,6 @@ pub struct HdfsConfig {
     pub user: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
-
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,
 }
@@ -355,7 +354,7 @@ impl Accessor for HdfsBackend {
 
         Ok((
             RpWrite::new(),
-            HdfsWriter::new(target_path, tmp_path, f, self.client.clone()),
+            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
         ))
     }
 
@@ -543,7 +542,7 @@ impl Accessor for HdfsBackend {
 
         Ok((
             RpWrite::new(),
-            HdfsWriter::new(target_path, tmp_path, f, self.client.clone()),
+            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
         ))
     }
 

@@ -22,14 +22,15 @@ use ::opendal as od;
 use mlua::prelude::*;
 use mlua::UserData;
 
-#[derive(Clone)]
+#[derive(Clone, mlua::FromLua)]
+
 struct ODOperator {
     operator: od::BlockingOperator,
 }
 
 impl UserData for ODOperator {}
 
-#[derive(Clone)]
+#[derive(Clone, mlua::FromLua)]
 struct ODMetadata {
     metadata: od::Metadata,
 }

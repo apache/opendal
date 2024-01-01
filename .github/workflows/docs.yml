@@ -64,7 +64,7 @@ jobs:
           RUSTDOCFLAGS: "--cfg docs"
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rust-docs
           path: ./target/doc
@@ -85,7 +85,7 @@ jobs:
         run: mvn javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -118,7 +118,7 @@ jobs:
         run: pnpm run docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -145,7 +145,7 @@ jobs:
         run: pdoc -t ./template --output-dir ./docs opendal
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-docs
           path: ./bindings/python/docs
@@ -169,7 +169,7 @@ jobs:
         run: make doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
@@ -188,7 +188,7 @@ jobs:
         run: ldoc ./src
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lua-docs
           path: ./bindings/lua/doc/
@@ -225,7 +225,7 @@ jobs:
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: haskell-docs
           path: ./bindings/haskell/doc/
@@ -254,7 +254,7 @@ jobs:
           ninja docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
@@ -281,7 +281,7 @@ jobs:
           dune build @doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html

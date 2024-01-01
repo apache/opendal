@@ -23,7 +23,6 @@ use mlua::prelude::*;
 use mlua::UserData;
 
 #[derive(Clone, mlua::FromLua)]
-
 struct ODOperator {
     operator: od::BlockingOperator,
 }

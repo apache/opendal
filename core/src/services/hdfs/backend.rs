@@ -307,7 +307,8 @@ impl Accessor for HdfsBackend {
             let tmp_path = build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path));
 
             // If the target file exists, we should append to the end of it directly.
-            if op.append() && self.client.metadata(&target_path).is_ok() {
+            // if op.append() && self.client.metadata(&target_path).is_ok() {
+            if op.append() {
                 (target_path, None)
             } else {
                 (target_path, Some(tmp_path))

@@ -15,24 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! This module holds documentation for OpenDAL.
-//!
-//! It's highly recommended that you start by reading [`concepts`] first.
+mod backend;
+pub use backend::PcloudBuilder as Pcloud;
+pub use backend::PcloudConfig;
 
-pub mod comparisons;
-
-pub mod concepts;
-
-pub mod internals;
-
-/// Changes log for all OpenDAL released versions.
-#[doc = include_str!("../../CHANGELOG.md")]
-pub mod changelog {}
-
-#[cfg(not(doctest))]
-pub mod rfcs;
-
-/// Upgrade and migrate procedures while OpenDAL meets breaking changes.
-#[doc = include_str!("upgrade.md")]
-#[cfg(not(doctest))]
-pub mod upgrade {}
+mod core;
+mod error;
+mod lister;
+mod writer;

@@ -41,7 +41,7 @@ go build -tags dynamic .
 To running the go binding tests, we need to tell the linker where to find the `libopendal_c.so` file.
 
 ```shell
-expose LD_LIBRARY_PATH=/path/to/opendal/target/debug/
+expose LD_LIBRARY_PATH=/path/to/opendal/bindings/c/target/debug/
 ```
 
 Then, we can run the tests.

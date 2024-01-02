@@ -23,7 +23,7 @@ use std::task::Poll;
 use std::task::{ready, Context};
 
 use async_trait::async_trait;
-use futures::{AsyncWrite, FutureExt};
+use futures::{AsyncWrite, AsyncWriteExt, FutureExt};
 
 use crate::raw::*;
 use crate::*;
@@ -82,12 +82,13 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             let client = self.client.clone();
             let target_path = self.target_path.clone();
             // Clone the necessary parts of the context
-            let waker = cx.waker().clone();
+            // let waker = cx.waker().clone();
 
             self.fut = Some(Box::pin(async move {
+                f.close().await.map_err(new_std_io_error)?;
                 // Now use the cloned waker in the async block
-                let mut pinned = std::pin::pin!(f);
-                let _ = pinned.as_mut().poll_close(&mut Context::from_waker(&waker));
+                // let mut pinned = std::pin::pin!(f);
+                // let _ = pinned.as_mut().poll_close(&mut Context::from_waker(&waker));
 
                 if let Some(tmp_path) = tmp_path {
                     client

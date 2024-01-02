@@ -16,7 +16,6 @@
 // under the License.
 
 use futures::future::BoxFuture;
-use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -32,7 +31,7 @@ use crate::*;
 pub struct HdfsWriter<F> {
     target_path: String,
     tmp_path: Option<String>,
-    f: F,
+    f: Option<F>,
     client: Arc<hdrs::Client>,
     fut: Option<BoxFuture<'static, Result<()>>>,
 }
@@ -52,7 +51,7 @@ impl<F> HdfsWriter<F> {
         Self {
             target_path,
             tmp_path,
-            f,
+            f: Some(f),
             client,
             fut: None,
         }
@@ -62,7 +61,9 @@ impl<F> HdfsWriter<F> {
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        Pin::new(&mut self.f)
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+
+        Pin::new(f)
             .poll_write(cx, bs.chunk())
             .map_err(new_std_io_error)
     }
@@ -75,16 +76,19 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
                 return Poll::Ready(res);
             }
 
-            let _ = Pin::new(&mut self.f)
-                .poll_close(cx)
-                .map_err(new_std_io_error);
-
+            let mut f = self.f.take().expect("HdfsWriter must be initialized");
             // Clone client to allow move into the future.
             let tmp_path = self.tmp_path.clone();
             let client = self.client.clone();
             let target_path = self.target_path.clone();
+            // Clone the necessary parts of the context
+            let waker = cx.waker().clone();
 
             self.fut = Some(Box::pin(async move {
+                // Now use the cloned waker in the async block
+                let mut pinned = std::pin::pin!(f);
+                let _ = pinned.as_mut().poll_close(&mut Context::from_waker(&waker));
+
                 if let Some(tmp_path) = tmp_path {
                     client
                         .rename_file(&tmp_path, &target_path)
@@ -106,11 +110,13 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.f.write(bs.chunk()).map_err(new_std_io_error)
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.write(bs.chunk()).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.f.flush().map_err(new_std_io_error)?;
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.flush().map_err(new_std_io_error)?;
 
         if let Some(tmp_path) = &self.tmp_path {
             let client = Arc::as_ref(&self.client);

@@ -70,7 +70,6 @@ jobs:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
-          OPENDAL_HDFS_ATOMIC_WRITE_DIR: /tmp/opendal/atomic/
           OPENDAL_HDFS_NAME_NODE: default
           OPENDAL_HDFS_ENABLE_APPEND: false
 

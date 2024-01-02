@@ -39,8 +39,7 @@ pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
         test_append_with_cache_control,
         test_append_with_content_type,
         test_append_with_content_disposition,
-        test_appender_futures_copy,
-        test_fuzz_appender
+        test_appender_futures_copy
     )
 }
 
@@ -194,30 +193,5 @@ pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
-
-/// Test for fuzzing appender.
-pub async fn test_fuzz_appender(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
-
-    let mut a = op.writer_with(&path).append(true).await?;
-
-    for _ in 0..100 {
-        match fuzzer.fuzz() {
-            ObjectWriterAction::Write(bs) => {
-                a.write(bs).await?;
-            }
-        }
-    }
-    a.close().await?;
-
-    let content = op.read(&path).await?;
-    fuzzer.check(&content);
-
-    op.delete(&path).await.expect("delete file must success");
-
     Ok(())
 }

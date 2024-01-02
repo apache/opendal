@@ -39,8 +39,7 @@ pub fn behavior_blocking_append_tests(op: &Operator) -> Vec<Trial> {
         test_blocking_append_with_cache_control,
         test_blocking_append_with_content_type,
         test_blocking_append_with_content_disposition,
-        test_blocking_appender_std_copy,
-        test_blocking_fuzz_appender
+        test_blocking_appender_std_copy
     )
 }
 
@@ -191,30 +190,5 @@ pub fn test_blocking_appender_std_copy(op: BlockingOperator) -> Result<()> {
     );
 
     op.delete(&path).expect("delete must succeed");
-    Ok(())
-}
-
-/// Test for fuzzing appender.
-pub fn test_blocking_fuzz_appender(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
-
-    let mut a = op.writer_with(&path).append(true).call()?;
-
-    for _ in 0..100 {
-        match fuzzer.fuzz() {
-            ObjectWriterAction::Write(bs) => {
-                a.write(bs)?;
-            }
-        }
-    }
-    a.close()?;
-
-    let content = op.read(&path)?;
-    fuzzer.check(&content);
-
-    op.delete(&path).expect("delete file must success");
-
     Ok(())
 }

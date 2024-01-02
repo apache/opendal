@@ -58,6 +58,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     }
 }
 
+/// adding a dummy commit
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.f.write(bs.chunk()).map_err(new_std_io_error)

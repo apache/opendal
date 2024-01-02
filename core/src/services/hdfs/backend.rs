@@ -308,17 +308,23 @@ impl Accessor for HdfsBackend {
 
             // If the target file exists, we should append to the end of it directly.
             if op.append() && self.client.metadata(&target_path).is_ok() {
+                debug!("target_path set : {:?} and tmp_path is none", target_path);
                 (target_path, None)
             } else {
+                debug!(
+                    "target_path set : {:?} and tmp_path is {:?}",
+                    target_path, tmp_path
+                );
                 (target_path, Some(tmp_path))
             }
         } else {
             let p = build_rooted_abs_path(&self.root, path);
-
+            debug!("target_path set : {:?} and tmp_path is none", p);
             (p, None)
         };
 
         if let Err(err) = self.client.metadata(&target_path) {
+            debug!("Error in metadata : {:?}", err);
             // Early return if other error happened.
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(new_std_io_error(err));
@@ -333,7 +339,7 @@ impl Accessor for HdfsBackend {
                 .open_file()
                 .create(true)
                 .write(true)
-                .async_open(tmp_path.as_ref().unwrap_or(&target_path))
+                .async_open(&target_path)
                 .await
                 .map_err(new_std_io_error)?;
             f.close().await.map_err(new_std_io_error)?;

@@ -338,3 +338,10 @@ mod chainsafe;
 pub use chainsafe::Chainsafe;
 #[cfg(feature = "services-chainsafe")]
 pub use chainsafe::ChainsafeConfig;
+
+#[cfg(feature = "services-pcloud")]
+mod pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::Pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::PcloudConfig;

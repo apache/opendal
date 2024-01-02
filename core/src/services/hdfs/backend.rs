@@ -203,9 +203,9 @@ impl Builder for HdfsBuilder {
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
-            if let Err(e) = client.metadata(&d) {
+            if let Err(e) = client.metadata(d) {
                 if e.kind() == io::ErrorKind::NotFound {
-                    client.create_dir(&d).map_err(new_std_io_error)?
+                    client.create_dir(d).map_err(new_std_io_error)?
                 }
             }
         }

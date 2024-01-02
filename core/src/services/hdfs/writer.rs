@@ -70,6 +70,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
+            #[allow(unused_mut)]
             if let Some(mut fut) = self.fut.as_mut() {
                 let res = ready!(fut.poll_unpin(cx));
                 self.fut = None;
@@ -77,18 +78,13 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             }
 
             let mut f = self.f.take().expect("HdfsWriter must be initialized");
-            // Clone client to allow move into the future.
             let tmp_path = self.tmp_path.clone();
-            let client = self.client.clone();
             let target_path = self.target_path.clone();
-            // Clone the necessary parts of the context
-            // let waker = cx.waker().clone();
+            // Clone client to allow move into the future.
+            let client = self.client.clone();
 
             self.fut = Some(Box::pin(async move {
                 f.close().await.map_err(new_std_io_error)?;
-                // Now use the cloned waker in the async block
-                // let mut pinned = std::pin::pin!(f);
-                // let _ = pinned.as_mut().poll_close(&mut Context::from_waker(&waker));
 
                 if let Some(tmp_path) = tmp_path {
                     client

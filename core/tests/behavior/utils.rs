@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::usize;
+use std::sync::Mutex;
+use std::{mem, usize};
 
 use futures::Future;
 use libtest_mimic::Failed;
@@ -100,4 +101,91 @@ macro_rules! blocking_trials {
             build_blocking_trial(stringify!($test), $op, $test),
         )*]
     };
+}
+
+pub struct Fixture {
+    pub paths: Mutex<Vec<String>>,
+}
+
+impl Fixture {
+    /// Create a new fixture
+    pub const fn new() -> Self {
+        Self {
+            paths: Mutex::new(vec![]),
+        }
+    }
+
+    /// Create a new dir path
+    pub fn new_dir_path(&self) -> String {
+        let path = format!("{}/", uuid::Uuid::new_v4());
+        self.paths.lock().unwrap().push(path.clone());
+
+        path
+    }
+
+    /// Create a new file path
+    pub fn new_file_path(&self) -> String {
+        let path = format!("{}", uuid::Uuid::new_v4());
+        self.paths.lock().unwrap().push(path.clone());
+
+        path
+    }
+
+    /// Create a new file with random content
+    pub fn new_file(&self, op: impl Into<Operator>) -> (String, Vec<u8>, usize) {
+        let max_size = op
+            .into()
+            .info()
+            .full_capability()
+            .write_total_max_size
+            .unwrap_or(4 * 1024 * 1024);
+
+        self.new_file_with_range(uuid::Uuid::new_v4().to_string(), 1..max_size)
+    }
+
+    pub fn new_file_with_path(
+        &self,
+        op: impl Into<Operator>,
+        path: &str,
+    ) -> (String, Vec<u8>, usize) {
+        let max_size = op
+            .into()
+            .info()
+            .full_capability()
+            .write_total_max_size
+            .unwrap_or(4 * 1024 * 1024);
+
+        self.new_file_with_range(path, 1..max_size)
+    }
+
+    /// Create a new file with random content in range.
+    fn new_file_with_range(
+        &self,
+        path: impl Into<String>,
+        range: impl SampleRange<usize>,
+    ) -> (String, Vec<u8>, usize) {
+        let path = path.into();
+        self.paths.lock().unwrap().push(path.clone());
+
+        let mut rng = thread_rng();
+
+        let size = rng.gen_range(range);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        (path, content, size)
+    }
+
+    /// Perform cleanup
+    pub async fn cleanup(&self, op: impl Into<Operator>) {
+        let op = op.into();
+        let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
+        for path in paths.iter() {
+            // We try our best to cleanup fixtures, but won't panic if failed.
+            let _ = op.delete(path).await.map_err(|err| {
+                log::error!("fixture cleanup path {path} failed: {:?}", err);
+            });
+            log::info!("fixture cleanup path {path} succeeded")
+        }
+    }
 }

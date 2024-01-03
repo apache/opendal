@@ -21,23 +21,21 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_rename_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.rename) {
-        return vec![];
+    if cap.read && cap.write && cap.rename {
+        tests.extend(async_trials!(
+            op,
+            test_rename_file,
+            test_rename_non_existing_source,
+            test_rename_source_dir,
+            test_rename_target_dir,
+            test_rename_self,
+            test_rename_nested,
+            test_rename_overwrite
+        ))
     }
-
-    async_trials!(
-        op,
-        test_rename_file,
-        test_rename_non_existing_source,
-        test_rename_source_dir,
-        test_rename_target_dir,
-        test_rename_self,
-        test_rename_nested,
-        test_rename_overwrite
-    )
 }
 
 /// Rename a file and test with stat.

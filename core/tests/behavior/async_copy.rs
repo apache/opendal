@@ -21,24 +21,22 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.copy) {
-        return vec![];
+    if cap.read && cap.write && cap.copy {
+        tests.extend(async_trials!(
+            op,
+            test_copy_file_with_ascii_name,
+            test_copy_file_with_non_ascii_name,
+            test_copy_non_existing_source,
+            test_copy_source_dir,
+            test_copy_target_dir,
+            test_copy_self,
+            test_copy_nested,
+            test_copy_overwrite
+        ))
     }
-
-    async_trials!(
-        op,
-        test_copy_file_with_ascii_name,
-        test_copy_file_with_non_ascii_name,
-        test_copy_non_existing_source,
-        test_copy_source_dir,
-        test_copy_target_dir,
-        test_copy_self,
-        test_copy_nested,
-        test_copy_overwrite
-    )
 }
 
 /// Copy a file with ascii name and test contents.

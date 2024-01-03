@@ -70,8 +70,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
-            #[allow(unused_mut)]
-            if let Some(mut fut) = self.fut.as_mut() {
+            if let Some(fut) = self.fut.as_mut() {
                 let res = ready!(fut.poll_unpin(cx));
                 self.fut = None;
                 return Poll::Ready(res);
@@ -116,8 +115,7 @@ impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
         f.flush().map_err(new_std_io_error)?;
 
         if let Some(tmp_path) = &self.tmp_path {
-            let client = Arc::as_ref(&self.client);
-            client
+            self.client
                 .rename_file(tmp_path, &self.target_path)
                 .map_err(new_std_io_error)?;
         }

@@ -64,6 +64,7 @@ impl Debug for HdfsConfig {
             )
             .field("user", &self.user)
             .field("enable_append", &self.enable_append)
+            .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }
 }

@@ -146,7 +146,7 @@ impl IncomingAsyncBody {
             Ordering::Equal => Ok(()),
             Ordering::Less => Err(Error::new(
                 ErrorKind::ContentIncomplete,
-                &format!("reader got too less data, expect: {expect}, actual: {actual}"),
+                &format!("reader got too little data, expect: {expect}, actual: {actual}"),
             )
             .set_temporary()),
             Ordering::Greater => Err(Error::new(

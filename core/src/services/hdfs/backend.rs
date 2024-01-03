@@ -25,6 +25,7 @@ use async_trait::async_trait;
 use futures::AsyncWriteExt;
 use log::debug;
 use serde::Deserialize;
+use uuid::Uuid;
 
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
@@ -48,6 +49,8 @@ pub struct HdfsConfig {
     pub user: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
+    /// atomic_write_dir of this backend
+    pub atomic_write_dir: Option<String>,
 }
 
 impl Debug for HdfsConfig {
@@ -133,6 +136,21 @@ impl HdfsBuilder {
         self.config.enable_append = enable_append;
         self
     }
+
+    /// Set temp dir for atomic write.
+    ///
+    /// # Notes
+    ///
+    /// - When append is enabled, we will not use atomic write
+    /// to avoid data loss and performance issue.
+    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+        self.config.atomic_write_dir = if dir.is_empty() {
+            None
+        } else {
+            Some(String::from(dir))
+        };
+        self
+    }
 }
 
 impl Builder for HdfsBuilder {
@@ -181,19 +199,40 @@ impl Builder for HdfsBuilder {
             }
         }
 
+        let atomic_write_dir = self.config.atomic_write_dir.take();
+
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &atomic_write_dir {
+            if let Err(e) = client.metadata(d) {
+                if e.kind() == io::ErrorKind::NotFound {
+                    client.create_dir(d).map_err(new_std_io_error)?
+                }
+            }
+        }
+
         debug!("backend build finished: {:?}", &self);
         Ok(HdfsBackend {
             root,
+            atomic_write_dir,
             client: Arc::new(client),
             enable_append: self.config.enable_append,
         })
     }
 }
 
+#[inline]
+fn tmp_file_of(path: &str) -> String {
+    let name = get_basename(path);
+    let uuid = Uuid::new_v4().to_string();
+
+    format!("{name}.{uuid}")
+}
+
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
     root: String,
+    atomic_write_dir: Option<String>,
     client: Arc<hdrs::Client>,
     enable_append: bool,
 }
@@ -263,15 +302,28 @@ impl Accessor for HdfsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let target_path = build_rooted_abs_path(&self.root, path);
+            let tmp_path = build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path));
 
-        if let Err(err) = self.client.metadata(&p) {
+            // If the target file exists, we should append to the end of it directly.
+            if op.append() && self.client.metadata(&target_path).is_ok() {
+                (target_path, None)
+            } else {
+                (target_path, Some(tmp_path))
+            }
+        } else {
+            let p = build_rooted_abs_path(&self.root, path);
+            (p, None)
+        };
+
+        if let Err(err) = self.client.metadata(&target_path) {
             // Early return if other error happened.
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(new_std_io_error(err));
             }
 
-            let parent = get_parent(&p);
+            let parent = get_parent(&target_path);
 
             self.client.create_dir(parent).map_err(new_std_io_error)?;
 
@@ -280,7 +332,7 @@ impl Accessor for HdfsBackend {
                 .open_file()
                 .create(true)
                 .write(true)
-                .async_open(&p)
+                .async_open(&target_path)
                 .await
                 .map_err(new_std_io_error)?;
             f.close().await.map_err(new_std_io_error)?;
@@ -295,11 +347,14 @@ impl Accessor for HdfsBackend {
         }
 
         let f = open_options
-            .async_open(&p)
+            .async_open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
             .map_err(new_std_io_error)?;
 
-        Ok((RpWrite::new(), HdfsWriter::new(f)))
+        Ok((
+            RpWrite::new(),
+            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
+        ))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
@@ -438,15 +493,29 @@ impl Accessor for HdfsBackend {
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let target_path = build_rooted_abs_path(&self.root, path);
+            let tmp_path = build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path));
 
-        if let Err(err) = self.client.metadata(&p) {
+            // If the target file exists, we should append to the end of it directly.
+            if op.append() && self.client.metadata(&target_path).is_ok() {
+                (target_path, None)
+            } else {
+                (target_path, Some(tmp_path))
+            }
+        } else {
+            let p = build_rooted_abs_path(&self.root, path);
+
+            (p, None)
+        };
+
+        if let Err(err) = self.client.metadata(&target_path) {
             // Early return if other error happened.
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(new_std_io_error(err));
             }
 
-            let parent = get_parent(&p);
+            let parent = get_parent(&target_path);
 
             self.client.create_dir(parent).map_err(new_std_io_error)?;
 
@@ -454,7 +523,7 @@ impl Accessor for HdfsBackend {
                 .open_file()
                 .create(true)
                 .write(true)
-                .open(&p)
+                .open(&target_path)
                 .map_err(new_std_io_error)?;
         }
 
@@ -466,9 +535,14 @@ impl Accessor for HdfsBackend {
             open_options.write(true);
         }
 
-        let f = open_options.open(&p).map_err(new_std_io_error)?;
+        let f = open_options
+            .open(tmp_path.as_ref().unwrap_or(&target_path))
+            .map_err(new_std_io_error)?;
 
-        Ok((RpWrite::new(), HdfsWriter::new(f)))
+        Ok((
+            RpWrite::new(),
+            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
+        ))
     }
 
     fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

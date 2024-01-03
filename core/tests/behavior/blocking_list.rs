@@ -23,22 +23,20 @@ use log::debug;
 
 use crate::*;
 
-pub fn behavior_blocking_list_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.copy && cap.blocking && cap.list) {
-        return vec![];
+    if cap.read && cap.write && cap.copy && cap.blocking && cap.list {
+        tests.extend(blocking_trials!(
+            op,
+            test_blocking_list_dir,
+            test_blocking_list_dir_with_metakey,
+            test_blocking_list_dir_with_metakey_complete,
+            test_blocking_list_non_exist_dir,
+            test_blocking_scan,
+            test_blocking_remove_all
+        ))
     }
-
-    blocking_trials!(
-        op,
-        test_blocking_list_dir,
-        test_blocking_list_dir_with_metakey,
-        test_blocking_list_dir_with_metakey_complete,
-        test_blocking_list_non_exist_dir,
-        test_blocking_scan,
-        test_blocking_remove_all
-    )
 }
 
 /// List dir should return newly created file.

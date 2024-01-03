@@ -135,7 +135,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(self.db.get(path).map_err(parse_rocksdb_error)?)
+        self.db.get(path).map_err(parse_rocksdb_error)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -149,7 +149,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        Ok(self.db.put(path, value).map_err(parse_rocksdb_error)?)
+        self.db.put(path, value).map_err(parse_rocksdb_error)
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
@@ -162,7 +162,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        Ok(self.db.delete(path).map_err(parse_rocksdb_error)?)
+        self.db.delete(path).map_err(parse_rocksdb_error)
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {

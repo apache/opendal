@@ -135,7 +135,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(self.db.get(path)?)
+        Ok(self.db.get(path).map_err(parse_rocksdb_error)?)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -149,7 +149,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        Ok(self.db.put(path, value)?)
+        Ok(self.db.put(path, value).map_err(parse_rocksdb_error)?)
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
@@ -162,7 +162,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        Ok(self.db.delete(path)?)
+        Ok(self.db.delete(path).map_err(parse_rocksdb_error)?)
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
@@ -180,7 +180,7 @@ impl kv::Adapter for Adapter {
         let mut res = Vec::default();
 
         for key in it {
-            let key = key?;
+            let key = key.map_err(parse_rocksdb_error)?;
             let key = String::from_utf8_lossy(&key);
             // FIXME: it's must a bug that rocksdb returns key that not start with path.
             if !key.starts_with(path) {
@@ -197,8 +197,6 @@ impl kv::Adapter for Adapter {
     }
 }
 
-impl From<rocksdb::Error> for Error {
-    fn from(e: rocksdb::Error) -> Self {
-        Error::new(ErrorKind::Unexpected, "got rocksdb error").set_source(e)
-    }
+fn parse_rocksdb_error(e: rocksdb::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "got rocksdb error").set_source(e)
 }

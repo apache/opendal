@@ -26,9 +26,9 @@ use http::Request;
 use http::Response;
 
 use super::body::IncomingAsyncBody;
+use super::parse_content_encoding;
 use super::parse_content_length;
 use super::AsyncBody;
-use crate::raw::http_util::header::parse_content_encoding;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;

@@ -293,6 +293,8 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+#[cfg(feature = "services-mongodb")]
+pub use self::mongodb::MongodbConfig;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;

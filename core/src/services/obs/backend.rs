@@ -350,7 +350,7 @@ impl Accessor for ObsBackend {
         let w = if args.append() {
             ObsWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            ObsWriters::One(oio::MultipartUploadWriter::new(writer))
+            ObsWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))

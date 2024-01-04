@@ -15,12 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
+use std::collections::VecDeque;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::Future;
+use futures::FutureExt;
+use futures::StreamExt;
 
 use crate::raw::*;
 use crate::*;
@@ -103,43 +109,118 @@ pub struct MultipartUploadPart {
     pub etag: String,
 }
 
+struct UploadFuture(BoxedFuture<Result<MultipartUploadPart>>);
+
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this UploadFuture.
+unsafe impl Send for UploadFuture {}
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for UploadFuture.
+unsafe impl Sync for UploadFuture {}
+
+impl Future for UploadFuture {
+    type Output = Result<MultipartUploadPart>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.get_mut().0.poll_unpin(cx)
+    }
+}
+
+#[derive(Clone)]
+struct WriteTask {
+    part_number: usize,
+    bs: oio::ChunkedBytes,
+}
+
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this WriteTask.
+unsafe impl Send for WriteTask {}
+/// # Safety
+///
+/// We will only take `&mut Self` reference for WriteTask.
+unsafe impl Sync for WriteTask {}
+
 /// MultipartUploadWriter will implements [`Write`] based on multipart
 /// uploads.
 pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
-    state: State<W>,
+    state: State,
+    w: Arc<W>,
 
-    cache: Option<oio::ChunkedBytes>,
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartUploadPart>,
+    processing_tasks: VecDeque<WriteTask>,
+    pending_tasks: VecDeque<WriteTask>,
+    futures: ConcurrentFutures<UploadFuture>,
+    part_number: usize,
 }
 
-enum State<W> {
-    Idle(Option<W>),
-    Init(BoxedFuture<(W, Result<String>)>),
-    Write(BoxedFuture<(W, Result<MultipartUploadPart>)>),
-    Close(BoxedFuture<(W, Result<()>)>),
-    Abort(BoxedFuture<(W, Result<()>)>),
+enum State {
+    Idle,
+    Init(BoxedFuture<Result<String>>),
+    Busy,
+    Close(BoxedFuture<Result<()>>),
+    Abort(BoxedFuture<Result<()>>),
 }
 
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-unsafe impl<S: MultipartUploadWrite> Send for State<S> {}
+unsafe impl Send for State {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for State.
-unsafe impl<S: MultipartUploadWrite> Sync for State<S> {}
+unsafe impl Sync for State {}
 
 impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
     /// Create a new MultipartUploadWriter.
-    pub fn new(inner: W) -> Self {
+    pub fn new(inner: W, concurrent: usize) -> Self {
         Self {
-            state: State::Idle(Some(inner)),
+            state: State::Idle,
 
-            cache: None,
+            w: Arc::new(inner),
             upload_id: None,
             parts: Vec::new(),
+            processing_tasks: VecDeque::new(),
+            pending_tasks: VecDeque::new(),
+            futures: ConcurrentFutures::new(1.max(concurrent)),
+            part_number: 0,
         }
+    }
+
+    /// Increases part number and return the previous part number.
+    fn inc_part_number(&mut self) -> usize {
+        let part_number = self.part_number;
+        self.part_number += 1;
+        part_number
+    }
+
+    fn process_write_task(&mut self, upload_id: Arc<String>, task: WriteTask) {
+        let size = task.bs.len();
+        let part_number = task.part_number;
+        let bs = task.bs.clone();
+        let w = self.w.clone();
+
+        self.futures.push(UploadFuture(Box::pin(async move {
+            w.write_part(
+                &upload_id,
+                part_number,
+                size as u64,
+                AsyncBody::ChunkedBytes(bs),
+            )
+            .await
+        })));
+        self.processing_tasks.push_back(task);
+    }
+
+    fn add_write_task(&mut self, bs: &dyn oio::WriteBuf) -> usize {
+        let size = bs.remaining();
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+        let part_number = self.inc_part_number();
+        self.pending_tasks.push_back(WriteTask { bs, part_number });
+        size
     }
 }
 
@@ -150,60 +231,54 @@ where
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         loop {
             match &mut self.state {
-                State::Idle(w) => {
+                State::Idle => {
                     match self.upload_id.as_ref() {
                         Some(upload_id) => {
                             let upload_id = upload_id.clone();
-                            let part_number = self.parts.len();
+                            if self.futures.has_remaining() {
+                                let task = self
+                                    .pending_tasks
+                                    .pop_front()
+                                    .expect("pending task must exist");
+                                self.process_write_task(upload_id, task);
 
-                            let bs = self.cache.clone().expect("cache must be valid").clone();
-                            let w = w.take().expect("writer must be valid");
-                            self.state = State::Write(Box::pin(async move {
-                                let size = bs.len();
-                                let part = w
-                                    .write_part(
-                                        &upload_id,
-                                        part_number,
-                                        size as u64,
-                                        AsyncBody::ChunkedBytes(bs),
-                                    )
-                                    .await;
-
-                                (w, part)
-                            }));
+                                let size = self.add_write_task(bs);
+                                return Poll::Ready(Ok(size));
+                            } else {
+                                self.state = State::Busy;
+                            }
                         }
                         None => {
                             // Fill cache with the first write.
-                            if self.cache.is_none() {
-                                let size = bs.remaining();
-                                let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
-                                self.cache = Some(cb);
+                            if self.pending_tasks.is_empty() {
+                                let size = self.add_write_task(bs);
                                 return Poll::Ready(Ok(size));
                             }
 
-                            let w = w.take().expect("writer must be valid");
-                            self.state = State::Init(Box::pin(async move {
-                                let upload_id = w.initiate_part().await;
-                                (w, upload_id)
-                            }));
+                            let w = self.w.clone();
+                            self.state =
+                                State::Init(Box::pin(async move { w.initiate_part().await }));
                         }
                     }
                 }
                 State::Init(fut) => {
-                    let (w, upload_id) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(w));
+                    let upload_id = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle;
                     self.upload_id = Some(Arc::new(upload_id?));
                 }
-                State::Write(fut) => {
-                    let (w, part) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(w));
-                    self.parts.push(part?);
-
-                    // Replace the cache when last write succeeded
-                    let size = bs.remaining();
-                    let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
-                    self.cache = Some(cb);
-                    return Poll::Ready(Ok(size));
+                State::Busy => {
+                    if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                        // Safety: must exist.
+                        let task = self.processing_tasks.pop_front().unwrap();
+                        match part {
+                            Ok(part) => self.parts.push(part),
+                            Err(err) => {
+                                self.pending_tasks.push_front(task);
+                                return Poll::Ready(Err(err));
+                            }
+                        }
+                    }
+                    self.state = State::Idle;
                 }
                 State::Close(_) => {
                     unreachable!(
@@ -222,72 +297,70 @@ where
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(w) => {
-                    let w = w.take().expect("writer must be valid");
+                State::Idle => {
                     match self.upload_id.clone() {
                         Some(upload_id) => {
-                            let parts = self.parts.clone();
-                            match self.cache.clone() {
-                                Some(bs) => {
-                                    let upload_id = upload_id.clone();
-                                    self.state = State::Write(Box::pin(async move {
-                                        let size = bs.len();
-                                        let part = w
-                                            .write_part(
-                                                &upload_id,
-                                                parts.len(),
-                                                size as u64,
-                                                AsyncBody::ChunkedBytes(bs),
-                                            )
-                                            .await;
-                                        (w, part)
-                                    }));
+                            let w = self.w.clone();
+                            if self.futures.is_empty() && self.pending_tasks.is_empty() {
+                                let upload_id = upload_id.clone();
+                                let parts = self.parts.clone();
+                                self.state = State::Close(Box::pin(async move {
+                                    w.complete_part(&upload_id, &parts).await
+                                }));
+                            } else {
+                                let rem = min(self.futures.remaining(), self.pending_tasks.len());
+                                for _ in 0..rem {
+                                    if let Some(task) = self.pending_tasks.pop_front() {
+                                        let upload_id = upload_id.clone();
+                                        self.process_write_task(upload_id, task);
+                                    }
                                 }
-                                None => {
-                                    self.state = State::Close(Box::pin(async move {
-                                        let res = w.complete_part(&upload_id, &parts).await;
-                                        (w, res)
-                                    }));
-                                }
+                                self.state = State::Busy;
                             }
                         }
-                        None => match self.cache.clone() {
-                            Some(bs) => {
+                        None => match self.pending_tasks.pop_front() {
+                            Some(task) => {
+                                let w = self.w.clone();
+                                let bs = task.bs.clone();
                                 self.state = State::Close(Box::pin(async move {
                                     let size = bs.len();
-                                    let res = w
-                                        .write_once(size as u64, AsyncBody::ChunkedBytes(bs))
-                                        .await;
-                                    (w, res)
+                                    w.write_once(size as u64, AsyncBody::ChunkedBytes(bs)).await
                                 }));
                             }
                             None => {
+                                let w = self.w.clone();
                                 // Call write_once if there is no data in cache and no upload_id.
                                 self.state = State::Close(Box::pin(async move {
-                                    let res = w.write_once(0, AsyncBody::Empty).await;
-                                    (w, res)
+                                    w.write_once(0, AsyncBody::Empty).await
                                 }));
                             }
                         },
                     }
                 }
                 State::Close(fut) => {
-                    let (w, res) = futures::ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(w));
+                    let res = futures::ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle;
                     // We should check res first before clean up cache.
                     res?;
 
-                    self.cache = None;
                     return Poll::Ready(Ok(()));
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_close"
                 ),
-                State::Write(fut) => {
-                    let (w, part) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(w));
-                    self.parts.push(part?);
-                    self.cache = None;
+                State::Busy => {
+                    while let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                        // Safety: must exist.
+                        let task = self.processing_tasks.pop_front().unwrap();
+                        match part {
+                            Ok(part) => self.parts.push(part),
+                            Err(err) => {
+                                self.pending_tasks.push_front(task);
+                                return Poll::Ready(Err(err));
+                            }
+                        }
+                    }
+                    self.state = State::Idle;
                 }
                 State::Abort(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Abort during poll_close"
@@ -299,31 +372,30 @@ where
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(w) => {
-                    let w = w.take().expect("writer must be valid");
+                State::Idle => {
+                    let w = self.w.clone();
                     match self.upload_id.clone() {
                         Some(upload_id) => {
-                            self.state = State::Abort(Box::pin(async move {
-                                let res = w.abort_part(&upload_id).await;
-                                (w, res)
-                            }));
+                            self.state =
+                                State::Abort(Box::pin(
+                                    async move { w.abort_part(&upload_id).await },
+                                ));
                         }
                         None => {
-                            self.cache = None;
                             return Poll::Ready(Ok(()));
                         }
                     }
                 }
                 State::Abort(fut) => {
-                    let (w, res) = futures::ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(w));
+                    let res = futures::ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle;
                     return Poll::Ready(res);
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_abort"
                 ),
-                State::Write(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State::Write during poll_abort"
+                State::Busy => unreachable!(
+                    "MultipartUploadWriter must not go into State::Busy during poll_abort"
                 ),
                 State::Close(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Close during poll_abort"

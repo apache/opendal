@@ -340,7 +340,7 @@ impl Accessor for CosBackend {
         let w = if args.append() {
             CosWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            CosWriters::One(oio::MultipartUploadWriter::new(writer))
+            CosWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))

@@ -24,31 +24,55 @@ use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
 use mongodb::options::UpdateOptions;
+use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
+use crate::raw::ConfigDeserializer;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct MongodbBuilder {
-    connection_string: Option<String>,
-    database: Option<String>,
-    collection: Option<String>,
-    root: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
+/// Config for Mongodb service support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct MongodbConfig {
+    /// connection string of this backend
+    pub connection_string: Option<String>,
+    /// database of this backend
+    pub database: Option<String>,
+    /// collection of this backend
+    pub collection: Option<String>,
+    /// root of this backend
+    pub root: Option<String>,
+    /// key field of this backend
+    pub key_field: Option<String>,
+    /// value field of this backend
+    pub value_field: Option<String>,
 }
 
-impl Debug for MongodbBuilder {
+impl Debug for MongodbConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MongoDbBuilder")
+        f.debug_struct("MongodbConfig")
             .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("root", &self.root)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
+            .finish()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct MongodbBuilder {
+    config: MongodbConfig,
+}
+
+impl Debug for MongodbBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MongodbBuilder")
+            .field("config", &self.config)
             .finish()
     }
 }
@@ -76,7 +100,7 @@ impl MongodbBuilder {
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -85,7 +109,7 @@ impl MongodbBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -93,7 +117,7 @@ impl MongodbBuilder {
     /// Set the database name of the MongoDB service to read/write.
     pub fn database(&mut self, database: &str) -> &mut Self {
         if !database.is_empty() {
-            self.database = Some(database.to_string());
+            self.config.database = Some(database.to_string());
         }
         self
     }
@@ -101,7 +125,7 @@ impl MongodbBuilder {
     /// Set the collection name of the MongoDB service to read/write.
     pub fn collection(&mut self, collection: &str) -> &mut Self {
         if !collection.is_empty() {
-            self.collection = Some(collection.to_string());
+            self.config.collection = Some(collection.to_string());
         }
         self
     }
@@ -111,7 +135,7 @@ impl MongodbBuilder {
     /// Default to `key` if not specified.
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
-            self.key_field = Some(key_field.to_string());
+            self.config.key_field = Some(key_field.to_string());
         }
         self
     }
@@ -121,7 +145,7 @@ impl MongodbBuilder {
     /// Default to `value` if not specified.
     pub fn value_field(&mut self, value_field: &str) -> &mut Self {
         if !value_field.is_empty() {
-            self.value_field = Some(value_field.to_string());
+            self.config.value_field = Some(value_field.to_string());
         }
         self
     }
@@ -133,21 +157,13 @@ impl Builder for MongodbBuilder {
     type Accessor = MongodbBackend;
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("database").map(|v| builder.database(v));
-        map.get("collection").map(|v| builder.collection(v));
-        map.get("root").map(|v| builder.root(v));
-        map.get("key_field").map(|v| builder.key_field(v));
-        map.get("value_field").map(|v| builder.value_field(v));
-
-        builder
+        let config = MongodbConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+        MongodbBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let conn = match &self.connection_string.clone() {
+        let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(
@@ -156,14 +172,14 @@ impl Builder for MongodbBuilder {
                 )
             }
         };
-        let database = match &self.database.clone() {
+        let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::InvalidInput, "database is required")
                     .with_context("service", Scheme::Mongodb))
             }
         };
-        let collection = match &self.collection.clone() {
+        let collection = match &self.config.collection.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(
@@ -172,11 +188,11 @@ impl Builder for MongodbBuilder {
                 )
             }
         };
-        let key_field = match &self.key_field.clone() {
+        let key_field = match &self.config.key_field.clone() {
             Some(v) => v.clone(),
             None => "key".to_string(),
         };
-        let value_field = match &self.value_field.clone() {
+        let value_field = match &self.config.value_field.clone() {
             Some(v) => v.clone(),
             None => "value".to_string(),
         };

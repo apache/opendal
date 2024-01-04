@@ -133,7 +133,6 @@ impl GhaaCore {
             limit.unwrap_or(100),
             page
         );
-        println!("{}", url);
         let mut req = Request::get(&url);
         req = req.header(USER_AGENT, format!("opendal/{VERSION} (service ghaa)"));
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");

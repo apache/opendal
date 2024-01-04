@@ -45,7 +45,8 @@ mod blocking_write;
 // External dependencies
 use libtest_mimic::Arguments;
 use libtest_mimic::Trial;
-use opendal::raw::tests::{init_test_service, TEST_RUNTIME};
+use opendal::raw::tests::init_test_service;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::*;
 
 pub static TEST_FIXTURE: Fixture = Fixture::new();

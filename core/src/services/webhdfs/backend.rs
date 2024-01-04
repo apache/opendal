@@ -395,10 +395,10 @@ impl WebhdfsBackend {
 #[async_trait]
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebhdfsWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<WebhdfsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -460,6 +460,38 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // if root exists and is a directory, stat will be ok
+        self.root_checker
+            .get_or_try_init(|| async { self.check_root().await })
+            .await?;
+
+        let resp = self.webhdfs_get_file_status(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+
+                let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
+                    .map_err(new_json_deserialize_error)?
+                    .file_status;
+
+                let meta = match file_status.ty {
+                    FileStatusType::Directory => Metadata::new(EntryMode::DIR),
+                    FileStatusType::File => Metadata::new(EntryMode::FILE)
+                        .with_content_length(file_status.length)
+                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                            file_status.modification_time,
+                        )?),
+                };
+
+                Ok(RpStat::new(meta))
+            }
+
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let range = args.range();
         let resp = self.webhdfs_read_file(path, range).await?;
@@ -496,38 +528,6 @@ impl Accessor for WebhdfsBackend {
             RpWrite::default(),
             oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),
         ))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // if root exists and is a directory, stat will be ok
-        self.root_checker
-            .get_or_try_init(|| async { self.check_root().await })
-            .await?;
-
-        let resp = self.webhdfs_get_file_status(path).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-
-                let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
-                    .map_err(new_json_deserialize_error)?
-                    .file_status;
-
-                let meta = match file_status.ty {
-                    FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-                    FileStatusType::File => Metadata::new(EntryMode::FILE)
-                        .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
-                            file_status.modification_time,
-                        )?),
-                };
-
-                Ok(RpStat::new(meta))
-            }
-
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

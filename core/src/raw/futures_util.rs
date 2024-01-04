@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::stream::FuturesOrdered;
-use futures::{FutureExt, StreamExt};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use futures::stream::FuturesOrdered;
+use futures::FutureExt;
+use futures::StreamExt;
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
 ///
@@ -189,12 +192,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::task::ready;
+    use std::time::Duration;
+
     use futures::future::BoxFuture;
     use futures::Stream;
     use rand::Rng;
-    use std::task::ready;
-    use std::time::Duration;
+
+    use super::*;
 
     struct Lister {
         size: usize,

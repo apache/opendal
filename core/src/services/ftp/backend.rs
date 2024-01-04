@@ -31,14 +31,12 @@ use http::Uri;
 use log::debug;
 use serde::Deserialize;
 use suppaftp::list::File;
-
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
-
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 
@@ -289,10 +287,10 @@ impl Debug for FtpBackend {
 #[async_trait]
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
-    type BlockingReader = ();
     type Writer = FtpWriters;
-    type BlockingWriter = ();
     type Lister = FtpLister;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -341,6 +339,24 @@ impl Accessor for FtpBackend {
         }
 
         return Ok(RpCreateDir::default());
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let file = self.ftp_stat(path).await?;
+
+        let mode = if file.is_file() {
+            EntryMode::FILE
+        } else if file.is_directory() {
+            EntryMode::DIR
+        } else {
+            EntryMode::Unknown
+        };
+
+        let mut meta = Metadata::new(mode);
+        meta.set_content_length(file.size() as u64);
+        meta.set_last_modified(file.modified().into());
+
+        Ok(RpStat::new(meta))
     }
 
     /// TODO: migrate to FileReader maybe?
@@ -416,24 +432,6 @@ impl Accessor for FtpBackend {
         let w = oio::OneShotWriter::new(w);
 
         Ok((RpWrite::new(), w))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let file = self.ftp_stat(path).await?;
-
-        let mode = if file.is_file() {
-            EntryMode::FILE
-        } else if file.is_directory() {
-            EntryMode::DIR
-        } else {
-            EntryMode::Unknown
-        };
-
-        let mut meta = Metadata::new(mode);
-        meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(file.modified().into());
-
-        Ok(RpStat::new(meta))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

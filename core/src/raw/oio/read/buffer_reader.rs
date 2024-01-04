@@ -15,21 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BufMut;
-use bytes::Bytes;
-use tokio::io::ReadBuf;
-
 use std::cmp::min;
 use std::io::SeekFrom;
-
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::*;
-use crate::*;
+use bytes::BufMut;
+use bytes::Bytes;
+use tokio::io::ReadBuf;
 
 use super::BlockingRead;
+use crate::raw::*;
+use crate::*;
 
 /// [BufferReader] allows the underlying reader to fetch data at the buffer's size
 /// and is used to amortize the IO's overhead.
@@ -316,7 +314,6 @@ mod tests {
     use std::io::SeekFrom;
     use std::sync::Arc;
 
-    use crate::raw::oio::RangeReader;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::AsyncReadExt;
@@ -326,6 +323,7 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
+    use crate::raw::oio::RangeReader;
 
     // Generate bytes between [4MiB, 16MiB)
     fn gen_bytes() -> (Bytes, usize) {
@@ -352,10 +350,10 @@ mod tests {
     #[async_trait]
     impl Accessor for MockReadService {
         type Reader = MockReader;
-        type BlockingReader = MockReader;
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
+        type BlockingReader = MockReader;
+        type BlockingWriter = ();
         type BlockingLister = ();
 
         fn info(&self) -> AccessorInfo {

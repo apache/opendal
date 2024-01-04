@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::StatusCode;
-use log::debug;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use http::StatusCode;
+use log::debug;
+use serde::Deserialize;
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;
@@ -256,15 +257,10 @@ pub struct SeafileBackend {
 #[async_trait]
 impl Accessor for SeafileBackend {
     type Reader = IncomingAsyncBody;
-
-    type BlockingReader = ();
-
     type Writer = SeafileWriters;
-
-    type BlockingWriter = ();
-
     type Lister = oio::PageLister<SeafileLister>;
-
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -290,6 +286,23 @@ impl Accessor for SeafileBackend {
         am
     }
 
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        let metadata = if path.ends_with('/') {
+            let dir_detail = self.core.dir_detail(path).await?;
+            parse_dir_detail(dir_detail)
+        } else {
+            let file_detail = self.core.file_detail(path).await?;
+
+            parse_file_detail(file_detail)
+        };
+
+        metadata.map(RpStat::new)
+    }
+
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.download_file(path).await?;
 
@@ -306,23 +319,6 @@ impl Accessor for SeafileBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        let metadata = if path.ends_with('/') {
-            let dir_detail = self.core.dir_detail(path).await?;
-            parse_dir_detail(dir_detail)
-        } else {
-            let file_detail = self.core.file_detail(path).await?;
-
-            parse_file_detail(file_detail)
-        };
-
-        metadata.map(RpStat::new)
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -15,22 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 /// Core of [seafile](https://www.seafile.com) services support.
 #[derive(Clone)]

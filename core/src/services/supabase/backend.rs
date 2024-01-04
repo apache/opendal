@@ -157,11 +157,11 @@ pub struct SupabaseBackend {
 #[async_trait]
 impl Accessor for SupabaseBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<SupabaseWriter>;
-    type BlockingWriter = ();
     // todo: implement Lister to support list and scan
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -183,24 +183,6 @@ impl Accessor for SupabaseBackend {
         am
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
-        ))
-    }
-
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         // The get_object_info does not contain the file size. Therefore
         // we first try the get the metadata through head, if we fail,
@@ -219,6 +201,24 @@ impl Accessor for SupabaseBackend {
                 }
             }
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
+        ))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

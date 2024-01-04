@@ -247,10 +247,10 @@ pub struct AzfileBackend {
 #[async_trait]
 impl Accessor for AzfileBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AzfileWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AzfileLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -308,6 +308,23 @@ impl Accessor for AzfileBackend {
         }
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let resp = if path.ends_with('/') {
+            self.core.azfile_get_directory_properties(path).await?
+        } else {
+            self.core.azfile_get_file_properties(path).await?
+        };
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.azfile_read(path, args.range()).await?;
 
@@ -341,36 +358,6 @@ impl Accessor for AzfileBackend {
         return Ok((RpWrite::default(), w));
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = if path.ends_with('/') {
-            self.core.azfile_get_directory_properties(path).await?
-        } else {
-            self.core.azfile_get_file_properties(path).await?
-        };
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        self.core.ensure_parent_dir_exists(to).await?;
-        let resp = self.core.azfile_rename(from, to).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = if path.ends_with('/') {
             self.core.azfile_delete_dir(path).await?
@@ -392,6 +379,19 @@ impl Accessor for AzfileBackend {
         let l = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        self.core.ensure_parent_dir_exists(to).await?;
+        let resp = self.core.azfile_rename(from, to).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

@@ -243,10 +243,10 @@ impl Debug for SftpBackend {
 #[async_trait]
 impl Accessor for SftpBackend {
     type Reader = oio::TokioReader<Pin<Box<TokioCompatFile>>>;
-    type BlockingReader = ();
     type Writer = SftpWriter;
-    type BlockingWriter = ();
     type Lister = Option<SftpLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -300,6 +300,16 @@ impl Accessor for SftpBackend {
         return Ok(RpCreateDir::default());
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let client = self.connect().await?;
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        let meta: Metadata = fs.metadata(path).await?.into();
+
+        Ok(RpStat::new(meta))
+    }
+
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let client = self.connect().await?;
 
@@ -342,50 +352,6 @@ impl Accessor for SftpBackend {
         let file = option.open(path).await?;
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let client = self.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-
-        if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
-
-        let src = fs.canonicalize(from).await?;
-        let dst = fs.canonicalize(to).await?;
-        let mut src_file = client.open(&src).await?;
-        let mut dst_file = client.create(dst).await?;
-
-        src_file.copy_all_to(&mut dst_file).await?;
-
-        Ok(RpCopy::default())
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let client = self.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-
-        if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
-        fs.rename(from, to).await?;
-
-        Ok(RpRename::default())
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let client = self.connect().await?;
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-
-        let meta: Metadata = fs.metadata(path).await?.into();
-
-        Ok(RpStat::new(meta))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -467,6 +433,40 @@ impl Accessor for SftpBackend {
             RpList::default(),
             Some(SftpLister::new(dir, path.to_owned())),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+
+        let src = fs.canonicalize(from).await?;
+        let dst = fs.canonicalize(to).await?;
+        let mut src_file = client.open(&src).await?;
+        let mut dst_file = client.create(dst).await?;
+
+        src_file.copy_all_to(&mut dst_file).await?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+        fs.rename(from, to).await?;
+
+        Ok(RpRename::default())
     }
 }
 

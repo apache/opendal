@@ -15,19 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use base64::Engine;
-use hmac::{Hmac, Mac};
-use http::{header, HeaderMap, Request, Response};
+use hmac::Hmac;
+use hmac::Mac;
+use http::header;
+use http::HeaderMap;
+use http::Request;
+use http::Response;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
 
+use self::constants::*;
 use crate::raw::*;
 use crate::*;
-
-use self::constants::*;
 
 pub(super) mod constants {
     pub const X_UPYUN_FILE_TYPE: &str = "x-upyun-file-type";

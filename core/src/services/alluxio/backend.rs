@@ -182,10 +182,10 @@ pub struct AlluxioBackend {
 #[async_trait]
 impl Accessor for AlluxioBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AlluxioWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AlluxioLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -216,6 +216,12 @@ impl Accessor for AlluxioBackend {
         Ok(RpCreateDir::default())
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let file_info = self.core.get_status(path).await?;
+
+        Ok(RpStat::new(file_info.try_into()?))
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let stream_id = self.core.open_file(path).await?;
 
@@ -231,18 +237,6 @@ impl Accessor for AlluxioBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let file_info = self.core.get_status(path).await?;
-
-        Ok(RpStat::new(file_info.try_into()?))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        self.core.rename(from, to).await?;
-
-        Ok(RpRename::default())
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         self.core.delete(path).await?;
 
@@ -252,6 +246,12 @@ impl Accessor for AlluxioBackend {
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = AlluxioLister::new(self.core.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        self.core.rename(from, to).await?;
+
+        Ok(RpRename::default())
     }
 }
 

@@ -268,15 +268,10 @@ pub struct B2Backend {
 #[async_trait]
 impl Accessor for B2Backend {
     type Reader = IncomingAsyncBody;
-
     type Writer = B2Writers;
-
     type Lister = oio::PageLister<B2Lister>;
-
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {

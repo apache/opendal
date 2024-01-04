@@ -347,3 +347,10 @@ mod pcloud;
 pub use pcloud::Pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::PcloudConfig;
+
+#[cfg(feature = "services-yandex-disk")]
+mod yandex_disk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDisk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDiskConfig;

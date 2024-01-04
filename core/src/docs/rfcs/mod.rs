@@ -219,3 +219,6 @@ pub mod rfc_3574_concurrent_stat_in_list {}
 
 #[doc = include_str!("3734_buffered_reader.md")]
 pub mod rfc_3734_buffered_reader {}
+
+#[doc = include_str!("3898_concurrent_writer.md")]
+pub mod rfc_3898_concurrent_writer {}

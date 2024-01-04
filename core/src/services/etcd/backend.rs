@@ -273,11 +273,15 @@ impl bb8::ManageConnection for Manager {
     type Error = Error;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        Ok(Client::connect(self.endpoints.clone(), Some(self.options.clone())).await?)
+        Ok(
+            Client::connect(self.endpoints.clone(), Some(self.options.clone()))
+                .await
+                .map_err(format_etcd_error)?,
+        )
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
-        let _ = conn.status().await?;
+        let _ = conn.status().await.map_err(format_etcd_error)?;
         Ok(())
     }
 
@@ -347,7 +351,7 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let mut client = self.conn().await?;
-        let resp = client.get(key, None).await?;
+        let resp = client.get(key, None).await.map_err(format_etcd_error)?;
         if let Some(kv) = resp.kvs().first() {
             Ok(Some(kv.value().to_vec()))
         } else {
@@ -357,20 +361,26 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
         let mut client = self.conn().await?;
-        let _ = client.put(key, value, None).await?;
+        let _ = client
+            .put(key, value, None)
+            .await
+            .map_err(format_etcd_error)?;
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let mut client = self.conn().await?;
-        let _ = client.delete(key, None).await?;
+        let _ = client.delete(key, None).await.map_err(format_etcd_error)?;
         Ok(())
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
         let mut client = self.conn().await?;
         let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
-        let resp = client.get(path, get_options).await?;
+        let resp = client
+            .get(path, get_options)
+            .await
+            .map_err(format_etcd_error)?;
         let mut res = Vec::default();
         for kv in resp.kvs() {
             let v = kv.key_str().map(String::from).map_err(|err| {
@@ -387,10 +397,8 @@ impl kv::Adapter for Adapter {
     }
 }
 
-impl From<EtcdError> for Error {
-    fn from(e: EtcdError) -> Self {
-        Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-            .set_source(e)
-            .set_temporary()
-    }
+pub fn format_etcd_error(e: EtcdError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+        .set_source(e)
+        .set_temporary()
 }

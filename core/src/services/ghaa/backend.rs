@@ -20,11 +20,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use log::debug;
 use async_trait::async_trait;
 use chrono::DateTime;
 use chrono::Utc;
 use http::StatusCode;
+use log::debug;
 use serde::Deserialize;
 
 use super::error::parse_error;

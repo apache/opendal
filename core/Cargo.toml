@@ -143,6 +143,7 @@ services-gcs = [
   "reqsign?/reqwest_request",
 ]
 services-gdrive = []
+services-ghaa = []
 services-ghac = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]

@@ -15,15 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::future::BoxFuture;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
 
 use async_trait::async_trait;
-use futures::{AsyncWrite, AsyncWriteExt, FutureExt};
+use futures::future::BoxFuture;
+use futures::AsyncWrite;
+use futures::AsyncWriteExt;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;

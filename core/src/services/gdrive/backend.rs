@@ -43,10 +43,10 @@ pub struct GdriveBackend {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GdriveBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<GdriveWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<GdriveLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -76,17 +76,6 @@ impl Accessor for GdriveBackend {
         ma
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gdrive_stat(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
-        Ok(RpStat::new(meta))
-    }
-
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let parent = self.core.ensure_parent_path(path).await?;
 
@@ -106,6 +95,17 @@ impl Accessor for GdriveBackend {
         cache.insert(build_abs_path(&self.core.root, path), id);
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.gdrive_stat(path).await?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -158,28 +158,6 @@ impl Accessor for GdriveBackend {
                 file_id,
             )),
         ))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.gdrive_patch_metadata_request(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let meta = serde_json::from_slice::<GdriveFile>(&body)
-                    .map_err(new_json_deserialize_error)?;
-
-                let mut cache = self.core.path_cache.lock().await;
-
-                cache.remove(&build_abs_path(&self.core.root, from));
-                cache.insert(build_abs_path(&self.core.root, to), meta.id.clone());
-
-                Ok(RpRename::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -273,6 +251,28 @@ impl Accessor for GdriveBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.gdrive_patch_metadata_request(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = resp.into_body().bytes().await?;
+                let meta = serde_json::from_slice::<GdriveFile>(&body)
+                    .map_err(new_json_deserialize_error)?;
+
+                let mut cache = self.core.path_cache.lock().await;
+
+                cache.remove(&build_abs_path(&self.core.root, from));
+                cache.insert(build_abs_path(&self.core.root, to), meta.id.clone());
+
+                Ok(RpRename::default())
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

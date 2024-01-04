@@ -1164,10 +1164,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = MockReader;
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = MockLister;
+        type BlockingReader = ();
+        type BlockingWriter = ();
         type BlockingLister = ();
 
         fn info(&self) -> AccessorInfo {

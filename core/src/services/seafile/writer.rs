@@ -18,7 +18,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::{header, Request, StatusCode};
+use http::header;
+use http::Request;
+use http::StatusCode;
 
 use super::core::SeafileCore;
 use super::error::parse_error;

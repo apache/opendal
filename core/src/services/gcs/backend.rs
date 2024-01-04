@@ -322,10 +322,10 @@ pub struct GcsBackend {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = GcsWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<GcsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -375,37 +375,6 @@ impl Accessor for GcsBackend {
         am
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gcs_get_object(path, &args).await?;
-
-        if resp.status().is_success() {
-            let size = parse_content_length(resp.headers())?;
-            Ok((RpRead::new().with_size(size), resp.into_body()))
-        } else if resp.status() == StatusCode::RANGE_NOT_SATISFIABLE {
-            Ok((RpRead::new(), IncomingAsyncBody::empty()))
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::RangeWriter::new(w);
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.gcs_copy_object(from, to).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCopy::default())
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
@@ -437,6 +406,26 @@ impl Accessor for GcsBackend {
         Ok(RpStat::new(m))
     }
 
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.gcs_get_object(path, &args).await?;
+
+        if resp.status().is_success() {
+            let size = parse_content_length(resp.headers())?;
+            Ok((RpRead::new().with_size(size), resp.into_body()))
+        } else if resp.status() == StatusCode::RANGE_NOT_SATISFIABLE {
+            Ok((RpRead::new(), IncomingAsyncBody::empty()))
+        } else {
+            Err(parse_error(resp).await?)
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let w = GcsWriter::new(self.core.clone(), path, args);
+        let w = oio::RangeWriter::new(w);
+
+        Ok((RpWrite::default(), w))
+    }
+
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.gcs_delete_object(path).await?;
 
@@ -458,6 +447,40 @@ impl Accessor for GcsBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.gcs_copy_object(from, to).await?;
+
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpCopy::default())
+        } else {
+            Err(parse_error(resp).await?)
+        }
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        // We will not send this request out, just for signing.
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .gcs_insert_object_xml_request(path, v, AsyncBody::Empty)?
+            }
+        };
+
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -517,29 +540,6 @@ impl Accessor for GcsBackend {
             // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
             Err(parse_error(resp).await?)
         }
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
-            PresignOperation::Write(v) => {
-                self.core
-                    .gcs_insert_object_xml_request(path, v, AsyncBody::Empty)?
-            }
-        };
-
-        self.core.sign_query(&mut req, args.expire()).await?;
-
-        // We don't need this request anymore, consume it directly.
-        let (parts, _) = req.into_parts();
-
-        Ok(RpPresign::new(PresignedRequest::new(
-            parts.method,
-            parts.uri,
-            parts.headers,
-        )))
     }
 }
 

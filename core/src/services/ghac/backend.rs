@@ -227,10 +227,10 @@ pub struct GhacBackend {
 #[async_trait]
 impl Accessor for GhacBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = GhacWriter;
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -252,6 +252,34 @@ impl Accessor for GhacBackend {
                 ..Default::default()
             });
         am
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let req = self.ghac_query(path).await?;
+
+        let resp = self.client.send(req).await?;
+
+        let location = if resp.status() == StatusCode::OK {
+            let slc = resp.into_body().bytes().await?;
+            let query_resp: GhacQueryResponse =
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+            query_resp.archive_location
+        } else {
+            return Err(parse_error(resp).await?);
+        };
+
+        let req = self.ghac_head_location(&location).await?;
+        let resp = self.client.send(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -306,34 +334,6 @@ impl Accessor for GhacBackend {
         };
 
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let req = self.ghac_query(path).await?;
-
-        let resp = self.client.send(req).await?;
-
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
-            let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
-            query_resp.archive_location
-        } else {
-            return Err(parse_error(resp).await?);
-        };
-
-        let req = self.ghac_head_location(&location).await?;
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

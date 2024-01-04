@@ -25,5 +25,5 @@ license.workspace = true
 
 [dependencies]
 opendal = { workspace = true, features = ["tests"] }
-uuid = { version = "1", features = ["serde", "v4"] }
 tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["serde", "v4"] }

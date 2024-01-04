@@ -25,9 +25,6 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::parse_info;
 use super::core::ChainsafeCore;
 use super::core::ObjectInfoResponse;
@@ -35,6 +32,8 @@ use super::error::parse_error;
 use super::lister::ChainsafeLister;
 use super::writer::ChainsafeWriter;
 use super::writer::ChainsafeWriters;
+use crate::raw::*;
+use crate::*;
 
 /// Config for backblaze Chainsafe services support.
 #[derive(Default, Deserialize)]
@@ -206,13 +205,13 @@ pub struct ChainsafeBackend {
 impl Accessor for ChainsafeBackend {
     type Reader = IncomingAsyncBody;
 
-    type BlockingReader = ();
-
     type Writer = ChainsafeWriters;
 
-    type BlockingWriter = ();
-
     type Lister = oio::PageLister<ChainsafeLister>;
+
+    type BlockingReader = ();
+
+    type BlockingWriter = ();
 
     type BlockingLister = ();
 
@@ -252,6 +251,23 @@ impl Accessor for ChainsafeBackend {
         }
     }
 
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.object_info(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+
+                let output: ObjectInfoResponse =
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                Ok(RpStat::new(parse_info(output.content)))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.download_object(path).await?;
 
@@ -265,23 +281,6 @@ impl Accessor for ChainsafeBackend {
                     RpRead::new().with_size(size).with_range(range),
                     resp.into_body(),
                 ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.object_info(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-
-                let output: ObjectInfoResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-                Ok(RpStat::new(parse_info(output.content)))
             }
             _ => Err(parse_error(resp).await?),
         }

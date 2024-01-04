@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::StatusCode;
-use log::debug;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use http::StatusCode;
+use log::debug;
+use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -228,15 +229,10 @@ pub struct PcloudBackend {
 #[async_trait]
 impl Accessor for PcloudBackend {
     type Reader = IncomingAsyncBody;
-
-    type BlockingReader = ();
-
     type Writer = PcloudWriters;
-
-    type BlockingWriter = ();
-
     type Lister = oio::PageLister<PcloudLister>;
-
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -270,86 +266,6 @@ impl Accessor for PcloudBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.ensure_dir_exists(to).await?;
-
-        let resp = if from.ends_with('/') {
-            self.core.rename_folder(from, to).await?
-        } else {
-            self.core.rename_file(from, to).await?
-        };
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(RpRename::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        self.core.ensure_dir_exists(to).await?;
-
-        let resp = if from.ends_with('/') {
-            self.core.copy_folder(from, to).await?
-        } else {
-            self.core.copy_file(from, to).await?
-        };
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let link = self.core.get_file_link(path).await?;
-
-        let resp = self.core.download(&link).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.stat(path).await?;
 
@@ -374,6 +290,26 @@ impl Accessor for PcloudBackend {
                 }
 
                 Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let link = self.core.get_file_link(path).await?;
+
+        let resp = self.core.download(&link).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -417,5 +353,65 @@ impl Accessor for PcloudBackend {
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = PcloudLister::new(self.core.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        self.core.ensure_dir_exists(to).await?;
+
+        let resp = if from.ends_with('/') {
+            self.core.copy_folder(from, to).await?
+        } else {
+            self.core.copy_file(from, to).await?
+        };
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+                let resp: PcloudError =
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.core.ensure_dir_exists(to).await?;
+
+        let resp = if from.ends_with('/') {
+            self.core.rename_folder(from, to).await?
+        } else {
+            self.core.rename_file(from, to).await?
+        };
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+                let resp: PcloudError =
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

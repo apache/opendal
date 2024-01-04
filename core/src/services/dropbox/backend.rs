@@ -36,10 +36,10 @@ pub struct DropboxBackend {
 #[async_trait]
 impl Accessor for DropboxBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<DropboxWriter>;
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -97,6 +97,44 @@ impl Accessor for DropboxBackend {
         Ok(res)
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let resp = self.core.dropbox_get_metadata(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let bytes = resp.into_body().bytes().await?;
+                let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
+                    .map_err(new_json_deserialize_error)?;
+                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
+                    "file" => EntryMode::FILE,
+                    "folder" => EntryMode::DIR,
+                    _ => EntryMode::Unknown,
+                };
+
+                let mut metadata = Metadata::new(entry_mode);
+                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
+                // returns last_modified and size only for files.
+                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+                if entry_mode == EntryMode::FILE {
+                    let date_utc_last_modified =
+                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
+                    metadata.set_last_modified(date_utc_last_modified);
+
+                    if let Some(size) = decoded_response.size {
+                        metadata.set_content_length(size);
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("no size found for file {}", path),
+                        ));
+                    }
+                }
+                Ok(RpStat::new(metadata))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.dropbox_get(path, args).await?;
         let status = resp.status();
@@ -135,44 +173,6 @@ impl Accessor for DropboxBackend {
                     _ => Err(err),
                 }
             }
-        }
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.dropbox_get_metadata(path).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
-                let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
-                    .map_err(new_json_deserialize_error)?;
-                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
-                    "file" => EntryMode::FILE,
-                    "folder" => EntryMode::DIR,
-                    _ => EntryMode::Unknown,
-                };
-
-                let mut metadata = Metadata::new(entry_mode);
-                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
-                // returns last_modified and size only for files.
-                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
-                if entry_mode == EntryMode::FILE {
-                    let date_utc_last_modified =
-                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
-                    metadata.set_last_modified(date_utc_last_modified);
-
-                    if let Some(size) = decoded_response.size {
-                        metadata.set_content_length(size);
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("no size found for file {}", path),
-                        ));
-                    }
-                }
-                Ok(RpStat::new(metadata))
-            }
-            _ => Err(parse_error(resp).await?),
         }
     }
 

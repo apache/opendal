@@ -63,10 +63,10 @@ impl IpmfsBackend {
 #[async_trait]
 impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<IpmfsWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<IpmfsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -105,24 +105,6 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipmfs_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(IpmfsWriter::new(self.clone(), path.to_string())),
-        ))
-    }
-
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
@@ -153,6 +135,24 @@ impl Accessor for IpmfsBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.ipmfs_read(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(IpmfsWriter::new(self.clone(), path.to_string())),
+        ))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

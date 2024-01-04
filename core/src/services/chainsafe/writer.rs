@@ -20,11 +20,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::ChainsafeCore;
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 pub type ChainsafeWriters = oio::OneShotWriter<ChainsafeWriter>;
 

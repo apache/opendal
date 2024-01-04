@@ -18,12 +18,12 @@
 [workspace]
 default-members = ["core"]
 exclude = [
-    "examples",
+  "examples",
 
-    "bindings/c",
-    "bindings/ocaml",
-    "bindings/php",
-    "bindings/ruby"
+  "bindings/c",
+  "bindings/ocaml",
+  "bindings/php",
+  "bindings/ruby",
 ]
 members = [
   "core",

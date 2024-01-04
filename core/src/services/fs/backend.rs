@@ -241,10 +241,10 @@ impl FsBackend {
 #[async_trait]
 impl Accessor for FsBackend {
     type Reader = oio::TokioReader<tokio::fs::File>;
-    type BlockingReader = oio::StdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
-    type BlockingWriter = FsWriter<std::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type BlockingReader = oio::StdReader<std::fs::File>;
+    type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
     fn info(&self) -> AccessorInfo {
@@ -284,6 +284,29 @@ impl Accessor for FsBackend {
             .map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = self.root.join(path.trim_end_matches('/'));
+
+        let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
+
+        let mode = if meta.is_dir() {
+            EntryMode::DIR
+        } else if meta.is_file() {
+            EntryMode::FILE
+        } else {
+            EntryMode::Unknown
+        };
+        let m = Metadata::new(mode)
+            .with_content_length(meta.len())
+            .with_last_modified(
+                meta.modified()
+                    .map(DateTime::from)
+                    .map_err(new_std_io_error)?,
+            );
+
+        Ok(RpStat::new(m))
     }
 
     /// # Notes
@@ -346,57 +369,6 @@ impl Accessor for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
-
-        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
-
-        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
-
-        Ok(RpCopy::default())
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
-
-        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
-
-        tokio::fs::rename(from, to)
-            .await
-            .map_err(new_std_io_error)?;
-
-        Ok(RpRename::default())
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.root.join(path.trim_end_matches('/'));
-
-        let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
-        Ok(RpStat::new(m))
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -436,12 +408,63 @@ impl Accessor for FsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+
+        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+
+        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        tokio::fs::rename(from, to)
+            .await
+            .map_err(new_std_io_error)?;
+
+        Ok(RpRename::default())
+    }
+
     fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         std::fs::create_dir_all(p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
+    }
+
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = self.root.join(path.trim_end_matches('/'));
+
+        let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
+
+        let mode = if meta.is_dir() {
+            EntryMode::DIR
+        } else if meta.is_file() {
+            EntryMode::FILE
+        } else {
+            EntryMode::Unknown
+        };
+        let m = Metadata::new(mode)
+            .with_content_length(meta.len())
+            .with_last_modified(
+                meta.modified()
+                    .map(DateTime::from)
+                    .map_err(new_std_io_error)?,
+            );
+
+        Ok(RpStat::new(m))
     }
 
     fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -495,55 +518,6 @@ impl Accessor for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
-    fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(new_std_io_error)?;
-
-        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
-
-        std::fs::copy(from, to).map_err(new_std_io_error)?;
-
-        Ok(RpCopy::default())
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(new_std_io_error)?;
-
-        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
-
-        std::fs::rename(from, to).map_err(new_std_io_error)?;
-
-        Ok(RpRename::default())
-    }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.root.join(path.trim_end_matches('/'));
-
-        let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
-        Ok(RpStat::new(m))
-    }
-
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -581,6 +555,32 @@ impl Accessor for FsBackend {
         let rd = FsLister::new(&self.root, f);
 
         Ok((RpList::default(), Some(rd)))
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(new_std_io_error)?;
+
+        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+
+        std::fs::copy(from, to).map_err(new_std_io_error)?;
+
+        Ok(RpCopy::default())
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(new_std_io_error)?;
+
+        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+
+        std::fs::rename(from, to).map_err(new_std_io_error)?;
+
+        Ok(RpRename::default())
     }
 }
 

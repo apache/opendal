@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::mem;
 use std::sync::Mutex;
-use std::{mem, usize};
+use std::usize;
 
 use futures::Future;
 use libtest_mimic::Failed;

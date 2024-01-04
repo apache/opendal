@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::BufReader;
+use std::io::Cursor;
+
 use anyhow::Result;
 use log::debug;
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
-use std::io::{BufReader, Cursor};
 
 use crate::*;
 

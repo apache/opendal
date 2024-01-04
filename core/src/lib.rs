@@ -62,10 +62,10 @@
 //! every operation that OpenDAL performs.
 //!
 //! ```no_run
+//! use opendal::layers::LoggingLayer;
 //! use opendal::services;
 //! use opendal::Operator;
 //! use opendal::Result;
-//! use opendal::layers::LoggingLayer;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
@@ -96,10 +96,10 @@
 //! - `reader_with`: Create a reader with advanced options.
 //!
 //! ```no_run
+//! use opendal::layers::LoggingLayer;
 //! use opendal::services;
 //! use opendal::Operator;
 //! use opendal::Result;
-//! use opendal::layers::LoggingLayer;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {

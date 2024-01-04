@@ -15,15 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
-use crate::raw::*;
-use crate::*;
 use bytes::Bytes;
-use http::{Request, Response, StatusCode};
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use serde::Deserialize;
 
-use super::error::{parse_error, PcloudError};
+use super::error::parse_error;
+use super::error::PcloudError;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone)]
 pub struct PcloudCore {

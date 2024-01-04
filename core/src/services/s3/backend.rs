@@ -983,10 +983,10 @@ pub struct S3Backend {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = S3Writers;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<S3Lister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -1051,6 +1051,17 @@ impl Accessor for S3Backend {
         am
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.s3_head_object(path, args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.s3_get_object(path, args).await?;
 
@@ -1081,34 +1092,6 @@ impl Accessor for S3Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
-                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.s3_head_object(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.s3_delete_object(path).await?;
 
@@ -1133,6 +1116,23 @@ impl Accessor for S3Backend {
             args.start_after(),
         );
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.s3_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -20,11 +20,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
+use super::core::PcloudCore;
+use super::error::parse_error;
+use super::error::PcloudError;
 use crate::raw::*;
 use crate::*;
-
-use super::core::PcloudCore;
-use super::error::{parse_error, PcloudError};
 
 pub type PcloudWriters = oio::OneShotWriter<PcloudWriter>;
 

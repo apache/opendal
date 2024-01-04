@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use rocksdb::DB;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use rocksdb::DB;
+use serde::Deserialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;

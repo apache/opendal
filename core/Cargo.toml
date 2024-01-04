@@ -121,11 +121,8 @@ services-azdls = [
 ]
 services-azfile = []
 services-b2 = []
-services-seafile = []
-services-upyun = ["dep:hmac", "dep:sha1"]
-services-chainsafe = []
-services-pcloud = []
 services-cacache = ["dep:cacache"]
+services-chainsafe = []
 services-cloudflare-kv = []
 services-cos = [
   "dep:reqsign",
@@ -139,7 +136,7 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
-services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls" ]
+services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -171,6 +168,7 @@ services-oss = [
   "reqsign?/services-aliyun",
   "reqsign?/reqwest_request",
 ]
+services-pcloud = []
 services-persy = ["dep:persy"]
 services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
 services-redb = ["dep:redb"]
@@ -182,12 +180,14 @@ services-s3 = [
   "reqsign?/services-aws",
   "reqsign?/reqwest_request",
 ]
+services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2"]
 services-supabase = []
 services-swift = []
 services-tikv = ["tikv-client"]
+services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 # Deprecated
 # wasabi services support has been removed.
@@ -219,6 +219,7 @@ required-features = ["tests"]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-backtrace = { version = "0.2.6", optional = true }
 async-compat = "0.2"
+async-tls = { version = "0.12.0", optional = true }
 async-trait = "0.1.68"
 atomic_lib = { version = "0.34.5", optional = true }
 await-tree = { version = "0.1.1", optional = true }
@@ -246,6 +247,7 @@ foundationdb = { version = "0.8.0", features = [
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.6.0", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
+hmac = { version = "0.12.1", optional = true }
 hrana-client-proto = { version = "0.2.1", optional = true }
 http = "0.2.9"
 log = "0.4"
@@ -290,9 +292,8 @@ rocksdb = { version = "0.21.0", default-features = false, optional = true }
 rusqlite = { version = "0.29.0", optional = true, features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = { version = "0.10", optional = true }
-hmac = { version = "0.12.1", optional = true }
 sha1 = { version = "0.10.6", optional = true }
+sha2 = { version = "0.10", optional = true }
 sled = { version = "0.34.7", optional = true }
 suppaftp = { version = "5.2", default-features = false, features = [
   "async-secure",
@@ -300,11 +301,10 @@ suppaftp = { version = "5.2", default-features = false, features = [
   "async-rustls",
 ], optional = true }
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
-tokio = { version= "1.27",features = ["sync"] }
+tokio = { version = "1.27", features = ["sync"] }
 tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
-async-tls = { version = "0.12.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

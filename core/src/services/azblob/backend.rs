@@ -543,10 +543,10 @@ pub struct AzblobBackend {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AzblobWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AzblobLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -593,6 +593,17 @@ impl Accessor for AzblobBackend {
         am
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.azblob_get_blob(path, &args).await?;
 
@@ -626,31 +637,6 @@ impl Accessor for AzblobBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.azblob_delete_blob(path).await?;
 
@@ -671,6 +657,20 @@ impl Accessor for AzblobBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.azblob_copy_blob(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::ACCEPTED => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -1,6 +1,6 @@
 - Proposal Name: `deleter_api`
 - Start Date: 2024-01-04
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#3911](https://github.com/apache/incubator-opendal/pull/3911)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

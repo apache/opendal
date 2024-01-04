@@ -217,8 +217,14 @@ pub mod rfc_3526_list_recursive {}
 #[doc = include_str!("3574_concurrent_stat_in_list.md")]
 pub mod rfc_3574_concurrent_stat_in_list {}
 
+/// Buffered Reader
 #[doc = include_str!("3734_buffered_reader.md")]
 pub mod rfc_3734_buffered_reader {}
 
+/// Concurrent Writer
 #[doc = include_str!("3898_concurrent_writer.md")]
 pub mod rfc_3898_concurrent_writer {}
+
+/// Deleter API
+#[doc = include_str!("3911_deleter_api.md")]
+pub mod rfc_3911_deleter_api {}

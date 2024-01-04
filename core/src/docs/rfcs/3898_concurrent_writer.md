@@ -9,39 +9,39 @@ Enhance the `Writer` by adding concurrent write capabilities.
 
 # Motivation
 
-Currently, When invoking `writer` or `writer_with` on an `Operator` that utilizes Object storage as its backend, such as S3, the `Operator` will return a `Writer` that supports multipart uploading. 
-
+Certain services, such as S3, GCS, and AzBlob, offer the `multi_write` functionality, allowing users to perform multiple write operations for uploading of large files. If a service support `multi_write`, the [Capability::write_can_multi](https://opendal.apache.org/docs/rust/opendal/struct.Capability.html#structfield.write_can_multi) metadata should be set to `true`. 
 ```rust
-    // The `op` is a S3 backend `Operator`.
-    let mut writer = op.writer("path/to").await?;
+    let mut writer = op.writer("path/to").await?; // a writers supports the `multi_write`.
     writer.write(part0).await?;
     writer.write(part1).await?; // It starts to upload after the `part0` is finished.
+    writer.close().await?;
 ```
-However, the multiple parts are currently uploaded serially without fully leveraging the potential for improved throughput through concurrent uploads. We should support the upload of multiple parts concurrently.
+Currently, when invoking a `Writer` that supports the `multi_write` functionality, multiple writes are proceed serially, without fully leveraging the potential for improved throughput through concurrent uploads. We should enhance support to allow concurrent processing of multiple write operations.
 
 
 # Guide-level explanation
 
 For users who want to concurrent writer, they will call the new API `concurrent`. And the default behavior remains unchanged, so users using `op.writer_with()` are not affected. The `concurrent` function will take a number as input, and this number will represent the maximum concurrent write task amount the writer can perform.
 
-- If `concurrent` is set to 0 or 1, it functions with default behavior(Uploads parts serially). 
-- However, if `concurrent` is set to number larger than 1. It enables concurrent uploading of up to `concurrent` write tasks and allows users to initiate additional write tasks without waiting to complete the previous part uploading, as long as the inner task queue still has available slots.
+- If `concurrent` is set to 0 or 1, it functions with default behavior(writes serially). 
+- However, if `concurrent` is set to number larger than 1. It enables concurrent uploading of up to `concurrent` write tasks and allows users to initiate additional write tasks without waiting to complete the previous write operation, as long as the inner task queue still has available slots.
 
-It won't interact with other existing components, except the `buffer` inside a `Writer`. If the multipart upload isn't initialized, `Writer` puts the bytes into `buffer` first, then retrieves it back when uploading the part.
+The concurrent write feature operate independently of other features.
 
 ```rust
-op.writer_with(path).concurrent(8).await
+let mut w = op.writer_with(path).concurrent(8).await;
+w.write(part0).await?;
+w.write(part1).await?; // `write` won't wait for part0.
+w.close().await?; // `close` will make sure all parts are finished.
 ```
 
 # Reference-level explanation
 
-The concurrent write capability is only supported for services that have implemented the `MultipartUploadWriter` or `RangeWriter`. Otherwise, setting the `concurrent` parameter will have no effect (Same as default behavior). 
+The S3 and similar services use `MultipartUploadWriter`, while GCS uses `RangeWriter`. We can enhance these services by adding concurrent write features to them. A `concurrent` field of type `usize` will be introduced to `OpWrite` to allow the user to set the maximum concurrent write task amount. For other services that don't support `multi_write`, setting the concurrent parameter will have no effect, maintaining the default behavior.
 
-This feature will be implemented in the `MultipartUploadWriter` and `RangeWriter`, which will utilize a `ConcurrentFutures<WriteTask>` as a task queue to store concurrent write tasks. A `concurrent` field of type `usize` will be introduced to `OpWrite` to allow the user setting the maximum concurrent write task amount.
+This feature will be implemented in the `MultipartUploadWriter` and `RangeWriter`, which will utilize a `ConcurrentFutures<WriteTask>` as a task queue to store concurrent write tasks. 
 
 When the upper layer invokes `poll_write`, the  `Writer` pushes write to the task queue (`ConcurrentFutures<WriteTask>`) if there are available slots, and then relinquishes control back to the upper layer. This allows for up to `concurrent` write tasks to uploaded concurrently without waiting. If the task queue is full, the `Writer` waits for the first task to yield results.
-
-In the future, we can introduce the `write_at` for `fs` and use `ConcurrentFutureUnordered` instead of `ConcurrentFutures.`.
 
 # Drawbacks
 
@@ -63,4 +63,4 @@ None
 # Future possibilities
 
 - Adding `write_at` for `fs`.
-- Add `ConcurrentFutureUnordered`
+- Use `ConcurrentFutureUnordered` instead of `ConcurrentFutures.`

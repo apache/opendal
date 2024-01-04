@@ -72,7 +72,7 @@ deleter.delete_all(&mut lister).await?;
 deleter.close().await?;
 ```
 
-`Deleter` also implements [`Sink`](https://docs.rs/futures/latest/futures/sink/trait.Sink.html), so all the methods of `Sink` are available for `Deleter`. For example, users can use `forward` to forward a stream of files to `Deleter`:
+`Deleter` also implements [`Sink`](https://docs.rs/futures/latest/futures/sink/trait.Sink.html), so all the methods of `Sink` are available for `Deleter`. For example, users can use [`forward`](https://docs.rs/futures/latest/futures/stream/trait.StreamExt.html#method.forward) to forward a stream of files to `Deleter`:
 
 ```rust
 // Init a deleter to start batch delete tasks.
@@ -165,4 +165,6 @@ None.
 
 # Future possibilities
 
-None.
+## Add API that accepts `IntoIterator`
+
+It's possible to add a new API that accepts `IntoIterator` so users can input `Vec<String>` or `Iter<String>` into `Deleter`.

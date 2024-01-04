@@ -16,10 +16,9 @@
 // under the License.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use http::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
-use http::{Request, Response, StatusCode};
-use quick_xml::de::from_str;
+use chrono::DateTime;
+use chrono::Utc;
+use http::StatusCode;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -43,7 +42,7 @@ impl GhaaLister {
 #[async_trait]
 impl oio::PageList for GhaaLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        if ctx.token == "" {
+        if ctx.token.is_empty() {
             ctx.token = 1.to_string();
         }
         let resp = if self.path == "/" {
@@ -67,7 +66,7 @@ impl oio::PageList for GhaaLister {
                 }
 
                 // parsed_body.artifacts is empty means we have reached the end of the list
-                if ctx.entries.len() == 0 {
+                if ctx.entries.is_empty() {
                     ctx.done = true;
                 } else {
                     ctx.token = (ctx.token.parse::<u64>().unwrap() + 1).to_string();
@@ -94,7 +93,6 @@ fn parse_artifact_to_entry(artifact: GhaaArtifact) -> oio::Entry {
 
 #[derive(Debug, Deserialize)]
 struct GhaaListResponse {
-    total_count: u64,
     artifacts: Vec<GhaaArtifact>,
 }
 

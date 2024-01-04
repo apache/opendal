@@ -20,10 +20,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use http::StatusCode;
 use log::debug;
+use async_trait::async_trait;
+use chrono::DateTime;
+use chrono::Utc;
+use http::StatusCode;
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -189,7 +190,7 @@ impl Accessor for GhaaBackend {
         am
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.download_artifact(path).await?;
         let status = resp.status();
         match status {

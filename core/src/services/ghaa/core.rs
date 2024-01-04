@@ -25,7 +25,6 @@ use http::Request;
 use http::Response;
 
 use crate::raw::*;
-use crate::services::ghaa::error::parse_error;
 use crate::*;
 
 /// VERSION is the compiled version of OpenDAL.
@@ -159,7 +158,7 @@ impl GhaaCore {
     ) -> Result<Response<IncomingAsyncBody>> {
         // GitHub only allows 100 items per page at most.
         // https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#list-workflow-run-artifacts
-        let path = path.trim_end_matches("/");
+        let path = path.trim_end_matches('/');
         let url: String = format!(
             "{}/{}/{}/actions/runs/{}/artifacts?pre_page={}&page={}",
             DEFAULT_GHAA_ENDPOINT_SUFFIX,

@@ -195,6 +195,7 @@ services-vercel-artifacts = []
 services-wasabi = []
 services-webdav = []
 services-webhdfs = []
+services-yandex-disk = []
 
 [lib]
 bench = false

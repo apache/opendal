@@ -159,6 +159,8 @@ impl Operator {
             Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
             #[cfg(feature = "services-upyun")]
             Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk => Self::from_map::<services::YandexDisk>(map)?.finish(),
             #[cfg(feature = "services-pcloud")]
             Scheme::Pcloud => Self::from_map::<services::Pcloud>(map)?.finish(),
             #[cfg(feature = "services-chainsafe")]

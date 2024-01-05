@@ -25,6 +25,7 @@ use http::Request;
 use http::Response;
 
 use crate::raw::*;
+use crate::services::GhaaConfig;
 use crate::*;
 
 /// VERSION is the compiled version of OpenDAL.
@@ -36,17 +37,15 @@ const HEADER_GITHUB_API_VERSION: &str = "X-GitHub-Api-Version";
 const DEFAULT_GHAA_ENDPOINT_SUFFIX: &str = "https://api.github.com/repos";
 
 pub struct GhaaCore {
-    pub owner: String,
-    pub repo: String,
-    pub token: Option<String>,
+    pub config: GhaaConfig,
     pub client: HttpClient,
 }
 
 impl Debug for GhaaCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GhaaCore")
-            .field("owner", &self.owner)
-            .field("repo", &self.repo)
+            .field("owner", &self.config.owner)
+            .field("repo", &self.config.repo)
             .finish_non_exhaustive()
     }
 }
@@ -54,7 +53,7 @@ impl GhaaCore {
     pub async fn download_artifact(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = format!(
             "{}/{}/{}/actions/artifacts/{}/zip",
-            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.owner, self.repo, path
+            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.config.owner, self.config.repo, path
         );
 
         let mut req = Request::get(&url);
@@ -63,7 +62,7 @@ impl GhaaCore {
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");
         req = req.header(ACCEPT, "application/vnd.github.v3+json");
 
-        if let Some(auth) = &self.token {
+        if let Some(auth) = &self.config.token {
             req = req.header(AUTHORIZATION, format!("Bearer {}", auth))
         }
 
@@ -77,7 +76,7 @@ impl GhaaCore {
     pub async fn stat_artifact(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = format!(
             "{}/{}/{}/actions/artifacts/{}",
-            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.owner, self.repo, path
+            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.config.owner, self.config.repo, path
         );
 
         let mut req = Request::get(&url);
@@ -85,7 +84,7 @@ impl GhaaCore {
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");
         req = req.header(ACCEPT, "application/vnd.github.v3+json");
 
-        if let Some(auth) = &self.token {
+        if let Some(auth) = &self.config.token {
             req = req.header(AUTHORIZATION, format!("Bearer {}", auth))
         }
 
@@ -99,7 +98,7 @@ impl GhaaCore {
     pub async fn delete_artifact(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = format!(
             "{}/{}/{}/actions/artifacts/{}",
-            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.owner, self.repo, path
+            DEFAULT_GHAA_ENDPOINT_SUFFIX, self.config.owner, self.config.repo, path
         );
 
         let mut req = Request::delete(&url);
@@ -107,7 +106,7 @@ impl GhaaCore {
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");
         req = req.header(ACCEPT, "application/vnd.github.v3+json");
 
-        if let Some(auth) = &self.token {
+        if let Some(auth) = &self.config.token {
             req = req.header(AUTHORIZATION, format!("Bearer {}", auth))
         }
 
@@ -128,8 +127,8 @@ impl GhaaCore {
         let url: String = format!(
             "{}/{}/{}/actions/artifacts?per_page={}&page={}",
             DEFAULT_GHAA_ENDPOINT_SUFFIX,
-            self.owner,
-            self.repo,
+            self.config.owner,
+            self.config.repo,
             limit.unwrap_or(100),
             page
         );
@@ -138,7 +137,7 @@ impl GhaaCore {
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");
         req = req.header(ACCEPT, "application/vnd.github.v3+json");
 
-        if let Some(auth) = &self.token {
+        if let Some(auth) = &self.config.token {
             req = req.header(AUTHORIZATION, format!("Bearer {}", auth))
         }
 
@@ -161,8 +160,8 @@ impl GhaaCore {
         let url: String = format!(
             "{}/{}/{}/actions/runs/{}/artifacts?pre_page={}&page={}",
             DEFAULT_GHAA_ENDPOINT_SUFFIX,
-            self.owner,
-            self.repo,
+            self.config.owner,
+            self.config.repo,
             path,
             limit.unwrap_or(100),
             page
@@ -173,7 +172,7 @@ impl GhaaCore {
         req = req.header(HEADER_GITHUB_API_VERSION, "2022-11-28");
         req = req.header(ACCEPT, "application/vnd.github.v3+json");
 
-        if let Some(auth) = &self.token {
+        if let Some(auth) = &self.config.token {
             req = req.header(AUTHORIZATION, format!("Bearer {}", auth))
         }
 

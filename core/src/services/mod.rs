@@ -359,3 +359,5 @@ pub use yandex_disk::YandexDiskConfig;
 mod ghaa;
 #[cfg(feature = "services-ghaa")]
 pub use ghaa::Ghaa;
+#[cfg(feature = "services-ghaa")]
+pub use ghaa::GhaaConfig;

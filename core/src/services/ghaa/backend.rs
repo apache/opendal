@@ -33,19 +33,25 @@ use crate::services::ghaa::core::GhaaCore;
 use crate::services::ghaa::lister::GhaaLister;
 use crate::*;
 
-/// GitHub Action Artifacts services support.
-#[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
-pub struct GhaaBuilder {
-    owner: Option<String>,
-    repo: Option<String>,
-    token: Option<String>,
-    http_client: Option<HttpClient>,
+/// GitHub Action Artifacts services config.
+#[derive(Default, Deserialize, Clone)]
+pub struct GhaaConfig {
+    /// repo's owner of this backend.
+    pub owner: String,
+
+    /// repo name of this backend
+    pub repo: String,
+
+    /// token of this backend
+    ///
+    /// - If the repository is private you must use an access token with the repo scope.
+    /// - You must authenticate using an access token with the repo scope to delete, read artifacts.
+    pub token: Option<String>,
 }
 
-impl Debug for GhaaBuilder {
+impl Debug for GhaaConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("GhaaConfig");
 
         ds.field("owner", &self.owner);
         ds.field("repo", &self.repo);
@@ -57,13 +63,31 @@ impl Debug for GhaaBuilder {
     }
 }
 
+/// GitHub Action Artifacts services support.
+#[doc = include_str!("docs.md")]
+#[derive(Default, Clone)]
+pub struct GhaaBuilder {
+    config: GhaaConfig,
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for GhaaBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+
+        ds.field("config", &self.config);
+
+        ds.finish()
+    }
+}
+
 impl GhaaBuilder {
     /// Set repo's owner of this backend.
     ///
     /// The account owner of the repository. The name is not case sensitive.
     pub fn owner(&mut self, owner: &str) -> &mut Self {
         if !owner.is_empty() {
-            self.owner = Some(owner.to_string());
+            self.config.owner = owner.to_string();
         }
 
         self
@@ -74,9 +98,8 @@ impl GhaaBuilder {
     /// The name of the repository without the .git extension. The name is not case sensitive.
     pub fn repo(&mut self, repo: &str) -> &mut Self {
         if !repo.is_empty() {
-            self.repo = Some(repo.to_string());
+            self.config.repo = repo.to_string();
         }
-
         self
     }
 
@@ -86,7 +109,7 @@ impl GhaaBuilder {
     /// - You must authenticate using an access token with the repo scope to delete, read artifacts.
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
 
         self
@@ -109,13 +132,12 @@ impl Builder for GhaaBuilder {
     type Accessor = GhaaBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = GhaaBuilder::default();
-
-        map.get("owner").map(|v| builder.owner(v));
-        map.get("repo").map(|v| builder.repo(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+        let config = GhaaConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialization must succeed");
+        GhaaBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -130,30 +152,10 @@ impl Builder for GhaaBuilder {
             })?
         };
 
-        let owner = match &self.owner {
-            Some(owner) => owner.to_string(),
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "owner is not set")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Ghaa))
-            }
-        };
-
-        let repo = match &self.repo {
-            Some(repo) => repo.to_string(),
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "repo is not set")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Ghaa))
-            }
-        };
-
         let backend = GhaaBackend {
             core: Arc::new(GhaaCore {
                 client,
-                owner,
-                repo,
-                token: self.token.clone(),
+                config: self.config.clone(),
             }),
         };
 

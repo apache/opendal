@@ -18,6 +18,7 @@
 mod backend;
 
 pub use backend::GhaaBuilder as Ghaa;
+pub use backend::GhaaConfig;
 
 mod core;
 mod error;

@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
-use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
@@ -151,10 +149,9 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartUploadPart>,
-    processing_tasks: VecDeque<WriteTask>,
-    pending_tasks: VecDeque<WriteTask>,
+    pending: Option<WriteTask>,
     futures: ConcurrentFutures<UploadFuture>,
-    part_number: usize,
+    next_part_number: usize,
 }
 
 enum State {
@@ -183,24 +180,31 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
             w: Arc::new(inner),
             upload_id: None,
             parts: Vec::new(),
-            processing_tasks: VecDeque::new(),
-            pending_tasks: VecDeque::new(),
+            pending: None,
             futures: ConcurrentFutures::new(1.max(concurrent)),
-            part_number: 0,
+            next_part_number: 0,
         }
     }
 
     /// Increases part number and return the previous part number.
     fn inc_part_number(&mut self) -> usize {
-        let part_number = self.part_number;
-        self.part_number += 1;
+        let part_number = self.next_part_number;
+        self.next_part_number += 1;
         part_number
+    }
+
+    fn add_write_task(&mut self, bs: &dyn oio::WriteBuf) -> usize {
+        let size = bs.remaining();
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+        let part_number = self.inc_part_number();
+        self.pending = Some(WriteTask { bs, part_number });
+        size
     }
 
     fn process_write_task(&mut self, upload_id: Arc<String>, task: WriteTask) {
         let size = task.bs.len();
         let part_number = task.part_number;
-        let bs = task.bs.clone();
+        let bs = task.bs;
         let w = self.w.clone();
 
         self.futures.push(UploadFuture(Box::pin(async move {
@@ -212,15 +216,6 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
             )
             .await
         })));
-        self.processing_tasks.push_back(task);
-    }
-
-    fn add_write_task(&mut self, bs: &dyn oio::WriteBuf) -> usize {
-        let size = bs.remaining();
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
-        let part_number = self.inc_part_number();
-        self.pending_tasks.push_back(WriteTask { bs, part_number });
-        size
     }
 }
 
@@ -236,12 +231,8 @@ where
                         Some(upload_id) => {
                             let upload_id = upload_id.clone();
                             if self.futures.has_remaining() {
-                                let task = self
-                                    .pending_tasks
-                                    .pop_front()
-                                    .expect("pending task must exist");
+                                let task = self.pending.take().expect("pending write must exist");
                                 self.process_write_task(upload_id, task);
-
                                 let size = self.add_write_task(bs);
                                 return Poll::Ready(Ok(size));
                             } else {
@@ -250,7 +241,7 @@ where
                         }
                         None => {
                             // Fill cache with the first write.
-                            if self.pending_tasks.is_empty() {
+                            if self.pending.is_none() {
                                 let size = self.add_write_task(bs);
                                 return Poll::Ready(Ok(size));
                             }
@@ -268,15 +259,7 @@ where
                 }
                 State::Busy => {
                     if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
-                        // Safety: must exist.
-                        let task = self.processing_tasks.pop_front().unwrap();
-                        match part {
-                            Ok(part) => self.parts.push(part),
-                            Err(err) => {
-                                self.pending_tasks.push_front(task);
-                                return Poll::Ready(Err(err));
-                            }
-                        }
+                        self.parts.push(part?);
                     }
                     self.state = State::Idle;
                 }
@@ -301,16 +284,15 @@ where
                     match self.upload_id.clone() {
                         Some(upload_id) => {
                             let w = self.w.clone();
-                            if self.futures.is_empty() && self.pending_tasks.is_empty() {
+                            if self.futures.is_empty() && self.pending.is_none() {
                                 let upload_id = upload_id.clone();
                                 let parts = self.parts.clone();
                                 self.state = State::Close(Box::pin(async move {
                                     w.complete_part(&upload_id, &parts).await
                                 }));
                             } else {
-                                let rem = min(self.futures.remaining(), self.pending_tasks.len());
-                                for _ in 0..rem {
-                                    if let Some(task) = self.pending_tasks.pop_front() {
+                                if self.futures.has_remaining() {
+                                    if let Some(task) = self.pending.take() {
                                         let upload_id = upload_id.clone();
                                         self.process_write_task(upload_id, task);
                                     }
@@ -318,7 +300,7 @@ where
                                 self.state = State::Busy;
                             }
                         }
-                        None => match self.pending_tasks.pop_front() {
+                        None => match &self.pending {
                             Some(task) => {
                                 let w = self.w.clone();
                                 let bs = task.bs.clone();
@@ -329,7 +311,7 @@ where
                             }
                             None => {
                                 let w = self.w.clone();
-                                // Call write_once if there is no data in cache and no upload_id.
+                                // Call write_once if there is no data in `pending` and no upload_id.
                                 self.state = State::Close(Box::pin(async move {
                                     w.write_once(0, AsyncBody::Empty).await
                                 }));
@@ -340,8 +322,9 @@ where
                 State::Close(fut) => {
                     let res = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle;
-                    // We should check res first before clean up cache.
+                    // We should check res first before clean up `pending`.
                     res?;
+                    self.pending = None;
 
                     return Poll::Ready(Ok(()));
                 }
@@ -350,15 +333,7 @@ where
                 ),
                 State::Busy => {
                     while let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
-                        // Safety: must exist.
-                        let task = self.processing_tasks.pop_front().unwrap();
-                        match part {
-                            Ok(part) => self.parts.push(part),
-                            Err(err) => {
-                                self.pending_tasks.push_front(task);
-                                return Poll::Ready(Err(err));
-                            }
-                        }
+                        self.parts.push(part?);
                     }
                     self.state = State::Idle;
                 }

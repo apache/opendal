@@ -316,9 +316,10 @@ impl Accessor for UpyunBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = UpyunWriter::new(self.core.clone(), args, path.to_string());
 
-        let w = oio::MultipartUploadWriter::new(writer);
+        let w = oio::MultipartUploadWriter::new(writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }

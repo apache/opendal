@@ -1085,9 +1085,10 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = S3Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartUploadWriter::new(writer);
+        let w = oio::MultipartUploadWriter::new(writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }

@@ -516,6 +516,7 @@ impl OpStat {
 pub struct OpWrite {
     append: bool,
     buffer: Option<usize>,
+    concurrent: usize,
 
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -599,6 +600,17 @@ impl OpWrite {
     /// Set the content type of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
+        self
+    }
+
+    /// Get the concurrent.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
         self
     }
 }

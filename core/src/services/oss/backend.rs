@@ -492,7 +492,7 @@ impl Accessor for OssBackend {
         let w = if args.append() {
             OssWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            OssWriters::One(oio::MultipartUploadWriter::new(writer))
+            OssWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))

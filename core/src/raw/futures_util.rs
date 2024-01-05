@@ -101,6 +101,15 @@ where
         }
     }
 
+    /// Drop all tasks.
+    pub fn clear(&mut self) {
+        match &mut self.tasks {
+            Tasks::Once(fut) => *fut = None,
+            Tasks::Small(tasks) => tasks.clear(),
+            Tasks::Large(tasks) => *tasks = FuturesOrdered::new(),
+        }
+    }
+
     /// Return the length of current concurrent futures (both ongoing and ready).
     pub fn len(&self) -> usize {
         match &self.tasks {

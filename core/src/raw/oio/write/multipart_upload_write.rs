@@ -325,6 +325,7 @@ where
                     let w = self.w.clone();
                     match self.upload_id.clone() {
                         Some(upload_id) => {
+                            self.futures.clear();
                             self.state =
                                 State::Abort(Box::pin(
                                     async move { w.abort_part(&upload_id).await },

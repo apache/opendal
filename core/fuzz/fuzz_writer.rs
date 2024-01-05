@@ -32,11 +32,15 @@ const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug, Clone)]
 struct FuzzInput {
     actions: Vec<WriteAction>,
+    concurrent: usize,
+    buffer: usize,
 }
 
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let mut actions = vec![];
+        let concurrent = u.int_in_range(0..=16)?;
+        let buffer = u.int_in_range(2 * 1024 * 1024..=8 * 1024 * 1024)?;
 
         let count = u.int_in_range(128..=1024)?;
 
@@ -45,7 +49,11 @@ impl Arbitrary<'_> for FuzzInput {
             actions.push(WriteAction::Write(size));
         }
 
-        Ok(FuzzInput { actions })
+        Ok(FuzzInput {
+            actions,
+            concurrent,
+            buffer,
+        })
     }
 }
 
@@ -62,7 +70,11 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 
     let checker = WriteChecker::new(total_size);
 
-    let mut writer = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
+    let mut writer = op
+        .writer_with(&path)
+        .buffer(input.buffer)
+        .concurrent(input.concurrent)
+        .await?;
 
     for chunk in checker.chunks() {
         writer.write(chunk.clone()).await?;

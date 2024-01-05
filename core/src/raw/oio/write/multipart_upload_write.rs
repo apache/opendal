@@ -291,7 +291,7 @@ where
                             }
                             None => {
                                 let w = self.w.clone();
-                                // Call write_once if there is no data in `pending` and no upload_id.
+                                // Call write_once if there is no data in cache and no upload_id.
                                 self.state = State::Close(Box::pin(async move {
                                     w.write_once(0, AsyncBody::Empty).await
                                 }));
@@ -302,7 +302,7 @@ where
                 State::Close(fut) => {
                     let res = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle;
-                    // We should check res first before clean up `pending`.
+                    // We should check res first before clean up cache.
                     res?;
                     self.cache = None;
 

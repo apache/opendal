@@ -16,8 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use chrono::DateTime;
-use chrono::Utc;
 use http::StatusCode;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -45,15 +43,10 @@ impl oio::PageList for GhaaLister {
         if ctx.token.is_empty() {
             ctx.token = 1.to_string();
         }
-        let resp = if self.path == "/" {
-            self.core
-                .list_artifacts_under_repo(&ctx.token, &self.limit)
-                .await?
-        } else {
-            self.core
-                .list_artifacts_under_workflow(&self.path, &ctx.token, &self.limit)
-                .await?
-        };
+        let resp = self
+            .core
+            .list_artifacts_under_workflow(&self.path, &ctx.token, &self.limit)
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -81,12 +74,10 @@ impl oio::PageList for GhaaLister {
 
 fn parse_artifact_to_entry(artifact: GhaaArtifact) -> oio::Entry {
     let meta = Metadata::new(EntryMode::FILE)
-        .with_etag(artifact.id.to_string())
         .with_content_length(artifact.size_in_bytes as u64)
         .with_last_modified(
-            DateTime::parse_from_rfc3339(&artifact.updated_at)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap(),
+            parse_datetime_from_rfc3339(&artifact.updated_at)
+                .expect("parse datetime from rfc3339 failed"),
         );
     oio::Entry::new(artifact.workflow_run.id.to_string().as_str(), meta)
 }
@@ -98,7 +89,6 @@ struct GhaaListResponse {
 
 #[derive(Debug, Deserialize)]
 struct GhaaArtifact {
-    id: u64,
     size_in_bytes: usize,
     updated_at: String,
     workflow_run: Workflow,
@@ -164,11 +154,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(parsed_body.artifacts.len(), 2);
-        assert_eq!(parsed_body.artifacts[0].id, 11);
         assert_eq!(parsed_body.artifacts[0].size_in_bytes, 556);
         assert_eq!(parsed_body.artifacts[0].workflow_run.id, 2332938);
 
-        assert_eq!(parsed_body.artifacts[1].id, 13);
         assert_eq!(parsed_body.artifacts[1].size_in_bytes, 453);
         assert_eq!(parsed_body.artifacts[1].workflow_run.id, 2332942);
     }

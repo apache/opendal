@@ -108,3 +108,68 @@ struct GhaaArtifact {
 struct Workflow {
     id: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_response() {
+        let resp = r#"{
+            "total_count": 2,
+            "artifacts": [
+              {
+                "id": 11,
+                "node_id": "MDg6QXJ0aWZhY3QxMQ==",
+                "name": "Rails",
+                "size_in_bytes": 556,
+                "url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/11",
+                "archive_download_url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/11/zip",
+                "expired": false,
+                "created_at": "2020-01-10T14:59:22Z",
+                "expires_at": "2020-03-21T14:59:22Z",
+                "updated_at": "2020-02-21T14:59:22Z",
+                "workflow_run": {
+                  "id": 2332938,
+                  "repository_id": 1296269,
+                  "head_repository_id": 1296269,
+                  "head_branch": "main",
+                  "head_sha": "328faa0536e6fef19753d9d91dc96a9931694ce3"
+                }
+              },
+              {
+                "id": 13,
+                "node_id": "MDg6QXJ0aWZhY3QxMw==",
+                "name": "Test output",
+                "size_in_bytes": 453,
+                "url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/13",
+                "archive_download_url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/13/zip",
+                "expired": false,
+                "created_at": "2020-01-10T14:59:22Z",
+                "expires_at": "2020-03-21T14:59:22Z",
+                "updated_at": "2020-02-21T14:59:22Z",
+                "workflow_run": {
+                  "id": 2332942,
+                  "repository_id": 1296269,
+                  "head_repository_id": 1296269,
+                  "head_branch": "main",
+                  "head_sha": "178f4f6090b3fccad4a65b3e83d076a622d59652"
+                }
+              }
+            ]
+        }"#;
+
+        let parsed_body: GhaaListResponse = serde_json::from_str(resp)
+            .map_err(new_json_deserialize_error)
+            .unwrap();
+
+        assert_eq!(parsed_body.artifacts.len(), 2);
+        assert_eq!(parsed_body.artifacts[0].id, 11);
+        assert_eq!(parsed_body.artifacts[0].size_in_bytes, 556);
+        assert_eq!(parsed_body.artifacts[0].workflow_run.id, 2332938);
+
+        assert_eq!(parsed_body.artifacts[1].id, 13);
+        assert_eq!(parsed_body.artifacts[1].size_in_bytes, 453);
+        assert_eq!(parsed_body.artifacts[1].workflow_run.id, 2332942);
+    }
+}

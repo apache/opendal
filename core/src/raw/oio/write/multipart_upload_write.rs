@@ -107,39 +107,24 @@ pub struct MultipartUploadPart {
     pub etag: String,
 }
 
-struct UploadFuture(BoxedFuture<Result<MultipartUploadPart>>);
+struct WritePartFuture(BoxedFuture<Result<MultipartUploadPart>>);
 
 /// # Safety
 ///
-/// wasm32 is a special target that we only have one event-loop for this UploadFuture.
-unsafe impl Send for UploadFuture {}
+/// wasm32 is a special target that we only have one event-loop for this WritePartFuture.
+unsafe impl Send for WritePartFuture {}
 
 /// # Safety
 ///
-/// We will only take `&mut Self` reference for UploadFuture.
-unsafe impl Sync for UploadFuture {}
+/// We will only take `&mut Self` reference for WritePartFuture.
+unsafe impl Sync for WritePartFuture {}
 
-impl Future for UploadFuture {
+impl Future for WritePartFuture {
     type Output = Result<MultipartUploadPart>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll_unpin(cx)
     }
 }
-
-#[derive(Clone)]
-struct WriteTask {
-    part_number: usize,
-    bs: oio::ChunkedBytes,
-}
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this WriteTask.
-unsafe impl Send for WriteTask {}
-/// # Safety
-///
-/// We will only take `&mut Self` reference for WriteTask.
-unsafe impl Sync for WriteTask {}
 
 /// MultipartUploadWriter will implements [`Write`] based on multipart
 /// uploads.
@@ -149,15 +134,14 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartUploadPart>,
-    pending: Option<WriteTask>,
-    futures: ConcurrentFutures<UploadFuture>,
+    cache: Option<oio::ChunkedBytes>,
+    futures: ConcurrentFutures<WritePartFuture>,
     next_part_number: usize,
 }
 
 enum State {
     Idle,
     Init(BoxedFuture<Result<String>>),
-    Busy,
     Close(BoxedFuture<Result<()>>),
     Abort(BoxedFuture<Result<()>>),
 }
@@ -180,42 +164,18 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
             w: Arc::new(inner),
             upload_id: None,
             parts: Vec::new(),
-            pending: None,
+            cache: None,
             futures: ConcurrentFutures::new(1.max(concurrent)),
             next_part_number: 0,
         }
     }
 
-    /// Increases part number and return the previous part number.
-    fn inc_part_number(&mut self) -> usize {
-        let part_number = self.next_part_number;
-        self.next_part_number += 1;
-        part_number
-    }
-
-    fn add_write_task(&mut self, bs: &dyn oio::WriteBuf) -> usize {
+    fn fill_cache(&mut self, bs: &dyn oio::WriteBuf) -> usize {
         let size = bs.remaining();
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
-        let part_number = self.inc_part_number();
-        self.pending = Some(WriteTask { bs, part_number });
+        assert!(self.cache.is_none());
+        self.cache = Some(bs);
         size
-    }
-
-    fn process_write_task(&mut self, upload_id: Arc<String>, task: WriteTask) {
-        let size = task.bs.len();
-        let part_number = task.part_number;
-        let bs = task.bs;
-        let w = self.w.clone();
-
-        self.futures.push(UploadFuture(Box::pin(async move {
-            w.write_part(
-                &upload_id,
-                part_number,
-                size as u64,
-                AsyncBody::ChunkedBytes(bs),
-            )
-            .await
-        })));
     }
 }
 
@@ -231,18 +191,30 @@ where
                         Some(upload_id) => {
                             let upload_id = upload_id.clone();
                             if self.futures.has_remaining() {
-                                let task = self.pending.take().expect("pending write must exist");
-                                self.process_write_task(upload_id, task);
-                                let size = self.add_write_task(bs);
+                                let cache = self.cache.take().expect("pending write must exist");
+                                let part_number = self.next_part_number;
+                                self.next_part_number += 1;
+                                let w = self.w.clone();
+                                let size = cache.len();
+                                self.futures.push(WritePartFuture(Box::pin(async move {
+                                    w.write_part(
+                                        &upload_id,
+                                        part_number,
+                                        size as u64,
+                                        AsyncBody::ChunkedBytes(cache),
+                                    )
+                                    .await
+                                })));
+                                let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else {
-                                self.state = State::Busy;
+                            } else if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                                self.parts.push(part?);
                             }
                         }
                         None => {
                             // Fill cache with the first write.
-                            if self.pending.is_none() {
-                                let size = self.add_write_task(bs);
+                            if self.cache.is_none() {
+                                let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
                             }
 
@@ -256,12 +228,6 @@ where
                     let upload_id = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle;
                     self.upload_id = Some(Arc::new(upload_id?));
-                }
-                State::Busy => {
-                    if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
-                        self.parts.push(part?);
-                    }
-                    self.state = State::Idle;
                 }
                 State::Close(_) => {
                     unreachable!(
@@ -284,7 +250,7 @@ where
                     match self.upload_id.clone() {
                         Some(upload_id) => {
                             let w = self.w.clone();
-                            if self.futures.is_empty() && self.pending.is_none() {
+                            if self.futures.is_empty() && self.cache.is_none() {
                                 let upload_id = upload_id.clone();
                                 let parts = self.parts.clone();
                                 self.state = State::Close(Box::pin(async move {
@@ -292,18 +258,32 @@ where
                                 }));
                             } else {
                                 if self.futures.has_remaining() {
-                                    if let Some(task) = self.pending.take() {
+                                    if let Some(cache) = self.cache.take() {
                                         let upload_id = upload_id.clone();
-                                        self.process_write_task(upload_id, task);
+                                        let part_number = self.next_part_number;
+                                        self.next_part_number += 1;
+                                        let size = cache.len();
+                                        let w = self.w.clone();
+                                        self.futures.push(WritePartFuture(Box::pin(async move {
+                                            w.write_part(
+                                                &upload_id,
+                                                part_number,
+                                                size as u64,
+                                                AsyncBody::ChunkedBytes(cache),
+                                            )
+                                            .await
+                                        })));
                                     }
                                 }
-                                self.state = State::Busy;
+                                while let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                                    self.parts.push(part?);
+                                }
                             }
                         }
-                        None => match &self.pending {
-                            Some(task) => {
+                        None => match &self.cache {
+                            Some(cache) => {
                                 let w = self.w.clone();
-                                let bs = task.bs.clone();
+                                let bs = cache.clone();
                                 self.state = State::Close(Box::pin(async move {
                                     let size = bs.len();
                                     w.write_once(size as u64, AsyncBody::ChunkedBytes(bs)).await
@@ -324,19 +304,13 @@ where
                     self.state = State::Idle;
                     // We should check res first before clean up `pending`.
                     res?;
-                    self.pending = None;
+                    self.cache = None;
 
                     return Poll::Ready(Ok(()));
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_close"
                 ),
-                State::Busy => {
-                    while let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
-                        self.parts.push(part?);
-                    }
-                    self.state = State::Idle;
-                }
                 State::Abort(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Abort during poll_close"
                 ),
@@ -368,9 +342,6 @@ where
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_abort"
-                ),
-                State::Busy => unreachable!(
-                    "MultipartUploadWriter must not go into State::Busy during poll_abort"
                 ),
                 State::Close(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Close during poll_abort"

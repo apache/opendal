@@ -31,15 +31,17 @@ So I propose `Deleter` to address them all at once.
 
 The following new API will be added to `Operator`:
 
-```rust
+```diff
 impl Operator {
-  pub async fn delete_with(&self, path: &str) -> FutureDelete;
+  pub async fn detele(&self, path: &str) -> Result<()>;
++  pub async fn delete_with(&self, path: &str) -> FutureDelete;
 
-  pub async fn deleter(&self) -> Result<Deleter>;
-  pub async fn deleter_with(&self) -> FutureDeleter;
++  pub async fn deleter(&self) -> Result<Deleter>;
++  pub async fn deleter_with(&self) -> FutureDeleter;
 }
 ```
 
+- `delete` is the existing API, which deletes a single file or an empty dir.
 - `delete_with` is an extension of the existing `delete` API, which supports additional options, such as `recursive`.
 - `deleter` is a new API that returns a `Deleter` instance.
 - `deleter_with` is an extension of the existing `deleter` API, which supports additional options, such as `recursive`.
@@ -118,7 +120,7 @@ In response to `Deleter` API, we will remove APIs like `remove`, `remove_via` an
 
 # Reference-level explanation
 
-We will add a new associated type in `Accessor`:
+To provide those public APIs, we will add a new associated type in `Accessor`:
 
 ```rust
 trait Accessor {

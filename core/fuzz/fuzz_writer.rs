@@ -32,15 +32,23 @@ const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug, Clone)]
 struct FuzzInput {
     actions: Vec<WriteAction>,
-    concurrent: usize,
-    buffer: usize,
+    buffer: Option<usize>,
+    concurrent: Option<usize>,
 }
 
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let mut actions = vec![];
-        let concurrent = u.int_in_range(0..=16)?;
-        let buffer = u.int_in_range(2 * 1024 * 1024..=8 * 1024 * 1024)?;
+        let buffer = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(1..=8 * 1024 * 1024)?)
+        } else {
+            None
+        };
+        let concurrent = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(0..=16)?)
+        } else {
+            None
+        };
 
         let count = u.int_in_range(128..=1024)?;
 
@@ -51,8 +59,8 @@ impl Arbitrary<'_> for FuzzInput {
 
         Ok(FuzzInput {
             actions,
-            concurrent,
             buffer,
+            concurrent,
         })
     }
 }
@@ -70,11 +78,15 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 
     let checker = WriteChecker::new(total_size);
 
-    let mut writer = op
-        .writer_with(&path)
-        .buffer(input.buffer)
-        .concurrent(input.concurrent)
-        .await?;
+    let mut writer = op.writer_with(&path);
+    if let Some(buffer) = input.buffer {
+        writer = writer.buffer(buffer);
+    }
+    if let Some(concurrent) = input.concurrent {
+        writer = writer.concurrent(concurrent);
+    }
+
+    let mut writer = writer.await?;
 
     for chunk in checker.chunks() {
         writer.write(chunk.clone()).await?;

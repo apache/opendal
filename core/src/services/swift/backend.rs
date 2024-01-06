@@ -215,10 +215,10 @@ pub struct SwiftBackend {
 #[async_trait]
 impl Accessor for SwiftBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<SwiftWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<SwiftLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -242,6 +242,20 @@ impl Accessor for SwiftBackend {
                 ..Default::default()
             });
         am
+    }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::NO_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -272,36 +286,6 @@ impl Accessor for SwiftBackend {
         return Ok((RpWrite::default(), w));
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        // cannot copy objects larger than 5 GB.
-        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
-        let resp = self.core.swift_copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::NO_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
         let resp = self.core.swift_delete(path).await?;
 
@@ -323,5 +307,21 @@ impl Accessor for SwiftBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        // cannot copy objects larger than 5 GB.
+        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
+        let resp = self.core.swift_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

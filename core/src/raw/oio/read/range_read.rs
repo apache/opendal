@@ -672,10 +672,10 @@ mod tests {
     #[async_trait]
     impl Accessor for MockReadService {
         type Reader = MockReader;
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
+        type BlockingReader = ();
+        type BlockingWriter = ();
         type BlockingLister = ();
 
         fn info(&self) -> AccessorInfo {

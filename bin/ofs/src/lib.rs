@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fuse3::path::prelude::*;
-use fuse3::Result;
-
-use async_trait::async_trait;
-use futures_util::stream::{Empty, Iter};
 use std::ffi::OsStr;
 use std::vec::IntoIter;
 
+use async_trait::async_trait;
+use fuse3::path::prelude::*;
+use fuse3::Result;
+use futures_util::stream::Empty;
+use futures_util::stream::Iter;
 use opendal::Operator;
 
 pub struct Ofs {

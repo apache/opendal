@@ -16,7 +16,8 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -64,6 +65,7 @@ impl Debug for HdfsConfig {
             )
             .field("user", &self.user)
             .field("enable_append", &self.enable_append)
+            .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }
 }
@@ -244,10 +246,10 @@ unsafe impl Sync for HdfsBackend {}
 #[async_trait]
 impl Accessor for HdfsBackend {
     type Reader = oio::FuturesReader<hdrs::AsyncFile>;
-    type BlockingReader = oio::StdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
-    type BlockingWriter = HdfsWriter<hdrs::File>;
     type Lister = Option<HdfsLister>;
+    type BlockingReader = oio::StdReader<hdrs::File>;
+    type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
 
     fn info(&self) -> AccessorInfo {
@@ -283,6 +285,25 @@ impl Accessor for HdfsBackend {
         self.client.create_dir(&p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
+
+        let mode = if meta.is_dir() {
+            EntryMode::DIR
+        } else if meta.is_file() {
+            EntryMode::FILE
+        } else {
+            EntryMode::Unknown
+        };
+        let mut m = Metadata::new(mode);
+        m.set_content_length(meta.len());
+        m.set_last_modified(meta.modified().into());
+
+        Ok(RpStat::new(m))
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -357,6 +378,52 @@ impl Accessor for HdfsBackend {
         ))
     }
 
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p);
+
+        if let Err(err) = meta {
+            return if err.kind() == io::ErrorKind::NotFound {
+                Ok(RpDelete::default())
+            } else {
+                Err(new_std_io_error(err))
+            };
+        }
+
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let result = if meta.is_dir() {
+            self.client.remove_dir(&p)
+        } else {
+            self.client.remove_file(&p)
+        };
+
+        result.map_err(new_std_io_error)?;
+
+        Ok(RpDelete::default())
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = match self.client.read_dir(&p) {
+            Ok(f) => f,
+            Err(e) => {
+                return if e.kind() == io::ErrorKind::NotFound {
+                    Ok((RpList::default(), None))
+                } else {
+                    Err(new_std_io_error(e))
+                }
+            }
+        };
+
+        let rd = HdfsLister::new(&self.root, f);
+
+        Ok((RpList::default(), Some(rd)))
+    }
+
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
@@ -404,7 +471,15 @@ impl Accessor for HdfsBackend {
         Ok(RpRename::new())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        self.client.create_dir(&p).map_err(new_std_io_error)?;
+
+        Ok(RpCreateDir::default())
+    }
+
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
@@ -421,60 +496,6 @@ impl Accessor for HdfsBackend {
         m.set_last_modified(meta.modified().into());
 
         Ok(RpStat::new(m))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p);
-
-        if let Err(err) = meta {
-            return if err.kind() == io::ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(new_std_io_error(err))
-            };
-        }
-
-        // Safety: Err branch has been checked, it's OK to unwrap.
-        let meta = meta.ok().unwrap();
-
-        let result = if meta.is_dir() {
-            self.client.remove_dir(&p)
-        } else {
-            self.client.remove_file(&p)
-        };
-
-        result.map_err(new_std_io_error)?;
-
-        Ok(RpDelete::default())
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = match self.client.read_dir(&p) {
-            Ok(f) => f,
-            Err(e) => {
-                return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
-                }
-            }
-        };
-
-        let rd = HdfsLister::new(&self.root, f);
-
-        Ok((RpList::default(), Some(rd)))
-    }
-
-    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        self.client.create_dir(&p).map_err(new_std_io_error)?;
-
-        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -545,6 +566,52 @@ impl Accessor for HdfsBackend {
         ))
     }
 
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p);
+
+        if let Err(err) = meta {
+            return if err.kind() == io::ErrorKind::NotFound {
+                Ok(RpDelete::default())
+            } else {
+                Err(new_std_io_error(err))
+            };
+        }
+
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let result = if meta.is_dir() {
+            self.client.remove_dir(&p)
+        } else {
+            self.client.remove_file(&p)
+        };
+
+        result.map_err(new_std_io_error)?;
+
+        Ok(RpDelete::default())
+    }
+
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = match self.client.read_dir(&p) {
+            Ok(f) => f,
+            Err(e) => {
+                return if e.kind() == io::ErrorKind::NotFound {
+                    Ok((RpList::default(), None))
+                } else {
+                    Err(new_std_io_error(e))
+                }
+            }
+        };
+
+        let rd = HdfsLister::new(&self.root, f);
+
+        Ok((RpList::default(), Some(rd)))
+    }
+
     fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
@@ -590,70 +657,5 @@ impl Accessor for HdfsBackend {
             .map_err(new_std_io_error)?;
 
         Ok(RpRename::new())
-    }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let mut m = Metadata::new(mode);
-        m.set_content_length(meta.len());
-        m.set_last_modified(meta.modified().into());
-
-        Ok(RpStat::new(m))
-    }
-
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p);
-
-        if let Err(err) = meta {
-            return if err.kind() == io::ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(new_std_io_error(err))
-            };
-        }
-
-        // Safety: Err branch has been checked, it's OK to unwrap.
-        let meta = meta.ok().unwrap();
-
-        let result = if meta.is_dir() {
-            self.client.remove_dir(&p)
-        } else {
-            self.client.remove_file(&p)
-        };
-
-        result.map_err(new_std_io_error)?;
-
-        Ok(RpDelete::default())
-    }
-
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = match self.client.read_dir(&p) {
-            Ok(f) => f,
-            Err(e) => {
-                return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
-                }
-            }
-        };
-
-        let rd = HdfsLister::new(&self.root, f);
-
-        Ok((RpList::default(), Some(rd)))
     }
 }

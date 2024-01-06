@@ -21,14 +21,16 @@ use chrono::DateTime;
 use chrono::Utc;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
+use http::HeaderMap;
+use http::HeaderName;
 use http::HeaderValue;
-use http::{HeaderMap, HeaderName};
 use md5::Digest;
 
 use crate::raw::*;
@@ -75,6 +77,11 @@ pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
 /// Parse content type from header map.
 pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CONTENT_TYPE)
+}
+
+/// Parse content encoding from header map.
+pub fn parse_content_encoding(headers: &HeaderMap) -> Result<Option<&str>> {
+    parse_header_to_str(headers, CONTENT_ENCODING)
 }
 
 /// Parse content range from header map.

@@ -154,10 +154,10 @@ pub struct DbfsBackend {
 #[async_trait]
 impl Accessor for DbfsBackend {
     type Reader = DbfsReader;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<DbfsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -192,35 +192,6 @@ impl Accessor for DbfsBackend {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = DbfsReader::new(self.core.clone(), args, path.to_string());
-
-        Ok((RpRead::new(), op))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(DbfsWriter::new(self.core.clone(), args, path.to_string())),
-        ))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.dbfs_ensure_parent_path(to).await?;
-
-        let resp = self.core.dbfs_rename(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -261,6 +232,19 @@ impl Accessor for DbfsBackend {
         }
     }
 
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let op = DbfsReader::new(self.core.clone(), args, path.to_string());
+
+        Ok((RpRead::new(), op))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(DbfsWriter::new(self.core.clone(), args, path.to_string())),
+        ))
+    }
+
     /// NOTE: Server will return 200 even if the path doesn't exist.
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.dbfs_delete(path).await?;
@@ -277,6 +261,22 @@ impl Accessor for DbfsBackend {
         let l = DbfsLister::new(self.core.clone(), path.to_string());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.core.dbfs_ensure_parent_path(to).await?;
+
+        let resp = self.core.dbfs_rename(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

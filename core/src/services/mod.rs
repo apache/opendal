@@ -293,6 +293,8 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+#[cfg(feature = "services-mongodb")]
+pub use self::mongodb::MongodbConfig;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
@@ -352,3 +354,10 @@ mod native_hdfs;
 pub use native_hdfs::NativeHdfs;
 #[cfg(feature = "services-native-hdfs")]
 pub use native_hdfs::NativeHdfsConfig;
+
+#[cfg(feature = "services-yandex-disk")]
+mod yandex_disk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDisk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDiskConfig;

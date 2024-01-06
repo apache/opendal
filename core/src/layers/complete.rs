@@ -786,10 +786,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = oio::Reader;
-        type BlockingReader = oio::BlockingReader;
         type Writer = oio::Writer;
-        type BlockingWriter = oio::BlockingWriter;
         type Lister = oio::Lister;
+        type BlockingReader = oio::BlockingReader;
+        type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
 
         fn info(&self) -> AccessorInfo {
@@ -803,6 +803,10 @@ mod tests {
             Ok(RpCreateDir {})
         }
 
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+        }
+
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((RpRead::new(), Box::new(oio::Cursor::new())))
         }
@@ -811,24 +815,20 @@ mod tests {
             Ok((RpWrite::new(), Box::new(())))
         }
 
-        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
-            Ok(RpCopy {})
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
-            Ok(RpRename {})
-        }
-
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
-        }
-
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
             Ok(RpDelete {})
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList {}, Box::new(())))
+        }
+
+        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
+            Ok(RpCopy {})
+        }
+
+        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+            Ok(RpRename {})
         }
 
         async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {

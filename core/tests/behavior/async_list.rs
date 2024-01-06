@@ -26,31 +26,33 @@ use log::debug;
 
 use crate::*;
 
-pub fn behavior_list_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.list) {
-        return vec![];
+    if cap.read && cap.write && cap.list {
+        tests.extend(async_trials!(
+            op,
+            test_check,
+            test_list_dir,
+            test_list_dir_with_metakey,
+            test_list_dir_with_metakey_complete,
+            test_list_prefix,
+            test_list_rich_dir,
+            test_list_empty_dir,
+            test_list_non_exist_dir,
+            test_list_sub_dir,
+            test_list_nested_dir,
+            test_list_dir_with_file_path,
+            test_list_with_start_after,
+            test_list_with_recursive,
+            test_list_root_with_recursive,
+            test_remove_all
+        ))
     }
 
-    async_trials!(
-        op,
-        test_check,
-        test_list_dir,
-        test_list_dir_with_metakey,
-        test_list_dir_with_metakey_complete,
-        test_list_prefix,
-        test_list_rich_dir,
-        test_list_empty_dir,
-        test_list_non_exist_dir,
-        test_list_sub_dir,
-        test_list_nested_dir,
-        test_list_dir_with_file_path,
-        test_list_with_start_after,
-        test_list_with_recursive,
-        test_list_root_with_recursive,
-        test_remove_all
-    )
+    if cap.read && !cap.write && cap.list {
+        tests.extend(async_trials!(op, test_list_only))
+    }
 }
 
 /// Check should be OK.
@@ -528,5 +530,26 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
             "{parent}/{path} should be removed"
         )
     }
+    Ok(())
+}
+
+/// Stat normal file and dir should return metadata
+pub async fn test_list_only(op: Operator) -> Result<()> {
+    let mut entries = HashMap::new();
+
+    let mut ds = op.lister("/").await?;
+    while let Some(de) = ds.try_next().await? {
+        entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
+    }
+
+    assert_eq!(entries["normal_file.txt"], EntryMode::FILE);
+    assert_eq!(
+        entries["special_file  !@#$%^&()_+-=;',.txt"],
+        EntryMode::FILE
+    );
+
+    assert_eq!(entries["normal_dir/"], EntryMode::DIR);
+    assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);
+
     Ok(())
 }

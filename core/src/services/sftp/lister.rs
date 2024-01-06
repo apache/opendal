@@ -28,6 +28,8 @@ use openssh_sftp_client::fs::ReadDir;
 use crate::raw::oio;
 use crate::Result;
 
+use super::error::parse_sftp_error;
+
 pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
@@ -47,7 +49,9 @@ impl SftpLister {
 #[async_trait]
 impl oio::List for SftpLister {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let item = ready!(self.dir.poll_next_unpin(cx)).transpose()?;
+        let item = ready!(self.dir.poll_next_unpin(cx))
+            .transpose()
+            .map_err(parse_sftp_error)?;
 
         match item {
             Some(e) => {

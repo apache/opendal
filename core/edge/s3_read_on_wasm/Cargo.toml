@@ -27,7 +27,9 @@ license.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-opendal = { path = "../../", default-features = false, features = ["services-s3"] }
+opendal = { path = "../../", default-features = false, features = [
+  "services-s3",
+] }
 wasm-bindgen = "0.2.89"
 wasm-bindgen-futures = "0.4.39"
 

@@ -22,7 +22,6 @@ use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
-
 use serde::Deserialize;
 use serde_json::json;
 

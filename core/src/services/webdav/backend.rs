@@ -246,10 +246,10 @@ impl Debug for WebdavBackend {
 #[async_trait]
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebdavWriter>;
-    type BlockingWriter = ();
     type Lister = Option<oio::PageLister<WebdavLister>>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -288,6 +288,36 @@ impl Accessor for WebdavBackend {
         Ok(RpCreateDir::default())
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let mut header_map = HeaderMap::new();
+        // not include children
+        header_map.insert("Depth", "0".parse().unwrap());
+        header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
+
+        let resp = self.webdav_propfind(path, Some(header_map)).await?;
+
+        let status = resp.status();
+
+        if !status.is_success() {
+            return Err(parse_error(resp).await?);
+        }
+
+        let bs = resp.into_body().bytes().await?;
+        let result: Multistatus =
+            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let item = result
+            .response
+            .first()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "Failed getting item stat: bad response",
+                )
+            })?
+            .parse_into_metadata()?;
+        Ok(RpStat::new(item))
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.webdav_get(path, args).await?;
         let status = resp.status();
@@ -317,74 +347,6 @@ impl Accessor for WebdavBackend {
             RpWrite::default(),
             oio::OneShotWriter::new(WebdavWriter::new(self.clone(), args, p)),
         ))
-    }
-
-    /// # Notes
-    ///
-    /// There is a strange dead lock issues when copying a non-exist file, so we will check
-    /// if the source exists first.
-    ///
-    /// For example: <https://github.com/apache/incubator-opendal/pull/2809>
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        if let Err(err) = self.stat(from, OpStat::default()).await {
-            if err.kind() == ErrorKind::NotFound {
-                return Err(err);
-            }
-        }
-
-        self.ensure_parent_path(to).await?;
-
-        let resp = self.webdav_copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.ensure_parent_path(to).await?;
-
-        let resp = self.webdav_move(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let mut header_map = HeaderMap::new();
-        // not include children
-        header_map.insert("Depth", "0".parse().unwrap());
-        header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
-
-        let resp = self.webdav_propfind(path, Some(header_map)).await?;
-
-        let status = resp.status();
-
-        if !status.is_success() {
-            return Err(parse_error(resp).await?);
-        }
-
-        let bs = resp.into_body().bytes().await?;
-        let result: Multistatus =
-            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-        let item = result
-            .response
-            .first()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "Failed getting item stat: bad response",
-                )
-            })?
-            .parse_into_metadata()?;
-        Ok(RpStat::new(item))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -423,6 +385,44 @@ impl Accessor for WebdavBackend {
                 Ok((RpList::default(), Some(oio::PageLister::new(l))))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    /// # Notes
+    ///
+    /// There is a strange dead lock issues when copying a non-exist file, so we will check
+    /// if the source exists first.
+    ///
+    /// For example: <https://github.com/apache/incubator-opendal/pull/2809>
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        if let Err(err) = self.stat(from, OpStat::default()).await {
+            if err.kind() == ErrorKind::NotFound {
+                return Err(err);
+            }
+        }
+
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_move(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

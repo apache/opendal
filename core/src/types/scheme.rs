@@ -44,6 +44,8 @@ pub enum Scheme {
     Seafile,
     /// [Upyun][crate::services::Upyun]: Upyun Services.
     Upyun,
+    /// [YandexDisk][crate::services::YandexDisk]: YandexDisk Services.
+    YandexDisk,
     /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
     Pcloud,
     /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
@@ -253,6 +255,8 @@ impl Scheme {
             Scheme::Seafile,
             #[cfg(feature = "services-upyun")]
             Scheme::Upyun,
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk,
             #[cfg(feature = "services-pcloud")]
             Scheme::Pcloud,
             #[cfg(feature = "services-sftp")]
@@ -347,6 +351,7 @@ impl FromStr for Scheme {
             "s3" => Ok(Scheme::S3),
             "seafile" => Ok(Scheme::Seafile),
             "upyun" => Ok(Scheme::Upyun),
+            "yandex_disk" => Ok(Scheme::YandexDisk),
             "pcloud" => Ok(Scheme::Pcloud),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
@@ -422,6 +427,7 @@ impl From<Scheme> for &'static str {
             Scheme::Mongodb => "mongodb",
             Scheme::Alluxio => "alluxio",
             Scheme::Upyun => "upyun",
+            Scheme::YandexDisk => "yandex_disk",
             Scheme::Pcloud => "pcloud",
             Scheme::NativeHdfs => "native_hdfs",
             Scheme::Custom(v) => v,

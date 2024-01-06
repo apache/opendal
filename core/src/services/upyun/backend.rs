@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::StatusCode;
-use log::debug;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use http::StatusCode;
+use log::debug;
+use serde::Deserialize;
 
 use super::core::parse_info;
 use super::core::UpyunCore;
@@ -233,15 +234,10 @@ pub struct UpyunBackend {
 #[async_trait]
 impl Accessor for UpyunBackend {
     type Reader = IncomingAsyncBody;
-
-    type BlockingReader = ();
-
     type Writer = UpyunWriters;
-
-    type BlockingWriter = ();
-
     type Lister = oio::PageLister<UpyunLister>;
-
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -290,32 +286,13 @@ impl Accessor for UpyunBackend {
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.move_object(from, to).await?;
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.info(path).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpRename::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -338,21 +315,11 @@ impl Accessor for UpyunBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.info(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = UpyunWriter::new(self.core.clone(), args, path.to_string());
 
-        let w = oio::MultipartUploadWriter::new(writer);
+        let w = oio::MultipartUploadWriter::new(writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -373,5 +340,35 @@ impl Accessor for UpyunBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = UpyunLister::new(self.core.clone(), path, args.limit());
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.move_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

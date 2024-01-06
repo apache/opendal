@@ -20,10 +20,13 @@ pub use non_wasm32_impl::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod non_wasm32_impl {
-    use crate::raw::oio;
+    use std::task::Context;
+    use std::task::Poll;
+
     use bytes::Bytes;
     use futures::TryStreamExt;
-    use std::task::{Context, Poll};
+
+    use crate::raw::oio;
 
     /// Convert given futures stream into [`oio::Stream`].
     pub fn into_stream<S>(stream: S) -> IntoStream<S>
@@ -51,10 +54,13 @@ mod non_wasm32_impl {
 pub use wasm32_impl::*;
 #[cfg(target_arch = "wasm32")]
 mod wasm32_impl {
-    use crate::raw::oio;
+    use std::task::Context;
+    use std::task::Poll;
+
     use bytes::Bytes;
     use futures::TryStreamExt;
-    use std::task::{Context, Poll};
+
+    use crate::raw::oio;
 
     /// Convert given futures stream into [`oio::Stream`].
     pub fn into_stream<S>(stream: S) -> IntoStream<S>

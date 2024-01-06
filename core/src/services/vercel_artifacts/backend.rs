@@ -46,10 +46,10 @@ impl Debug for VercelArtifactsBackend {
 #[async_trait]
 impl Accessor for VercelArtifactsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -67,6 +67,21 @@ impl Accessor for VercelArtifactsBackend {
             });
 
         ma
+    }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let res = self.vercel_artifacts_stat(path).await?;
+
+        let status = res.status();
+
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, res.headers())?;
+                Ok(RpStat::new(meta))
+            }
+
+            _ => Err(parse_error(res).await?),
+        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -90,21 +105,6 @@ impl Accessor for VercelArtifactsBackend {
                 path.to_string(),
             )),
         ))
-    }
-
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let res = self.vercel_artifacts_stat(path).await?;
-
-        let status = res.status();
-
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, res.headers())?;
-                Ok(RpStat::new(meta))
-            }
-
-            _ => Err(parse_error(res).await?),
-        }
     }
 }
 

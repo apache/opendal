@@ -18,15 +18,16 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use super::ascii;
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::*;
 use async_trait::async_trait;
 use bb8::RunError;
 use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
+
+use super::ascii;
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::*;
 
 /// Config for MemCached services support
 #[derive(Default, Deserialize, Clone)]

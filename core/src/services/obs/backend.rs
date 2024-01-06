@@ -249,10 +249,10 @@ pub struct ObsBackend {
 #[async_trait]
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = ObsWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<ObsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -307,25 +307,19 @@ impl Accessor for ObsBackend {
         am
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
-            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
-            PresignOperation::Write(v) => {
-                self.core
-                    .obs_put_object_request(path, None, v, AsyncBody::Empty)?
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.obs_head_object(path, &args).await?;
+
+        let status = resp.status();
+
+        // The response is very similar to azblob.
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-        };
-        self.core.sign_query(&mut req, args.expire()).await?;
-
-        // We don't need this request anymore, consume it directly.
-        let (parts, _) = req.into_parts();
-
-        Ok(RpPresign::new(PresignedRequest::new(
-            parts.method,
-            parts.uri,
-            parts.headers,
-        )))
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -356,39 +350,10 @@ impl Accessor for ObsBackend {
         let w = if args.append() {
             ObsWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            ObsWriters::One(oio::MultipartUploadWriter::new(writer))
+            ObsWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.obs_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.obs_head_object(path, &args).await?;
-
-        let status = resp.status();
-
-        // The response is very similar to azblob.
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -407,5 +372,40 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = ObsLister::new(self.core.clone(), path, args.recursive(), args.limit());
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.obs_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .obs_put_object_request(path, None, v, AsyncBody::Empty)?
+            }
+        };
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }

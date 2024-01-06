@@ -131,7 +131,7 @@ trait Accessor {
 }
 ```
 
-And the `delete` API will be changed to return a `Deleter` instead:
+And the `delete` API will be changed to return a `oio::Delete` instead:
 
 ```diff
 trait Accessor {

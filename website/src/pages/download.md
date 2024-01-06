@@ -12,7 +12,7 @@ The last source release is [0.44.1-incubating](
 https://www.apache.org/dyn/closer.lua/incubator/opendal/0.44.1/)([asc](https://downloads.apache.org/incubator/opendal/0.44.1/apache-opendal-incubating-0.44.1-src.tar.gz.asc),
 [sha512](https://downloads.apache.org/incubator/opendal/0.44.1/apache-opendal-incubating-0.44.1-src.tar.gz.sha512)).
 
-### Versions List
+### Version List
 
 | Name              | Archive                                                                                                      | Signature                                                                                                    | Checksum                                                                                                           |
 |-------------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|

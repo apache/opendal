@@ -516,6 +516,8 @@ svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_versio
 
 Change the [download](https://github.com/apache/incubator-opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
 
+Update the last release link and add the new release link to the version list.
+
 Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubator-opendal/pull/2882) as an example.
 
 ### Release Maven artifacts

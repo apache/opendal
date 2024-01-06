@@ -40,3 +40,4 @@ services:
       - CLUSTER_NAME=test
       - WEBHDFS_CONF_dfs_webhdfs_enabled=true
       - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_replication=1

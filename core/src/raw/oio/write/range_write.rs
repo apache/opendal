@@ -68,7 +68,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     async fn write_range(
         &self,
         location: &str,
-        written: u64,
+        offset: u64,
         size: u64,
         body: AsyncBody,
     ) -> Result<()>;
@@ -77,7 +77,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     async fn complete_range(
         &self,
         location: &str,
-        written: u64,
+        offset: u64,
         size: u64,
         body: AsyncBody,
     ) -> Result<()>;
@@ -108,7 +108,7 @@ impl Future for WriteRangeFuture {
 /// RangeWriter will implements [`Write`] based on range write.
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<String>,
-    written: u64,
+    next_offset: u64,
     buffer: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
 
@@ -143,7 +143,7 @@ impl<W: RangeWrite> RangeWriter<W> {
             futures: ConcurrentFutures::new(1.max(concurrent)),
             buffer: None,
             location: None,
-            written: 0,
+            next_offset: 0,
         }
     }
 
@@ -166,13 +166,13 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                             if self.futures.has_remaining() {
                                 let cache = self.buffer.take().expect("cache must be valid");
                                 let size = cache.len() as u64;
-                                let written = self.written;
-                                self.written += size;
+                                let offset = self.next_offset;
+                                self.next_offset += size;
                                 let w = self.w.clone();
                                 self.futures.push(WriteRangeFuture(Box::pin(async move {
                                     w.write_range(
                                         &location,
-                                        written,
+                                        offset,
                                         size,
                                         AsyncBody::ChunkedBytes(cache),
                                     )
@@ -182,7 +182,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
                             } else if let Some(size) = ready!(self.futures.poll_next_unpin(cx)) {
-                                self.written += size?;
+                                self.next_offset += size?;
                             }
                         }
                         None => {
@@ -222,16 +222,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                         Some(location) => {
                             if !self.futures.is_empty() {
                                 while let Some(size) = ready!(self.futures.poll_next_unpin(cx)) {
-                                    self.written += size?;
+                                    self.next_offset += size?;
                                 }
                             }
                             match self.buffer.take() {
                                 Some(bs) => {
-                                    let written = self.written;
+                                    let offset = self.next_offset;
                                     self.state = State::Complete(Box::pin(async move {
                                         w.complete_range(
                                             &location,
-                                            written,
+                                            offset,
                                             bs.len() as u64,
                                             AsyncBody::ChunkedBytes(bs),
                                         )

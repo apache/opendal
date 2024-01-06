@@ -345,3 +345,10 @@ mod pcloud;
 pub use pcloud::Pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::PcloudConfig;
+
+#[cfg(feature = "services-native-hdfs")]
+mod native_hdfs;
+#[cfg(feature = "services-native-hdfs")]
+pub use native_hdfs::NativeHdfs;
+#[cfg(feature = "services-native-hdfs")]
+pub use native_hdfs::NativeHdfsConfig;

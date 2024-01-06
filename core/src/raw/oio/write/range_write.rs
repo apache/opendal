@@ -86,7 +86,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     async fn abort_range(&self, location: &str) -> Result<()>;
 }
 
-struct WriteRangeFuture(BoxedFuture<Result<u64>>);
+struct WriteRangeFuture(BoxedFuture<Result<()>>);
 
 /// # Safety
 ///
@@ -99,7 +99,7 @@ unsafe impl Send for WriteRangeFuture {}
 unsafe impl Sync for WriteRangeFuture {}
 
 impl Future for WriteRangeFuture {
-    type Output = Result<u64>;
+    type Output = Result<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll_unpin(cx)
     }
@@ -177,12 +177,11 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                         AsyncBody::ChunkedBytes(cache),
                                     )
                                     .await
-                                    .map(|_| size)
                                 })));
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else if let Some(size) = ready!(self.futures.poll_next_unpin(cx)) {
-                                self.next_offset += size?;
+                            } else if let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                result?;
                             }
                         }
                         None => {
@@ -221,8 +220,8 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     match self.location.clone() {
                         Some(location) => {
                             if !self.futures.is_empty() {
-                                while let Some(size) = ready!(self.futures.poll_next_unpin(cx)) {
-                                    self.next_offset += size?;
+                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                    result?;
                                 }
                             }
                             match self.buffer.take() {

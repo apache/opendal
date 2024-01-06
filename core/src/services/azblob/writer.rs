@@ -28,7 +28,7 @@ use crate::*;
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 pub type AzblobWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
+    TwoWays<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,

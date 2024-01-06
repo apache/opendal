@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.20'
 
@@ -61,7 +61,7 @@ jobs:
 
       - name: Generate pkg-config file
         run: |
-          echo "libdir=$(pwd)/target/debug/" >> opendal_c.pc
+          echo "libdir=$(pwd)/bindings/c/target/debug/" >> opendal_c.pc
           echo "includedir=$(pwd)/bindings/c/include/" >> opendal_c.pc
           echo "Name: opendal_c" >> opendal_c.pc
           echo "Description: opendal c binding" >> opendal_c.pc
@@ -70,7 +70,7 @@ jobs:
           echo "Cflags: -I\${includedir}" >> opendal_c.pc
 
           echo "PKG_CONFIG_PATH=$(pwd)" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$(pwd)/target/debug" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$(pwd)/bindings/c/target/debug" >> $GITHUB_ENV
 
       - name: Run tests
         working-directory: bindings/go

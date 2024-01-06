@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type AzfileWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<AzfileWriter>, oio::AppendObjectWriter<AzfileWriter>>;
+    TwoWays<oio::OneShotWriter<AzfileWriter>, oio::AppendObjectWriter<AzfileWriter>>;
 
 pub struct AzfileWriter {
     core: Arc<AzfileCore>,

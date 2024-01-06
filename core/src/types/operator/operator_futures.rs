@@ -408,6 +408,12 @@ impl FutureReader {
         self.0 = self.0.map_args(|args| args.with_if_none_match(v));
         self
     }
+
+    /// Set the buffer capability to enable `BufferReader`.
+    pub fn buffer(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_buffer(v));
+        self
+    }
 }
 
 impl Future for FutureReader {
@@ -470,6 +476,12 @@ impl FutureWrite {
         self.0 = self
             .0
             .map_args(|(args, bs)| (args.with_cache_control(v), bs));
+        self
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn concurrent(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|(args, bs)| (args.with_buffer(v), bs));
         self
     }
 }
@@ -535,6 +547,12 @@ impl FutureWriter {
     /// Set the content type of option
     pub fn cache_control(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_cache_control(v));
+        self
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn concurrent(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_concurrent(v));
         self
     }
 }

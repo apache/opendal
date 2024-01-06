@@ -65,5 +65,5 @@ tower = "0.4"
 tower-http = { version = "0.4", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-url = "2.4.1"
+url = "2.5.0"
 uuid = { version = "1", features = ["v4", "fast-rng"] }

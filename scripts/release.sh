@@ -53,7 +53,12 @@ PACKAGES=(
     "integrations\/"
 )
 for package in "${PACKAGES[@]}"; do
-  sed -i "/${package}/d" Cargo.toml
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS system sed usage is different from others
+    sed -i '' "/${package}/d" Cargo.toml
+  else
+    sed -i "/${package}/d" Cargo.toml
+  fi
 done
 
 echo "> Start package"

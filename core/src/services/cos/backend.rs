@@ -242,10 +242,10 @@ pub struct CosBackend {
 #[async_trait]
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = CosWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<CosLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -301,6 +301,17 @@ impl Accessor for CosBackend {
         am
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.cos_head_object(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.cos_get_object(path, &args).await?;
 
@@ -329,10 +340,28 @@ impl Accessor for CosBackend {
         let w = if args.append() {
             CosWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            CosWriters::One(oio::MultipartUploadWriter::new(writer))
+            CosWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.cos_delete_object(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                Ok(RpDelete::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = CosLister::new(self.core.clone(), path, args.recursive(), args.limit());
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -344,30 +373,6 @@ impl Accessor for CosBackend {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.cos_head_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.cos_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -392,10 +397,5 @@ impl Accessor for CosBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = CosLister::new(self.core.clone(), path, args.recursive(), args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

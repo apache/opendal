@@ -206,6 +206,8 @@ pub use supabase::Supabase;
 mod webdav;
 #[cfg(feature = "services-webdav")]
 pub use webdav::Webdav;
+#[cfg(feature = "services-webdav")]
+pub use webdav::WebdavConfig;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
@@ -291,6 +293,8 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+#[cfg(feature = "services-mongodb")]
+pub use self::mongodb::MongodbConfig;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
@@ -336,3 +340,17 @@ mod chainsafe;
 pub use chainsafe::Chainsafe;
 #[cfg(feature = "services-chainsafe")]
 pub use chainsafe::ChainsafeConfig;
+
+#[cfg(feature = "services-pcloud")]
+mod pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::Pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::PcloudConfig;
+
+#[cfg(feature = "services-yandex-disk")]
+mod yandex_disk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDisk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDiskConfig;

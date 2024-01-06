@@ -21,23 +21,21 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_blocking_rename_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.copy && cap.blocking && cap.rename) {
-        return vec![];
+    if cap.read && cap.write && cap.copy && cap.blocking && cap.rename {
+        tests.extend(blocking_trials!(
+            op,
+            test_blocking_rename_file,
+            test_blocking_rename_non_existing_source,
+            test_blocking_rename_source_dir,
+            test_blocking_rename_target_dir,
+            test_blocking_rename_self,
+            test_blocking_rename_nested,
+            test_blocking_rename_overwrite
+        ))
     }
-
-    blocking_trials!(
-        op,
-        test_blocking_rename_file,
-        test_blocking_rename_non_existing_source,
-        test_blocking_rename_source_dir,
-        test_blocking_rename_target_dir,
-        test_blocking_rename_self,
-        test_blocking_rename_nested,
-        test_blocking_rename_overwrite
-    )
 }
 
 /// Rename a file and test with stat.

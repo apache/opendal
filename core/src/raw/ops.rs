@@ -307,6 +307,9 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    /// The maximum buffer capability.
+    /// `None` stand for disable buffer.
+    buffer: Option<usize>,
 }
 
 impl OpRead {
@@ -409,6 +412,18 @@ impl OpRead {
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
+
+    /// Set the buffer capability.
+    pub fn with_buffer(mut self, buffer: usize) -> Self {
+        self.buffer = Some(buffer);
+
+        self
+    }
+
+    /// Get buffer from option.
+    pub fn buffer(&self) -> Option<usize> {
+        self.buffer
+    }
 }
 
 /// Args for `stat` operation.
@@ -501,6 +516,7 @@ impl OpStat {
 pub struct OpWrite {
     append: bool,
     buffer: Option<usize>,
+    concurrent: usize,
 
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -584,6 +600,17 @@ impl OpWrite {
     /// Set the content type of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
+        self
+    }
+
+    /// Get the concurrent.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
         self
     }
 }

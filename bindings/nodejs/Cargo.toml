@@ -108,7 +108,6 @@ services-webhdfs = ["opendal/services-webhdfs"]
 # Optional services provided by opendal.
 services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
-services-upyun = ["opendal/services-upyun"]
 services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
@@ -133,13 +132,14 @@ services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]
+services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
-services-seafile = ["opendal/services-seafile"]
 services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
+services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 
@@ -153,7 +153,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "napi6",
   "async",
 ] }
-napi-derive = "2.12.2"
+napi-derive = "2.14.6"
 opendal.workspace = true
 tokio = "1"
 

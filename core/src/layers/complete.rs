@@ -18,21 +18,21 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
+use crate::raw::oio::BufferReader;
 use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::LazyReader;
 use crate::raw::oio::PrefixLister;
 use crate::raw::oio::RangeReader;
 use crate::raw::oio::StreamableReader;
+use crate::raw::TwoWays;
 use crate::raw::*;
 use crate::*;
 
@@ -293,28 +293,35 @@ impl<A: Accessor> CompleteAccessor<A> {
 
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
+        let buffer_cap = args.buffer();
 
-        match (seekable, streamable) {
+        let r = match (seekable, streamable) {
             (true, true) => {
                 let r = LazyReader::new(self.inner.clone(), path, args);
-                Ok((RpRead::new(), CompleteReader::AlreadyComplete(r)))
+                InnerCompleteReader::One(r)
             }
             (true, false) => {
                 let r = FileReader::new(self.inner.clone(), path, args);
-
-                Ok((RpRead::new(), CompleteReader::NeedStreamable(r)))
+                InnerCompleteReader::Two(r)
             }
             _ => {
                 let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
-                    Ok((RpRead::new(), CompleteReader::NeedSeekable(r)))
+                    InnerCompleteReader::Three(r)
                 } else {
                     let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((RpRead::new(), CompleteReader::NeedBoth(r)))
+                    InnerCompleteReader::Four(r)
                 }
             }
-        }
+        };
+
+        let r = match buffer_cap {
+            None => CompleteReader::One(r),
+            Some(cap) => CompleteReader::Two(BufferReader::new(r, cap)),
+        };
+
+        Ok((RpRead::new(), r))
     }
 
     fn complete_blocking_read(
@@ -329,27 +336,35 @@ impl<A: Accessor> CompleteAccessor<A> {
 
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
+        let buffer_cap = args.buffer();
 
-        match (seekable, streamable) {
+        let r = match (seekable, streamable) {
             (true, true) => {
                 let r = LazyReader::new(self.inner.clone(), path, args);
-                Ok((RpRead::new(), CompleteReader::AlreadyComplete(r)))
+                InnerCompleteReader::One(r)
             }
             (true, false) => {
                 let r = FileReader::new(self.inner.clone(), path, args);
-                Ok((RpRead::new(), CompleteReader::NeedStreamable(r)))
+                InnerCompleteReader::Two(r)
             }
             _ => {
                 let r = RangeReader::new(self.inner.clone(), path, args);
 
                 if streamable {
-                    Ok((RpRead::new(), CompleteReader::NeedSeekable(r)))
+                    InnerCompleteReader::Three(r)
                 } else {
                     let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((RpRead::new(), CompleteReader::NeedBoth(r)))
+                    InnerCompleteReader::Four(r)
                 }
             }
-        }
+        };
+
+        let r = match buffer_cap {
+            None => CompleteReader::One(r),
+            Some(cap) => CompleteReader::Two(BufferReader::new(r, cap)),
+        };
+
+        Ok((RpRead::new(), r))
     }
 
     async fn complete_list(
@@ -368,19 +383,19 @@ impl<A: Accessor> CompleteAccessor<A> {
             // - If service can list_with_recursive, we can forward list to it directly.
             (_, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompleteLister::AlreadyComplete(p)))
+                Ok((rp, CompleteLister::One(p)))
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                    Ok((RpList::default(), CompleteLister::Two(p)))
                 } else {
                     let parent = get_parent(path);
                     let p = FlatLister::new(self.inner.clone(), parent);
                     let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Both(p)))
+                    Ok((RpList::default(), CompleteLister::Four(p)))
                 }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
@@ -389,12 +404,12 @@ impl<A: Accessor> CompleteAccessor<A> {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let (rp, p) = self.inner.list(path, args).await?;
-                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                    Ok((rp, CompleteLister::One(p)))
                 } else {
                     let parent = get_parent(path);
                     let (rp, p) = self.inner.list(parent, args).await?;
                     let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                    Ok((rp, CompleteLister::Three(p)))
                 }
             }
         }
@@ -416,19 +431,19 @@ impl<A: Accessor> CompleteAccessor<A> {
             // - If service can list_with_recursive, we can forward list to it directly.
             (_, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompleteLister::AlreadyComplete(p)))
+                Ok((rp, CompleteLister::One(p)))
             }
             // If recursive is true but service can't list_with_recursive
             (true, false) => {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::NeedFlat(p)))
+                    Ok((RpList::default(), CompleteLister::Two(p)))
                 } else {
                     let parent = get_parent(path);
                     let p = FlatLister::new(self.inner.clone(), parent);
                     let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Both(p)))
+                    Ok((RpList::default(), CompleteLister::Four(p)))
                 }
             }
             // If recursive and service doesn't support list_with_recursive, we need to handle
@@ -437,12 +452,12 @@ impl<A: Accessor> CompleteAccessor<A> {
                 // Forward path that ends with /
                 if path.ends_with('/') {
                     let (rp, p) = self.inner.blocking_list(path, args)?;
-                    Ok((rp, CompleteLister::AlreadyComplete(p)))
+                    Ok((rp, CompleteLister::One(p)))
                 } else {
                     let parent = get_parent(path);
                     let (rp, p) = self.inner.blocking_list(parent, args)?;
                     let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::NeedPrefix(p)))
+                    Ok((rp, CompleteLister::Three(p)))
                 }
             }
         }
@@ -455,10 +470,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = oio::TwoWaysWriter<
-        CompleteWriter<A::Writer>,
-        oio::ExactBufWriter<CompleteWriter<A::Writer>>,
-    >;
+    type Writer =
+        TwoWays<CompleteWriter<A::Writer>, oio::ExactBufWriter<CompleteWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
@@ -524,8 +537,8 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         let w = CompleteWriter::new(w);
 
         let w = match buffer_size {
-            None => oio::TwoWaysWriter::One(w),
-            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size)),
+            None => TwoWays::One(w),
+            Some(size) => TwoWays::Two(oio::ExactBufWriter::new(w, size)),
         };
 
         Ok((rp, w))
@@ -659,132 +672,18 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 }
 
-pub enum CompleteReader<A: Accessor, R> {
-    AlreadyComplete(LazyReader<A, R>),
-    NeedSeekable(RangeReader<A, R>),
-    NeedStreamable(FileReader<A, R>),
-    NeedBoth(StreamableReader<RangeReader<A, R>>),
-}
+pub type CompleteReader<A, R> =
+    TwoWays<InnerCompleteReader<A, R>, BufferReader<InnerCompleteReader<A, R>>>;
 
-impl<A, R> oio::Read for CompleteReader<A, R>
-where
-    A: Accessor<Reader = R>,
-    R: oio::Read,
-{
-    #[inline]
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        use CompleteReader::*;
+type InnerCompleteReader<A, R> = FourWays<
+    LazyReader<A, R>,
+    FileReader<A, R>,
+    RangeReader<A, R>,
+    StreamableReader<RangeReader<A, R>>,
+>;
 
-        match self {
-            AlreadyComplete(r) => r.poll_read(cx, buf),
-            NeedSeekable(r) => r.poll_read(cx, buf),
-            NeedStreamable(r) => r.poll_read(cx, buf),
-            NeedBoth(r) => r.poll_read(cx, buf),
-        }
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.poll_seek(cx, pos),
-            NeedSeekable(r) => r.poll_seek(cx, pos),
-            NeedStreamable(r) => r.poll_seek(cx, pos),
-            NeedBoth(r) => r.poll_seek(cx, pos),
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.poll_next(cx),
-            NeedSeekable(r) => r.poll_next(cx),
-            NeedStreamable(r) => r.poll_next(cx),
-            NeedBoth(r) => r.poll_next(cx),
-        }
-    }
-}
-
-impl<A, R> oio::BlockingRead for CompleteReader<A, R>
-where
-    A: Accessor<BlockingReader = R>,
-    R: oio::BlockingRead,
-{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.read(buf),
-            NeedSeekable(r) => r.read(buf),
-            NeedStreamable(r) => r.read(buf),
-            NeedBoth(r) => r.read(buf),
-        }
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.seek(pos),
-            NeedSeekable(r) => r.seek(pos),
-            NeedStreamable(r) => r.seek(pos),
-            NeedBoth(r) => r.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.next(),
-            NeedSeekable(r) => r.next(),
-            NeedStreamable(r) => r.next(),
-            NeedBoth(r) => r.next(),
-        }
-    }
-}
-
-pub enum CompleteLister<A: Accessor, P> {
-    AlreadyComplete(P),
-    NeedFlat(FlatLister<Arc<A>, P>),
-    NeedPrefix(PrefixLister<P>),
-    Both(PrefixLister<FlatLister<Arc<A>, P>>),
-}
-
-impl<A, P> oio::List for CompleteLister<A, P>
-where
-    A: Accessor<Lister = P>,
-    P: oio::List,
-{
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        use CompleteLister::*;
-
-        match self {
-            AlreadyComplete(p) => p.poll_next(cx),
-            NeedFlat(p) => p.poll_next(cx),
-            NeedPrefix(p) => p.poll_next(cx),
-            Both(p) => p.poll_next(cx),
-        }
-    }
-}
-
-impl<A, P> oio::BlockingList for CompleteLister<A, P>
-where
-    A: Accessor<BlockingLister = P>,
-    P: oio::BlockingList,
-{
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        use CompleteLister::*;
-
-        match self {
-            AlreadyComplete(p) => p.next(),
-            NeedFlat(p) => p.next(),
-            NeedPrefix(p) => p.next(),
-            Both(p) => p.next(),
-        }
-    }
-}
+pub type CompleteLister<A, P> =
+    FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
@@ -887,10 +786,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = oio::Reader;
-        type BlockingReader = oio::BlockingReader;
         type Writer = oio::Writer;
-        type BlockingWriter = oio::BlockingWriter;
         type Lister = oio::Lister;
+        type BlockingReader = oio::BlockingReader;
+        type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
 
         fn info(&self) -> AccessorInfo {
@@ -904,6 +803,10 @@ mod tests {
             Ok(RpCreateDir {})
         }
 
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+        }
+
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((RpRead::new(), Box::new(oio::Cursor::new())))
         }
@@ -912,24 +815,20 @@ mod tests {
             Ok((RpWrite::new(), Box::new(())))
         }
 
-        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
-            Ok(RpCopy {})
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
-            Ok(RpRename {})
-        }
-
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
-        }
-
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
             Ok(RpDelete {})
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList {}, Box::new(())))
+        }
+
+        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
+            Ok(RpCopy {})
+        }
+
+        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+            Ok(RpRename {})
         }
 
         async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {

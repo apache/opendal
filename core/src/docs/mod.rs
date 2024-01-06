@@ -29,12 +29,6 @@ pub mod internals;
 #[doc = include_str!("../../CHANGELOG.md")]
 pub mod changelog {}
 
-/// All features that provided by OpenDAL.
-///
-/// default feature: `rustls`, which enable rustls support.
-#[doc = include_str!("features.md")]
-pub mod features {}
-
 #[cfg(not(doctest))]
 pub mod rfcs;
 

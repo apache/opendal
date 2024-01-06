@@ -15,40 +15,39 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use anyhow::Result;
-use futures::TryStreamExt;
 
 use crate::*;
 
-pub fn behavior_list_only_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !cap.list || cap.write {
-        return vec![];
+    if cap.create_dir && cap.stat {
+        tests.extend(async_trials!(op, test_create_dir, test_create_dir_existing))
     }
-
-    async_trials!(op, test_list_only)
 }
 
-/// Stat normal file and dir should return metadata
-pub async fn test_list_only(op: Operator) -> Result<()> {
-    let mut entries = HashMap::new();
+/// Create dir with dir path should succeed.
+pub async fn test_create_dir(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_dir_path();
 
-    let mut ds = op.lister("/").await?;
-    while let Some(de) = ds.try_next().await? {
-        entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
-    }
+    op.create_dir(&path).await?;
 
-    assert_eq!(entries["normal_file.txt"], EntryMode::FILE);
-    assert_eq!(
-        entries["special_file  !@#$%^&()_+-=;',.txt"],
-        EntryMode::FILE
-    );
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::DIR);
+    Ok(())
+}
 
-    assert_eq!(entries["normal_dir/"], EntryMode::DIR);
-    assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);
+/// Create dir on existing dir should succeed.
+pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_dir_path();
+
+    op.create_dir(&path).await?;
+
+    op.create_dir(&path).await?;
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }

@@ -17,31 +17,86 @@
 
 use std::io::Write;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::AsyncWrite;
+use futures::AsyncWriteExt;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
 
 pub struct HdfsWriter<F> {
-    f: F,
+    target_path: String,
+    tmp_path: Option<String>,
+    f: Option<F>,
+    client: Arc<hdrs::Client>,
+    fut: Option<BoxFuture<'static, Result<()>>>,
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for HdfsWriter.
+unsafe impl<F> Sync for HdfsWriter<F> {}
+
 impl<F> HdfsWriter<F> {
-    pub fn new(f: F) -> Self {
-        Self { f }
+    pub fn new(
+        target_path: String,
+        tmp_path: Option<String>,
+        f: F,
+        client: Arc<hdrs::Client>,
+    ) -> Self {
+        Self {
+            target_path,
+            tmp_path,
+            f: Some(f),
+            client,
+            fut: None,
+        }
     }
 }
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        Pin::new(&mut self.f)
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+
+        Pin::new(f)
             .poll_write(cx, bs.chunk())
             .map_err(new_std_io_error)
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            if let Some(fut) = self.fut.as_mut() {
+                let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
+                return Poll::Ready(res);
+            }
+
+            let mut f = self.f.take().expect("HdfsWriter must be initialized");
+            let tmp_path = self.tmp_path.clone();
+            let target_path = self.target_path.clone();
+            // Clone client to allow move into the future.
+            let client = self.client.clone();
+
+            self.fut = Some(Box::pin(async move {
+                f.close().await.map_err(new_std_io_error)?;
+
+                if let Some(tmp_path) = tmp_path {
+                    client
+                        .rename_file(&tmp_path, &target_path)
+                        .map_err(new_std_io_error)?;
+                }
+
+                Ok(())
+            }));
+        }
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
@@ -50,21 +105,23 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             "HdfsWriter doesn't support abort",
         )))
     }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut self.f)
-            .poll_close(cx)
-            .map_err(new_std_io_error)
-    }
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.f.write(bs.chunk()).map_err(new_std_io_error)
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.write(bs.chunk()).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.f.flush().map_err(new_std_io_error)?;
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.flush().map_err(new_std_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            self.client
+                .rename_file(tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?;
+        }
 
         Ok(())
     }

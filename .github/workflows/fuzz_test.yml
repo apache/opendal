@@ -60,11 +60,12 @@ jobs:
           CUSTOM_LIBFUZZER_PATH: /usr/lib/llvm-14/lib/libFuzzer.a
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fuzz_targets
           path: |
             ./target/x86_64-unknown-linux-gnu/release/fuzz_reader
+            ./target/x86_64-unknown-linux-gnu/release/fuzz_reader_with_buffer
             ./target/x86_64-unknown-linux-gnu/release/fuzz_writer
 
   fuzz-test-s3:
@@ -81,7 +82,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
@@ -92,7 +93,7 @@ jobs:
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: fuzz_targets
           path: ./target
@@ -116,12 +117,12 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: fuzz_targets
           path: ./target
@@ -141,12 +142,12 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_writer]
+        fuzz-targets: [fuzz_reader, fuzz_reader_with_buffer, fuzz_writer]
     steps:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: fuzz_targets
           path: ./target

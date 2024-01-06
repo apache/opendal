@@ -244,10 +244,10 @@ pub struct HuggingfaceBackend {
 #[async_trait]
 impl Accessor for HuggingfaceBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -266,28 +266,6 @@ impl Accessor for HuggingfaceBackend {
                 ..Default::default()
             });
         am
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.hf_resolve(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -328,6 +306,28 @@ impl Accessor for HuggingfaceBackend {
                 }
 
                 Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.hf_resolve(path, args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }

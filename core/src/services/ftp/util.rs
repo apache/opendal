@@ -29,6 +29,7 @@ use suppaftp::Status;
 
 use super::backend::Manager;
 use crate::raw::*;
+use crate::services::ftp::err::parse_error;
 use crate::*;
 
 /// Wrapper for ftp data stream and command stream.
@@ -75,7 +76,8 @@ impl oio::Read for FtpReader {
                                     Status::ClosingDataConnection,
                                     Status::RequestedFileActionOk,
                                 ])
-                                .await?;
+                                .await
+                                .map_err(parse_error)?;
 
                                 Ok(())
                             };

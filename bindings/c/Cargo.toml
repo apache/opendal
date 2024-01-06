@@ -19,13 +19,13 @@
 name = "opendal-c"
 publish = false
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/incubator-opendal"
+rust-version = "1.67"
+version = "0.44.1"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -37,5 +37,5 @@ cbindgen = "0.25.0"
 [dependencies]
 bytes = "1.4.0"
 once_cell = "1.17.1"
-opendal.workspace = true
+opendal = { path = "../../core" }
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }

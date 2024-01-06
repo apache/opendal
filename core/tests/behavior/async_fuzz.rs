@@ -25,13 +25,13 @@ use opendal::raw::BytesRange;
 
 use crate::*;
 
-pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
-    async_trials!(
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
+    tests.extend(async_trials!(
         op,
         test_fuzz_issue_2717,
         test_fuzz_pr_3395_case_1,
         test_fuzz_pr_3395_case_2
-    )
+    ))
 }
 
 async fn test_fuzz_read(

@@ -16,7 +16,8 @@
 // under the License.
 
 use opendal::raw::tests::init_test_service;
-use opendal::{Result, Scheme};
+use opendal::Result;
+use opendal::Scheme;
 
 #[tokio::main]
 async fn main() -> Result<()> {

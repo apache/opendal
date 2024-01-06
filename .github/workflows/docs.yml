@@ -64,7 +64,7 @@ jobs:
           RUSTDOCFLAGS: "--cfg docs"
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rust-docs
           path: ./target/doc
@@ -85,7 +85,7 @@ jobs:
         run: mvn javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -118,7 +118,7 @@ jobs:
         run: pnpm run docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -129,7 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Setup Rust toolchain
@@ -145,7 +145,7 @@ jobs:
         run: pdoc -t ./template --output-dir ./docs opendal
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-docs
           path: ./bindings/python/docs
@@ -169,7 +169,7 @@ jobs:
         run: make doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
@@ -188,7 +188,7 @@ jobs:
         run: ldoc ./src
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lua-docs
           path: ./bindings/lua/doc/
@@ -225,7 +225,7 @@ jobs:
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: haskell-docs
           path: ./bindings/haskell/doc/
@@ -254,7 +254,7 @@ jobs:
           ninja docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
@@ -281,7 +281,7 @@ jobs:
           dune build @doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html
@@ -317,55 +317,55 @@ jobs:
         run: corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download java docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml

@@ -41,7 +41,7 @@ runs:
           - name: Run Fuzz Test
             shell: bash
             working-directory: core/fuzz
-            run: cargo +nightly fuzz run ${{ inputs.target }} --features tests,services-${{ inputs.service }} -- -max_total_time=120
+            run: cargo +nightly fuzz run ${{ inputs.target }} --features services-${{ inputs.service }} -- -max_total_time=120
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

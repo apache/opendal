@@ -26,6 +26,58 @@ license.workspace = true
 [package.metadata]
 cargo-fuzz = true
 
+[features]
+services-alluxio = ["opendal/services-alluxio"]
+services-azblob = ["opendal/services-azblob"]
+services-azdls = ["opendal/services-azdls"]
+services-azfile = ["opendal/services-azfile"]
+services-b2 = ["opendal/services-b2"]
+services-cacache = ["opendal/services-cacache"]
+services-cos = ["opendal/services-cos"]
+services-dashmap = ["opendal/services-dashmap"]
+services-dropbox = ["opendal/services-dropbox"]
+services-etcd = ["opendal/services-etcd"]
+services-foundationdb = ["opendal/services-foundationdb"]
+services-fs = ["opendal/services-fs"]
+services-ftp = ["opendal/services-ftp"]
+services-gcs = ["opendal/services-gcs"]
+services-gdrive = ["opendal/services-gdrive"]
+services-ghac = ["opendal/services-ghac"]
+services-gridfs = ["opendal/services-gridfs"]
+services-hdfs = ["opendal/services-hdfs"]
+services-http = ["opendal/services-http"]
+services-huggingface = ["opendal/services-huggingface"]
+services-ipfs = ["opendal/services-ipfs"]
+services-ipmfs = ["opendal/services-ipmfs"]
+services-libsql = ["opendal/services-libsql"]
+services-memcached = ["opendal/services-memcached"]
+services-memory = ["opendal/services-memory"]
+services-mini-moka = ["opendal/services-mini-moka"]
+services-moka = ["opendal/services-moka"]
+services-mongodb = ["opendal/services-mongodb"]
+services-mysql = ["opendal/services-mysql"]
+services-obs = ["opendal/services-obs"]
+services-onedrive = ["opendal/services-onedrive"]
+services-oss = ["opendal/services-oss"]
+services-persy = ["opendal/services-persy"]
+services-postgresql = ["opendal/services-postgresql"]
+services-redb = ["opendal/services-redb"]
+services-redis = ["opendal/services-redis"]
+services-rocksdb = ["opendal/services-rocksdb"]
+services-s3 = ["opendal/services-s3"]
+services-seafile = ["opendal/services-seafile"]
+services-sftp = ["opendal/services-sftp"]
+services-sled = ["opendal/services-sled"]
+services-sqlite = ["opendal/services-sqlite"]
+services-supabase = ["opendal/services-supabase"]
+services-swift = ["opendal/services-swift"]
+services-tikv = ["opendal/services-tikv"]
+services-upyun = ["opendal/services-upyun"]
+services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
+services-wasabi = ["opendal/services-wasabi"]
+services-webdav = ["opendal/services-webdav"]
+services-webhdfs = ["opendal/services-webhdfs"]
+
 [dependencies]
 anyhow = "1.0.71"
 arbitrary = { version = "1.3.0", features = ["derive"] }
@@ -34,11 +86,11 @@ dotenvy = "0.15.6"
 libfuzzer-sys = "0.4"
 opendal = { path = "..", features = ["tests"] }
 tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
-tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }
 
 [[bin]]

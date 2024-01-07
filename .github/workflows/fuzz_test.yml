@@ -60,7 +60,7 @@ jobs:
           CUSTOM_LIBFUZZER_PATH: /usr/lib/llvm-14/lib/libFuzzer.a
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: fuzz_targets
           path: |
@@ -93,7 +93,7 @@ jobs:
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
@@ -122,7 +122,7 @@ jobs:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
@@ -147,7 +147,7 @@ jobs:
       - name: Install libfuzzer
         run: sudo apt-get install -y libfuzzer-14-dev
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
@@ -183,7 +183,7 @@ jobs:
               --name test \
               --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target

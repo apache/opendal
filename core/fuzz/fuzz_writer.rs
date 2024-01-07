@@ -51,7 +51,7 @@ impl Arbitrary<'_> for FuzzInput {
             None
         };
 
-        let count = u.int_in_range(128..=1024)?;
+        let count = u.int_in_range(1..=1024)?;
 
         for _ in 0..count {
             let size = u.int_in_range(1..=MAX_DATA_SIZE)?;
@@ -82,6 +82,8 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
     let mut writer = op.writer_with(&path);
     if let Some(buffer) = input.buffer {
         writer = writer.buffer(buffer);
+    } else if let Some(min_size) = op.info().full_capability().write_multi_min_size {
+        writer = writer.buffer(min_size);
     }
     if let Some(concurrent) = input.concurrent {
         writer = writer.concurrent(concurrent);

@@ -24,6 +24,9 @@ use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
+pub type WebhdfsWriters =
+    TwoWays<oio::OneShotWriter<WebhdfsWriter>, oio::AppendObjectWriter<WebhdfsWriter>>;
+
 pub struct WebhdfsWriter {
     backend: WebhdfsBackend,
 
@@ -55,6 +58,65 @@ impl oio::OneShotWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+}
+
+#[async_trait]
+impl oio::AppendObjectWrite for WebhdfsWriter {
+    async fn offset(&self) -> Result<u64> {
+        Ok(0)
+    }
+
+    async fn append(&self, _offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let resp = self.backend.webhdfs_get_file_status(&self.path).await?;
+
+        let status = resp.status();
+
+        let location;
+
+        match status {
+            StatusCode::OK => {
+                location = self.backend.webhdfs_init_append_request(&self.path).await?;
+            }
+            StatusCode::NOT_FOUND => {
+                let req = self.backend.webhdfs_create_object_request(
+                    &self.path,
+                    None,
+                    &self.op,
+                    AsyncBody::Empty,
+                )?;
+
+                let resp = self.backend.client.send(req).await?;
+
+                let status = resp.status();
+
+                match status {
+                    StatusCode::CREATED | StatusCode::OK => {
+                        resp.into_body().consume().await?;
+
+                        location = self.backend.webhdfs_init_append_request(&self.path).await?;
+                    }
+                    _ => return Err(parse_error(resp).await?),
+                }
+            }
+            _ => return Err(parse_error(resp).await?),
+        }
+
+        let req = self
+            .backend
+            .webhdfs_append_request(&location, size, body)
+            .await?;
+
+        let resp = self.backend.client.send(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

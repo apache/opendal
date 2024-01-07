@@ -226,35 +226,6 @@ pub(crate) struct GhaaArtifact {
 mod tests {
     use super::*;
 
-    fn test_stat_response() {
-        let resp = r#"{
-            "id": 11,
-            "node_id": "MDg6QXJ0aWZhY3QxMQ==",
-            "name": "Rails",
-            "size_in_bytes": 556,
-            "url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/11",
-            "archive_download_url": "https://api.github.com/repos/octo-org/octo-docs/actions/artifacts/11/zip",
-            "expired": false,
-            "created_at": "2020-01-10T14:59:22Z",
-            "expires_at": "2020-01-21T14:59:22Z",
-            "updated_at": "2020-01-21T14:59:22Z",
-            "workflow_run": {
-              "id": 2332938,
-              "repository_id": 1296269,
-              "head_repository_id": 1296269,
-              "head_branch": "main",
-              "head_sha": "328faa0536e6fef19753d9d91dc96a9931694ce3"
-            }
-        }"#;
-
-        let parsed_body: GhaaArtifact = serde_json::from_str(resp)
-            .map_err(new_json_deserialize_error)
-            .unwrap();
-
-        assert_eq!(parsed_body.size_in_bytes, 556);
-        assert_eq!(parsed_body.updated_at, "2020-01-21T14:59:22Z");
-    }
-
     #[test]
     fn test_list_response() {
         let resp = r#"{

@@ -222,7 +222,7 @@ impl Builder for RedisBuilder {
             if let Some(password) = &self.config.password {
                 client_builder = client_builder.password(password.clone());
             }
-            let client = client_builder.build()?;
+            let client = client_builder.build().map_err(format_redis_error)?;
 
             let conn = OnceCell::new();
 
@@ -366,7 +366,8 @@ impl Adapter {
                         .map(RedisConnection::Cluster)
                 }
             })
-            .await?
+            .await
+            .map_err(format_redis_error)?
             .clone())
     }
 }
@@ -390,11 +391,11 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match conn {
             RedisConnection::Normal(mut conn) => {
-                let bs = conn.get(key).await?;
+                let bs = conn.get(key).await.map_err(format_redis_error)?;
                 Ok(bs)
             }
             RedisConnection::Cluster(mut conn) => {
-                let bs = conn.get(key).await?;
+                let bs = conn.get(key).await.map_err(format_redis_error)?;
                 Ok(bs)
             }
         }
@@ -404,16 +405,22 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match self.default_ttl {
             Some(ttl) => match conn {
-                RedisConnection::Normal(mut conn) => {
-                    conn.set_ex(key, value, ttl.as_secs() as usize).await?
-                }
-                RedisConnection::Cluster(mut conn) => {
-                    conn.set_ex(key, value, ttl.as_secs() as usize).await?
-                }
+                RedisConnection::Normal(mut conn) => conn
+                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .await
+                    .map_err(format_redis_error)?,
+                RedisConnection::Cluster(mut conn) => conn
+                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .await
+                    .map_err(format_redis_error)?,
             },
             None => match conn {
-                RedisConnection::Normal(mut conn) => conn.set(key, value).await?,
-                RedisConnection::Cluster(mut conn) => conn.set(key, value).await?,
+                RedisConnection::Normal(mut conn) => {
+                    conn.set(key, value).await.map_err(format_redis_error)?
+                }
+                RedisConnection::Cluster(mut conn) => {
+                    conn.set(key, value).await.map_err(format_redis_error)?
+                }
             },
         }
         Ok(())
@@ -423,10 +430,10 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match conn {
             RedisConnection::Normal(mut conn) => {
-                let _: () = conn.del(key).await?;
+                let _: () = conn.del(key).await.map_err(format_redis_error)?;
             }
             RedisConnection::Cluster(mut conn) => {
-                let _: () = conn.del(key).await?;
+                let _: () = conn.del(key).await.map_err(format_redis_error)?;
             }
         }
         Ok(())
@@ -436,20 +443,18 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match conn {
             RedisConnection::Normal(mut conn) => {
-                conn.append(key, value).await?;
+                conn.append(key, value).await.map_err(format_redis_error)?;
             }
             RedisConnection::Cluster(mut conn) => {
-                conn.append(key, value).await?;
+                conn.append(key, value).await.map_err(format_redis_error)?;
             }
         }
         Ok(())
     }
 }
 
-impl From<RedisError> for Error {
-    fn from(e: RedisError) -> Self {
-        Error::new(ErrorKind::Unexpected, e.category())
-            .set_source(e)
-            .set_temporary()
-    }
+pub fn format_redis_error(e: RedisError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.category())
+        .set_source(e)
+        .set_temporary()
 }

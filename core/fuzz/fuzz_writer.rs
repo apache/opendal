@@ -26,6 +26,7 @@ use opendal::raw::tests::WriteChecker;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use opendal::Result;
+use tracing::warn;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
@@ -111,6 +112,11 @@ fuzz_target!(|input: FuzzInput| {
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {
+        if !op.info().full_capability().write_can_multi {
+            warn!("service doesn't support write multi, skip fuzzing");
+            return;
+        }
+
         TEST_RUNTIME.block_on(async {
             fuzz_writer(op, input.clone())
                 .await

@@ -4669,6 +4669,7 @@ dependencies = [
  "libfuzzer-sys",
  "opendal",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "uuid",
 ]

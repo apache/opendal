@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::DateTime;
 use chrono::Utc;
 use http::StatusCode;
 use log::debug;
@@ -29,8 +28,8 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::ghaa::core::GhaaArtifact;
 use crate::services::ghaa::core::GhaaCore;
-use crate::services::ghaa::core::GhaaStatResponse;
 use crate::services::ghaa::lister::GhaaLister;
 use crate::*;
 
@@ -42,6 +41,9 @@ pub struct GhaaConfig {
 
     /// repo name of this backend
     pub repo: String,
+
+    /// workflow id of this backend
+    pub workflow_id: String,
 
     /// token of this backend
     ///
@@ -56,6 +58,7 @@ impl Debug for GhaaConfig {
 
         ds.field("owner", &self.owner);
         ds.field("repo", &self.repo);
+        ds.field("workflow_id", &self.workflow_id);
         if self.token.is_some() {
             ds.field("token", &"<redacted>");
         }
@@ -101,6 +104,17 @@ impl GhaaBuilder {
         if !repo.is_empty() {
             self.config.repo = repo.to_string();
         }
+        self
+    }
+
+    /// Set workflow id of this backend
+    ///
+    /// The unique identifier of the workflow run.
+    pub fn workflow_id(&mut self, workflow_id: &str) -> &mut Self {
+        if !workflow_id.is_empty() {
+            self.config.workflow_id = workflow_id.to_string();
+        }
+
         self
     }
 
@@ -157,6 +171,7 @@ impl Builder for GhaaBuilder {
             core: Arc::new(GhaaCore {
                 client,
                 config: self.config.clone(),
+                path_cache: Arc::default(),
             }),
         };
 
@@ -194,7 +209,15 @@ impl Accessor for GhaaBackend {
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_artifact(path).await?;
+        let artifact_id = self
+            .core
+            .get_artifact_id_by_path(path)
+            .await?
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                &format!("path not found: {}", path),
+            ))?;
+        let resp = self.core.download_artifact(artifact_id.as_str()).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
@@ -203,18 +226,26 @@ impl Accessor for GhaaBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.stat_artifact(path).await?;
+        let artifact_id = self
+            .core
+            .get_artifact_id_by_path(path)
+            .await?
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                &format!("path not found: {}", path),
+            ))?;
+        let resp = self.core.stat_artifact(artifact_id.as_str()).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
                 let slc = resp.into_body().bytes().await?;
-                let parsed_body: GhaaStatResponse =
+                let parsed_body: GhaaArtifact =
                     serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
                 let mut meta = Metadata::new(EntryMode::FILE);
                 meta.set_content_length(parsed_body.size_in_bytes);
                 meta.set_last_modified(
-                    DateTime::parse_from_rfc3339(&parsed_body.updated_at)
+                    parse_datetime_from_rfc3339(&parsed_body.updated_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap(),
                 );
@@ -225,7 +256,15 @@ impl Accessor for GhaaBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete_artifact(path).await?;
+        let artifact_id = self
+            .core
+            .get_artifact_id_by_path(path)
+            .await?
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                &format!("path not found: {}", path),
+            ))?;
+        let resp = self.core.delete_artifact(artifact_id.as_str()).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),

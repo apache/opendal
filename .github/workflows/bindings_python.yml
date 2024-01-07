@@ -58,6 +58,8 @@ jobs:
         target: [x86_64, aarch64, armv7l]
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -78,6 +80,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
@@ -93,6 +97,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"

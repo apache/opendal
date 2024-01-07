@@ -611,5 +611,5 @@ To clean up old releases, run:
 # 1. Get the list of releases
 svn ls https://dist.apache.org/repos/dist/release/incubator/opendal
 # 2. Delete each release (except for the last one)
-svn rm https://dist.apache.org/repos/dist/release/incubator/opendal/X.Y.Z
+svn del -m "Archiving OpenDAL release X.Y.Z" https://dist.apache.org/repos/dist/release/incubator/opendal/X.Y.Z
 ```

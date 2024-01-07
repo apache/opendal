@@ -596,3 +596,20 @@ fully endorsed by the ASF.
 ```
 
 Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>
+
+## Post release
+
+After the official release out, you may perform a few post actions.
+
+### Remove the old releases
+
+Remove the old releases if any. You only need the latest release there, and older releases are available through the Apache archive.
+
+To clean up old releases, run:
+
+```shell
+# 1. Get the list of releases
+svn ls https://dist.apache.org/repos/dist/release/incubator/opendal
+# 2. Delete each release (except for the last one)
+svn rm https://dist.apache.org/repos/dist/release/incubator/opendal/X.Y.Z
+```

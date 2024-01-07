@@ -8,7 +8,7 @@ The official Apache OpenDAL (incubating) releases are as source artifacts.
 
 ## Releases
 
-The lastest source release is [0.44.1](
+The latest source release is [0.44.1](
 https://www.apache.org/dyn/closer.lua/incubator/opendal/0.44.1/apache-opendal-incubating-0.44.1-src.tar.gz?action=download) ([asc](https://downloads.apache.org/incubator/opendal/0.44.1/apache-opendal-incubating-0.44.1-src.tar.gz.asc),
 [sha512](https://downloads.apache.org/incubator/opendal/0.44.1/apache-opendal-incubating-0.44.1-src.tar.gz.sha512)).
 

@@ -14,6 +14,33 @@ https://www.apache.org/dyn/closer.lua/incubator/opendal/0.44.1/apache-opendal-in
 
 For older releases, please check the [archive](https://archive.apache.org/dist/incubator/opendal/).
 
-## Verifying Hashes and Signatures
+## Notes
 
-Along with our releases, we also provide sha512 hashes in `*.sha512` files and cryptographic signatures in `*.asc` files. The Apache Software Foundation has an extensive tutorial to [verify hashes and signatures](http://www.apache.org/info/verification.html) which you can follow by using any of these release-signing [KEYS](https://downloads.apache.org/incubator/opendal/KEYS).
+* When downloading a release, please check the SHA-512 and verify the OpenPGP compatible signature from the main Apache site. Links are provided above (next to the release download link).
+* The KEYS file contains the public keys used for signing release. It is recommended that (when possible) a web of trust is used to confirm the identity of these keys.
+* Please download the [KEYS](https://downloads.apache.org/incubator/opendal/KEYS) as well as the .asc signature files.
+
+### To verify the signature of the release artifact
+
+You will need to download both the release artifact and the .asc signature file for that artifact. Then verify the signature by:
+
+* Download the KEYS file and the .asc signature files for the relevant release artifacts.
+* Import the KEYS file to your GPG keyring: 
+
+    ```shell
+    gpg --import KEYS
+    ```
+
+* Verify the signature of the release artifact using the following command:
+  
+    ```shell
+    gpg --verify <artifact>.asc <artifact>
+    ```
+
+### To verify the checksum of the release artifact
+
+You will need to download both the release artifact and the .sha512 checksum file for that artifact. Then verify the checksum by:
+
+```shell
+shasum -a 512 -c <artifact>.sha512
+```

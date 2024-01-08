@@ -68,18 +68,18 @@ fn bench_write_with_concurrent(c: &mut Criterion, name: &str, op: Operator) {
 
     let mut rng = thread_rng();
 
-    for concurrent in [2, 4] {
+    for concurrent in [1, 2, 4, 8] {
         let content = gen_bytes(&mut rng, 5 * 1024 * 1024);
         let path = uuid::Uuid::new_v4().to_string();
 
-        group.throughput(criterion::Throughput::Bytes(4 * 5 * 1024 * 1024));
+        group.throughput(criterion::Throughput::Bytes(16 * 5 * 1024 * 1024));
         group.bench_with_input(
             concurrent.to_string(),
             &(op.clone(), &path, content.clone()),
             |b, (op, path, content)| {
                 b.to_async(&*TEST_RUNTIME).iter(|| async {
                     let mut w = op.writer_with(path).concurrent(concurrent).await.unwrap();
-                    for _ in 0..4 {
+                    for _ in 0..16 {
                         w.write(content.clone()).await.unwrap();
                     }
                     w.close().await.unwrap();

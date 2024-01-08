@@ -27,6 +27,7 @@ use super::utils::*;
 pub fn bench(c: &mut Criterion) {
     if let Some(op) = init_test_service().unwrap() {
         bench_write_once(c, op.info().scheme().into_static(), op.clone());
+        bench_write_with_concurrent(c, op.info().scheme().into_static(), op.clone());
     }
 }
 
@@ -57,6 +58,34 @@ fn bench_write_once(c: &mut Criterion, name: &str, op: Operator) {
         );
 
         std::mem::drop(temp_data);
+    }
+
+    group.finish()
+}
+
+fn bench_write_with_concurrent(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_write_with_concurrent"));
+
+    let mut rng = thread_rng();
+
+    for concurrent in [2, 4] {
+        let content = gen_bytes(&mut rng, 5 * 1024 * 1024);
+        let path = uuid::Uuid::new_v4().to_string();
+
+        group.throughput(criterion::Throughput::Bytes(4 * 5 * 1024 * 1024));
+        group.bench_with_input(
+            concurrent.to_string(),
+            &(op.clone(), &path, content.clone()),
+            |b, (op, path, content)| {
+                b.to_async(&*TEST_RUNTIME).iter(|| async {
+                    let mut w = op.writer_with(path).concurrent(concurrent).await.unwrap();
+                    for _ in 0..4 {
+                        w.write(content.clone()).await.unwrap();
+                    }
+                    w.close().await.unwrap();
+                })
+            },
+        );
     }
 
     group.finish()

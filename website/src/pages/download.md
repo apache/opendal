@@ -16,7 +16,7 @@ For older releases, please check the [archive](https://archive.apache.org/dist/i
 
 ## Notes
 
-* When downloading a release, please check the SHA-512 and verify the OpenPGP compatible signature from the main Apache site. Links are provided above (next to the release download link).
+* When downloading a release, please verify the OpenPGP compatible signature (or failing that, check the SHA-512); these should be fetched from the main Apache site.
 * The KEYS file contains the public keys used for signing release. It is recommended that (when possible) a web of trust is used to confirm the identity of these keys.
 * Please download the [KEYS](https://downloads.apache.org/incubator/opendal/KEYS) as well as the .asc signature files.
 

@@ -25,6 +25,20 @@ use futures::stream::FuturesOrdered;
 use futures::FutureExt;
 use futures::StreamExt;
 
+/// MaybeSendFuture is a wrapper trait allow us to use `Send` or not depends on the target.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSendFuture<T>: Future<Output = T> + Send {}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T, F> MaybeSendFuture<T> for F where F: Future<Output = T> + Send {}
+
+/// MaybeSendFuture is a wrapper trait allow us to use `Send` or not depends on the target.
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSendFuture<T>: Future<Output = T> {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T, F> MaybeSendFuture<T> for F where F: Future<Output = T> {}
+
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
 ///
 /// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.

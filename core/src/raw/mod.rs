@@ -65,6 +65,7 @@ pub use std_io_util::*;
 mod futures_util;
 pub use futures_util::BoxedFuture;
 pub use futures_util::ConcurrentFutures;
+pub use futures_util::MaybeSendFuture;
 
 mod enum_utils;
 pub use enum_utils::*;

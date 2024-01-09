@@ -111,6 +111,7 @@ pub struct RangeWriter<W: RangeWrite> {
     next_offset: u64,
     buffer: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
+    concurrent: usize,
 
     w: Arc<W>,
     state: State,
@@ -144,6 +145,7 @@ impl<W: RangeWrite> RangeWriter<W> {
             buffer: None,
             location: None,
             next_offset: 0,
+            concurrent,
         }
     }
 
@@ -262,7 +264,12 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     unreachable!("RangeWriter must not go into State::Init during poll_close")
                 }
                 State::Complete(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
+                    let mut res = ready!(fut.poll_unpin(cx));
+                    // Don't retry close if concurrent write failed.
+                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
+                    if self.concurrent > 1 {
+                        res = res.map_err(|err| err.set_permanent());
+                    }
                     self.state = State::Idle;
                     return Poll::Ready(res);
                 }

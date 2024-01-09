@@ -170,11 +170,11 @@ unsafe impl Sync for NativeHdfsBackend {}
 
 #[async_trait]
 impl Accessor for NativeHdfsBackend {
-    type Reader = NativeHdfsReader;
+    type Reader = HdfsNativeReader;
     type BlockingReader = ();
-    type Writer = NativeHdfsWriter;
+    type Writer = HdfsNativeWriter;
     type BlockingWriter = ();
-    type Lister = Option<NativeHdfsLister>;
+    type Lister = Option<HdfsNativeLister>;
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {

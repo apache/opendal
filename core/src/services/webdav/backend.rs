@@ -99,9 +99,9 @@ impl WebdavBuilder {
         self
     }
 
-    /// set the password for Webdav
+    /// set the username for Webdav
     ///
-    /// default: no password
+    /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());

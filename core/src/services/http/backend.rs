@@ -90,9 +90,9 @@ impl HttpBuilder {
         self
     }
 
-    /// set password for http backend
+    /// set username for http backend
     ///
-    /// default: no password
+    /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());

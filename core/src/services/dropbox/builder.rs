@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use serde::Deserialize;
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -30,7 +30,6 @@ use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::*;
-
 
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
@@ -62,7 +61,9 @@ pub struct DropboxBuilder {
 
 impl Debug for DropboxBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder").field("root", &self.config.root).finish()
+        f.debug_struct("Builder")
+            .field("root", &self.config.root)
+            .finish()
     }
 }
 
@@ -129,11 +130,11 @@ impl Builder for DropboxBuilder {
     type Accessor = DropboxBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-        builder.config = DropboxConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        builder
+        Self {
+            config: DropboxConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed"),
+            ..Default::default()
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -147,7 +148,10 @@ impl Builder for DropboxBuilder {
             })?
         };
 
-        let signer = match (self.config.access_token.take(), self.config.refresh_token.take()) {
+        let signer = match (
+            self.config.access_token.take(),
+            self.config.refresh_token.take(),
+        ) {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
                 // We will never expire user specified token.

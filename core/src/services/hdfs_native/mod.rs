@@ -15,24 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio;
-use crate::raw::oio::Entry;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+mod backend;
+pub use backend::HdfsNativeBuilder as HdfsNative;
+pub use backend::HdfsNativeConfig;
 
-pub struct NativeHdfsLister {
-    root: String,
-    client: Arc<hdfs_native::Client>,
-}
-
-impl NativeHdfsLister {
-    pub fn new(path: String, client: Arc<hdfs_native::Client>) -> Self {
-        NativeHdfsLister { root: path, client }
-    }
-}
-
-impl oio::List for NativeHdfsLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Option<Entry>>> {
-        todo!()
-    }
-}
+mod lister;
+mod reader;
+mod writer;

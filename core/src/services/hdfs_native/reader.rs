@@ -15,10 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::NativeHdfsBuilder as NativeHdfs;
-pub use backend::NativeHdfsConfig;
+use crate::raw::oio::{Read, Reader};
+use crate::*;
+use bytes::Bytes;
+use hdfs_native::file::FileReader;
+use std::io::SeekFrom;
+use std::task::{Context, Poll};
 
-mod lister;
-mod reader;
-mod writer;
+pub struct HdfsNativeReader {
+    f: FileReader,
+}
+
+impl HdfsNativeReader {
+    pub fn new(f: FileReader) -> Self {
+        HdfsNativeReader { f }
+    }
+}
+
+impl Read for HdfsNativeReader {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        todo!()
+    }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        todo!()
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        todo!()
+    }
+}

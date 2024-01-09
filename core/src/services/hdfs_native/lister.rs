@@ -16,35 +16,24 @@
 // under the License.
 
 use crate::raw::oio;
-use crate::raw::oio::WriteBuf;
-use crate::services::native_hdfs::lister::NativeHdfsLister;
-use hdfs_native::file::FileWriter;
+use crate::raw::oio::Entry;
+use crate::*;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub struct NativeHdfsWriter {
-    f: FileWriter,
+pub struct HdfsNativeLister {
+    root: String,
+    client: Arc<hdfs_native::Client>,
 }
 
-impl NativeHdfsWriter {
-    pub fn new(f: FileWriter) -> Self {
-        NativeHdfsWriter { f }
+impl HdfsNativeLister {
+    pub fn new(path: String, client: Arc<hdfs_native::Client>) -> Self {
+        HdfsNativeLister { root: path, client }
     }
 }
 
-impl oio::Write for NativeHdfsLister {
-    fn poll_write(
-        &mut self,
-        cx: &mut Context<'_>,
-        bs: &dyn WriteBuf,
-    ) -> Poll<crate::Result<usize>> {
-        todo!()
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
-        todo!()
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+impl oio::List for HdfsNativeLister {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
         todo!()
     }
 }

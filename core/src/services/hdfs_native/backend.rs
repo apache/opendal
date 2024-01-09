@@ -37,20 +37,20 @@ use crate::*;
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct NativeHdfsConfig {
+pub struct HdfsNativeConfig {
     /// work dir of this backend
     pub root: Option<String>,
-    /// name node of this backend
-    pub name_node: Option<String>,
+    /// url of this backend
+    pub url: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
 }
 
-impl Debug for NativeHdfsConfig {
+impl Debug for HdfsNativeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NativeHdfsConfig")
+        f.debug_struct("HdfsNativeConfig")
             .field("root", &self.root)
-            .field("name_node", &self.name_node)
+            .field("url", &self.url)
             .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
     }
@@ -58,19 +58,19 @@ impl Debug for NativeHdfsConfig {
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
-pub struct NativeHdfsBuilder {
-    config: NativeHdfsConfig,
+pub struct HdfsNativeBuilder {
+    config: HdfsNativeConfig,
 }
 
-impl Debug for NativeHdfsBuilder {
+impl Debug for HdfsNativeBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NativeHdfsBuilder")
+        f.debug_struct("HdfsNativeBuilder")
             .field("config", &self.config)
             .finish()
     }
 }
 
-impl NativeHdfsBuilder {
+impl HdfsNativeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -84,16 +84,16 @@ impl NativeHdfsBuilder {
         self
     }
 
-    /// Set name_node of this backend.
+    /// Set url of this backend.
     ///
     /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn name_node(&mut self, name_node: &str) -> &mut Self {
+    pub fn url(&mut self, url: &str) -> &mut Self {
         if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
+            self.config.url = Some(url.trim_end_matches('/').to_string())
         }
 
         self
@@ -108,26 +108,26 @@ impl NativeHdfsBuilder {
     }
 }
 
-impl Builder for NativeHdfsBuilder {
+impl Builder for HdfsNativeBuilder {
     const SCHEME: Scheme = Scheme::NativeHdfs;
     type Accessor = NativeHdfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         // Deserialize the configuration from the HashMap.
-        let config = NativeHdfsConfig::deserialize(ConfigDeserializer::new(map))
+        let config = HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
         // Create an NativeHdfsBuilder instance with the deserialized config.
-        NativeHdfsBuilder { config }
+        HdfsNativeBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let name_node = match &self.config.name_node {
+        let url = match &self.config.url {
             Some(v) => v,
             None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
+                return Err(Error::new(ErrorKind::ConfigInvalid, "url is empty")
                     .with_context("service", Scheme::NativeHdfs))
             }
         };
@@ -135,7 +135,7 @@ impl Builder for NativeHdfsBuilder {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(name_node).map_err(new_std_io_error)?;
+        let client = hdfs_native::Client::new(url).map_err(new_std_io_error)?;
 
         // need to check if root dir exists, create if not
 

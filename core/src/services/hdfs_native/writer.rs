@@ -15,32 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::{Read, Reader};
-use bytes::Bytes;
-use hdfs_native::file::FileReader;
-use std::io::SeekFrom;
+use crate::raw::oio;
+use crate::raw::oio::WriteBuf;
+use crate::services::hdfs_native::lister::NativeHdfsLister;
+use crate::*;
+use hdfs_native::file::FileWriter;
 use std::task::{Context, Poll};
 
-pub struct NativeHdfsReader {
-    f: FileReader,
+pub struct HdfsNativeWriter {
+    f: FileWriter,
 }
 
-impl NativeHdfsReader {
-    pub fn new(f: FileReader) -> Self {
-        NativeHdfsReader { f }
+impl HdfsNativeWriter {
+    pub fn new(f: FileWriter) -> Self {
+        HdfsNativeWriter { f }
     }
 }
 
-impl Read for NativeHdfsReader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
+impl oio::Write for HdfsNativeWriter {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
         todo!()
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<crate::Result<u64>> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         todo!()
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         todo!()
     }
 }

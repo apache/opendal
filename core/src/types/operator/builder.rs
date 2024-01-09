@@ -261,7 +261,7 @@ impl Operator {
             Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
             #[cfg(feature = "services-mongodb")]
             Scheme::Mongodb => Self::from_map::<services::Mongodb>(map)?.finish(),
-            #[cfg(feature = "services-native-hdfs")]
+            #[cfg(feature = "services-hdfs-native")]
             Scheme::NativeHdfs => Self::from_map::<services::NativeHdfs>(map)?.finish(),
             v => {
                 return Err(Error::new(

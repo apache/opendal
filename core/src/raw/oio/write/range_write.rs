@@ -86,7 +86,12 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     async fn abort_range(&self, location: &str) -> Result<()>;
 }
 
-struct WriteRangeFuture(BoxedFuture<Result<()>>);
+/// WritePartResult is the result returned by [`WriteRangeFuture`].
+///
+/// The error part will carries inout `(offset, bytes, err)` so caller can retry them.
+type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
+
+struct WriteRangeFuture(BoxedFuture<WriteRangeResult>);
 
 /// # Safety
 ///
@@ -99,19 +104,40 @@ unsafe impl Send for WriteRangeFuture {}
 unsafe impl Sync for WriteRangeFuture {}
 
 impl Future for WriteRangeFuture {
-    type Output = Result<()>;
+    type Output = WriteRangeResult;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll_unpin(cx)
     }
 }
 
+impl WriteRangeFuture {
+    pub fn new<W: RangeWrite>(
+        w: Arc<W>,
+        location: Arc<String>,
+        offset: u64,
+        bytes: oio::ChunkedBytes,
+    ) -> Self {
+        let fut = async move {
+            w.write_range(
+                &location,
+                offset,
+                bytes.len() as u64,
+                AsyncBody::ChunkedBytes(bytes.clone()),
+            )
+            .await
+            .map_err(|err| (offset, bytes, err))
+        };
+
+        WriteRangeFuture(Box::pin(fut))
+    }
+}
+
 /// RangeWriter will implements [`Write`] based on range write.
 pub struct RangeWriter<W: RangeWrite> {
-    location: Option<String>,
+    location: Option<Arc<String>>,
     next_offset: u64,
     buffer: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
-    concurrent: usize,
 
     w: Arc<W>,
     state: State,
@@ -145,7 +171,6 @@ impl<W: RangeWrite> RangeWriter<W> {
             buffer: None,
             location: None,
             next_offset: 0,
-            concurrent,
         }
     }
 
@@ -167,24 +192,27 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                         Some(location) => {
                             if self.futures.has_remaining() {
                                 let cache = self.buffer.take().expect("cache must be valid");
-                                let size = cache.len() as u64;
                                 let offset = self.next_offset;
-                                self.next_offset += size;
-                                let w = self.w.clone();
-                                self.futures
-                                    .push_back(WriteRangeFuture(Box::pin(async move {
-                                        w.write_range(
-                                            &location,
-                                            offset,
-                                            size,
-                                            AsyncBody::ChunkedBytes(cache),
-                                        )
-                                        .await
-                                    })));
+                                self.next_offset += cache.len() as u64;
+                                self.futures.push_back(WriteRangeFuture::new(
+                                    self.w.clone(),
+                                    location,
+                                    offset,
+                                    cache,
+                                ));
+
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else if let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
-                                result?;
+                            } else if let Some(Err((offset, bytes, err))) =
+                                ready!(self.futures.poll_next_unpin(cx))
+                            {
+                                self.futures.push_front(WriteRangeFuture::new(
+                                    self.w.clone(),
+                                    location,
+                                    offset,
+                                    bytes,
+                                ));
+                                return Poll::Ready(Err(err));
                             }
                         }
                         None => {
@@ -203,7 +231,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Init(fut) => {
                     let res = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle;
-                    self.location = Some(res?);
+                    self.location = Some(Arc::new(res?));
                 }
                 State::Complete(_) => {
                     unreachable!("RangeWriter must not go into State::Complete during poll_write")
@@ -223,15 +251,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     match self.location.clone() {
                         Some(location) => {
                             if !self.futures.is_empty() {
-                                while let Some(mut result) =
-                                    ready!(self.futures.poll_next_unpin(cx))
-                                {
-                                    // Don't retry close if concurrent write failed.
-                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
-                                    if self.concurrent > 1 {
-                                        result = result.map_err(|err| err.set_permanent());
-                                    }
-                                    result?;
+                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                    if let Err((offset, bytes, err)) = result {
+                                        self.futures.push_front(WriteRangeFuture::new(
+                                            self.w.clone(),
+                                            location.clone(),
+                                            offset,
+                                            bytes,
+                                        ));
+                                        return Poll::Ready(Err(err));
+                                    };
                                 }
                             }
                             match self.buffer.take() {

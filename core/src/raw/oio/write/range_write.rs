@@ -171,15 +171,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                 let offset = self.next_offset;
                                 self.next_offset += size;
                                 let w = self.w.clone();
-                                self.futures.push(WriteRangeFuture(Box::pin(async move {
-                                    w.write_range(
-                                        &location,
-                                        offset,
-                                        size,
-                                        AsyncBody::ChunkedBytes(cache),
-                                    )
-                                    .await
-                                })));
+                                self.futures
+                                    .push_back(WriteRangeFuture(Box::pin(async move {
+                                        w.write_range(
+                                            &location,
+                                            offset,
+                                            size,
+                                            AsyncBody::ChunkedBytes(cache),
+                                        )
+                                        .await
+                                    })));
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
                             } else if let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {

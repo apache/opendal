@@ -164,10 +164,11 @@ where
                         self.block_ids.push(block_id.clone());
                         let w = self.w.clone();
                         let size = cache.len();
-                        self.futures.push(WriteBlockFuture(Box::pin(async move {
-                            w.write_block(size as u64, block_id, AsyncBody::ChunkedBytes(cache))
-                                .await
-                        })));
+                        self.futures
+                            .push_back(WriteBlockFuture(Box::pin(async move {
+                                w.write_block(size as u64, block_id, AsyncBody::ChunkedBytes(cache))
+                                    .await
+                            })));
                         let size = self.fill_cache(bs);
                         return Poll::Ready(Ok(size));
                     } else {
@@ -222,14 +223,15 @@ where
                                 self.block_ids.push(block_id.clone());
                                 let size = cache.len();
                                 let w = self.w.clone();
-                                self.futures.push(WriteBlockFuture(Box::pin(async move {
-                                    w.write_block(
-                                        size as u64,
-                                        block_id,
-                                        AsyncBody::ChunkedBytes(cache),
-                                    )
-                                    .await
-                                })));
+                                self.futures
+                                    .push_back(WriteBlockFuture(Box::pin(async move {
+                                        w.write_block(
+                                            size as u64,
+                                            block_id,
+                                            AsyncBody::ChunkedBytes(cache),
+                                        )
+                                        .await
+                                    })));
                             }
                         }
                         while ready!(self.futures.poll_next_unpin(cx)).is_some() {}

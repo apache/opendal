@@ -21,7 +21,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -51,15 +50,16 @@ use crate::*;
 /// ```
 ///
 /// We will use `write_once` instead of starting a new multipart upload.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
     /// write_once is used to write the data to underlying storage at once.
     ///
     /// MultipartUploadWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()>;
+    #[cfg(not(target_arch = "wasm32"))]
+    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
 
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
@@ -68,7 +68,10 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
     /// - the total size of data is unknown.
     /// - the total size of data is known, but the size of current write
     /// is less then the total size.
-    async fn initiate_part(&self) -> Result<String>;
+    #[cfg(not(target_arch = "wasm32"))]
+    fn initiate_part(&self) -> impl Future<Output = Result<String>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn initiate_part(&self) -> impl Future<Output = Result<String>>;
 
     /// write_part will write a part of the data and returns the result
     /// [`MultipartUploadPart`].
@@ -77,20 +80,43 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
     /// order.
     ///
     /// - part_number is the index of the part, starting from 0.
-    async fn write_part(
+    #[cfg(not(target_arch = "wasm32"))]
+    fn write_part(
         &self,
         upload_id: &str,
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<MultipartUploadPart>;
+    ) -> impl Future<Output = Result<MultipartUploadPart>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: AsyncBody,
+    ) -> impl Future<Output = Result<MultipartUploadPart>>;
 
     /// complete_part will complete the multipart upload to build the final
     /// file.
-    async fn complete_part(&self, upload_id: &str, parts: &[MultipartUploadPart]) -> Result<()>;
+    #[cfg(not(target_arch = "wasm32"))]
+    fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[MultipartUploadPart],
+    ) -> impl Future<Output = Result<()>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[MultipartUploadPart],
+    ) -> impl Future<Output = Result<()>>;
 
     /// abort_part will cancel the multipart upload and purge all data.
-    async fn abort_part(&self, upload_id: &str) -> Result<()>;
+    #[cfg(not(target_arch = "wasm32"))]
+    fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>>;
 }
 
 /// The result of [`MultipartUploadWrite::write_part`].

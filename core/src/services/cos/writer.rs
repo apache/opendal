@@ -45,7 +45,6 @@ impl CosWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartUploadWrite for CosWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self

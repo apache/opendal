@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::constants::X_UPYUN_MULTI_UUID;
@@ -40,7 +39,6 @@ impl UpyunWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartUploadWrite for UpyunWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let req = self

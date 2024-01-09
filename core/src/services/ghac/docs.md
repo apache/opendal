@@ -62,7 +62,7 @@ Refer to [`GhacBuilder`]'s public API docs for more information.
 
 ### Via Builder
 
-```no_run
+```rust
 use std::sync::Arc;
 
 use anyhow::Result;

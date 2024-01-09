@@ -24,7 +24,7 @@ You can refer to [`VercelArtifactsBuilder`]'s docs for more information
 
 ### Via Builder
 
-```no_run
+```rust
 use anyhow::Result;
 use opendal::services::VercelArtifacts;
 use opendal::Operator;

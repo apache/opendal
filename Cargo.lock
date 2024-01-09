@@ -230,19 +230,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-compat"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f68a707c1feb095d8c07f8a65b9f506b117d30af431cab89374357de7c11461b"
-dependencies = [
- "futures-core",
- "futures-io",
- "once_cell",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
 name = "async-executor"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4540,7 +4527,6 @@ version = "0.44.1"
 dependencies = [
  "anyhow",
  "async-backtrace",
- "async-compat",
  "async-tls",
  "async-trait",
  "atomic_lib",

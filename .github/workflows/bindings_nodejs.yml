@@ -150,7 +150,7 @@ jobs:
         shell: bash
         working-directory: .
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: bindings-linux-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -166,7 +166,7 @@ jobs:
           - target: aarch64-pc-windows-msvc
             build: |
               rustup target add aarch64-pc-windows-msvc;
-              NAPI_TARGET=aarch64-pc-windows-msvc pnpm build 
+              NAPI_TARGET=aarch64-pc-windows-msvc pnpm build
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -193,7 +193,7 @@ jobs:
       - name: Build
         shell: bash
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: bindings-windows-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -246,7 +246,7 @@ jobs:
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -280,7 +280,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts

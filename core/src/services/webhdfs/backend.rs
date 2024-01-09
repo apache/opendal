@@ -25,6 +25,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;
@@ -34,6 +35,7 @@ use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
+use super::writer::WebhdfsWriters;
 use crate::raw::*;
 use crate::*;
 
@@ -236,6 +238,56 @@ impl WebhdfsBackend {
         req.body(body).map_err(new_request_build_error)
     }
 
+    pub async fn webhdfs_init_append_request(&self, path: &str) -> Result<String> {
+        let p = build_abs_path(&self.root, path);
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=APPEND&noredirect=true",
+            self.endpoint,
+            percent_encode_path(&p),
+        );
+        if let Some(auth) = &self.auth {
+            url += &format!("&{auth}");
+        }
+
+        let req = Request::post(url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        let resp = self.client.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+                let resp: InitAppendResponse =
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+                Ok(resp.location)
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    pub async fn webhdfs_append_request(
+        &self,
+        location: &str,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let mut url = location.to_string();
+
+        if let Some(auth) = &self.auth {
+            url += &format!("&{auth}");
+        }
+
+        let mut req = Request::post(&url);
+
+        req = req.header(CONTENT_LENGTH, size.to_string());
+
+        req.body(body).map_err(new_request_build_error)
+    }
+
     async fn webhdfs_open_request(
         &self,
         path: &str,
@@ -329,7 +381,10 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub(super) async fn webhdfs_get_file_status(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -395,7 +450,7 @@ impl WebhdfsBackend {
 #[async_trait]
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
-    type Writer = oio::OneShotWriter<WebhdfsWriter>;
+    type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -413,6 +468,7 @@ impl Accessor for WebhdfsBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_append: true,
                 create_dir: true,
                 delete: true,
 
@@ -524,10 +580,15 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),
-        ))
+        let w = WebhdfsWriter::new(self.clone(), args.clone(), path.to_string());
+
+        let w = if args.append() {
+            WebhdfsWriters::Two(oio::AppendObjectWriter::new(w))
+        } else {
+            WebhdfsWriters::One(oio::OneShotWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -554,4 +615,10 @@ impl Accessor for WebhdfsBackend {
         let l = WebhdfsLister::new(self.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub(super) struct InitAppendResponse {
+    pub location: String,
 }

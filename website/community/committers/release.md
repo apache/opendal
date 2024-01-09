@@ -516,6 +516,8 @@ svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_versio
 
 Change the [download](https://github.com/apache/incubator-opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
 
+Update the latest release link and add the new release link to the version list.
+
 Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubator-opendal/pull/2882) as an example.
 
 ### Release Maven artifacts
@@ -596,3 +598,20 @@ fully endorsed by the ASF.
 ```
 
 Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>
+
+## Post release
+
+After the official release out, you may perform a few post actions.
+
+### Remove the old releases
+
+Remove the old releases if any. You only need the latest release there, and older releases are available through the Apache archive.
+
+To clean up old releases, run:
+
+```shell
+# 1. Get the list of releases
+svn ls https://dist.apache.org/repos/dist/release/incubator/opendal
+# 2. Delete each release (except for the last one)
+svn del -m "Archiving OpenDAL release X.Y.Z" https://dist.apache.org/repos/dist/release/incubator/opendal/X.Y.Z
+```

@@ -88,7 +88,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
 
 /// WritePartResult is the result returned by [`WriteRangeFuture`].
 ///
-/// The error part will carries inout `(offset, bytes, err)` so caller can retry them.
+/// The error part will carries input `(offset, bytes, err)` so caller can retry them.
 type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
 
 struct WriteRangeFuture(BoxedFuture<WriteRangeResult>);

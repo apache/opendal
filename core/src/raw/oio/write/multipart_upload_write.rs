@@ -109,7 +109,7 @@ pub struct MultipartUploadPart {
 
 /// WritePartResult is the result returned by [`WritePartFuture`].
 ///
-/// The error part will carries inout `(part_number, bytes, err)` so caller can retry them.
+/// The error part will carries input `(part_number, bytes, err)` so caller can retry them.
 type WritePartResult = std::result::Result<MultipartUploadPart, (usize, oio::ChunkedBytes, Error)>;
 
 struct WritePartFuture(BoxedFuture<WritePartResult>);

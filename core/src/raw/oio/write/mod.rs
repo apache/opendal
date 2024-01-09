@@ -42,3 +42,7 @@ pub use exact_buf_write::ExactBufWriter;
 mod range_write;
 pub use range_write::RangeWrite;
 pub use range_write::RangeWriter;
+
+mod block_write;
+pub use block_write::BlockWrite;
+pub use block_write::BlockWriter;

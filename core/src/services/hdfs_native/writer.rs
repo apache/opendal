@@ -17,7 +17,6 @@
 
 use crate::raw::oio;
 use crate::raw::oio::WriteBuf;
-use crate::services::hdfs_native::lister::NativeHdfsLister;
 use crate::*;
 use hdfs_native::file::FileWriter;
 use std::task::{Context, Poll};

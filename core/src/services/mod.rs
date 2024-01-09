@@ -351,9 +351,9 @@ pub use pcloud::PcloudConfig;
 #[cfg(feature = "services-hdfs-native")]
 mod hdfs_native;
 #[cfg(feature = "services-hdfs-native")]
-pub use hdfs_native::NativeHdfs;
+pub use hdfs_native::HdfsNative;
 #[cfg(feature = "services-hdfs-native")]
-pub use hdfs_native::NativeHdfsConfig;
+pub use hdfs_native::HdfsNativeConfig;
 
 #[cfg(feature = "services-yandex-disk")]
 mod yandex_disk;

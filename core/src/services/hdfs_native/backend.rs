@@ -24,9 +24,9 @@ use log::debug;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::lister::NativeHdfsLister;
-use super::reader::NativeHdfsReader;
-use super::writer::NativeHdfsWriter;
+use super::lister::HdfsNativeLister;
+use super::reader::HdfsNativeReader;
+use super::writer::HdfsNativeWriter;
 use crate::raw::*;
 use crate::*;
 
@@ -196,7 +196,7 @@ impl Accessor for NativeHdfsBackend {
 
         let f = self.client.read(&p).await.map_err(new_std_io_error)?;
 
-        let r = NativeHdfsReader::new(f);
+        let r = HdfsNativeReader::new(f);
 
         Ok((RpRead::new(), r))
     }

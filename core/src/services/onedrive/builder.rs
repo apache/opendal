@@ -20,25 +20,47 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use log::debug;
+use serde::Deserialize;
 
 use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
+use crate::raw::ConfigDeserializer;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
+
+/// Config for [OneDrive](https://onedrive.com) backend support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct OnedriveConfig {
+    /// bearer access token for OneDrive
+    pub access_token: Option<String>,
+    /// root path of OneDrive folder.
+    pub root: Option<String>,
+}
+
+impl Debug for OnedriveConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnedriveConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
 
 /// [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
-    access_token: Option<String>,
-    root: Option<String>,
+    config: OnedriveConfig,
     http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").field("root", &self.root).finish()
+        f.debug_struct("Backend")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
@@ -47,13 +69,13 @@ impl OnedriveBuilder {
     ///
     /// default: no access token, which leads to failure
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
-        self.access_token = Some(access_token.to_string());
+        self.config.access_token = Some(access_token.to_string());
         self
     }
 
     /// Set root path of OneDrive folder.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.config.root = Some(root.to_string());
         self
     }
 
@@ -75,16 +97,19 @@ impl Builder for OnedriveBuilder {
     type Accessor = OnedriveBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
+        // Deserialize the configuration from the HashMap.
+        let config = OnedriveConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("access_token").map(|v| builder.access_token(v));
-
-        builder
+        // Create an OnedriveBuilder instance with the deserialized config.
+        OnedriveBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -96,7 +121,7 @@ impl Builder for OnedriveBuilder {
             })?
         };
 
-        match self.access_token.clone() {
+        match self.config.access_token.clone() {
             Some(access_token) => Ok(OnedriveBackend::new(root, access_token, client)),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }

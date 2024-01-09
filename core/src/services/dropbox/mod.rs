@@ -22,3 +22,4 @@ mod error;
 mod writer;
 
 pub use builder::DropboxBuilder as Dropbox;
+pub use builder::DropboxConfig;

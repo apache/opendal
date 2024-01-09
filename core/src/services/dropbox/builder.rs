@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use serde::Deserialize;
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -30,24 +31,38 @@ use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::*;
 
+
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct DropboxConfig {
+    pub root: Option<String>,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+}
+
+impl Debug for DropboxConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DropBoxConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
+
 /// [Dropbox](https://www.dropbox.com/) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DropboxBuilder {
-    root: Option<String>,
-
-    access_token: Option<String>,
-
-    refresh_token: Option<String>,
-    client_id: Option<String>,
-    client_secret: Option<String>,
+    config: DropboxConfig,
 
     http_client: Option<HttpClient>,
 }
 
 impl Debug for DropboxBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder").field("root", &self.root).finish()
+        f.debug_struct("Builder").field("root", &self.config.root).finish()
     }
 }
 
@@ -56,7 +71,7 @@ impl DropboxBuilder {
     ///
     /// Default to `/` if not set.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.config.root = Some(root.to_string());
         self
     }
 
@@ -67,7 +82,7 @@ impl DropboxBuilder {
     /// NOTE: this token will be expired in 4 hours.
     /// If you are trying to use the Dropbox service in a long time, please set a refresh_token instead.
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
-        self.access_token = Some(access_token.to_string());
+        self.config.access_token = Some(access_token.to_string());
         self
     }
 
@@ -77,7 +92,7 @@ impl DropboxBuilder {
     ///
     /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
     pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
-        self.refresh_token = Some(refresh_token.to_string());
+        self.config.refresh_token = Some(refresh_token.to_string());
         self
     }
 
@@ -85,7 +100,7 @@ impl DropboxBuilder {
     ///
     /// This is required for OAuth 2.0 Flow to refresh the access token.
     pub fn client_id(&mut self, client_id: &str) -> &mut Self {
-        self.client_id = Some(client_id.to_string());
+        self.config.client_id = Some(client_id.to_string());
         self
     }
 
@@ -93,7 +108,7 @@ impl DropboxBuilder {
     ///
     /// This is required for OAuth 2.0 Flow with refresh the access token.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
-        self.client_secret = Some(client_secret.to_string());
+        self.config.client_secret = Some(client_secret.to_string());
         self
     }
 
@@ -115,16 +130,14 @@ impl Builder for DropboxBuilder {
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = Self::default();
-        map.get("root").map(|v| builder.root(v));
-        map.get("access_token").map(|v| builder.access_token(v));
-        map.get("refresh_token").map(|v| builder.refresh_token(v));
-        map.get("client_id").map(|v| builder.client_id(v));
-        map.get("client_secret").map(|v| builder.client_secret(v));
+        builder.config = DropboxConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+
         builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         let client = if let Some(client) = self.http_client.take() {
             client
         } else {
@@ -134,7 +147,7 @@ impl Builder for DropboxBuilder {
             })?
         };
 
-        let signer = match (self.access_token.take(), self.refresh_token.take()) {
+        let signer = match (self.config.access_token.take(), self.config.refresh_token.take()) {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
                 // We will never expire user specified token.
@@ -142,14 +155,14 @@ impl Builder for DropboxBuilder {
                 ..Default::default()
             },
             (None, Some(refresh_token)) => {
-                let client_id = self.client_id.take().ok_or_else(|| {
+                let client_id = self.config.client_id.take().ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
                     .with_context("service", Scheme::Dropbox)
                 })?;
-                let client_secret = self.client_secret.take().ok_or_else(|| {
+                let client_secret = self.config.client_secret.take().ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",

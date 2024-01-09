@@ -103,7 +103,6 @@ pub struct BlockWriter<W: BlockWrite> {
     state: State,
     w: Arc<W>,
 
-    concurrent: usize,
     block_ids: Vec<String>,
     cache: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteBlockFuture>,
@@ -133,7 +132,6 @@ impl<W: BlockWrite> BlockWriter<W> {
             w: Arc::new(inner),
             block_ids: Vec::new(),
             cache: None,
-            concurrent,
             futures: ConcurrentFutures::new(1.max(concurrent)),
         }
     }
@@ -238,12 +236,7 @@ where
                     }
                 }
                 State::Close(fut) => {
-                    let mut res = futures::ready!(fut.as_mut().poll(cx));
-                    // Don't retry close if concurrent write failed.
-                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
-                    if self.concurrent > 1 {
-                        res = res.map_err(|err| err.set_permanent());
-                    }
+                    let res = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle;
                     // We should check res first before clean up cache.
                     res?;

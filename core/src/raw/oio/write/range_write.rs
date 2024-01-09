@@ -222,7 +222,14 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     match self.location.clone() {
                         Some(location) => {
                             if !self.futures.is_empty() {
-                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                while let Some(mut result) =
+                                    ready!(self.futures.poll_next_unpin(cx))
+                                {
+                                    // Don't retry close if concurrent write failed.
+                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
+                                    if self.concurrent > 1 {
+                                        result = result.map_err(|err| err.set_permanent());
+                                    }
                                     result?;
                                 }
                             }
@@ -264,12 +271,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     unreachable!("RangeWriter must not go into State::Init during poll_close")
                 }
                 State::Complete(fut) => {
-                    let mut res = ready!(fut.poll_unpin(cx));
-                    // Don't retry close if concurrent write failed.
-                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
-                    if self.concurrent > 1 {
-                        res = res.map_err(|err| err.set_permanent());
-                    }
+                    let res = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle;
                     return Poll::Ready(res);
                 }

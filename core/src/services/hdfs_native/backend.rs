@@ -33,7 +33,7 @@ use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 
-/// Config for NativeHdfs services support.
+/// Config for HdfsNative services support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
@@ -109,15 +109,15 @@ impl HdfsNativeBuilder {
 }
 
 impl Builder for HdfsNativeBuilder {
-    const SCHEME: Scheme = Scheme::NativeHdfs;
-    type Accessor = NativeHdfsBackend;
+    const SCHEME: Scheme = Scheme::HdfsNative;
+    type Accessor = HdfsNativeBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         // Deserialize the configuration from the HashMap.
         let config = HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
-        // Create an NativeHdfsBuilder instance with the deserialized config.
+        // Create an HdfsNativeBuilder instance with the deserialized config.
         HdfsNativeBuilder { config }
     }
 
@@ -128,7 +128,7 @@ impl Builder for HdfsNativeBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "url is empty")
-                    .with_context("service", Scheme::NativeHdfs))
+                    .with_context("service", Scheme::HdfsNative))
             }
         };
 
@@ -140,7 +140,7 @@ impl Builder for HdfsNativeBuilder {
         // need to check if root dir exists, create if not
 
         debug!("backend build finished: {:?}", &self);
-        Ok(NativeHdfsBackend {
+        Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),
             enable_append: self.config.enable_append,
@@ -158,18 +158,18 @@ fn tmp_file_of(path: &str) -> String {
 
 /// Backend for hdfs-native services.
 #[derive(Debug, Clone)]
-pub struct NativeHdfsBackend {
+pub struct HdfsNativeBackend {
     root: String,
     client: Arc<hdfs_native::Client>,
     enable_append: bool,
 }
 
 /// hdfs_native::Client is thread-safe.
-unsafe impl Send for NativeHdfsBackend {}
-unsafe impl Sync for NativeHdfsBackend {}
+unsafe impl Send for HdfsNativeBackend {}
+unsafe impl Sync for HdfsNativeBackend {}
 
 #[async_trait]
-impl Accessor for NativeHdfsBackend {
+impl Accessor for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
     type BlockingReader = ();
     type Writer = HdfsNativeWriter;

@@ -111,6 +111,7 @@ pub struct RangeWriter<W: RangeWrite> {
     next_offset: u64,
     buffer: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
+    concurrent: usize,
 
     w: Arc<W>,
     state: State,
@@ -144,6 +145,7 @@ impl<W: RangeWrite> RangeWriter<W> {
             buffer: None,
             location: None,
             next_offset: 0,
+            concurrent,
         }
     }
 
@@ -220,7 +222,14 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     match self.location.clone() {
                         Some(location) => {
                             if !self.futures.is_empty() {
-                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                while let Some(mut result) =
+                                    ready!(self.futures.poll_next_unpin(cx))
+                                {
+                                    // Don't retry close if concurrent write failed.
+                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
+                                    if self.concurrent > 1 {
+                                        result = result.map_err(|err| err.set_permanent());
+                                    }
                                     result?;
                                 }
                             }

@@ -133,6 +133,7 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
     w: Arc<W>,
 
     upload_id: Option<Arc<String>>,
+    concurrent: usize,
     parts: Vec<MultipartUploadPart>,
     cache: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WritePartFuture>,
@@ -163,6 +164,7 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
 
             w: Arc::new(inner),
             upload_id: None,
+            concurrent,
             parts: Vec::new(),
             cache: None,
             futures: ConcurrentFutures::new(1.max(concurrent)),
@@ -275,7 +277,13 @@ where
                                         })));
                                     }
                                 }
-                                while let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                                while let Some(mut part) = ready!(self.futures.poll_next_unpin(cx))
+                                {
+                                    // Don't retry close if concurrent write failed.
+                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
+                                    if self.concurrent > 1 {
+                                        part = part.map_err(|err| err.set_permanent());
+                                    }
                                     self.parts.push(part?);
                                 }
                             }

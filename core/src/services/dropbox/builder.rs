@@ -132,7 +132,7 @@ impl Builder for DropboxBuilder {
     fn from_map(map: HashMap<String, String>) -> Self {
         Self {
             config: DropboxConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed"),
+                .expect("config deserialize must succeed"),
             ..Default::default()
         }
     }

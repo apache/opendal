@@ -49,7 +49,7 @@ impl oio::OneShotWrite for DbfsWriter {
         if size >= Self::MAX_SIMPLE_SIZE {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "AppendObjectWrite has not been implemented for Dbfs",
+                "AppendWrite has not been implemented for Dbfs",
             ));
         }
 

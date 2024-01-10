@@ -65,11 +65,6 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         Poll::Ready(Ok(written))
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.buffer.clear();
-        self.inner.poll_abort(cx)
-    }
-
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         while !self.buffer.is_empty() {
             let n = ready!(self.inner.poll_write(cx, &self.buffer))?;
@@ -77,6 +72,11 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         }
 
         self.inner.poll_close(cx)
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.buffer.clear();
+        self.inner.poll_abort(cx)
     }
 }
 
@@ -110,11 +110,11 @@ mod tests {
             Poll::Ready(Ok(bs.chunk().len()))
         }
 
-        fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
             Poll::Ready(Ok(()))
         }
 
-        fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
             Poll::Ready(Ok(()))
         }
     }

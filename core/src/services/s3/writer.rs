@@ -25,7 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type S3Writers = oio::MultipartUploadWriter<S3Writer>;
+pub type S3Writers = oio::MultipartWriter<S3Writer>;
 
 pub struct S3Writer {
     core: Arc<S3Core>,
@@ -46,7 +46,7 @@ impl S3Writer {
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl oio::MultipartUploadWrite for S3Writer {
+impl oio::MultipartWrite for S3Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self
             .core
@@ -79,7 +79,7 @@ impl oio::MultipartUploadWrite for S3Writer {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartUploadResult =
+                let result: InitiateMultipartResult =
                     quick_xml::de::from_reader(bytes::Buf::reader(bs))
                         .map_err(new_xml_deserialize_error)?;
 
@@ -95,7 +95,7 @@ impl oio::MultipartUploadWrite for S3Writer {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<oio::MultipartUploadPart> {
+    ) -> Result<oio::MultipartPart> {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
@@ -122,20 +122,16 @@ impl oio::MultipartUploadWrite for S3Writer {
 
                 resp.into_body().consume().await?;
 
-                Ok(oio::MultipartUploadPart { part_number, etag })
+                Ok(oio::MultipartPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn complete_part(
-        &self,
-        upload_id: &str,
-        parts: &[oio::MultipartUploadPart],
-    ) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
         let parts = parts
             .iter()
-            .map(|p| CompleteMultipartUploadRequestPart {
+            .map(|p| CompleteMultipartRequestPart {
                 part_number: p.part_number,
                 etag: p.etag.clone(),
             })

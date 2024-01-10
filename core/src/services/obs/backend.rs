@@ -348,9 +348,9 @@ impl Accessor for ObsBackend {
         let writer = ObsWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            ObsWriters::Two(oio::AppendObjectWriter::new(writer))
+            ObsWriters::Two(oio::AppendWriter::new(writer))
         } else {
-            ObsWriters::One(oio::MultipartUploadWriter::new(writer, args.concurrent()))
+            ObsWriters::One(oio::MultipartWriter::new(writer, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))

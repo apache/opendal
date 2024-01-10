@@ -22,12 +22,11 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::MultipartUploadPart;
+use crate::raw::oio::MultipartPart;
 use crate::raw::*;
 use crate::*;
 
-pub type ObsWriters =
-    TwoWays<oio::MultipartUploadWriter<ObsWriter>, oio::AppendObjectWriter<ObsWriter>>;
+pub type ObsWriters = TwoWays<oio::MultipartWriter<ObsWriter>, oio::AppendWriter<ObsWriter>>;
 
 pub struct ObsWriter {
     core: Arc<ObsCore>,
@@ -47,7 +46,7 @@ impl ObsWriter {
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for ObsWriter {
+impl oio::MultipartWrite for ObsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self
             .core
@@ -80,7 +79,7 @@ impl oio::MultipartUploadWrite for ObsWriter {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartUploadResult =
+                let result: InitiateMultipartResult =
                     quick_xml::de::from_reader(bytes::Buf::reader(bs))
                         .map_err(new_xml_deserialize_error)?;
 
@@ -96,7 +95,7 @@ impl oio::MultipartUploadWrite for ObsWriter {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<MultipartUploadPart> {
+    ) -> Result<MultipartPart> {
         // Obs service requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
@@ -120,16 +119,16 @@ impl oio::MultipartUploadWrite for ObsWriter {
 
                 resp.into_body().consume().await?;
 
-                Ok(MultipartUploadPart { part_number, etag })
+                Ok(MultipartPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[MultipartUploadPart]) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<()> {
         let parts = parts
             .iter()
-            .map(|p| CompleteMultipartUploadRequestPart {
+            .map(|p| CompleteMultipartRequestPart {
                 part_number: p.part_number,
                 etag: p.etag.clone(),
             })
@@ -170,7 +169,7 @@ impl oio::MultipartUploadWrite for ObsWriter {
 }
 
 #[async_trait]
-impl oio::AppendObjectWrite for ObsWriter {
+impl oio::AppendWrite for ObsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core

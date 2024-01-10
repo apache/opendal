@@ -132,7 +132,7 @@ impl OssCore {
 
     /// Set sse headers
     /// # Note
-    /// According to the OSS documentation, only PutObject, CopyObject, and InitiateMultipartUpload may require to be set.
+    /// According to the OSS documentation, only PutObject, CopyObject, and InitiateMultipart may require to be set.
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
         if let Some(v) = &self.server_side_encryption {
             let mut v = v.clone();
@@ -564,7 +564,7 @@ impl OssCore {
         path: &str,
         upload_id: &str,
         is_presign: bool,
-        parts: Vec<MultipartUploadPart>,
+        parts: Vec<MultipartPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -577,7 +577,7 @@ impl OssCore {
 
         let req = Request::post(&url);
 
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
+        let content = quick_xml::se::to_string(&CompleteMultipartRequest {
             part: parts.to_vec(),
         })
         .map_err(new_xml_deserialize_error)?;
@@ -595,7 +595,7 @@ impl OssCore {
     }
 
     /// Abort an on-going multipart upload.
-    /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
+    /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortMultipart
     pub async fn oss_abort_multipart_upload(
         &self,
         path: &str,
@@ -654,7 +654,7 @@ pub struct DeleteObjectsResultError {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct InitiateMultipartUploadResult {
+pub struct InitiateMultipartResult {
     #[cfg(test)]
     pub bucket: String,
     #[cfg(test)]
@@ -664,7 +664,7 @@ pub struct InitiateMultipartUploadResult {
 
 #[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct MultipartUploadPart {
+pub struct MultipartPart {
     #[serde(rename = "PartNumber")]
     pub part_number: usize,
     #[serde(rename = "ETag")]
@@ -672,14 +672,14 @@ pub struct MultipartUploadPart {
 }
 
 #[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadRequest {
-    pub part: Vec<MultipartUploadPart>,
+#[serde(default, rename = "CompleteMultipart", rename_all = "PascalCase")]
+pub struct CompleteMultipartRequest {
+    pub part: Vec<MultipartPart>,
 }
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadResult {
+pub struct CompleteMultipartResult {
     pub location: String,
     pub bucket: String,
     pub key: String,
@@ -792,13 +792,13 @@ mod tests {
     fn test_deserialize_initiate_multipart_upload_response() {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<InitiateMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+<InitiateMultipartResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
     <Bucket>oss-example</Bucket>
     <Key>multipart.data</Key>
     <UploadId>0004B9894A22E5B1888A1E29F823****</UploadId>
-</InitiateMultipartUploadResult>"#,
+</InitiateMultipartResult>"#,
         );
-        let out: InitiateMultipartUploadResult =
+        let out: InitiateMultipartResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
         assert_eq!("0004B9894A22E5B1888A1E29F823****", out.upload_id);
@@ -808,17 +808,17 @@ mod tests {
 
     #[test]
     fn test_serialize_complete_multipart_upload_request() {
-        let req = CompleteMultipartUploadRequest {
+        let req = CompleteMultipartRequest {
             part: vec![
-                MultipartUploadPart {
+                MultipartPart {
                     part_number: 1,
                     etag: "\"3349DC700140D7F86A0784842780****\"".to_string(),
                 },
-                MultipartUploadPart {
+                MultipartPart {
                     part_number: 5,
                     etag: "\"8EFDA8BE206636A695359836FE0A****\"".to_string(),
                 },
-                MultipartUploadPart {
+                MultipartPart {
                     part_number: 8,
                     etag: "\"8C315065167132444177411FDA14****\"".to_string(),
                 },
@@ -832,7 +832,7 @@ mod tests {
         req.serialize(serializer).unwrap();
         pretty_assertions::assert_eq!(
             serialized,
-            r#"<CompleteMultipartUpload>
+            r#"<CompleteMultipart>
     <Part>
         <PartNumber>1</PartNumber>
         <ETag>"3349DC700140D7F86A0784842780****"</ETag>
@@ -845,7 +845,7 @@ mod tests {
         <PartNumber>8</PartNumber>
         <ETag>"8C315065167132444177411FDA14****"</ETag>
     </Part>
-</CompleteMultipartUpload>"#
+</CompleteMultipart>"#
                 .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
         )
     }
@@ -854,17 +854,16 @@ mod tests {
     fn test_deserialize_complete_oss_multipart_result() {
         let bytes = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<CompleteMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+<CompleteMultipartResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
     <EncodingType>url</EncodingType>
     <Location>http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data</Location>
     <Bucket>oss-example</Bucket>
     <Key>multipart.data</Key>
     <ETag>"B864DB6A936D376F9F8D3ED3BBE540****"</ETag>
-</CompleteMultipartUploadResult>"#,
+</CompleteMultipartResult>"#,
         );
 
-        let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(bytes.reader()).unwrap();
+        let result: CompleteMultipartResult = quick_xml::de::from_reader(bytes.reader()).unwrap();
         assert_eq!("\"B864DB6A936D376F9F8D3ED3BBE540****\"", result.etag);
         assert_eq!(
             "http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data",

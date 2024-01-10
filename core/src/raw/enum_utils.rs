@@ -29,8 +29,8 @@
 //! ```txt
 //! impl Accessor for OssBackend {
 //!     type Writer = raw::TwoWays<
-//!         oio::MultipartUploadWriter<OssWriter>,
-//!         oio::AppendObjectWriter<OssWriter>,
+//!         oio::MultipartWriter<OssWriter>,
+//!         oio::AppendWriter<OssWriter>,
 //!     >;
 //! }
 //! ```

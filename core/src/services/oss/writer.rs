@@ -25,8 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type OssWriters =
-    TwoWays<oio::MultipartUploadWriter<OssWriter>, oio::AppendObjectWriter<OssWriter>>;
+pub type OssWriters = TwoWays<oio::MultipartWriter<OssWriter>, oio::AppendWriter<OssWriter>>;
 
 pub struct OssWriter {
     core: Arc<OssCore>,
@@ -46,7 +45,7 @@ impl OssWriter {
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for OssWriter {
+impl oio::MultipartWrite for OssWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req =
             self.core
@@ -85,7 +84,7 @@ impl oio::MultipartUploadWrite for OssWriter {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartUploadResult =
+                let result: InitiateMultipartResult =
                     quick_xml::de::from_reader(bytes::Buf::reader(bs))
                         .map_err(new_xml_deserialize_error)?;
 
@@ -101,7 +100,7 @@ impl oio::MultipartUploadWrite for OssWriter {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<oio::MultipartUploadPart> {
+    ) -> Result<oio::MultipartPart> {
         // OSS requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
@@ -125,20 +124,16 @@ impl oio::MultipartUploadWrite for OssWriter {
 
                 resp.into_body().consume().await?;
 
-                Ok(oio::MultipartUploadPart { part_number, etag })
+                Ok(oio::MultipartPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn complete_part(
-        &self,
-        upload_id: &str,
-        parts: &[oio::MultipartUploadPart],
-    ) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
         let parts = parts
             .iter()
-            .map(|p| MultipartUploadPart {
+            .map(|p| MultipartPart {
                 part_number: p.part_number,
                 etag: p.etag.clone(),
             })
@@ -178,7 +173,7 @@ impl oio::MultipartUploadWrite for OssWriter {
 }
 
 #[async_trait]
-impl oio::AppendObjectWrite for OssWriter {
+impl oio::AppendWrite for OssWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.oss_head_object(&self.path, None, None).await?;
 

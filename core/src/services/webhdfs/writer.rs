@@ -24,7 +24,7 @@ use crate::raw::*;
 use crate::*;
 
 pub type WebhdfsWriters =
-    TwoWays<oio::BlockWriter<WebhdfsWriter>, oio::AppendObjectWriter<WebhdfsWriter>>;
+    TwoWays<oio::BlockWriter<WebhdfsWriter>, oio::AppendWriter<WebhdfsWriter>>;
 
 pub struct WebhdfsWriter {
     backend: WebhdfsBackend,
@@ -153,7 +153,7 @@ impl oio::BlockWrite for WebhdfsWriter {
 }
 
 #[async_trait]
-impl oio::AppendObjectWrite for WebhdfsWriter {
+impl oio::AppendWrite for WebhdfsWriter {
     async fn offset(&self) -> Result<u64> {
         Ok(0)
     }

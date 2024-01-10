@@ -24,18 +24,25 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
-/// AppendObjectWrite is used to implement [`Write`] based on append
-/// object. By implementing AppendObjectWrite, services don't need to
+/// AppendWrite is used to implement [`Write`] based on append
+/// object. By implementing AppendWrite, services don't need to
 /// care about the details of buffering and uploading parts.
 ///
-/// The layout after adopting [`AppendObjectWrite`]:
+/// The layout after adopting [`AppendWrite`]:
 ///
-/// - Services impl `AppendObjectWrite`
-/// - `AppendObjectWriter` impl `Write`
-/// - Expose `AppendObjectWriter` as `Accessor::Writer`
+/// - Services impl `AppendWrite`
+/// - `AppendWriter` impl `Write`
+/// - Expose `AppendWriter` as `Accessor::Writer`
+///
+/// ## Requirements
+///
+/// Services that implement `AppendWrite` must fulfill the following requirements:
+///
+/// - Must be a http service that could accept `AsyncBody`.
+/// - Provide a way to get the current offset of the append object.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-pub trait AppendObjectWrite: Send + Sync + Unpin + 'static {
+pub trait AppendWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
     /// Returns `0` if the object is not exist.
@@ -45,12 +52,12 @@ pub trait AppendObjectWrite: Send + Sync + Unpin + 'static {
     async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()>;
 }
 
-/// AppendObjectWriter will implements [`Write`] based on append object.
+/// AppendWriter will implements [`Write`] based on append object.
 ///
 /// ## TODO
 ///
 /// - Allow users to switch to un-buffered mode if users write 16MiB every time.
-pub struct AppendObjectWriter<W: AppendObjectWrite> {
+pub struct AppendWriter<W: AppendWrite> {
     state: State<W>,
 
     offset: Option<u64>,
@@ -65,15 +72,15 @@ enum State<W> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-unsafe impl<S: AppendObjectWrite> Send for State<S> {}
+unsafe impl<S: AppendWrite> Send for State<S> {}
 
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for State.
-unsafe impl<S: AppendObjectWrite> Sync for State<S> {}
+unsafe impl<S: AppendWrite> Sync for State<S> {}
 
-impl<W: AppendObjectWrite> AppendObjectWriter<W> {
-    /// Create a new AppendObjectWriter.
+impl<W: AppendWrite> AppendWriter<W> {
+    /// Create a new AppendWriter.
     pub fn new(inner: W) -> Self {
         Self {
             state: State::Idle(Some(inner)),
@@ -82,9 +89,9 @@ impl<W: AppendObjectWrite> AppendObjectWriter<W> {
     }
 }
 
-impl<W> oio::Write for AppendObjectWriter<W>
+impl<W> oio::Write for AppendWriter<W>
 where
-    W: AppendObjectWrite,
+    W: AppendWrite,
 {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         loop {

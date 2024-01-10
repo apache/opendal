@@ -387,6 +387,11 @@ mod tests {
         }
 
         async fn write_range(&self, _: &str, offset: u64, size: u64, _: AsyncBody) -> Result<()> {
+            // We will have 50% percent rate for write part to fail.
+            if thread_rng().gen_bool(5.0 / 10.0) {
+                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+            }
+
             let mut test = self.lock().unwrap();
             test.length += size;
 

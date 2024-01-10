@@ -27,7 +27,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type B2Writers = oio::MultipartUploadWriter<B2Writer>;
+pub type B2Writers = oio::MultipartWriter<B2Writer>;
 
 pub struct B2Writer {
     core: Arc<B2Core>,
@@ -47,7 +47,7 @@ impl B2Writer {
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for B2Writer {
+impl oio::MultipartWrite for B2Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self
             .core
@@ -89,7 +89,7 @@ impl oio::MultipartUploadWrite for B2Writer {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<oio::MultipartUploadPart> {
+    ) -> Result<oio::MultipartPart> {
         // B2 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
@@ -107,7 +107,7 @@ impl oio::MultipartUploadWrite for B2Writer {
                 let result: UploadPartResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
-                Ok(oio::MultipartUploadPart {
+                Ok(oio::MultipartPart {
                     etag: result.content_sha1,
                     part_number,
                 })
@@ -116,11 +116,7 @@ impl oio::MultipartUploadWrite for B2Writer {
         }
     }
 
-    async fn complete_part(
-        &self,
-        upload_id: &str,
-        parts: &[oio::MultipartUploadPart],
-    ) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
         let part_sha1_array = parts
             .iter()
             .map(|p| {

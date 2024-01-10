@@ -684,7 +684,7 @@ impl Accessor for WebhdfsBackend {
         let w = WebhdfsWriter::new(self.clone(), args.clone(), path.to_string());
 
         let w = if args.append() {
-            WebhdfsWriters::Two(oio::AppendObjectWriter::new(w))
+            WebhdfsWriters::Two(oio::AppendWriter::new(w))
         } else {
             WebhdfsWriters::One(oio::BlockWriter::new(w, args.concurrent()))
         };

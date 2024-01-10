@@ -181,7 +181,7 @@ services-s3 = [
   "reqsign?/reqwest_request",
 ]
 services-seafile = []
-services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
+services-sftp = ["dep:openssh", "dep:openssh-sftp-client"]
 services-sled = ["dep:sled"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2"]
 services-supabase = []
@@ -217,94 +217,139 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
-anyhow = { version = "1.0.30", features = ["std"] }
-async-backtrace = { version = "0.2.6", optional = true }
 async-tls = { version = "0.12.0", optional = true }
+
+# Required dependencies
+anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
-atomic_lib = { version = "0.34.5", optional = true }
-await-tree = { version = "0.1.1", optional = true }
 backon = "0.4.1"
 base64 = "0.21"
-bb8 = { version = "0.8", optional = true }
-bb8-postgres = { version = "0.8.1", optional = true }
 bytes = "1.4"
-cacache = { version = "12.0", default-features = false, features = [
-  "tokio-runtime",
-  "mmap",
-], optional = true }
 chrono = { version = "0.4.28", default-features = false, features = [
   "clock",
   "std",
 ] }
-dashmap = { version = "5.4", optional = true }
-dirs = { version = "5.0.1", optional = true }
-dotenvy = { version = "0.15", optional = true }
-etcd-client = { version = "0.12", optional = true, features = ["tls"] }
 flagset = "0.4"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+http = "0.2.9"
+log = "0.4"
+md-5 = "0.10"
+# TODO: remove once_cell when lazy_lock is stable: https://doc.rust-lang.org/std/cell/struct.LazyCell.html
+once_cell = "1"
+percent-encoding = "2"
+quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
+reqwest = { version = "0.11.18", features = [
+  "stream",
+], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# TODO: remove `rt` after https://github.com/apache/incubator-opendal/issues/3948
+tokio = { version = "1.27", features = ["sync", "rt"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# Test only dependencies
+dotenvy = { version = "0.15", optional = true }
+rand = { version = "0.8", optional = true }
+
+# Optional dependencies
+
+# Services
+# general dependencies.
+bb8 = { version = "0.8", optional = true }
+prost = { version = "0.11", optional = true }
+r2d2 = { version = "0.8", optional = true }
+sha1 = { version = "0.10.6", optional = true }
+sha2 = { version = "0.10", optional = true }
+
+# For http based services.
+reqsign = { version = "0.14.6", default-features = false, optional = true }
+
+# for services-atomic-server
+atomic_lib = { version = "0.34.5", optional = true }
+# for services-postgres
+bb8-postgres = { version = "0.8.1", optional = true }
+tokio-postgres = { version = "0.7.8", optional = true }
+# for services-cacache
+cacache = { version = "12.0", default-features = false, features = [
+  "tokio-runtime",
+  "mmap",
+], optional = true }
+# for services-dashmap
+dashmap = { version = "5.4", optional = true }
+# for services-etcd
+etcd-client = { version = "0.12", optional = true, features = ["tls"] }
+# for services-foundationdb
 foundationdb = { version = "0.8.0", features = [
   "embedded-fdb-include",
 ], optional = true }
-futures = { version = "0.3", default-features = false, features = ["std"] }
-governor = { version = "0.6.0", optional = true, features = ["std"] }
+# for services-hdfs
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
+# for services-upyun
 hmac = { version = "0.12.1", optional = true }
+# for services-libsql
 hrana-client-proto = { version = "0.2.1", optional = true }
-http = "0.2.9"
-log = "0.4"
-madsim = { version = "0.2.21", optional = true }
-md-5 = "0.10"
-metrics = { version = "0.20", optional = true }
+# for services-mini-moka
 mini-moka = { version = "0.10", optional = true }
-minitrace = { version = "0.6", optional = true }
+# for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
+# for services-mongodb
 mongodb = { version = "2.7.0", optional = true, features = ["tokio-runtime"] }
+# for services-mysql
 mysql_async = { version = "0.32.2", default-features = false, features = [
   "default-rustls",
 ], optional = true }
-once_cell = "1"
+# for services-sftp
 openssh = { version = "0.10.0", optional = true }
 openssh-sftp-client = { version = "0.14.0", optional = true, features = [
   "openssh",
   "tracing",
 ] }
-opentelemetry = { version = "0.21.0", optional = true }
-parking_lot = "0.12"
-percent-encoding = "2"
+# for services-persy
 persy = { version = "1.4.6", optional = true }
-pin-project = "1"
-prometheus = { version = "0.13", features = ["process"], optional = true }
-prometheus-client = { version = "0.22.0", optional = true }
-prost = { version = "0.11", optional = true }
-quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
-r2d2 = { version = "0.8", optional = true }
-rand = { version = "0.8", optional = true }
+# for services-redb
 redb = { version = "1.1.0", optional = true }
+# for services-redis
 redis = { version = "0.23.1", features = [
   "cluster-async",
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.14.6", default-features = false, optional = true }
-reqwest = { version = "0.11.18", features = [
-  "stream",
-], default-features = false }
+# for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
+# for services-sqlite
 rusqlite = { version = "0.29.0", optional = true, features = ["bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha1 = { version = "0.10.6", optional = true }
-sha2 = { version = "0.10", optional = true }
+# for services-sled
 sled = { version = "0.34.7", optional = true }
+# for services-ftp
 suppaftp = { version = "5.2", default-features = false, features = [
   "async-secure",
   "rustls",
   "async-rustls",
 ], optional = true }
+# for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
-tokio = { version = "1.27", features = ["sync", "rt"] }
-tokio-postgres = { version = "0.7.8", optional = true }
+
+# Layers
+# for layers-async-backtrace
+async-backtrace = { version = "0.2.6", optional = true }
+# for layers-await-tree
+await-tree = { version = "0.1.1", optional = true }
+# for layers-throttle
+governor = { version = "0.6.0", optional = true, features = ["std"] }
+# for layers-madsim
+madsim = { version = "0.2.21", optional = true }
+# for layers-metrics
+metrics = { version = "0.20", optional = true }
+# for layers-minitrace
+minitrace = { version = "0.6", optional = true }
+# for layers-opentelemetry
+opentelemetry = { version = "0.21.0", optional = true }
+# for layers-prometheus
+prometheus = { version = "0.13", features = ["process"], optional = true }
+# for layers-prometheus-client
+prometheus-client = { version = "0.22.0", optional = true }
+# for layers-tracing
 tracing = { version = "0.1", optional = true }
-uuid = { version = "1", features = ["serde", "v4"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

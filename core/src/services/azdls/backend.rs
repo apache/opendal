@@ -356,7 +356,7 @@ impl Accessor for AzdlsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
         let w = if args.append() {
-            AzdlsWriters::Two(oio::AppendObjectWriter::new(w))
+            AzdlsWriters::Two(oio::AppendWriter::new(w))
         } else {
             AzdlsWriters::One(oio::OneShotWriter::new(w))
         };

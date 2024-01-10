@@ -512,17 +512,6 @@ async fn connect_sftp(
         session.keyfile(key);
     }
 
-    // set control directory to avoid temp files in root directory when panic
-    if let Some(dir) = dirs::runtime_dir() {
-        session.control_directory(dir);
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::fs::create_dir("/private/tmp/.opendal/");
-        session.control_directory("/private/tmp/.opendal/");
-    }
-
     session.known_hosts_check(known_hosts_strategy);
 
     let session = session.connect(&endpoint).await.map_err(parse_ssh_error)?;

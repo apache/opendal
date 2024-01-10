@@ -22,8 +22,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use pin_project::pin_project;
-
 use crate::raw::oio::Entry;
 use crate::*;
 
@@ -105,8 +103,6 @@ pub trait ListExt: List {
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct NextFuture<'a, L: List + Unpin + ?Sized> {
     lister: &'a mut L,
 }
@@ -117,9 +113,8 @@ where
 {
     type Output = Result<Option<Entry>>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        let this = self.project();
-        Pin::new(this.lister).poll_next(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+        self.lister.poll_next(cx)
     }
 }
 

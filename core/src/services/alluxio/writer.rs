@@ -101,9 +101,7 @@ impl oio::Write for AlluxioWriter {
                     return Poll::Ready(Ok(part?));
                 }
                 State::Close(_) => {
-                    unreachable!(
-                        "MultipartUploadWriter must not go into State::Close during poll_write"
-                    )
+                    unreachable!("MultipartWriter must not go into State::Close during poll_write")
                 }
             }
         }

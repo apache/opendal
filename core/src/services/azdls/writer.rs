@@ -26,8 +26,7 @@ use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
-pub type AzdlsWriters =
-    TwoWays<oio::OneShotWriter<AzdlsWriter>, oio::AppendObjectWriter<AzdlsWriter>>;
+pub type AzdlsWriters = TwoWays<oio::OneShotWriter<AzdlsWriter>, oio::AppendWriter<AzdlsWriter>>;
 
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
@@ -91,7 +90,7 @@ impl oio::OneShotWrite for AzdlsWriter {
 }
 
 #[async_trait]
-impl oio::AppendObjectWrite for AzdlsWriter {
+impl oio::AppendWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azdls_get_properties(&self.path).await?;
 

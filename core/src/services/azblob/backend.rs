@@ -629,7 +629,7 @@ impl Accessor for AzblobBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
         let w = if args.append() {
-            AzblobWriters::Two(oio::AppendObjectWriter::new(w))
+            AzblobWriters::Two(oio::AppendWriter::new(w))
         } else {
             AzblobWriters::One(oio::OneShotWriter::new(w))
         };

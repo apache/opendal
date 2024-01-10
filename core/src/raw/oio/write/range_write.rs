@@ -51,6 +51,14 @@ use crate::*;
 /// - Services impl `RangeWrite`
 /// - `RangeWriter` impl `Write`
 /// - Expose `RangeWriter` as `Accessor::Writer`
+///
+/// # Requirements
+///
+/// Services that implement `RangeWrite` must fulfill the following requirements:
+///
+/// - Must be a http service that could accept `AsyncBody`.
+/// - Need initialization before writing.
+/// - Writing data based on range: `offset`, `size`.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait RangeWrite: Send + Sync + Unpin + 'static {
@@ -161,7 +169,7 @@ unsafe impl Send for State {}
 unsafe impl Sync for State {}
 
 impl<W: RangeWrite> RangeWriter<W> {
-    /// Create a new MultipartUploadWriter.
+    /// Create a new MultipartWriter.
     pub fn new(inner: W, concurrent: usize) -> Self {
         Self {
             state: State::Idle,

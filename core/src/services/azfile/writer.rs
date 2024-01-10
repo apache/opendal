@@ -25,8 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type AzfileWriters =
-    TwoWays<oio::OneShotWriter<AzfileWriter>, oio::AppendObjectWriter<AzfileWriter>>;
+pub type AzfileWriters = TwoWays<oio::OneShotWriter<AzfileWriter>, oio::AppendWriter<AzfileWriter>>;
 
 pub struct AzfileWriter {
     core: Arc<AzfileCore>,
@@ -80,7 +79,7 @@ impl oio::OneShotWrite for AzfileWriter {
 }
 
 #[async_trait]
-impl oio::AppendObjectWrite for AzfileWriter {
+impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azfile_get_file_properties(&self.path).await?;
 

@@ -4540,7 +4540,6 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "dirs",
  "dotenvy",
  "etcd-client",
  "flagset",

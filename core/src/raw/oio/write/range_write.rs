@@ -203,7 +203,9 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
 
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else if let Some(Err((offset, bytes, err))) =
+                            }
+
+                            if let Some(Err((offset, bytes, err))) =
                                 ready!(self.futures.poll_next_unpin(cx))
                             {
                                 self.futures.push_front(WriteRangeFuture::new(
@@ -341,5 +343,123 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::WriteExt;
+    use pretty_assertions::assert_eq;
+    use rand::{thread_rng, Rng, RngCore};
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+
+    struct TestWrite {
+        length: u64,
+        bytes: HashSet<u64>,
+    }
+
+    impl TestWrite {
+        pub fn new() -> Arc<Mutex<Self>> {
+            let v = Self {
+                bytes: HashSet::new(),
+                length: 0,
+            };
+
+            Arc::new(Mutex::new(v))
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+    impl RangeWrite for Arc<Mutex<TestWrite>> {
+        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+            let mut test = self.lock().unwrap();
+            test.length += size;
+            test.bytes.extend(0..size);
+
+            Ok(())
+        }
+
+        async fn initiate_range(&self) -> Result<String> {
+            Ok("test".to_string())
+        }
+
+        async fn write_range(&self, _: &str, offset: u64, size: u64, _: AsyncBody) -> Result<()> {
+            let mut test = self.lock().unwrap();
+            test.length += size;
+
+            let input = (offset..offset + size).collect::<HashSet<_>>();
+
+            assert!(
+                test.bytes.is_disjoint(&input),
+                "input should not have overlap"
+            );
+            test.bytes.extend(input);
+
+            Ok(())
+        }
+
+        async fn complete_range(
+            &self,
+            _: &str,
+            offset: u64,
+            size: u64,
+            _: AsyncBody,
+        ) -> Result<()> {
+            let mut test = self.lock().unwrap();
+            test.length += size;
+
+            let input = (offset..offset + size).collect::<HashSet<_>>();
+            assert!(
+                test.bytes.is_disjoint(&input),
+                "input should not have overlap"
+            );
+            test.bytes.extend(input);
+
+            Ok(())
+        }
+
+        async fn abort_range(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_range_writer_with_concurrent_errors() {
+        let mut rng = thread_rng();
+
+        let mut w = RangeWriter::new(TestWrite::new(), 8);
+        let mut total_size = 0u64;
+
+        for _ in 0..1000 {
+            let size = rng.gen_range(1..1024);
+            total_size += size as u64;
+
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(&bs.as_slice()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        loop {
+            match w.close().await {
+                Ok(_) => break,
+                Err(_) => continue,
+            }
+        }
+
+        let actual_bytes = w.w.lock().unwrap().bytes.clone();
+        let expected_bytes: HashSet<_> = (0..total_size).collect();
+        assert_eq!(actual_bytes, expected_bytes);
+
+        let actual_size = w.w.lock().unwrap().length;
+        assert_eq!(actual_size, total_size);
     }
 }

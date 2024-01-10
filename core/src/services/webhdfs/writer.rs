@@ -17,6 +17,7 @@
 
 use async_trait::async_trait;
 use http::StatusCode;
+use uuid::Uuid;
 
 use super::backend::WebhdfsBackend;
 use super::error::parse_error;
@@ -59,7 +60,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
     }
 
-    async fn write_block(&self, size: u64, block_id: String, body: AsyncBody) -> Result<()> {
+    async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
         let Some(ref atomic_write_dir) = self.backend.atomic_write_dir else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -88,7 +89,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
     }
 
-    async fn complete_block(&self, block_ids: Vec<String>) -> Result<()> {
+    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
         let Some(ref atomic_write_dir) = self.backend.atomic_write_dir else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -138,9 +139,9 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
     }
 
-    async fn abort_block(&self, block_ids: Vec<String>) -> Result<()> {
+    async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
         for block_id in block_ids {
-            let resp = self.backend.webhdfs_delete(&block_id).await?;
+            let resp = self.backend.webhdfs_delete(&block_id.to_string()).await?;
             match resp.status() {
                 StatusCode::OK => {
                     resp.into_body().consume().await?;

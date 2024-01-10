@@ -291,20 +291,18 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                 }
                             }
                         }
-                        None => match self.buffer.clone() {
-                            Some(bs) => {
-                                self.state = State::Complete(Box::pin(async move {
-                                    let size = bs.len();
-                                    w.write_once(size as u64, AsyncBody::ChunkedBytes(bs)).await
-                                }));
-                            }
-                            None => {
-                                // Call write_once if there is no data in buffer and no location.
-                                self.state = State::Complete(Box::pin(async move {
-                                    w.write_once(0, AsyncBody::Empty).await
-                                }));
-                            }
-                        },
+                        None => {
+                            let w = self.w.clone();
+                            let (size, body) = match self.buffer.clone() {
+                                Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
+                                None => (0, AsyncBody::Empty),
+                            };
+                            // Call write_once if there is no data in buffer and no location.
+
+                            self.state = State::Complete(Box::pin(async move {
+                                w.write_once(size as u64, body).await
+                            }));
+                        }
                     }
                 }
                 State::Init(_) => {

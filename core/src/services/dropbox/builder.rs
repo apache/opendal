@@ -31,14 +31,20 @@ use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::*;
 
+/// Config for [Dropbox](https://www.dropbox.com/) backend support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct DropboxConfig {
+    /// root path for dropbox.
     pub root: Option<String>,
+    /// access token for dropbox.
     pub access_token: Option<String>,
+    /// refresh_token for dropbox.
     pub refresh_token: Option<String>,
+    /// client_id for dropbox.
     pub client_id: Option<String>,
+    /// client_secret for dropbox.
     pub client_secret: Option<String>,
 }
 

@@ -257,7 +257,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                     if let Err((offset, bytes, err)) = result {
                                         self.futures.push_front(WriteRangeFuture::new(
                                             self.w.clone(),
-                                            location.clone(),
+                                            location,
                                             offset,
                                             bytes,
                                         ));

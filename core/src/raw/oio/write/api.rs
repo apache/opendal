@@ -22,8 +22,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use pin_project::pin_project;
-
 use crate::raw::*;
 use crate::*;
 
@@ -153,8 +151,6 @@ pub trait WriteExt: Write {
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct WriteFuture<'a, W: Write + Unpin + ?Sized> {
     writer: &'a mut W,
     buf: &'a dyn oio::WriteBuf,
@@ -167,13 +163,11 @@ where
     type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.project();
-        Pin::new(this.writer).poll_write(cx, *this.buf)
+        let this = self.get_mut();
+        this.writer.poll_write(cx, this.buf)
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct AbortFuture<'a, W: Write + Unpin + ?Sized> {
     writer: &'a mut W,
 }
@@ -184,14 +178,11 @@ where
 {
     type Output = Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
-        Pin::new(this.writer).poll_abort(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.writer.poll_abort(cx)
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct CloseFuture<'a, W: Write + Unpin + ?Sized> {
     writer: &'a mut W,
 }
@@ -202,9 +193,8 @@ where
 {
     type Output = Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
-        Pin::new(this.writer).poll_close(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.writer.poll_close(cx)
     }
 }
 

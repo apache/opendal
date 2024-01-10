@@ -23,7 +23,6 @@ use std::task::Poll;
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use pin_project::pin_project;
 
 use crate::*;
 
@@ -105,8 +104,6 @@ pub trait StreamExt: Stream {
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct NextFuture<'a, T: Stream + Unpin + ?Sized> {
     inner: &'a mut T,
 }
@@ -117,9 +114,8 @@ where
 {
     type Output = Option<Result<Bytes>>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let this = self.project();
-        Pin::new(this.inner).poll_next(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        self.inner.poll_next(cx)
     }
 }
 

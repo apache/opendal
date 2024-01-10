@@ -107,7 +107,12 @@ pub struct MultipartUploadPart {
     pub etag: String,
 }
 
-struct WritePartFuture(BoxedFuture<Result<MultipartUploadPart>>);
+/// WritePartResult is the result returned by [`WritePartFuture`].
+///
+/// The error part will carries input `(part_number, bytes, err)` so caller can retry them.
+type WritePartResult = std::result::Result<MultipartUploadPart, (usize, oio::ChunkedBytes, Error)>;
+
+struct WritePartFuture(BoxedFuture<WritePartResult>);
 
 /// # Safety
 ///
@@ -120,9 +125,31 @@ unsafe impl Send for WritePartFuture {}
 unsafe impl Sync for WritePartFuture {}
 
 impl Future for WritePartFuture {
-    type Output = Result<MultipartUploadPart>;
+    type Output = WritePartResult;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll_unpin(cx)
+    }
+}
+
+impl WritePartFuture {
+    pub fn new<W: MultipartUploadWrite>(
+        w: Arc<W>,
+        upload_id: Arc<String>,
+        part_number: usize,
+        bytes: oio::ChunkedBytes,
+    ) -> Self {
+        let fut = async move {
+            w.write_part(
+                &upload_id,
+                part_number,
+                bytes.len() as u64,
+                AsyncBody::ChunkedBytes(bytes.clone()),
+            )
+            .await
+            .map_err(|err| (part_number, bytes, err))
+        };
+
+        WritePartFuture(Box::pin(fut))
     }
 }
 
@@ -133,7 +160,6 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
     w: Arc<W>,
 
     upload_id: Option<Arc<String>>,
-    concurrent: usize,
     parts: Vec<MultipartUploadPart>,
     cache: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WritePartFuture>,
@@ -164,7 +190,6 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
 
             w: Arc::new(inner),
             upload_id: None,
-            concurrent,
             parts: Vec::new(),
             cache: None,
             futures: ConcurrentFutures::new(1.max(concurrent)),
@@ -191,26 +216,36 @@ where
                 State::Idle => {
                     match self.upload_id.as_ref() {
                         Some(upload_id) => {
-                            let upload_id = upload_id.clone();
                             if self.futures.has_remaining() {
                                 let cache = self.cache.take().expect("pending write must exist");
                                 let part_number = self.next_part_number;
                                 self.next_part_number += 1;
-                                let w = self.w.clone();
-                                let size = cache.len();
-                                self.futures.push(WritePartFuture(Box::pin(async move {
-                                    w.write_part(
-                                        &upload_id,
-                                        part_number,
-                                        size as u64,
-                                        AsyncBody::ChunkedBytes(cache),
-                                    )
-                                    .await
-                                })));
+
+                                self.futures.push_back(WritePartFuture::new(
+                                    self.w.clone(),
+                                    upload_id.clone(),
+                                    part_number,
+                                    cache,
+                                ));
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
-                                self.parts.push(part?);
+                            }
+
+                            if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                                match part {
+                                    Ok(part) => {
+                                        self.parts.push(part);
+                                    }
+                                    Err((part_number, bytes, err)) => {
+                                        self.futures.push_front(WritePartFuture::new(
+                                            self.w.clone(),
+                                            upload_id.clone(),
+                                            part_number,
+                                            bytes,
+                                        ));
+                                        return Poll::Ready(Err(err));
+                                    }
+                                }
                             }
                         }
                         None => {
@@ -228,8 +263,8 @@ where
                 }
                 State::Init(fut) => {
                     let upload_id = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle;
                     self.upload_id = Some(Arc::new(upload_id?));
+                    self.state = State::Idle;
                 }
                 State::Close(_) => {
                     unreachable!(
@@ -249,62 +284,63 @@ where
         loop {
             match &mut self.state {
                 State::Idle => {
-                    match self.upload_id.clone() {
+                    match self.upload_id.as_ref() {
                         Some(upload_id) => {
-                            let w = self.w.clone();
+                            // futures queue is empty and cache is consumed, we can complete the upload.
                             if self.futures.is_empty() && self.cache.is_none() {
+                                let w = self.w.clone();
                                 let upload_id = upload_id.clone();
                                 let parts = self.parts.clone();
+
                                 self.state = State::Close(Box::pin(async move {
                                     w.complete_part(&upload_id, &parts).await
                                 }));
-                            } else {
-                                if self.futures.has_remaining() {
-                                    if let Some(cache) = self.cache.take() {
-                                        let upload_id = upload_id.clone();
-                                        let part_number = self.next_part_number;
-                                        self.next_part_number += 1;
-                                        let size = cache.len();
-                                        let w = self.w.clone();
-                                        self.futures.push(WritePartFuture(Box::pin(async move {
-                                            w.write_part(
-                                                &upload_id,
-                                                part_number,
-                                                size as u64,
-                                                AsyncBody::ChunkedBytes(cache),
-                                            )
-                                            .await
-                                        })));
-                                    }
+                                continue;
+                            }
+
+                            if self.futures.has_remaining() {
+                                // This must be the final task.
+                                if let Some(cache) = self.cache.take() {
+                                    let part_number = self.next_part_number;
+                                    self.next_part_number += 1;
+
+                                    self.futures.push_back(WritePartFuture::new(
+                                        self.w.clone(),
+                                        upload_id.clone(),
+                                        part_number,
+                                        cache,
+                                    ));
                                 }
-                                while let Some(mut part) = ready!(self.futures.poll_next_unpin(cx))
-                                {
-                                    // Don't retry close if concurrent write failed.
-                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
-                                    if self.concurrent > 1 {
-                                        part = part.map_err(|err| err.set_permanent());
+                            }
+
+                            if let Some(part) = ready!(self.futures.poll_next_unpin(cx)) {
+                                match part {
+                                    Ok(part) => {
+                                        self.parts.push(part);
                                     }
-                                    self.parts.push(part?);
+                                    Err((part_number, bytes, err)) => {
+                                        self.futures.push_front(WritePartFuture::new(
+                                            self.w.clone(),
+                                            upload_id.clone(),
+                                            part_number,
+                                            bytes,
+                                        ));
+                                        return Poll::Ready(Err(err));
+                                    }
                                 }
                             }
                         }
-                        None => match &self.cache {
-                            Some(cache) => {
-                                let w = self.w.clone();
-                                let bs = cache.clone();
-                                self.state = State::Close(Box::pin(async move {
-                                    let size = bs.len();
-                                    w.write_once(size as u64, AsyncBody::ChunkedBytes(bs)).await
-                                }));
-                            }
-                            None => {
-                                let w = self.w.clone();
-                                // Call write_once if there is no data in cache and no upload_id.
-                                self.state = State::Close(Box::pin(async move {
-                                    w.write_once(0, AsyncBody::Empty).await
-                                }));
-                            }
-                        },
+                        None => {
+                            let w = self.w.clone();
+                            let (size, body) = match self.cache.clone() {
+                                Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
+                                None => (0, AsyncBody::Empty),
+                            };
+                            // Call write_once if there is no upload_id.
+                            self.state = State::Close(Box::pin(async move {
+                                w.write_once(size as u64, body).await
+                            }));
+                        }
                     }
                 }
                 State::Close(fut) => {
@@ -357,5 +393,126 @@ where
                 ),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::WriteExt;
+    use pretty_assertions::assert_eq;
+    use rand::{thread_rng, Rng, RngCore};
+    use std::sync::Mutex;
+
+    struct TestWrite {
+        upload_id: String,
+        part_numbers: Vec<usize>,
+        length: u64,
+    }
+
+    impl TestWrite {
+        pub fn new() -> Arc<Mutex<Self>> {
+            let v = Self {
+                upload_id: uuid::Uuid::new_v4().to_string(),
+                part_numbers: Vec::new(),
+                length: 0,
+            };
+
+            Arc::new(Mutex::new(v))
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+    impl MultipartUploadWrite for Arc<Mutex<TestWrite>> {
+        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+            self.lock().unwrap().length += size;
+            Ok(())
+        }
+
+        async fn initiate_part(&self) -> Result<String> {
+            let upload_id = self.lock().unwrap().upload_id.clone();
+            Ok(upload_id)
+        }
+
+        async fn write_part(
+            &self,
+            upload_id: &str,
+            part_number: usize,
+            size: u64,
+            _: AsyncBody,
+        ) -> Result<MultipartUploadPart> {
+            let mut test = self.lock().unwrap();
+            assert_eq!(upload_id, test.upload_id);
+
+            // We will have 50% percent rate for write part to fail.
+            if thread_rng().gen_bool(5.0 / 10.0) {
+                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+            }
+
+            test.part_numbers.push(part_number);
+            test.length += size;
+
+            Ok(MultipartUploadPart {
+                part_number,
+                etag: "etag".to_string(),
+            })
+        }
+
+        async fn complete_part(
+            &self,
+            upload_id: &str,
+            parts: &[MultipartUploadPart],
+        ) -> Result<()> {
+            let test = self.lock().unwrap();
+            assert_eq!(upload_id, test.upload_id);
+            assert_eq!(parts.len(), test.part_numbers.len());
+
+            Ok(())
+        }
+
+        async fn abort_part(&self, upload_id: &str) -> Result<()> {
+            let test = self.lock().unwrap();
+            assert_eq!(upload_id, test.upload_id);
+
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multipart_upload_writer_with_concurrent_errors() {
+        let mut rng = thread_rng();
+
+        let mut w = MultipartUploadWriter::new(TestWrite::new(), 8);
+        let mut total_size = 0u64;
+
+        for _ in 0..1000 {
+            let size = rng.gen_range(1..1024);
+            total_size += size as u64;
+
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(&bs.as_slice()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        loop {
+            match w.close().await {
+                Ok(_) => break,
+                Err(_) => continue,
+            }
+        }
+
+        let actual_parts: Vec<_> = w.parts.into_iter().map(|v| v.part_number).collect();
+        let expected_parts: Vec<_> = (0..1000).collect();
+        assert_eq!(actual_parts, expected_parts);
+
+        let actual_size = w.w.lock().unwrap().length;
+        assert_eq!(actual_size, total_size);
     }
 }

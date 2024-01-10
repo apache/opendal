@@ -86,7 +86,12 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     async fn abort_range(&self, location: &str) -> Result<()>;
 }
 
-struct WriteRangeFuture(BoxedFuture<Result<()>>);
+/// WritePartResult is the result returned by [`WriteRangeFuture`].
+///
+/// The error part will carries input `(offset, bytes, err)` so caller can retry them.
+type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
+
+struct WriteRangeFuture(BoxedFuture<WriteRangeResult>);
 
 /// # Safety
 ///
@@ -99,19 +104,40 @@ unsafe impl Send for WriteRangeFuture {}
 unsafe impl Sync for WriteRangeFuture {}
 
 impl Future for WriteRangeFuture {
-    type Output = Result<()>;
+    type Output = WriteRangeResult;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll_unpin(cx)
     }
 }
 
+impl WriteRangeFuture {
+    pub fn new<W: RangeWrite>(
+        w: Arc<W>,
+        location: Arc<String>,
+        offset: u64,
+        bytes: oio::ChunkedBytes,
+    ) -> Self {
+        let fut = async move {
+            w.write_range(
+                &location,
+                offset,
+                bytes.len() as u64,
+                AsyncBody::ChunkedBytes(bytes.clone()),
+            )
+            .await
+            .map_err(|err| (offset, bytes, err))
+        };
+
+        WriteRangeFuture(Box::pin(fut))
+    }
+}
+
 /// RangeWriter will implements [`Write`] based on range write.
 pub struct RangeWriter<W: RangeWrite> {
-    location: Option<String>,
+    location: Option<Arc<String>>,
     next_offset: u64,
     buffer: Option<oio::ChunkedBytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
-    concurrent: usize,
 
     w: Arc<W>,
     state: State,
@@ -145,7 +171,6 @@ impl<W: RangeWrite> RangeWriter<W> {
             buffer: None,
             location: None,
             next_offset: 0,
-            concurrent,
         }
     }
 
@@ -167,23 +192,29 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                         Some(location) => {
                             if self.futures.has_remaining() {
                                 let cache = self.buffer.take().expect("cache must be valid");
-                                let size = cache.len() as u64;
                                 let offset = self.next_offset;
-                                self.next_offset += size;
-                                let w = self.w.clone();
-                                self.futures.push(WriteRangeFuture(Box::pin(async move {
-                                    w.write_range(
-                                        &location,
-                                        offset,
-                                        size,
-                                        AsyncBody::ChunkedBytes(cache),
-                                    )
-                                    .await
-                                })));
+                                self.next_offset += cache.len() as u64;
+                                self.futures.push_back(WriteRangeFuture::new(
+                                    self.w.clone(),
+                                    location,
+                                    offset,
+                                    cache,
+                                ));
+
                                 let size = self.fill_cache(bs);
                                 return Poll::Ready(Ok(size));
-                            } else if let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
-                                result?;
+                            }
+
+                            if let Some(Err((offset, bytes, err))) =
+                                ready!(self.futures.poll_next_unpin(cx))
+                            {
+                                self.futures.push_front(WriteRangeFuture::new(
+                                    self.w.clone(),
+                                    location,
+                                    offset,
+                                    bytes,
+                                ));
+                                return Poll::Ready(Err(err));
                             }
                         }
                         None => {
@@ -202,7 +233,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Init(fut) => {
                     let res = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle;
-                    self.location = Some(res?);
+                    self.location = Some(Arc::new(res?));
                 }
                 State::Complete(_) => {
                     unreachable!("RangeWriter must not go into State::Complete during poll_write")
@@ -222,15 +253,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     match self.location.clone() {
                         Some(location) => {
                             if !self.futures.is_empty() {
-                                while let Some(mut result) =
-                                    ready!(self.futures.poll_next_unpin(cx))
-                                {
-                                    // Don't retry close if concurrent write failed.
-                                    // TODO: Remove this after <https://github.com/apache/incubator-opendal/issues/3956> addressed.
-                                    if self.concurrent > 1 {
-                                        result = result.map_err(|err| err.set_permanent());
-                                    }
-                                    result?;
+                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
+                                    if let Err((offset, bytes, err)) = result {
+                                        self.futures.push_front(WriteRangeFuture::new(
+                                            self.w.clone(),
+                                            location,
+                                            offset,
+                                            bytes,
+                                        ));
+                                        return Poll::Ready(Err(err));
+                                    };
                                 }
                             }
                             match self.buffer.take() {
@@ -311,5 +343,128 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::WriteExt;
+    use pretty_assertions::assert_eq;
+    use rand::{thread_rng, Rng, RngCore};
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+
+    struct TestWrite {
+        length: u64,
+        bytes: HashSet<u64>,
+    }
+
+    impl TestWrite {
+        pub fn new() -> Arc<Mutex<Self>> {
+            let v = Self {
+                bytes: HashSet::new(),
+                length: 0,
+            };
+
+            Arc::new(Mutex::new(v))
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+    impl RangeWrite for Arc<Mutex<TestWrite>> {
+        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+            let mut test = self.lock().unwrap();
+            test.length += size;
+            test.bytes.extend(0..size);
+
+            Ok(())
+        }
+
+        async fn initiate_range(&self) -> Result<String> {
+            Ok("test".to_string())
+        }
+
+        async fn write_range(&self, _: &str, offset: u64, size: u64, _: AsyncBody) -> Result<()> {
+            // We will have 50% percent rate for write part to fail.
+            if thread_rng().gen_bool(5.0 / 10.0) {
+                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+            }
+
+            let mut test = self.lock().unwrap();
+            test.length += size;
+
+            let input = (offset..offset + size).collect::<HashSet<_>>();
+
+            assert!(
+                test.bytes.is_disjoint(&input),
+                "input should not have overlap"
+            );
+            test.bytes.extend(input);
+
+            Ok(())
+        }
+
+        async fn complete_range(
+            &self,
+            _: &str,
+            offset: u64,
+            size: u64,
+            _: AsyncBody,
+        ) -> Result<()> {
+            let mut test = self.lock().unwrap();
+            test.length += size;
+
+            let input = (offset..offset + size).collect::<HashSet<_>>();
+            assert!(
+                test.bytes.is_disjoint(&input),
+                "input should not have overlap"
+            );
+            test.bytes.extend(input);
+
+            Ok(())
+        }
+
+        async fn abort_range(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_range_writer_with_concurrent_errors() {
+        let mut rng = thread_rng();
+
+        let mut w = RangeWriter::new(TestWrite::new(), 8);
+        let mut total_size = 0u64;
+
+        for _ in 0..1000 {
+            let size = rng.gen_range(1..1024);
+            total_size += size as u64;
+
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(&bs.as_slice()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        loop {
+            match w.close().await {
+                Ok(_) => break,
+                Err(_) => continue,
+            }
+        }
+
+        let actual_bytes = w.w.lock().unwrap().bytes.clone();
+        let expected_bytes: HashSet<_> = (0..total_size).collect();
+        assert_eq!(actual_bytes, expected_bytes);
+
+        let actual_size = w.w.lock().unwrap().length;
+        assert_eq!(actual_size, total_size);
     }
 }

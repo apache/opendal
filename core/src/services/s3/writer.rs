@@ -79,7 +79,7 @@ impl oio::MultipartWrite for S3Writer {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartResult =
+                let result: InitiateMultipartUploadResult =
                     quick_xml::de::from_reader(bytes::Buf::reader(bs))
                         .map_err(new_xml_deserialize_error)?;
 
@@ -131,7 +131,7 @@ impl oio::MultipartWrite for S3Writer {
     async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
         let parts = parts
             .iter()
-            .map(|p| CompleteMultipartRequestPart {
+            .map(|p| CompleteMultipartUploadRequestPart {
                 part_number: p.part_number,
                 etag: p.etag.clone(),
             })

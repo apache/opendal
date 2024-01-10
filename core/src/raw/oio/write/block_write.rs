@@ -170,8 +170,8 @@ where
                         })));
                         let size = self.fill_cache(bs);
                         return Poll::Ready(Ok(size));
-                    } else {
-                        ready!(self.futures.poll_next_unpin(cx));
+                    } else if let Some(res) = ready!(self.futures.poll_next_unpin(cx)) {
+                        res?;
                     }
                 }
                 State::Close(_) => {
@@ -209,8 +209,7 @@ where
                                 }));
                             }
                         }
-                    }
-                    if self.futures.is_empty() && self.cache.is_none() {
+                    } else if self.futures.is_empty() && self.cache.is_none() {
                         self.state =
                             State::Close(Box::pin(
                                 async move { w.complete_block(block_ids).await },
@@ -232,7 +231,9 @@ where
                                 })));
                             }
                         }
-                        while ready!(self.futures.poll_next_unpin(cx)).is_some() {}
+                        while let Some(res) = ready!(self.futures.poll_next_unpin(cx)) {
+                            res?;
+                        }
                     }
                 }
                 State::Close(fut) => {

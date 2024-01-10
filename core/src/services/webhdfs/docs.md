@@ -28,6 +28,7 @@ This service can be used to:
 - `root`: The root path of the WebHDFS service.
 - `endpoint`: The endpoint of the WebHDFS service.
 - `delegation`: The delegation token for WebHDFS.
+- `atomic_write_dir`: The tmp write dir of multi write for WebHDFS.
 
 Refer to [`Builder`]'s public API docs for more information.
 
@@ -58,6 +59,8 @@ async fn main() -> Result<()> {
     builder.endpoint("http://127.0.0.1:9870");
     // set the delegation_token for builder
     builder.delegation("delegation_token");
+    // set atomic_write_dir for builder
+    builder.atomic_write_dir(".opendal_tmp/");
 
     let op: Operator = Operator::new(builder)?.finish();
 

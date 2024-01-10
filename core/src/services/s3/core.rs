@@ -608,7 +608,7 @@ impl S3Core {
         &self,
         path: &str,
         upload_id: &str,
-        parts: Vec<CompleteMultipartRequestPart>,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -624,7 +624,7 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
-        let content = quick_xml::se::to_string(&CompleteMultipartRequest { part: parts })
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
@@ -697,23 +697,23 @@ impl S3Core {
     }
 }
 
-/// Result of CreateMultipart
+/// Result of CreateMultipartUpload
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct InitiateMultipartResult {
+pub struct InitiateMultipartUploadResult {
     pub upload_id: String,
 }
 
-/// Request of CompleteMultipartRequest
+/// Request of CompleteMultipartUploadRequest
 #[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipart", rename_all = "PascalCase")]
-pub struct CompleteMultipartRequest {
-    pub part: Vec<CompleteMultipartRequestPart>,
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartRequestPart {
+pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "PartNumber")]
     pub part_number: usize,
     /// # TODO
@@ -726,7 +726,7 @@ pub struct CompleteMultipartRequestPart {
     /// ```ignore
     /// #[derive(Default, Debug, Serialize)]
     /// #[serde(default, rename_all = "PascalCase")]
-    /// struct CompleteMultipartRequestPart {
+    /// struct CompleteMultipartUploadRequestPart {
     ///     #[serde(rename = "PartNumber")]
     ///     part_number: usize,
     ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
@@ -824,19 +824,19 @@ mod tests {
 
     use super::*;
 
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipart.html#API_CreateMultipart_Examples
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]
     fn test_deserialize_initiate_multipart_upload_result() {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-            <InitiateMultipartResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+            <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
               <Bucket>example-bucket</Bucket>
               <Key>example-object</Key>
               <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
-            </InitiateMultipartResult>"#,
+            </InitiateMultipartUploadResult>"#,
         );
 
-        let out: InitiateMultipartResult =
+        let out: InitiateMultipartUploadResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
         assert_eq!(
@@ -845,20 +845,20 @@ mod tests {
         )
     }
 
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipart.html#API_CompleteMultipart_Examples
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Examples
     #[test]
     fn test_serialize_complete_multipart_upload_request() {
-        let req = CompleteMultipartRequest {
+        let req = CompleteMultipartUploadRequest {
             part: vec![
-                CompleteMultipartRequestPart {
+                CompleteMultipartUploadRequestPart {
                     part_number: 1,
                     etag: "\"a54357aff0632cce46d942af68356b38\"".to_string(),
                 },
-                CompleteMultipartRequestPart {
+                CompleteMultipartUploadRequestPart {
                     part_number: 2,
                     etag: "\"0c78aef83f66abc1fa1e8477f296d394\"".to_string(),
                 },
-                CompleteMultipartRequestPart {
+                CompleteMultipartUploadRequestPart {
                     part_number: 3,
                     etag: "\"acbd18db4cc2f85cedef654fccc4a4d8\"".to_string(),
                 },
@@ -869,7 +869,7 @@ mod tests {
 
         pretty_assertions::assert_eq!(
             actual,
-            r#"<CompleteMultipart>
+            r#"<CompleteMultipartUpload>
              <Part>
                 <PartNumber>1</PartNumber>
                <ETag>"a54357aff0632cce46d942af68356b38"</ETag>
@@ -882,7 +882,7 @@ mod tests {
                <PartNumber>3</PartNumber>
                <ETag>"acbd18db4cc2f85cedef654fccc4a4d8"</ETag>
              </Part>
-            </CompleteMultipart>"#
+            </CompleteMultipartUpload>"#
                 // Cleanup space and new line
                 .replace([' ', '\n'], "")
                 // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>

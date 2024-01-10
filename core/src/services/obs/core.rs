@@ -373,7 +373,7 @@ impl ObsCore {
         &self,
         path: &str,
         upload_id: &str,
-        parts: Vec<CompleteMultipartRequestPart>,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
@@ -385,7 +385,7 @@ impl ObsCore {
 
         let req = Request::post(&url);
 
-        let content = quick_xml::se::to_string(&CompleteMultipartRequest {
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
         .map_err(new_xml_deserialize_error)?;
@@ -426,23 +426,23 @@ impl ObsCore {
     }
 }
 
-/// Result of CreateMultipart
+/// Result of CreateMultipartUpload
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct InitiateMultipartResult {
+pub struct InitiateMultipartUploadResult {
     pub upload_id: String,
 }
 
-/// Request of CompleteMultipartRequest
+/// Request of CompleteMultipartUploadRequest
 #[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipart", rename_all = "PascalCase")]
-pub struct CompleteMultipartRequest {
-    pub part: Vec<CompleteMultipartRequestPart>,
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartRequestPart {
+pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "PartNumber")]
     pub part_number: usize,
     ///
@@ -455,7 +455,7 @@ pub struct CompleteMultipartRequestPart {
     /// ```ignore
     /// #[derive(Default, Debug, Serialize)]
     /// #[serde(default, rename_all = "PascalCase")]
-    /// struct CompleteMultipartRequestPart {
+    /// struct CompleteMultipartUploadRequestPart {
     ///     #[serde(rename = "PartNumber")]
     ///     part_number: usize,
     ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]

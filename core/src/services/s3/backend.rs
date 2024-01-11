@@ -121,6 +121,8 @@ pub struct S3Config {
     pub role_arn: Option<String>,
     /// external_id for this backend.
     pub external_id: Option<String>,
+    /// The bucket's versioning status(whether enable or not).
+    pub enable_version: bool,
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -224,7 +226,7 @@ impl Debug for S3Config {
 pub struct S3Builder {
     config: S3Config,
 
-    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    custom_credential_load: Option<Box<dyn AwsCredentialLoad>>,
     http_client: Option<HttpClient>,
 }
 
@@ -325,6 +327,19 @@ impl S3Builder {
         if !v.is_empty() {
             self.config.role_arn = Some(v.to_string())
         }
+
+        self
+    }
+
+    /// Enable versioning for this backend.
+    ///
+    /// If `enable_version` is set, we will enable versioning for this backend.
+    ///
+    /// You need to enable versioning for your bucket before using this feature.
+    ///
+    /// Please note that versioning is not supported by all S3 compatible services.
+    pub fn enable_version(&mut self) -> &mut Self {
+        self.config.enable_version = true;
 
         self
     }
@@ -574,7 +589,7 @@ impl S3Builder {
     /// If customed_credential_load has been set, we will ignore all other
     /// credential load methods.
     pub fn customed_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
-        self.customed_credential_load = Some(cred);
+        self.custom_credential_load = Some(cred);
         self
     }
 
@@ -780,7 +795,7 @@ impl Builder for S3Builder {
 
         S3Builder {
             config,
-            customed_credential_load: None,
+            custom_credential_load: None,
             http_client: None,
         }
     }
@@ -900,7 +915,7 @@ impl Builder for S3Builder {
 
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
         // If customed_credential_load is set, we will use it.
-        if let Some(v) = self.customed_credential_load.take() {
+        if let Some(v) = self.custom_credential_load.take() {
             loader = Some(v);
         }
 
@@ -963,6 +978,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
+                enable_version: self.config.enable_version,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_stat_with_override: self.config.disable_stat_with_override,
                 signer,
@@ -1003,6 +1019,7 @@ impl Accessor for S3Backend {
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
                 stat_with_override_content_disposition: !self.core.disable_stat_with_override,
                 stat_with_override_content_type: !self.core.disable_stat_with_override,
+                stat_with_version: self.core.enable_version,
 
                 read: true,
                 read_can_next: true,
@@ -1012,6 +1029,7 @@ impl Accessor for S3Backend {
                 read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
                 read_with_override_content_type: true,
+                read_with_version: self.core.enable_version,
 
                 write: true,
                 write_can_empty: true,
@@ -1032,6 +1050,8 @@ impl Accessor for S3Backend {
                 },
 
                 delete: true,
+                delete_with_version: self.core.enable_version,
+
                 copy: true,
 
                 list: true,
@@ -1059,7 +1079,10 @@ impl Accessor for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => self
+                .core
+                .parse_metadata(path, resp.headers())
+                .map(RpStat::new),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -1095,8 +1118,8 @@ impl Accessor for S3Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.s3_delete_object(path).await?;
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.s3_delete_object(path, &args).await?;
 
         let status = resp.status();
 

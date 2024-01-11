@@ -42,7 +42,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_with_override_cache_control,
             test_stat_with_override_content_disposition,
             test_stat_with_override_content_type,
-            test_stat_root
+            test_stat_root,
+            stat_on_version_control_disabled_should_not_return_version
         ))
     }
 
@@ -56,6 +57,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_only_stat_with_if_match,
             test_read_only_stat_with_if_none_match,
             test_read_only_stat_root
+        ))
+    }
+
+    if cap.stat && cap.stat_with_version && cap.write {
+        tests.extend(async_trials!(
+            op,
+            stat_with_version,
+            stat_override_file_different_version
         ))
     }
 }
@@ -496,6 +505,59 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
     let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
+
+    Ok(())
+}
+
+/// Stat on version control disabled or not supported service should not return version
+pub async fn stat_on_version_control_disabled_should_not_return_version(
+    op: Operator,
+) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert!(meta.version().is_none(), "it should not has version");
+
+    Ok(())
+}
+
+/// Stat on version control enabled service should return version (for new file)
+pub async fn stat_with_version(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert!(meta.version().is_some(), "it should has version");
+
+    Ok(())
+}
+
+/// Write multiple times on same file should return different version
+pub async fn stat_override_file_different_version(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert!(meta.version().is_some(), "it should has version");
+    let version = meta.version().unwrap();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert!(meta.version().is_some(), "it should has version");
+    assert_ne!(
+        meta.version().unwrap(),
+        version,
+        "those two versions must be different"
+    );
 
     Ok(())
 }

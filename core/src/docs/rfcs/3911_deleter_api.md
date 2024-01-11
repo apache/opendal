@@ -34,10 +34,10 @@ The following new API will be added to `Operator`:
 ```diff
 impl Operator {
   pub async fn detele(&self, path: &str) -> Result<()>;
-+  pub async fn delete_with(&self, path: &str) -> FutureDelete;
++  pub fn delete_with(&self, path: &str) -> FutureDelete;
 
 +  pub async fn deleter(&self) -> Result<Deleter>;
-+  pub async fn deleter_with(&self) -> FutureDeleter;
++  pub fn deleter_with(&self) -> FutureDeleter;
 }
 ```
 
@@ -96,7 +96,7 @@ deleter.close().await?;
 Users can control the behavior of `Deleter` by setting the options:
 
 ```rust
-let deleter = op.deleter()
+let deleter = op.deleter_with()
   // Allow up to 8 concurrent delete tasks, default to 1.
   .concurrent(8)
   // Configure the buffer size to 1000, default value provided by services.

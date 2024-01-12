@@ -63,11 +63,8 @@ impl Accessor for GdriveBackend {
                 write: true,
 
                 create_dir: true,
-
                 rename: true,
-
                 delete: true,
-
                 copy: true,
 
                 ..Default::default()
@@ -114,32 +111,17 @@ impl Accessor for GdriveBackend {
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
-        let mut file_id: Option<String> = None;
-
-        let resp = self.core.gdrive_stat(path).await;
-        // We don't care about the error here.
-        // As long as the file doesn't exist, we will create a new one.
-        if let Ok(resp) = resp {
-            let status = resp.status();
-
-            if status == StatusCode::OK {
-                let body = resp.into_body().bytes().await?;
-                let meta = serde_json::from_slice::<GdriveFile>(&body)
-                    .map_err(new_json_deserialize_error)?;
-
-                file_id = if meta.id.is_empty() {
-                    None
-                } else {
-                    Some(meta.id)
-                };
-            }
-        }
+        let file_id = self
+            .core
+            .path_cache
+            .get(&build_abs_path(&self.core.root, path))
+            .await?;
 
         Ok((
             RpWrite::default(),
             oio::OneShotWriter::new(GdriveWriter::new(
                 self.core.clone(),
-                String::from(path),
+                path.to_string(),
                 file_id,
             )),
         ))
@@ -175,15 +157,23 @@ impl Accessor for GdriveBackend {
         let from = build_abs_path(&self.core.root, from);
         let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            "the file to be copied is not exist",
+            "the file to copy is not exist",
         ))?;
 
         let to_name = get_basename(to);
+        let to_path = build_abs_path(&self.core.root, to);
         let to_parent_id = self.core.ensure_parent_path(to).await?;
 
         // copy will overwrite `to`, delete it if exist
-        if self.core.path_cache.get(to).await?.is_some() {
-            self.delete(to, OpDelete::new()).await?;
+        if let Some(id) = self.core.path_cache.get(&to_path).await? {
+            let resp = self.core.gdrive_delete(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+                return Err(parse_error(resp).await?);
+            }
+
+            self.core.path_cache.remove(&to_path);
+            resp.into_body().consume().await?;
         }
 
         let url = format!(

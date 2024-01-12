@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::GdriveCore;
@@ -44,47 +43,6 @@ impl GdriveWriter {
             file_id,
         }
     }
-
-    /// Write a single chunk of data to the object.
-    ///
-    /// This is used for small objects.
-    /// And should overwrite the object if it already exists.
-    pub async fn write_create(&self, size: u64, body: Bytes) -> Result<()> {
-        let resp = self
-            .core
-            .gdrive_upload_simple_request(&self.path, size, body)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    pub async fn write_overwrite(&self, size: u64, body: Bytes) -> Result<()> {
-        let file_id = self.file_id.as_ref().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "file_id is required for overwrite")
-        })?;
-        let resp = self
-            .core
-            .gdrive_upload_overwrite_simple_request(file_id, size, body)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
@@ -93,12 +51,24 @@ impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let bs = bs.bytes(bs.remaining());
         let size = bs.len();
-        if self.file_id.is_none() {
-            self.write_create(size as u64, bs).await?;
-        } else {
-            self.write_overwrite(size as u64, bs).await?;
-        }
 
-        Ok(())
+        let resp = if let Some(file_id) = &self.file_id {
+            self.core
+                .gdrive_upload_overwrite_simple_request(file_id, size as u64, bs)
+                .await
+        } else {
+            self.core
+                .gdrive_upload_simple_request(&self.path, size as u64, bs)
+                .await
+        }?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::CREATED => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

@@ -77,22 +77,7 @@ impl Accessor for GdriveBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let parent = self.core.ensure_parent_path(path).await?;
-
-        // Make sure `/` has been trimmed.
-        let path = get_basename(path).trim_end_matches('/');
-
-        // As Google Drive allows files have the same name, we need to check if the folder exists.
-        let folder_id = self.core.gdrive_search_folder(&parent, path).await?;
-
-        let id = if let Some(id) = folder_id {
-            id
-        } else {
-            self.core.gdrive_create_folder(&parent, path).await?
-        };
-
-        let mut cache = self.core.path_cache.lock().await;
-        cache.insert(build_abs_path(&self.core.root, path), id);
+        let _ = self.core.ensure_parent_path(path).await?;
 
         Ok(RpCreateDir::default())
     }
@@ -167,7 +152,7 @@ impl Accessor for GdriveBackend {
 
             match status {
                 StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                    let mut cache = self.core.path_cache.lock().await;
+                    let cache = &self.core.path_cache;
 
                     cache.remove(&build_abs_path(&self.core.root, path));
 
@@ -193,7 +178,8 @@ impl Accessor for GdriveBackend {
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let from_file_id = self
             .core
-            .get_file_id_by_path(from)
+            .path_cache
+            .get(from)
             .await?
             .ok_or(Error::new(ErrorKind::NotFound, "invalid 'from' path"))?;
 
@@ -208,23 +194,24 @@ impl Accessor for GdriveBackend {
 
         let to_parent = to_path_items.join("/") + "/";
 
-        let to_parent_id =
-            if let Some(id) = self.core.get_file_id_by_path(to_parent.as_str()).await? {
-                id
-            } else {
-                self.create_dir(&to_parent, OpCreateDir::new()).await?;
-                self.core
-                    .get_file_id_by_path(to_parent.as_str())
-                    .await?
-                    .ok_or_else(|| {
-                        Error::new(ErrorKind::Unexpected, "create to's parent folder failed")
-                    })?
-            };
+        let to_parent_id = if let Some(id) = self.core.path_cache.get(to_parent.as_str()).await? {
+            id
+        } else {
+            self.create_dir(&to_parent, OpCreateDir::new()).await?;
+            self.core
+                .path_cache
+                .get(to_parent.as_str())
+                .await?
+                .ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "create to's parent folder failed")
+                })?
+        };
 
         // copy will overwrite `to`, delete it if exist
         if self
             .core
-            .get_file_id_by_path(to)
+            .path_cache
+            .get(to)
             .await
             .is_ok_and(|id| id.is_some())
         {
@@ -266,10 +253,10 @@ impl Accessor for GdriveBackend {
                 let meta = serde_json::from_slice::<GdriveFile>(&body)
                     .map_err(new_json_deserialize_error)?;
 
-                let mut cache = self.core.path_cache.lock().await;
+                let cache = &self.core.path_cache;
 
                 cache.remove(&build_abs_path(&self.core.root, from));
-                cache.insert(build_abs_path(&self.core.root, to), meta.id.clone());
+                cache.insert(&build_abs_path(&self.core.root, to), &meta.id);
 
                 Ok(RpRename::default())
             }

@@ -146,7 +146,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
-services-gdrive = []
+services-gdrive = ["internal-path-cache"]
 services-ghac = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]

@@ -72,6 +72,10 @@ native-tls = ["reqwest/native-tls"]
 # Enable vendored native-tls for TLS support
 native-tls-vendored = ["reqwest/native-tls-vendored"]
 
+# Enable path cache.
+# This is an internal feature, and should not be used by users.
+internal-path-cache = ["dep:moka"]
+
 # Enable all layers.
 layers-all = [
   "layers-chaos",

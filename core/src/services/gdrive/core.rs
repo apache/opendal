@@ -66,15 +66,17 @@ impl GdriveCore {
     /// - The path is rooted at the root of the Google Drive.
     /// - Will create the parent path recursively.
     pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
-        let mut parents = vec![];
+        let path = build_abs_path(&self.root, path);
         let mut current_path = if path.ends_with('/') {
-            path
+            path.as_str()
         } else {
-            get_parent(path)
+            get_parent(&path)
         };
-        let mut parent_id = String::new();
 
-        while current_path != "/" && !current_path.is_empty() {
+        let mut parents = vec![];
+        let mut parent_id;
+
+        loop {
             let id = self.path_cache.get(current_path).await?;
             match id {
                 Some(id) => {
@@ -85,6 +87,7 @@ impl GdriveCore {
             }
             current_path = get_parent(current_path);
         }
+        debug_assert!(!parent_id.is_empty(), "parent_id must be valid after query");
 
         for parent in parents.iter().rev() {
             parent_id = self
@@ -134,7 +137,8 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let path_id = self.path_cache.get(path).await?.ok_or(Error::new(
+        let path = build_abs_path(&self.root, path);
+        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("path not found: {}", path),
         ))?;
@@ -153,7 +157,8 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let path_id = self.path_cache.get(path).await?.ok_or(Error::new(
+        let path = build_abs_path(&self.root, path);
+        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("path not found: {}", path),
         ))?;
@@ -201,41 +206,29 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.path_cache.get(source).await?.ok_or(Error::new(
+        let source = build_abs_path(&self.root, source);
+        let target = build_abs_path(&self.root, target);
+
+        let file_id = self.path_cache.get(&source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("source path not found: {}", source),
         ))?;
+        let parent_id = self.ensure_parent_path(&target).await?;
+        let file_name = get_basename(&target);
 
-        let parent = self.ensure_parent_path(target).await?;
-
-        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
-
-        let source_abs_path = build_abs_path(&self.root, source);
-        let mut source_parent: Vec<&str> = source_abs_path
-            .split('/')
-            .filter(|&x| !x.is_empty())
-            .collect();
-        source_parent.pop();
-
-        let cache = &self.path_cache;
-
-        let file_name = build_abs_path(&self.root, target)
-            .split('/')
-            .filter(|&x| !x.is_empty())
-            .last()
-            .unwrap()
-            .to_string();
-
-        let old_parent = cache
-            .get(&source_parent.join("/"))
+        let source_parent = get_parent(&source);
+        let source_parent_id = self
+            .path_cache
+            .get(source_parent)
             .await?
             .expect("old parent must exist");
         let metadata = &json!({
             "name": file_name,
-            "removeParents": [old_parent],
-            "addParents": [parent],
+            "removeParents": [source_parent_id],
+            "addParents": [parent_id],
         });
 
+        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
         let mut req = Request::patch(url)
             .body(AsyncBody::Bytes(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
@@ -245,11 +238,7 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.path_cache.get(path).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            &format!("path not found: {}", path),
-        ))?;
+    pub async fn gdrive_delete(&self, file_id: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
         let mut req = Request::delete(&url)
@@ -272,7 +261,7 @@ impl GdriveCore {
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
-        let file_name = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
+        let file_name = get_basename(path);
 
         let metadata = &json!({
             "name": file_name,

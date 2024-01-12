@@ -146,32 +146,28 @@ impl Accessor for GdriveBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gdrive_delete(path).await;
-        if let Ok(resp) = resp {
-            let status = resp.status();
-
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                    let cache = &self.core.path_cache;
-
-                    cache.remove(&build_abs_path(&self.core.root, path));
-
-                    return Ok(RpDelete::default());
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
+        let path = build_abs_path(&self.core.root, path);
+        let file_id = self.core.path_cache.get(&path).await?;
+        let file_id = if let Some(id) = file_id {
+            id
+        } else {
+            return Ok(RpDelete::default());
         };
 
-        let e = resp.err().unwrap();
-        if e.kind() == ErrorKind::NotFound {
-            Ok(RpDelete::default())
-        } else {
-            Err(e)
+        let resp = self.core.gdrive_delete(&file_id).await?;
+        let status = resp.status();
+        if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+            return Err(parse_error(resp).await?);
         }
+
+        self.core.path_cache.remove(&path);
+        resp.into_body().consume().await?;
+        return Ok(RpDelete::default());
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GdriveLister::new(path.into(), self.core.clone());
+        let path = build_abs_path(&self.core.root, path);
+        let l = GdriveLister::new(path, self.core.clone());
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 

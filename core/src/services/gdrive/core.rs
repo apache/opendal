@@ -67,10 +67,14 @@ impl GdriveCore {
     /// - Will create the parent path recursively.
     pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
         let mut parents = vec![];
-        let mut current_path = path;
+        let mut current_path = if path.ends_with('/') {
+            path
+        } else {
+            get_parent(path)
+        };
         let mut parent_id = String::new();
 
-        while current_path != "/" || !current_path.is_empty() {
+        while current_path != "/" && !current_path.is_empty() {
             let id = self.path_cache.get(current_path).await?;
             match id {
                 Some(id) => {

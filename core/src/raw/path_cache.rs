@@ -74,7 +74,7 @@ impl<Q: PathQuery> PathCacher<Q> {
         let mut paths = vec![];
         let mut current_path = path;
 
-        while current_path != "/" || !current_path.is_empty() {
+        while current_path != "/" && !current_path.is_empty() {
             paths.push(current_path.to_string());
             current_path = get_parent(current_path);
             if let Some(id) = self.cache.get(current_path) {

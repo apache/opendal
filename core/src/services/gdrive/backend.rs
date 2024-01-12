@@ -172,45 +172,17 @@ impl Accessor for GdriveBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from_file_id = self
-            .core
-            .path_cache
-            .get(from)
-            .await?
-            .ok_or(Error::new(ErrorKind::NotFound, "invalid 'from' path"))?;
+        let from = build_abs_path(&self.core.root, from);
+        let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            "the file to be copied is not exist",
+        ))?;
 
-        // split `to` into parent and name according to the last `/`
-        let mut to_path_items: Vec<&str> = to.split('/').filter(|&x| !x.is_empty()).collect();
-
-        let to_name = if let Some(name) = to_path_items.pop() {
-            name
-        } else {
-            return Err(Error::new(ErrorKind::InvalidInput, "invalid 'to' path"));
-        };
-
-        let to_parent = to_path_items.join("/") + "/";
-
-        let to_parent_id = if let Some(id) = self.core.path_cache.get(to_parent.as_str()).await? {
-            id
-        } else {
-            self.create_dir(&to_parent, OpCreateDir::new()).await?;
-            self.core
-                .path_cache
-                .get(to_parent.as_str())
-                .await?
-                .ok_or_else(|| {
-                    Error::new(ErrorKind::Unexpected, "create to's parent folder failed")
-                })?
-        };
+        let to_name = get_basename(to);
+        let to_parent_id = self.core.ensure_parent_path(to).await?;
 
         // copy will overwrite `to`, delete it if exist
-        if self
-            .core
-            .path_cache
-            .get(to)
-            .await
-            .is_ok_and(|id| id.is_some())
-        {
+        if self.core.path_cache.get(to).await?.is_some() {
             self.delete(to, OpDelete::new()).await?;
         }
 

@@ -1,5 +1,5 @@
 ---
-title: Create a OpenDAL Release
+title: Create a release
 sidebar_position: 3
 ---
 

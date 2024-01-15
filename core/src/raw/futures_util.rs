@@ -134,8 +134,8 @@ where
         self.remaining() > 0
     }
 
-    /// Push new future into the queue.
-    pub fn push(&mut self, f: F) {
+    /// Push new future into the end of queue.
+    pub fn push_back(&mut self, f: F) {
         debug_assert!(
             self.has_remaining(),
             "concurrent futures must have remaining space"
@@ -147,6 +147,22 @@ where
             }
             Tasks::Small(v) => v.push_back(TaskResult::Polling(f)),
             Tasks::Large(v) => v.push_back(f),
+        }
+    }
+
+    /// Push new future into the start of queue, this task will be exactly the next to poll.
+    pub fn push_front(&mut self, f: F) {
+        debug_assert!(
+            self.has_remaining(),
+            "concurrent futures must have remaining space"
+        );
+
+        match &mut self.tasks {
+            Tasks::Once(fut) => {
+                *fut = Some(f);
+            }
+            Tasks::Small(v) => v.push_front(TaskResult::Polling(f)),
+            Tasks::Large(v) => v.push_front(f),
         }
     }
 }
@@ -230,7 +246,7 @@ mod tests {
                     idx
                 };
                 self.idx += 1;
-                self.tasks.push(Box::pin(fut));
+                self.tasks.push_back(Box::pin(fut));
             }
 
             if let Some(v) = ready!(self.tasks.poll_next_unpin(cx)) {

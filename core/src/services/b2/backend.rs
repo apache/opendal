@@ -379,7 +379,7 @@ impl Accessor for B2Backend {
         let concurrent = args.concurrent();
         let writer = B2Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartUploadWriter::new(writer, concurrent);
+        let w = oio::MultipartWriter::new(writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }

@@ -19,9 +19,9 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
-use parking_lot::Mutex;
 
 use crate::raw::adapters::typed_kv;
 use crate::*;
@@ -96,7 +96,7 @@ impl typed_kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.lock().get(path) {
+        match self.inner.lock().unwrap().get(path) {
             None => Ok(None),
             Some(bs) => Ok(Some(bs.to_owned())),
         }
@@ -107,7 +107,7 @@ impl typed_kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.lock().insert(path.to_string(), value);
+        self.inner.lock().unwrap().insert(path.to_string(), value);
 
         Ok(())
     }
@@ -117,7 +117,7 @@ impl typed_kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        self.inner.lock().remove(path);
+        self.inner.lock().unwrap().remove(path);
 
         Ok(())
     }
@@ -127,7 +127,7 @@ impl typed_kv::Adapter for Adapter {
     }
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let inner = self.inner.lock();
+        let inner = self.inner.lock().unwrap();
         let keys: Vec<_> = if path.is_empty() {
             inner.keys().cloned().collect()
         } else {

@@ -26,7 +26,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type UpyunWriters = oio::MultipartUploadWriter<UpyunWriter>;
+pub type UpyunWriters = oio::MultipartWriter<UpyunWriter>;
 
 pub struct UpyunWriter {
     core: Arc<UpyunCore>,
@@ -41,7 +41,7 @@ impl UpyunWriter {
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for UpyunWriter {
+impl oio::MultipartWrite for UpyunWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let req = self
             .core
@@ -89,7 +89,7 @@ impl oio::MultipartUploadWrite for UpyunWriter {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<oio::MultipartUploadPart> {
+    ) -> Result<oio::MultipartPart> {
         let req = self
             .core
             .upload_part(&self.path, upload_id, part_number, size, body)
@@ -103,7 +103,7 @@ impl oio::MultipartUploadWrite for UpyunWriter {
             StatusCode::NO_CONTENT | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
 
-                Ok(oio::MultipartUploadPart {
+                Ok(oio::MultipartPart {
                     part_number,
                     etag: "".to_string(),
                 })
@@ -112,11 +112,7 @@ impl oio::MultipartUploadWrite for UpyunWriter {
         }
     }
 
-    async fn complete_part(
-        &self,
-        upload_id: &str,
-        _parts: &[oio::MultipartUploadPart],
-    ) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, _parts: &[oio::MultipartPart]) -> Result<()> {
         let resp = self
             .core
             .complete_multipart_upload(&self.path, upload_id)

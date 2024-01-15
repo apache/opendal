@@ -351,7 +351,7 @@ impl Accessor for AzfileBackend {
         self.core.ensure_parent_dir_exists(path).await?;
         let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
         let w = if args.append() {
-            AzfileWriters::Two(oio::AppendObjectWriter::new(w))
+            AzfileWriters::Two(oio::AppendWriter::new(w))
         } else {
             AzfileWriters::One(oio::OneShotWriter::new(w))
         };

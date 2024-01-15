@@ -25,7 +25,6 @@ use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Future;
-use pin_project::pin_project;
 use tokio::io::ReadBuf;
 
 use crate::*;
@@ -207,8 +206,6 @@ pub trait ReadExt: Read {
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct ReadFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     buf: &'a mut [u8],
@@ -221,13 +218,11 @@ where
     type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.project();
-        Pin::new(this.reader).poll_read(cx, this.buf)
+        let this = self.get_mut();
+        this.reader.poll_read(cx, this.buf)
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct SeekFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     pos: io::SeekFrom,
@@ -240,13 +235,11 @@ where
     type Output = Result<u64>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<u64>> {
-        let this = self.project();
-        Pin::new(this.reader).poll_seek(cx, *this.pos)
+        let this = self.get_mut();
+        this.reader.poll_seek(cx, this.pos)
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct NextFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
 }
@@ -257,14 +250,11 @@ where
 {
     type Output = Option<Result<Bytes>>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let this = self.project();
-        Pin::new(this.reader).poll_next(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        self.reader.poll_next(cx)
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct ReadToEndFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     buf: &'a mut Vec<u8>,
@@ -277,7 +267,7 @@ where
     type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.project();
+        let this = self.get_mut();
         let start_len = this.buf.len();
 
         loop {

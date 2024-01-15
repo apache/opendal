@@ -157,14 +157,15 @@ impl Stream for Lister {
                     Poll::Ready(Ok(Some(oe))) => {
                         let (path, metadata) = oe.into_entry().into_parts();
                         if metadata.contains_metakey(self.required_metakey) {
-                            self.tasks.push(StatTask::Known(Some((path, metadata))));
+                            self.tasks
+                                .push_back(StatTask::Known(Some((path, metadata))));
                         } else {
                             let acc = self.acc.clone();
                             let fut = async move {
                                 let res = acc.stat(&path, OpStat::default()).await;
                                 (path, res.map(|rp| rp.into_metadata()))
                             };
-                            self.tasks.push(StatTask::Stating(Box::pin(fut)));
+                            self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
                         }
                     }
                     Poll::Ready(Ok(None)) => {

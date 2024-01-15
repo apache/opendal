@@ -15,16 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use hdfs_native::HdfsError;
 use crate::*;
+use hdfs_native::HdfsError;
 
 /// Parse hdfs-native error into opendal::Error.
 pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
-
     let (kind, retryable, msg) = match &hdfs_error {
         HdfsError::IOError(err) => (ErrorKind::Unexpected, false, err.to_string()),
         HdfsError::DataTransferError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::ChecksumError => (ErrorKind::Unexpected, false, "checksums didn't match".to_string()),
+        HdfsError::ChecksumError => (
+            ErrorKind::Unexpected,
+            false,
+            "checksums didn't match".to_string(),
+        ),
         HdfsError::InvalidPath(msg) => (ErrorKind::InvalidInput, false, msg.clone()),
         HdfsError::InvalidArgument(msg) => (ErrorKind::InvalidInput, false, msg.clone()),
         HdfsError::UrlParseError(err) => (ErrorKind::Unexpected, false, err.to_string()),
@@ -33,7 +36,9 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
         HdfsError::FileNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::BlocksNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::IsADirectoryError(msg) => (ErrorKind::IsADirectory, false, msg.clone()),
-        HdfsError::UnsupportedErasureCodingPolicy(msg) => (ErrorKind::Unsupported, false, msg.clone()),
+        HdfsError::UnsupportedErasureCodingPolicy(msg) => {
+            (ErrorKind::Unsupported, false, msg.clone())
+        }
         HdfsError::ErasureCodingError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
         HdfsError::UnsupportedFeature(msg) => (ErrorKind::Unsupported, false, msg.clone()),
         HdfsError::InternalError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
@@ -43,7 +48,11 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
         HdfsError::SASLError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
         #[cfg(feature = "kerberos")]
         HdfsError::GSSAPIError(_) => (ErrorKind::Unexpected, false, "GSSAPI error".to_string()),
-        HdfsError::NoSASLMechanism => (ErrorKind::Unexpected, false, "No valid SASL mechanism found".to_string()),
+        HdfsError::NoSASLMechanism => (
+            ErrorKind::Unexpected,
+            false,
+            "No valid SASL mechanism found".to_string(),
+        ),
     };
 
     let mut err = Error::new(kind, &msg).set_source(hdfs_error);

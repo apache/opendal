@@ -274,7 +274,7 @@ impl Accessor for GhacBackend {
         };
 
         let req = Request::get(location)
-            .header(header::RANGE, "0-0")
+            .header(header::RANGE, "bytes=0-0")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;

@@ -91,7 +91,7 @@ impl HdfsNativeBuilder {
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
     pub fn url(&mut self, url: &str) -> &mut Self {
-        if !name_node.is_empty() {
+        if !url.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.url = Some(url.trim_end_matches('/').to_string())
         }
@@ -135,7 +135,7 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(url).map_err(new_std_io_error)?;
+        let client = hdfs_native::Client::new(url).map_err()?;
 
         // need to check if root dir exists, create if not
 
@@ -187,14 +187,14 @@ impl Accessor for HdfsNativeBackend {
         self.client
             .mkdirs(&p, 0o777, true)
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(parse_hdfs_error)?;
         Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self.client.read(&p).await.map_err(new_std_io_error)?;
+        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
         let r = HdfsNativeReader::new(f);
 

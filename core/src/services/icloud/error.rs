@@ -35,7 +35,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
     let mut kind = match parts.status.as_u16() {
         //status:421 Misdirected Request
-        421|450|500 => ErrorKind::NotFound,
+        421 | 450 | 500 => ErrorKind::NotFound,
         401 => ErrorKind::Unexpected,
         _ => ErrorKind::Unexpected,
     };

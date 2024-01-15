@@ -27,11 +27,11 @@ use http::StatusCode;
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
+use crate::raw::oio::WriteBuf;
 use crate::raw::{new_json_deserialize_error, AsyncBody, HttpClient, IncomingAsyncBody};
 use crate::services::icloud::error::parse_error;
 use crate::services::icloud::webservices::iCloudWebservicesResponse;
 use serde_json::json;
-use crate::raw::oio::WriteBuf;
 
 //TODO It just support cn
 //Other country shoule be https://www.icloud.com
@@ -94,7 +94,7 @@ impl SessionData {
             session_token: None,
             scnt: None,
             account_country: None,
-            cookies:BTreeMap::new(),
+            cookies: BTreeMap::new(),
             webservices: HashMap::new(),
         }
     }
@@ -107,16 +107,16 @@ pub struct Session {
     pub(crate) password: String,
 
     pub trust_token: Option<String>,
-    pub ds_web_auth_token:Option<String>,
+    pub ds_web_auth_token: Option<String>,
 }
 
 impl Debug for Session {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("iCloud Session");
         de.field("apple_id", &self.apple_id);
-        de.field("password",&self.password);
-        de.field("trust_token",&self.trust_token);
-        de.field("ds_web_auth_token",&self.ds_web_auth_token);
+        de.field("password", &self.password);
+        de.field("trust_token", &self.trust_token);
+        de.field("ds_web_auth_token", &self.ds_web_auth_token);
         de.finish()
     }
 }
@@ -126,7 +126,7 @@ impl Session {
         self.data.webservices.get(&name)
     }
 
-    pub fn get_client_id(&self) ->&String {
+    pub fn get_client_id(&self) -> &String {
         &self.data.oauth_state
     }
 }
@@ -145,15 +145,9 @@ impl Session {
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
-
-
-        let response = self
-            .request(Method::POST, uri, async_body)
-            .await?;
-
+        let response = self.request(Method::POST, uri, async_body).await?;
 
         let status = response.status();
-
 
         return match status {
             StatusCode::OK => {
@@ -165,7 +159,6 @@ impl Session {
                     }
                 }
                 self.authenticate().await
-
             }
             _ => Err(parse_error(response).await?),
         };
@@ -184,16 +177,12 @@ impl Session {
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
-
-        let response = self
-            .request(Method::POST, uri, async_body)
-            .await?;
+        let response = self.request(Method::POST, uri, async_body).await?;
 
         let status = response.status();
 
         match status {
             StatusCode::OK => {
-
                 let body = &response.into_body().bytes().await?;
                 let auth_info: iCloudWebservicesResponse =
                     serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
@@ -206,7 +195,7 @@ impl Session {
                         },
                     );
                 }
-                if let Some(docws_url)=&auth_info.webservices.docws.url {
+                if let Some(docws_url) = &auth_info.webservices.docws.url {
                     self.data.webservices.insert(
                         String::from("docw"),
                         ServiceInfo {
@@ -214,7 +203,6 @@ impl Session {
                         },
                     );
                 }
-
 
                 if auth_info.hsa_challenge_required == true {
                     if auth_info.hsa_trusted_browser == true {
@@ -226,9 +214,10 @@ impl Session {
                     Ok(())
                 }
             }
-            _ => {
-                Err(Error::new(ErrorKind::Unexpected, "Apple iCloud AuthenticationFailed:Unauthorized:Invalid token"))
-            }
+            _ => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Apple iCloud AuthenticationFailed:Unauthorized:Invalid token",
+            )),
         }
     }
 }
@@ -239,8 +228,7 @@ impl Session {
         method: Method,
         uri: String,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>>
-    {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let mut request = Request::builder().method(method).uri(uri);
 
         request = request.header(OAUTH_STATE_HEADER, self.data.oauth_state.clone());
@@ -274,11 +262,8 @@ impl Session {
             }
         }
 
-
-
         match self.client.send(request.body(body).unwrap()).await {
             Ok(response) => {
-
                 if let Some(account_country) = response.headers().get(ACCOUNT_COUNTRY_HEADER) {
                     self.data.account_country =
                         Some(String::from(account_country.to_str().unwrap()));

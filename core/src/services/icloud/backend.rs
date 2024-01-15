@@ -17,17 +17,17 @@
 
 use crate::raw::*;
 use crate::services::icloud::client::Client;
+use crate::services::icloud::error::parse_error;
 use crate::services::icloud::session::{Session, SessionData};
 use crate::*;
 use crate::{Builder, Capability, Error, ErrorKind, Scheme};
 use async_trait::async_trait;
+use http::StatusCode;
 use log::debug;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use http::StatusCode;
 use tokio::sync::Mutex;
-use crate::services::icloud::error::parse_error;
 
 #[derive(Default)]
 pub struct iCloudBuilder {
@@ -47,7 +47,7 @@ impl Debug for iCloudBuilder {
         d.field("apple_id", &self.apple_id);
         d.field("password", &self.password);
         d.field("trust_token", &self.trust_token);
-        d.field("ds_web_auth_token",&self.ds_web_auth_token);
+        d.field("ds_web_auth_token", &self.ds_web_auth_token);
 
         d.finish_non_exhaustive()
     }
@@ -116,13 +116,13 @@ impl Builder for iCloudBuilder {
         map.get("apple_id").map(|v| builder.apple_id(v));
         map.get("password").map(|v| builder.password(v));
         map.get("trust_token").map(|v| builder.trust_token(v));
-        map.get("ds_web_auth_token").map(|v|builder.ds_web_auth_token(v));
+        map.get("ds_web_auth_token")
+            .map(|v| builder.ds_web_auth_token(v));
 
         builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-
         let root = normalize_root(&self.root.take().unwrap_or_default());
 
         let apple_id = match &self.apple_id {
@@ -139,11 +139,13 @@ impl Builder for iCloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let ds_web_auth_token=match &self.ds_web_auth_token {
+        let ds_web_auth_token = match &self.ds_web_auth_token {
             Some(ds_web_auth_token) => Ok(ds_web_auth_token.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "ds_web_auth_token is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Icloud)),
+            None => Err(
+                Error::new(ErrorKind::ConfigInvalid, "ds_web_auth_token is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Icloud),
+            ),
         }?;
 
         let client = if let Some(client) = self.http_client.take() {
@@ -216,29 +218,27 @@ impl Accessor for iCloudBackend {
 
         let node = self.client.stat(path).await?;
 
-
-
         let mut meta = Metadata::new(match node.type_field.as_str() {
             "FOLDER" => EntryMode::DIR,
             _ => EntryMode::FILE,
         });
 
-        if meta.mode()==EntryMode::DIR || path.ends_with('/') {
+        if meta.mode() == EntryMode::DIR || path.ends_with('/') {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         meta = meta.with_content_length(node.size);
 
-        let last_modified= parse_datetime_from_rfc3339(&node.date_modified).map_err(|e| {
+        let last_modified = parse_datetime_from_rfc3339(&node.date_modified).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
         })?;
-        meta=meta.with_last_modified(last_modified);
+        meta = meta.with_last_modified(last_modified);
 
         Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp=self.client.read(path,&args).await?;
+        let resp = self.client.read(path, &args).await?;
         let status = resp.status();
 
         match status {
@@ -251,12 +251,11 @@ impl Accessor for iCloudBackend {
                     resp.into_body(),
                 ))
             }
-            StatusCode::RANGE_NOT_SATISFIABLE =>{
+            StatusCode::RANGE_NOT_SATISFIABLE => {
                 resp.into_body().consume().await?;
                 Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
-
     }
 }

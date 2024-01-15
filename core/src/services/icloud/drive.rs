@@ -18,15 +18,17 @@
 use crate::raw::oio::WriteBuf;
 use crate::raw::{new_json_deserialize_error, AsyncBody, IncomingAsyncBody, OpRead};
 use crate::services::icloud::error::parse_error;
-use crate::services::icloud::graph_model::{iCloudCreateFolder, iCloudItem, iCloudObject, iCloudRoot};
+use crate::services::icloud::graph_model::{
+    iCloudCreateFolder, iCloudItem, iCloudObject, iCloudRoot,
+};
 use crate::services::icloud::session::Session;
 use crate::{Error, ErrorKind, Result};
 use chrono::Utc;
+use http::header::{IF_MATCH, IF_NONE_MATCH};
 use http::{Method, Request, Response, StatusCode};
+use log::debug;
 use serde_json::json;
 use std::sync::Arc;
-use http::header::{IF_MATCH, IF_NONE_MATCH};
-use log::debug;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -81,10 +83,7 @@ impl DriveNode {
         Ok(DriveNode::Folder(Folder {
             id: Option::from(value.drivewsid.to_string()),
             name: value.name.to_string(),
-            date_created: value
-                .date_created
-                .parse::<chrono::DateTime<Utc>>()
-                .ok(),
+            date_created: value.date_created.parse::<chrono::DateTime<Utc>>().ok(),
             items: value.items.clone(),
             mime_type: "Folder".to_string(),
         }))
@@ -153,13 +152,17 @@ impl std::fmt::Display for DriveNode {
 pub struct DriveService {
     session: Arc<Mutex<Session>>,
     drive_url: String,
-    docw_url:String,
+    docw_url: String,
 }
 
 impl DriveService {
     // Constructs an interface to an iCloud Drive.
-    pub fn new(session: Arc<Mutex<Session>>, drive_url: String,docw_url:String) -> DriveService {
-        DriveService { session, drive_url,docw_url, }
+    pub fn new(session: Arc<Mutex<Session>>, drive_url: String, docw_url: String) -> DriveService {
+        DriveService {
+            session,
+            drive_url,
+            docw_url,
+        }
     }
 
     // Retrieves the root directory within the iCloud Drive.
@@ -187,9 +190,7 @@ impl DriveService {
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
-        let response = session
-            .request(Method::POST, uri, async_body)
-            .await?;
+        let response = session.request(Method::POST, uri, async_body).await?;
 
         if response.status() == StatusCode::OK {
             let body = &response.into_body().bytes().await?;
@@ -204,15 +205,21 @@ impl DriveService {
         }
     }
 
-    pub async fn get_file(&self,id:&str,zone:&str,args: OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn get_file(
+        &self,
+        id: &str,
+        zone: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
         //https://p219-docws.icloud.com.cn:443
-        let uri = format!("{}\
-        /ws/{}/download/by_id?document_id={}",self.docw_url,zone,id);
+        let uri = format!(
+            "{}\
+        /ws/{}/download/by_id?document_id={}",
+            self.docw_url, zone, id
+        );
         debug!("{}", uri);
         let mut session = self.session.lock().await;
-        let response = session
-            .request(Method::GET, uri,AsyncBody::Empty)
-            .await?;
+        let response = session.request(Method::GET, uri, AsyncBody::Empty).await?;
 
         match response.status() {
             StatusCode::OK => {
@@ -220,7 +227,7 @@ impl DriveService {
                 let object: iCloudObject =
                     serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
-                let url=object.data_token.url.to_string();
+                let url = object.data_token.url.to_string();
 
                 let mut request_builder = Request::builder().method(Method::GET).uri(url);
 
@@ -237,20 +244,19 @@ impl DriveService {
                     request_builder = request_builder.header(IF_NONE_MATCH, if_none_match);
                 }
 
-
-                let async_body=request_builder.body(AsyncBody::Empty).unwrap();
+                let async_body = request_builder.body(AsyncBody::Empty).unwrap();
 
                 let response = session.client.send(async_body).await?;
 
                 Ok(response)
             }
-            _=>Err(parse_error(response).await?)
+            _ => Err(parse_error(response).await?),
         }
     }
 
-    pub async fn create_folder(&self, parent_id:&str, name:&str) -> Result<String> {
+    pub async fn create_folder(&self, parent_id: &str, name: &str) -> Result<String> {
         let mut session = self.session.lock().await;
-        let client_id=session.get_client_id();
+        let client_id = session.get_client_id();
         let uri = format!("{}/createFolders", self.drive_url);
         let body = json!(
                          {
@@ -263,24 +269,21 @@ impl DriveService {
                             ],
                          }
         )
-            .to_string();
-
+        .to_string();
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-        let response = session
-            .request(Method::POST, uri, async_body)
-            .await?;
+        let response = session.request(Method::POST, uri, async_body).await?;
 
         match response.status() {
             StatusCode::OK => {
                 let body = &response.into_body().bytes().await?;
 
-                let create_folder: iCloudCreateFolder = serde_json::from_slice(body.chunk())
-                    .map_err(new_json_deserialize_error)?;
+                let create_folder: iCloudCreateFolder =
+                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
                 Ok(create_folder.destination_drivews_id)
             }
-            _ => Err(parse_error(response).await?)
+            _ => Err(parse_error(response).await?),
         }
     }
 }

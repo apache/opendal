@@ -47,7 +47,7 @@ pub struct iCloudItem {
     #[serde(default)]
     pub date_created: String,
     #[serde(default)]
-    pub date_modified:String,
+    pub date_modified: String,
     #[serde(default)]
     pub direct_children_count: Option<i64>,
     pub docwsid: String,
@@ -60,7 +60,7 @@ pub struct iCloudItem {
     pub name: String,
     pub parent_id: String,
     #[serde(default)]
-    pub size:u64,
+    pub size: u64,
     #[serde(rename = "type")]
     pub type_field: String,
     pub zone: String,
@@ -157,7 +157,11 @@ impl std::fmt::Display for DataToken {
         wrapping_key:{}\
         reference_signature:{}\
         ",
-            self.url, self.reference_signature, self.token, self.wrapping_key, self.reference_signature
+            self.url,
+            self.reference_signature,
+            self.token,
+            self.wrapping_key,
+            self.reference_signature
         )
     }
 }

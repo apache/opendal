@@ -32,7 +32,7 @@ pub struct iCloudWebservicesResponse {
 #[serde(rename_all = "camelCase")]
 pub struct Webservices {
     pub drivews: Drivews,
-    pub docws:Docws,
+    pub docws: Docws,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -90,8 +90,11 @@ impl fmt::Display for Drivews {
 
 impl fmt::Display for Docws {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "iCloudWebservicesResponse, \
+        write!(
+            f,
+            "iCloudWebservicesResponse, \
         url:{:?}",
-               &self.url)
+            &self.url
+        )
     }
 }

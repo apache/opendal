@@ -116,7 +116,7 @@ pub use ipmfs::Ipmfs;
 #[cfg(feature = "services-icloud")]
 mod icloud;
 #[cfg(feature = "services-icloud")]
-pub use icloud::iCloud;
+pub use icloud::Icloud;
 
 #[cfg(feature = "services-libsql")]
 mod libsql;

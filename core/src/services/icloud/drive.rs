@@ -15,14 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::WriteBuf;
-use crate::raw::{new_json_deserialize_error, AsyncBody, IncomingAsyncBody, OpRead};
-use crate::services::icloud::error::parse_error;
-use crate::services::icloud::graph_model::{
-    iCloudCreateFolder, iCloudItem, iCloudObject, iCloudRoot,
-};
-use crate::services::icloud::session::Session;
-use crate::{Error, ErrorKind, Result};
 use chrono::Utc;
 use http::header::{IF_MATCH, IF_NONE_MATCH};
 use http::{Method, Request, Response, StatusCode};
@@ -30,6 +22,14 @@ use log::debug;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::raw::oio::WriteBuf;
+use crate::raw::{new_json_deserialize_error, AsyncBody, IncomingAsyncBody, OpRead};
+use crate::{Error, ErrorKind, Result};
+
+use super::core::{
+    parse_error, IcloudCreateFolder, IcloudItem, IcloudObject, IcloudRoot, IcloudSigner,
+};
 
 #[derive(Clone)]
 pub struct File {
@@ -47,16 +47,16 @@ pub struct Folder {
     pub id: Option<String>,
     pub name: String,
     pub date_created: Option<chrono::DateTime<Utc>>,
-    pub items: Vec<iCloudItem>,
+    pub items: Vec<IcloudItem>,
     pub mime_type: String,
 }
 
 pub struct FolderIter<'a> {
-    current: std::slice::Iter<'a, iCloudItem>,
+    current: std::slice::Iter<'a, IcloudItem>,
 }
 
 impl<'a> Iterator for FolderIter<'a> {
-    type Item = &'a iCloudItem;
+    type Item = &'a IcloudItem;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.current.next()
@@ -64,6 +64,7 @@ impl<'a> Iterator for FolderIter<'a> {
 }
 
 impl Folder {
+    #[warn(dead_code)]
     pub fn iter(&self) -> FolderIter {
         FolderIter {
             current: self.items.iter(),
@@ -73,13 +74,15 @@ impl Folder {
 
 // A node within the iCloud Drive filesystem.
 #[derive(Clone)]
+#[warn(unused_variables)]
+#[warn(dead_code)]
 pub enum DriveNode {
     Folder(Folder),
     File(File),
 }
 
 impl DriveNode {
-    fn new_root(value: &iCloudRoot) -> Result<DriveNode> {
+    fn new_root(value: &IcloudRoot) -> Result<DriveNode> {
         Ok(DriveNode::Folder(Folder {
             id: Option::from(value.drivewsid.to_string()),
             name: value.name.to_string(),
@@ -89,27 +92,29 @@ impl DriveNode {
         }))
     }
 
+    #[warn(dead_code)]
     pub fn id(&self) -> Option<String> {
         match self {
             DriveNode::Folder(folder) => folder.id.clone(),
             DriveNode::File(file) => file.id.clone(),
         }
     }
-
+    #[warn(dead_code)]
     pub fn name(&self) -> &String {
         match self {
             DriveNode::Folder(folder) => &folder.name,
             DriveNode::File(file) => &file.name,
         }
     }
-
+    #[warn(dead_code)]
     pub fn size(&self) -> Option<u64> {
         match self {
+            #[warn(unused_variables)]
             DriveNode::Folder(folder) => None,
-            DriveNode::File(file) => Some(file.size.clone()),
+            DriveNode::File(file) => Some(file.size),
         }
     }
-
+    #[warn(dead_code)]
     pub fn mime_type(&self) -> String {
         match self {
             DriveNode::Folder(folder) => folder.mime_type.clone(),
@@ -117,7 +122,7 @@ impl DriveNode {
         }
     }
 
-    pub fn items(&self) -> Option<Vec<iCloudItem>> {
+    pub fn items(&self) -> Option<Vec<IcloudItem>> {
         match self {
             DriveNode::Folder(folder) => Some(folder.items.clone()),
             DriveNode::File(file) => None,
@@ -150,16 +155,20 @@ impl std::fmt::Display for DriveNode {
 }
 
 pub struct DriveService {
-    session: Arc<Mutex<Session>>,
+    core: Arc<Mutex<IcloudSigner>>,
     drive_url: String,
     docw_url: String,
 }
 
 impl DriveService {
     // Constructs an interface to an iCloud Drive.
-    pub fn new(session: Arc<Mutex<Session>>, drive_url: String, docw_url: String) -> DriveService {
+    pub fn new(
+        core: Arc<Mutex<IcloudSigner>>,
+        drive_url: String,
+        docw_url: String,
+    ) -> DriveService {
         DriveService {
-            session,
+            core,
             drive_url,
             docw_url,
         }
@@ -186,17 +195,16 @@ impl DriveService {
         ])
         .to_string();
 
-        let mut session = self.session.lock().await;
-
+        let mut core = self.core.lock().await;
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
-        let response = session.request(Method::POST, uri, async_body).await?;
+        let response = core.sign(Method::POST, uri, async_body).await?;
 
         if response.status() == StatusCode::OK {
             let body = &response.into_body().bytes().await?;
 
             //iCloudRoot
-            let drive_node: Vec<iCloudRoot> =
+            let drive_node: Vec<IcloudRoot> =
                 serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
             Ok(DriveNode::new_root(&drive_node[0])?)
@@ -218,13 +226,15 @@ impl DriveService {
             self.docw_url, zone, id
         );
         debug!("{}", uri);
-        let mut session = self.session.lock().await;
-        let response = session.request(Method::GET, uri, AsyncBody::Empty).await?;
+
+        let mut core = self.core.lock().await;
+
+        let response = core.sign(Method::GET, uri, AsyncBody::Empty).await?;
 
         match response.status() {
             StatusCode::OK => {
                 let body = &response.into_body().bytes().await?;
-                let object: iCloudObject =
+                let object: IcloudObject =
                     serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
                 let url = object.data_token.url.to_string();
@@ -246,7 +256,7 @@ impl DriveService {
 
                 let async_body = request_builder.body(AsyncBody::Empty).unwrap();
 
-                let response = session.client.send(async_body).await?;
+                let response = core.client.send(async_body).await?;
 
                 Ok(response)
             }
@@ -254,9 +264,10 @@ impl DriveService {
         }
     }
 
+    #[warn(dead_code)]
     pub async fn create_folder(&self, parent_id: &str, name: &str) -> Result<String> {
-        let mut session = self.session.lock().await;
-        let client_id = session.get_client_id();
+        let mut core = self.core.lock().await;
+        let client_id = core.get_client_id();
         let uri = format!("{}/createFolders", self.drive_url);
         let body = json!(
                          {
@@ -272,13 +283,14 @@ impl DriveService {
         .to_string();
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-        let response = session.request(Method::POST, uri, async_body).await?;
+
+        let response = core.sign(Method::POST, uri, async_body).await?;
 
         match response.status() {
             StatusCode::OK => {
                 let body = &response.into_body().bytes().await?;
 
-                let create_folder: iCloudCreateFolder =
+                let create_folder: IcloudCreateFolder =
                     serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
                 Ok(create_folder.destination_drivews_id)

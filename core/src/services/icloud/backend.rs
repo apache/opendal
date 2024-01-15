@@ -15,52 +15,96 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::services::icloud::client::Client;
-use crate::services::icloud::error::parse_error;
-use crate::services::icloud::session::{Session, SessionData};
-use crate::*;
-use crate::{Builder, Capability, Error, ErrorKind, Scheme};
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[derive(Default)]
-pub struct iCloudBuilder {
+use crate::raw::*;
+use crate::services::icloud::core::{parse_error, IcloudSigner, SessionData};
+use crate::*;
+use crate::{Builder, Capability, Error, ErrorKind, Scheme};
+
+use super::client::Client;
+
+/// Config for icloud services support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct IcloudConfig {
+    /// root of this backend.
+    ///
+    /// All operations will happen under this root.
+    ///
+    /// default to `/` if not set.
     pub root: Option<String>,
+    /// apple_id of this backend.
+    ///
+    /// apple_id must be full, mostly like `example@gmail.com`.
     pub apple_id: Option<String>,
+    /// password of this backend.
+    ///
+    /// password must be full.
     pub password: Option<String>,
+
+    /// Session
+    ///
+    /// token must be valid.
     pub trust_token: Option<String>,
     pub ds_web_auth_token: Option<String>,
-
-    pub http_client: Option<HttpClient>,
+    /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".
+    ///
+    /// otherwise Apple server will return 302.
+    pub region: Option<String>,
 }
 
-impl Debug for iCloudBuilder {
+impl Debug for IcloudConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("iCloudBuilder");
         d.field("root", &self.root);
-        d.field("apple_id", &self.apple_id);
-        d.field("password", &self.password);
         d.field("trust_token", &self.trust_token);
         d.field("ds_web_auth_token", &self.ds_web_auth_token);
+        d.field("region", &self.region);
 
         d.finish_non_exhaustive()
     }
 }
 
-impl iCloudBuilder {
+/// [IcloudDrive](https://www.icloud.com/iclouddrive/) service support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct IcloudBuilder {
+    pub config: IcloudConfig,
+    pub http_client: Option<HttpClient>,
+}
+
+impl Debug for IcloudBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("IcloudBuilder");
+
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
+}
+
+impl IcloudBuilder {
+    /// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.config.root = Some(root.to_string());
         self
     }
 
+    /// Your Apple id
+    ///
+    /// It is required. your Apple login email, e.g. `example@gmail.com`
     pub fn apple_id(&mut self, apple_id: &str) -> &mut Self {
-        self.apple_id = if apple_id.is_empty() {
+        self.config.apple_id = if apple_id.is_empty() {
             None
         } else {
             Some(apple_id.to_string())
@@ -69,8 +113,11 @@ impl iCloudBuilder {
         self
     }
 
+    /// Your Apple id password
+    ///
+    /// It is required. your icloud login password, e.g. `password`
     pub fn password(&mut self, password: &str) -> &mut Self {
-        self.password = if password.is_empty() {
+        self.config.password = if password.is_empty() {
             None
         } else {
             Some(password.to_string())
@@ -79,8 +126,13 @@ impl iCloudBuilder {
         self
     }
 
+    /// Trust token and ds_web_auth_token is used for temporary access to the IcloudDrive API.
+    /// Authenticate using session token
+    /// You can get more information from [pyicloud](https://github.com/picklepete/pyicloud/tree/master?tab=readme-ov-file#authentication)
+    /// or [iCloud-API](https://github.com/MauriceConrad/iCloud-API?tab=readme-ov-file#getting-started)
+
     pub fn trust_token(&mut self, trust_token: &str) -> &mut Self {
-        self.trust_token = if trust_token.is_empty() {
+        self.config.trust_token = if trust_token.is_empty() {
             None
         } else {
             Some(trust_token.to_string())
@@ -88,9 +140,11 @@ impl iCloudBuilder {
 
         self
     }
-
+    /// ds_web_auth_token must be set in Session
+    ///
+    /// Avoid Two Factor Authentication
     pub fn ds_web_auth_token(&mut self, ds_web_auth_token: &str) -> &mut Self {
-        self.ds_web_auth_token = if ds_web_auth_token.is_empty() {
+        self.config.ds_web_auth_token = if ds_web_auth_token.is_empty() {
             None
         } else {
             Some(ds_web_auth_token.to_string())
@@ -98,48 +152,62 @@ impl iCloudBuilder {
 
         self
     }
+    /// For China, use "https://www.icloud.com.cn"
+    /// For Other region, use "https://www.icloud.com"
+    pub fn region(&mut self, region: &str) -> &mut Self {
+        self.config.region = if region.is_empty() {
+            None
+        } else {
+            Some(region.to_string())
+        };
 
+        self
+    }
+
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
     pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
         self.http_client = Some(client);
         self
     }
 }
 
-impl Builder for iCloudBuilder {
+impl Builder for IcloudBuilder {
     const SCHEME: Scheme = Scheme::Icloud;
-    type Accessor = iCloudBackend;
+    type Accessor = IcloudBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
+        let config = IcloudConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("apple_id").map(|v| builder.apple_id(v));
-        map.get("password").map(|v| builder.password(v));
-        map.get("trust_token").map(|v| builder.trust_token(v));
-        map.get("ds_web_auth_token")
-            .map(|v| builder.ds_web_auth_token(v));
-
-        builder
+        IcloudBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
 
-        let apple_id = match &self.apple_id {
+        let apple_id = match &self.config.apple_id {
             Some(apple_id) => Ok(apple_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "apple_id is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let password = match &self.password {
+        let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let ds_web_auth_token = match &self.ds_web_auth_token {
+        let ds_web_auth_token = match &self.config.ds_web_auth_token {
             Some(ds_web_auth_token) => Ok(ds_web_auth_token.clone()),
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "ds_web_auth_token is empty")
@@ -147,6 +215,22 @@ impl Builder for iCloudBuilder {
                     .with_context("service", Scheme::Icloud),
             ),
         }?;
+
+        let trust_token = match &self.config.trust_token {
+            Some(trust_token) => Ok(trust_token.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "trust_token is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Icloud)),
+        }?;
+        debug!("iCloud backend use trust_token {}", &trust_token);
+
+        let region = match &self.config.region {
+            Some(region) => Ok(region.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "region is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Icloud)),
+        }?;
+        debug!("iCloud backend use region {}", &region);
 
         let client = if let Some(client) = self.http_client.take() {
             client
@@ -157,25 +241,19 @@ impl Builder for iCloudBuilder {
             })?
         };
 
-        let trust_token = match &self.trust_token {
-            Some(trust_token) => Ok(trust_token.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "trust_token is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Icloud)),
-        }?;
-        debug!("iCloud backend use trust_token {}", &trust_token);
-
         let session_data = SessionData::new();
 
-        Ok(iCloudBackend {
+        Ok(IcloudBackend {
             client: Arc::new(Client {
-                session: Arc::new(Mutex::new(Session {
-                    data: session_data,
+                core: Arc::new(Mutex::new(IcloudSigner {
                     client,
+
+                    data: session_data,
                     apple_id,
                     password,
                     trust_token: Some(trust_token),
                     ds_web_auth_token: Some(ds_web_auth_token),
+                    region: Some(region),
                 })),
                 root,
                 path_cache: Arc::new(Default::default()),
@@ -185,12 +263,12 @@ impl Builder for iCloudBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct iCloudBackend {
+pub struct IcloudBackend {
     client: Arc<Client>,
 }
 
 #[async_trait]
-impl Accessor for iCloudBackend {
+impl Accessor for IcloudBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
     type Writer = ();
@@ -229,9 +307,7 @@ impl Accessor for iCloudBackend {
 
         meta = meta.with_content_length(node.size);
 
-        let last_modified = parse_datetime_from_rfc3339(&node.date_modified).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-        })?;
+        let last_modified = parse_datetime_from_rfc3339(&node.date_modified)?;
         meta = meta.with_last_modified(last_modified);
 
         Ok(RpStat::new(meta))
@@ -246,7 +322,6 @@ impl Accessor for iCloudBackend {
                 let size = parse_content_length(resp.headers())?;
                 let range = parse_content_range(resp.headers())?;
                 Ok((
-                    //0-1023
                     RpRead::new().with_size(size).with_range(range),
                     resp.into_body(),
                 ))

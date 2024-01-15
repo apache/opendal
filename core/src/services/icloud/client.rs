@@ -15,20 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
 use http::Response;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::services::icloud::drive::DriveService;
-use crate::services::icloud::graph_model::iCloudItem;
-use crate::services::icloud::session::Session;
+use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
 use crate::{Error, ErrorKind, Result};
+
+use super::core::{IcloudItem, IcloudSigner};
+use super::drive::DriveService;
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    pub(crate) session: Arc<Mutex<Session>>,
+    pub core: Arc<Mutex<IcloudSigner>>,
     pub root: String,
     pub path_cache: Arc<Mutex<HashMap<String, String>>>,
 }
@@ -36,22 +36,22 @@ pub struct Client {
 impl Client {
     // Logs into iCloud using the provided credentials.
     pub async fn login(&self) -> Result<()> {
-        let mut session = self.session.lock().await;
+        let mut core = self.core.lock().await;
 
-        session.sign().await
+        core.signer().await
     }
 
-    //APPLE Drive
+    //Apple Drive
     pub async fn drive(&self) -> Option<DriveService> {
-        let clone = self.session.clone();
-        let session = self.session.lock().await;
+        let clone = self.core.clone();
+        let core = self.core.lock().await;
 
-        let docw = session.get_service_info(String::from("docw")).unwrap();
-        session
-            .get_service_info(String::from("drive"))
+        let docw = core.get_service_info(String::from("docw")).unwrap();
+        core.get_service_info(String::from("drive"))
             .map(|s| DriveService::new(clone, s.url.clone(), docw.url.clone()))
     }
 
+    #[warn(clippy::single_char_pattern)]
     pub async fn get_stat_folder_id(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
         let mut base = get_basename(&path);
@@ -88,7 +88,7 @@ impl Client {
         for (i, item) in file_path_items.iter().enumerate() {
             let path_part = file_path_items[0..=i].join("/");
             if let Some(id) = cache.get(&path_part) {
-                parent_id = self.get_id(&id, item, &drive).await?.unwrap();
+                parent_id = self.get_id(id, item, &drive).await?.unwrap();
                 continue;
             }
 
@@ -166,7 +166,7 @@ impl Client {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<iCloudItem> {
+    pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
         self.login().await?;
         let path_id = self
             .get_file_id_by_path(path)
@@ -195,7 +195,7 @@ impl Client {
             Some(items) => {
                 match items
                     .iter()
-                    .find(|it| it.drivewsid == path_id.clone().unwrap().to_string())
+                    .find(|it| it.drivewsid == path_id.clone().unwrap())
                 {
                     Some(it) => Ok(it.clone()),
                     _ => Err(Error::new(

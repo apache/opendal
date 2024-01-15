@@ -16,11 +16,8 @@
 // under the License.
 
 mod backend;
-pub use backend::iCloudBuilder as iCloud;
+pub use backend::IcloudBuilder as Icloud;
 
 mod client;
+mod core;
 mod drive;
-mod error;
-mod graph_model;
-mod session;
-mod webservices;

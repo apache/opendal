@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
-use bytes::Buf;
 
 use http::header;
 use http::Method;
@@ -25,20 +25,15 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
-use crate::raw::{new_json_deserialize_error, AsyncBody, HttpClient, IncomingAsyncBody, with_error_response_context};
-use serde_json::json;
-
-// //TODO It just support cn
-// //Other country shoule be https://www.icloud.com
-// //Need to improve?
-// const GLOBAL_HEADERS: [(&str, &str); 2] = [
-//     ("Origin", "https://www.icloud.com.cn"),
-//     ("Referer", "https://www.icloud.com.cn/"),
-// ];
+use crate::raw::{
+    new_json_deserialize_error, with_error_response_context, AsyncBody, HttpClient,
+    IncomingAsyncBody,
+};
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
@@ -73,7 +68,6 @@ pub struct ServiceInfo {
     pub url: String,
 }
 
-// #[derive(Clone)]
 pub struct SessionData {
     oauth_state: String,
     session_id: Option<String>,
@@ -109,7 +103,7 @@ pub struct IcloudSigner {
 
     pub trust_token: Option<String>,
     pub ds_web_auth_token: Option<String>,
-    pub region:Option<String>,
+    pub region: Option<String>,
 }
 
 impl Debug for IcloudSigner {
@@ -117,14 +111,10 @@ impl Debug for IcloudSigner {
         let mut de = f.debug_struct("iCloud signer");
         de.field("trust_token", &self.trust_token);
         de.field("ds_web_auth_token", &self.ds_web_auth_token);
-        de.field("region",&self.region);
+        de.field("region", &self.region);
         de.finish()
     }
 }
-
-// #[derive(Clone)]
-
-
 
 impl IcloudSigner {
     pub fn get_service_info(&self, name: String) -> Option<&ServiceInfo> {
@@ -146,7 +136,7 @@ impl IcloudSigner {
             "rememberMe": true,
             "trustTokens": [self.trust_token.clone().unwrap()],
         })
-            .to_string();
+        .to_string();
 
         let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
 
@@ -178,7 +168,7 @@ impl IcloudSigner {
                     "extended_login": true,
                     "trustToken": self.trust_token.as_ref().unwrap_or(&String::new())
         })
-            .to_string();
+        .to_string();
 
         let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
 
@@ -247,12 +237,12 @@ impl IcloudSigner {
             request = request.header(SCNT_HEADER, scnt);
         }
 
+        // China region
         // ("Origin", "https://www.icloud.com.cn")
         // ("Referer", "https://www.icloud.com.cn/")
-        if let Some(region)=&self.region {
-
-            request=request.header("Origin",region);
-            request=request.header("Referer",(region.to_string()+"/").as_str());
+        if let Some(region) = &self.region {
+            request = request.header("Origin", region);
+            request = request.header("Referer", (region.to_string() + "/").as_str());
         }
 
         if !self.data.cookies.is_empty() {
@@ -346,14 +336,12 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-
 #[derive(Default, Debug, Deserialize)]
 #[allow(dead_code)]
 struct IcloudError {
     status_code: String,
     message: String,
 }
-
 
 #[derive(Default, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -481,7 +469,6 @@ pub struct IcloudCreateFolder {
 #[cfg(test)]
 mod tests {
     use crate::services::icloud::core::IcloudRoot;
-
 
     #[test]
     fn test_parse_icloud_drive_root_json() {

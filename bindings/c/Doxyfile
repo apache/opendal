@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-PROJECT_NAME           = "OpenDAL C Binding"
-PROJECT_BRIEF          = "The C binding for Apache OpenDAL"
+PROJECT_NAME           = "Apache OpenDAL™ C Binding"
+PROJECT_BRIEF          = "The C binding for Apache OpenDAL™"
 OUTPUT_DIRECTORY       = ./docs/doxygen
 EXCLUDE_SYMBOLS        = "HashMap_String__String" \
                          "BlockingOperator" \

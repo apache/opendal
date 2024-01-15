@@ -78,7 +78,9 @@ impl oio::PageList for GdriveLister {
 
         for mut file in decoded_response.files {
             let file_type = if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-                file.name = format!("{}/", file.name);
+                if !file.name.ends_with('/') {
+                    file.name += "/";
+                }
                 EntryMode::DIR
             } else {
                 EntryMode::FILE

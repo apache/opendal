@@ -63,10 +63,9 @@ impl Accessor for GdriveBackend {
                 write: true,
 
                 create_dir: true,
-                rename: true,
                 delete: true,
+                rename: true,
                 copy: true,
-
                 ..Default::default()
             });
 

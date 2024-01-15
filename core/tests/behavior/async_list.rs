@@ -259,11 +259,15 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    assert_eq!(objects.len(), 1, "only return the dir itself");
+    assert_eq!(
+        objects.len(),
+        1,
+        "only return the dir itself, but found: {objects:?}"
+    );
     assert_eq!(
         objects[&dir].metadata().mode(),
         EntryMode::DIR,
-        "given dir should exist and must be dir"
+        "given dir should exist and must be dir, but found: {objects:?}"
     );
 
     // List "dir/" should return empty object.
@@ -317,6 +321,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
     let mut obs = op.lister("/").await?;
     let mut found = false;
+    let mut entries = vec![];
     while let Some(de) = obs.try_next().await? {
         if de.path() == path {
             let meta = op.stat(&path).await?;
@@ -325,8 +330,13 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
             found = true
         }
+        entries.push(de)
     }
-    assert!(found, "dir should be found in list");
+    assert!(
+        found,
+        "dir should be found in list, but only got: {:?}",
+        entries
+    );
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

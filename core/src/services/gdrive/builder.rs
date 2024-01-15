@@ -195,6 +195,7 @@ impl Builder for GdriveBuilder {
                 signer: signer.clone(),
                 client: client.clone(),
                 path_cache: PathCacher::new(GdrivePathQuery::new(client, signer)),
+                create_folder_lock: Arc::default(),
             }),
         })
     }

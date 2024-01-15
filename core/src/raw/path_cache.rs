@@ -57,6 +57,15 @@ impl<Q: PathQuery> PathCacher<Q> {
 
     /// Insert a new cache entry.
     pub fn insert(&self, path: &str, id: &str) {
+        // This should never happen, but let's ignore the insert if happened.
+        if self.cache.contains_key(path) {
+            debug_assert!(
+                self.cache.get(path) != Some(id.to_string()),
+                "path {path} exists but it's value is inconsistent"
+            );
+            return;
+        }
+
         self.cache.insert(path.to_string(), id.to_string());
     }
 

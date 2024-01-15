@@ -1,0 +1,628 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::{Debug, Formatter};
+use bytes::Buf;
+
+use http::header;
+use http::Method;
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use serde::{Deserialize, Serialize};
+
+use crate::types::Result;
+use crate::{Error, ErrorKind};
+
+use crate::raw::{new_json_deserialize_error, AsyncBody, HttpClient, IncomingAsyncBody, with_error_response_context};
+use serde_json::json;
+
+// //TODO It just support cn
+// //Other country shoule be https://www.icloud.com
+// //Need to improve?
+// const GLOBAL_HEADERS: [(&str, &str); 2] = [
+//     ("Origin", "https://www.icloud.com.cn"),
+//     ("Referer", "https://www.icloud.com.cn/"),
+// ];
+
+static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
+static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
+
+static SESSION_ID_HEADER: &str = "X-Apple-ID-Session-Id";
+
+static SCNT_HEADER: &str = "scnt";
+
+static SESSION_TOKEN_HEADER: &str = "X-Apple-Session-Token";
+static AUTH_ENDPOINT: &str = "https://idmsa.apple.com/appleauth/auth";
+static SETUP_ENDPOINT: &str = "https://setup.icloud.com/setup/ws/1";
+
+static APPLE_RESPONSE_HEADER: &str = "X-Apple-I-Rscd";
+
+const AUTH_HEADERS: [(&str, &str); 7] = [
+    (
+        "X-Apple-OAuth-Client-Id",
+        "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d",
+    ),
+    ("X-Apple-OAuth-Client-Type", "firstPartyAuth"),
+    ("X-Apple-OAuth-Redirect-URI", "https://www.icloud.com"),
+    ("X-Apple-OAuth-Require-Grant-Code", "true"),
+    ("X-Apple-OAuth-Response-Mode", "web_message"),
+    ("X-Apple-OAuth-Response-Type", "code"),
+    (
+        "X-Apple-Widget-Key",
+        "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d",
+    ),
+];
+
+pub struct ServiceInfo {
+    pub url: String,
+}
+
+// #[derive(Clone)]
+pub struct SessionData {
+    oauth_state: String,
+    session_id: Option<String>,
+    session_token: Option<String>,
+
+    scnt: Option<String>,
+    account_country: Option<String>,
+
+    cookies: BTreeMap<String, String>,
+    webservices: HashMap<String, ServiceInfo>,
+}
+
+impl SessionData {
+    pub fn new() -> SessionData {
+        Self {
+            oauth_state: format!("auth-{}", uuid::Uuid::new_v4()).to_string(),
+            session_id: None,
+            session_token: None,
+            scnt: None,
+            account_country: None,
+            cookies: BTreeMap::new(),
+            webservices: HashMap::new(),
+        }
+    }
+}
+
+pub struct IcloudSigner {
+    pub client: HttpClient,
+
+    pub data: SessionData,
+    pub apple_id: String,
+    pub password: String,
+
+    pub trust_token: Option<String>,
+    pub ds_web_auth_token: Option<String>,
+    pub region:Option<String>,
+}
+
+impl Debug for IcloudSigner {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("iCloud signer");
+        de.field("trust_token", &self.trust_token);
+        de.field("ds_web_auth_token", &self.ds_web_auth_token);
+        de.field("region",&self.region);
+        de.finish()
+    }
+}
+
+// #[derive(Clone)]
+
+
+
+impl IcloudSigner {
+    pub fn get_service_info(&self, name: String) -> Option<&ServiceInfo> {
+        self.data.webservices.get(&name)
+    }
+
+    #[warn(dead_code)]
+    // create_dir could use client_id
+    pub fn get_client_id(&self) -> &String {
+        &self.data.oauth_state
+    }
+}
+
+impl IcloudSigner {
+    pub async fn signer(&mut self) -> Result<()> {
+        let body = json!({
+            "accountName" : self.apple_id,
+            "password" : self.password,
+            "rememberMe": true,
+            "trustTokens": [self.trust_token.clone().unwrap()],
+        })
+            .to_string();
+
+        let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+
+        let response = self.sign(Method::POST, uri, async_body).await?;
+
+        let status = response.status();
+
+        return match status {
+            StatusCode::OK => {
+                if let Some(rscd) = response.headers().get(APPLE_RESPONSE_HEADER) {
+                    let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
+                    //409
+                    if status_code != StatusCode::CONFLICT {
+                        return Err(parse_error(response).await?);
+                    }
+                }
+                self.authenticate().await
+            }
+            _ => Err(parse_error(response).await?),
+        };
+    }
+
+    pub async fn authenticate(&mut self) -> Result<()> {
+        let body = json!({
+            "accountCountryCode": self.data.account_country.as_ref().unwrap_or(&String::new()),
+            "dsWebAuthToken":self.ds_web_auth_token.as_ref().unwrap_or(&String::new()),
+                    "extended_login": true,
+                    "trustToken": self.trust_token.as_ref().unwrap_or(&String::new())
+        })
+            .to_string();
+
+        let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+
+        let response = self.sign(Method::POST, uri, async_body).await?;
+
+        let status = response.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = &response.into_body().bytes().await?;
+                let auth_info: IcloudWebservicesResponse =
+                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+                if let Some(drivews_url) = &auth_info.webservices.drivews.url {
+                    self.data.webservices.insert(
+                        String::from("drive"),
+                        ServiceInfo {
+                            url: drivews_url.to_string(),
+                        },
+                    );
+                }
+                if let Some(docws_url) = &auth_info.webservices.docws.url {
+                    self.data.webservices.insert(
+                        String::from("docw"),
+                        ServiceInfo {
+                            url: docws_url.to_string(),
+                        },
+                    );
+                }
+
+                if auth_info.hsa_challenge_required {
+                    if auth_info.hsa_trusted_browser {
+                        Ok(())
+                    } else {
+                        Err(Error::new(ErrorKind::Unexpected, "Apple iCloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"))
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            _ => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Apple iCloud AuthenticationFailed:Unauthorized:Invalid token",
+            )),
+        }
+    }
+}
+
+impl IcloudSigner {
+    pub async fn sign(
+        &mut self,
+        method: Method,
+        uri: String,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut request = Request::builder().method(method).uri(uri);
+
+        request = request.header(OAUTH_STATE_HEADER, self.data.oauth_state.clone());
+
+        if let Some(session_id) = &self.data.session_id {
+            request = request.header(SESSION_ID_HEADER, session_id);
+        }
+        if let Some(scnt) = &self.data.scnt {
+            request = request.header(SCNT_HEADER, scnt);
+        }
+
+        // ("Origin", "https://www.icloud.com.cn")
+        // ("Referer", "https://www.icloud.com.cn/")
+        if let Some(region)=&self.region {
+
+            request=request.header("Origin",region);
+            request=request.header("Referer",(region.to_string()+"/").as_str());
+        }
+
+        if !self.data.cookies.is_empty() {
+            let cookies: Vec<String> = self
+                .data
+                .cookies
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect();
+            request = request.header(header::COOKIE, cookies.as_slice().join("; "));
+        }
+
+        if let Some(headers) = request.headers_mut() {
+            headers.insert("Content-Type", "application/json".parse().unwrap());
+            headers.insert("Accept", "*/*".parse().unwrap());
+            for (key, value) in AUTH_HEADERS {
+                headers.insert(key, value.parse().unwrap());
+            }
+        }
+
+        match self.client.send(request.body(body).unwrap()).await {
+            Ok(response) => {
+                if let Some(account_country) = response.headers().get(ACCOUNT_COUNTRY_HEADER) {
+                    self.data.account_country =
+                        Some(String::from(account_country.to_str().unwrap()));
+                }
+                if let Some(session_id) = response.headers().get(SESSION_ID_HEADER) {
+                    self.data.session_id = Some(String::from(session_id.to_str().unwrap()));
+                }
+                if let Some(session_token) = response.headers().get(SESSION_TOKEN_HEADER) {
+                    self.data.session_token = Some(String::from(session_token.to_str().unwrap()));
+                }
+
+                if let Some(scnt) = response.headers().get(SCNT_HEADER) {
+                    self.data.scnt = Some(String::from(scnt.to_str().unwrap()));
+                }
+
+                for (key, value) in response.headers() {
+                    if key == header::SET_COOKIE {
+                        #[warn(clippy::single_char_pattern)]
+                        if let Some(cookie) = value.to_str().unwrap().split(";").next() {
+                            #[warn(clippy::single_char_pattern)]
+                            if let Some((key, value)) = cookie.split_once("=") {
+                                self.data
+                                    .cookies
+                                    .insert(String::from(key), String::from(value));
+                            }
+                        }
+                    }
+                }
+                match response.status() {
+                    StatusCode::UNAUTHORIZED => Err(parse_error(response).await?),
+                    _ => Ok(response),
+                }
+            }
+            _ => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Apple iCloud AuthenticationFailed:Unauthorized request",
+            )),
+        }
+    }
+}
+
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let mut kind = match parts.status.as_u16() {
+        //status:421 Misdirected Request
+        421 | 450 | 500 => ErrorKind::NotFound,
+        401 => ErrorKind::Unexpected,
+        _ => ErrorKind::Unexpected,
+    };
+
+    let (message, icloud_err) = serde_json::from_reader::<_, IcloudError>(bs.clone().reader())
+        .map(|icloud_err| (format!("{icloud_err:?}"), Some(icloud_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    if let Some(icloud_err) = &icloud_err {
+        kind = match icloud_err.status_code.as_str() {
+            "NOT_FOUND" => ErrorKind::NotFound,
+            "PERMISSION_DENIED" => ErrorKind::PermissionDenied,
+            _ => ErrorKind::Unexpected,
+        }
+    }
+
+    let mut err = Error::new(kind, &message);
+
+    err = with_error_response_context(err, parts);
+
+    Ok(err)
+}
+
+
+#[derive(Default, Debug, Deserialize)]
+#[allow(dead_code)]
+struct IcloudError {
+    status_code: String,
+    message: String,
+}
+
+
+#[derive(Default, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudWebservicesResponse {
+    #[serde(default)]
+    pub hsa_challenge_required: bool,
+    #[serde(default)]
+    pub hsa_trusted_browser: bool,
+    pub webservices: Webservices,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Webservices {
+    pub drivews: Drivews,
+    pub docws: Docws,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Drivews {
+    #[allow(non_snake_case)]
+    pub pcsRequired: bool,
+    pub status: String,
+    pub url: Option<String>,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Docws {
+    #[allow(non_snake_case)]
+    pub pcsRequired: bool,
+    pub status: String,
+    pub url: Option<String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudRoot {
+    #[serde(default)]
+    pub asset_quota: i64,
+    #[serde(default)]
+    pub date_created: String,
+    #[serde(default)]
+    pub direct_children_count: i64,
+    pub docwsid: String,
+    pub drivewsid: String,
+    pub etag: String,
+    #[serde(default)]
+    pub file_count: i64,
+    pub items: Vec<IcloudItem>,
+    pub name: String,
+    pub number_of_items: i64,
+    pub status: String,
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub zone: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudItem {
+    #[serde(default)]
+    pub asset_quota: Option<i64>,
+    #[serde(default)]
+    pub date_created: String,
+    #[serde(default)]
+    pub date_modified: String,
+    #[serde(default)]
+    pub direct_children_count: Option<i64>,
+    pub docwsid: String,
+    pub drivewsid: String,
+    pub etag: String,
+    #[serde(default)]
+    pub file_count: Option<i64>,
+    #[serde(rename = "item_id")]
+    pub item_id: Option<String>,
+    pub name: String,
+    pub parent_id: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub zone: String,
+    #[serde(default)]
+    pub max_depth: Option<String>,
+    #[serde(default)]
+    pub is_chained_to_parent: Option<bool>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudObject {
+    #[serde(rename = "document_id")]
+    pub document_id: String,
+    #[serde(rename = "item_id")]
+    pub item_id: String,
+    #[serde(rename = "owner_dsid")]
+    pub owner_dsid: i64,
+    #[serde(rename = "data_token")]
+    pub data_token: DataToken,
+    #[serde(rename = "double_etag")]
+    pub double_etag: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataToken {
+    pub url: String,
+    pub token: String,
+    pub signature: String,
+    #[serde(rename = "wrapping_key")]
+    pub wrapping_key: String,
+    #[serde(rename = "reference_signature")]
+    pub reference_signature: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudCreateFolder {
+    pub destination_drivews_id: String,
+    pub folders: Vec<IcloudItem>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::services::icloud::core::IcloudRoot;
+
+
+    #[test]
+    fn test_parse_icloud_drive_root_json() {
+        let data = r#"{
+          "assetQuota": 19603579,
+          "dateCreated": "2019-06-10T14:17:49Z",
+          "directChildrenCount": 3,
+          "docwsid": "root",
+          "drivewsid": "FOLDER::com.apple.CloudDocs::root",
+          "etag": "w7",
+          "fileCount": 22,
+          "items": [
+            {
+              "assetQuota": 19603579,
+              "dateCreated": "2021-02-05T08:30:58Z",
+              "directChildrenCount": 22,
+              "docwsid": "1E013608-C669-43DB-AC14-3D7A4E0A0500",
+              "drivewsid": "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500",
+              "etag": "sn",
+              "fileCount": 22,
+              "item_id": "CJWdk48eEAAiEB4BNgjGaUPbrBQ9ek4KBQAoAQ",
+              "name": "Downloads",
+              "parentId": "FOLDER::com.apple.CloudDocs::root",
+              "shareAliasCount": 0,
+              "shareCount": 0,
+              "type": "FOLDER",
+              "zone": "com.apple.CloudDocs"
+            },
+            {
+              "dateCreated": "2019-06-10T14:17:54Z",
+              "docwsid": "documents",
+              "drivewsid": "FOLDER::com.apple.Keynote::documents",
+              "etag": "1v",
+              "maxDepth": "ANY",
+              "name": "Keynote",
+              "parentId": "FOLDER::com.apple.CloudDocs::root",
+              "type": "APP_LIBRARY",
+              "zone": "com.apple.Keynote"
+            },
+            {
+              "assetQuota": 0,
+              "dateCreated": "2024-01-06T02:35:08Z",
+              "directChildrenCount": 0,
+              "docwsid": "21E4A15E-DA77-472A-BAC8-B0C35A91F237",
+              "drivewsid": "FOLDER::com.apple.CloudDocs::21E4A15E-DA77-472A-BAC8-B0C35A91F237",
+              "etag": "w8",
+              "fileCount": 0,
+              "isChainedToParent": true,
+              "item_id": "CJWdk48eEAAiECHkoV7ad0cqusiww1qR8jcoAQ",
+              "name": "opendal",
+              "parentId": "FOLDER::com.apple.CloudDocs::root",
+              "shareAliasCount": 0,
+              "shareCount": 0,
+              "type": "FOLDER",
+              "zone": "com.apple.CloudDocs"
+            }
+          ],
+          "name": "",
+          "numberOfItems": 16,
+          "shareAliasCount": 0,
+          "shareCount": 0,
+          "status": "OK",
+          "type": "FOLDER",
+          "zone": "com.apple.CloudDocs"
+        }"#;
+
+        let response: IcloudRoot = serde_json::from_str(data).unwrap();
+        assert_eq!(response.name, "");
+        assert_eq!(response.type_field, "FOLDER");
+        assert_eq!(response.zone, "com.apple.CloudDocs");
+        assert_eq!(response.docwsid, "root");
+        assert_eq!(response.drivewsid, "FOLDER::com.apple.CloudDocs::root");
+        assert_eq!(response.etag, "w7");
+        assert_eq!(response.file_count, 22);
+    }
+
+    #[test]
+    fn test_parse_icloud_drive_folder_file() {
+        let data = r#"{
+          "assetQuota": 19603579,
+          "dateCreated": "2021-02-05T08:34:21Z",
+          "directChildrenCount": 22,
+          "docwsid": "1E013608-C669-43DB-AC14-3D7A4E0A0500",
+          "drivewsid": "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500",
+          "etag": "w9",
+          "fileCount": 22,
+          "items": [
+            {
+              "dateChanged": "2021-02-18T14:10:46Z",
+              "dateCreated": "2021-02-10T07:01:28Z",
+              "dateModified": "2021-02-10T07:01:28Z",
+              "docwsid": "304F8B99-588B-4376-B7C8-12FCAE7A78D0",
+              "drivewsid": "FILE::com.apple.CloudDocs::304F8B99-588B-4376-B7C8-12FCAE7A78D0",
+              "etag": "5j::5i",
+              "extension": "pdf",
+              "item_id": "CJWdk48eEAAiEDBPi5lYi0N2t8gS_K56eNA",
+              "lastOpenTime": "2021-02-10T07:17:43Z",
+              "name": "1-10-longest-prefix-match-notes",
+              "parentId": "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500",
+              "size": 802970,
+              "type": "FILE",
+              "zone": "com.apple.CloudDocs"
+            },
+            {
+              "dateChanged": "2021-02-18T14:10:46Z",
+              "dateCreated": "2021-02-10T07:01:34Z",
+              "dateModified": "2021-02-10T07:01:34Z",
+              "docwsid": "9605331E-7BF3-41A0-A128-A68FFA377C50",
+              "drivewsid": "FILE::com.apple.CloudDocs::9605331E-7BF3-41A0-A128-A68FFA377C50",
+              "etag": "5b::5a",
+              "extension": "pdf",
+              "item_id": "CJWdk48eEAAiEJYFMx5780GgoSimj_o3fFA",
+              "lastOpenTime": "2021-02-10T10:28:42Z",
+              "name": "1-11-ARP-notes",
+              "parentId": "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500",
+              "size": 639483,
+              "type": "FILE",
+              "zone": "com.apple.CloudDocs"
+            }
+            ],
+          "name": "Downloads",
+          "numberOfItems": 22,
+          "parentId": "FOLDER::com.apple.CloudDocs::root",
+          "shareAliasCount": 0,
+          "shareCount": 0,
+          "status": "OK",
+          "type": "FOLDER",
+          "zone": "com.apple.CloudDocs"
+        }"#;
+
+        let response = serde_json::from_str::<IcloudRoot>(data).unwrap();
+
+        assert_eq!(response.name, "Downloads");
+        assert_eq!(response.type_field, "FOLDER");
+        assert_eq!(response.zone, "com.apple.CloudDocs");
+        assert_eq!(response.docwsid, "1E013608-C669-43DB-AC14-3D7A4E0A0500");
+        assert_eq!(
+            response.drivewsid,
+            "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500"
+        );
+        assert_eq!(response.etag, "w9");
+        assert_eq!(response.file_count, 22);
+    }
+}

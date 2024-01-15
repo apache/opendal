@@ -347,6 +347,7 @@ struct IcloudError {
 #[serde(rename_all = "camelCase")]
 pub struct IcloudWebservicesResponse {
     #[serde(default)]
+    // more information ref :test_parse_icloud_webservices
     pub hsa_challenge_required: bool,
     #[serde(default)]
     pub hsa_trusted_browser: bool,
@@ -468,7 +469,7 @@ pub struct IcloudCreateFolder {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::icloud::core::IcloudRoot;
+    use crate::services::icloud::core::{IcloudRoot, IcloudWebservicesResponse};
 
     #[test]
     fn test_parse_icloud_drive_root_json() {
@@ -612,4 +613,32 @@ mod tests {
         assert_eq!(response.etag, "w9");
         assert_eq!(response.file_count, 22);
     }
+
+    #[test]
+    fn test_parse_icloud_webservices() {
+        let data = r#"
+        {
+          "hsaChallengeRequired": false,
+          "hsaTrustedBrowser": true,
+          "webservices": {
+            "docws": {
+              "pcsRequired": true,
+              "status": "active",
+              "url": "https://p219-docws.icloud.com.cn:443"
+            },
+            "drivews": {
+              "pcsRequired": true,
+              "status": "active",
+              "url": "https://p219-drivews.icloud.com.cn:443"
+            }
+          }
+        }
+        "#;
+        let response = serde_json::from_str::<IcloudWebservicesResponse>(data).unwrap();
+        assert_eq!(response.hsa_challenge_required,"false");
+        assert_eq!(response.hsa_trusted_browser,"true");
+        assert_eq!(response.webservices.docws.url,"https://p219-docws.icloud.com.cn:443");
+        assert_eq!(response.webservices.drivews.url,"https://p219-drivews.icloud.com.cn:443");
+    }
+
 }

@@ -23,10 +23,13 @@
 "hellow" = "hellow"
 # Showed up in examples.
 "thw" = "thw"
+# Showed up in test.
+"hsa" = "hsa"
 
 [files]
 extend-exclude = [
   # Generated SSH Keys.
   "fixtures/sftp/test_ssh_key",
   "fixtures/sftp/test_ssh_key.pub",
+  "core/src/services/icloud/core.rs"
 ]

@@ -3,7 +3,7 @@ title: Onboarding
 sidebar_position: 2
 ---
 
-This document primarily serves as a guide for new committers to OpenDAL.
+This document primarily serves as a guide for new committers to Apache OpenDAL.
 
 Upon receiving an invitation email from OpenDAL's PPMC, a new committer should consider whether accepting.
 If they decide in favor, they should select "Reply All" and express their decision.

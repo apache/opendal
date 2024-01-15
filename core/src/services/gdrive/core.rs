@@ -137,9 +137,9 @@ impl GdriveCore {
         if !resp.status().is_success() {
             return Err(parse_error(resp).await?);
         }
+
         let body = resp.into_body().bytes().await?;
         let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
-
         Ok(file.id)
     }
 

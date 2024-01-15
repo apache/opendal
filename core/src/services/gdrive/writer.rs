@@ -20,7 +20,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
-use super::core::GdriveCore;
+use super::core::{GdriveCore, GdriveFile};
 use super::error::parse_error;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
@@ -65,7 +65,15 @@ impl oio::OneShotWrite for GdriveWriter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
+                // If we don't have the file id before, let's update the cache to avoid re-fetching.
+                if self.file_id.is_none() {
+                    let bs = resp.into_body().bytes().await?;
+                    let file: GdriveFile =
+                        serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    self.core.path_cache.insert(&self.path, &file.id);
+                } else {
+                    resp.into_body().consume().await?;
+                }
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

@@ -146,6 +146,10 @@ impl HttpClient {
             let is_temporary = !(
                 // Builder related error should not be retried.
                 err.is_builder() ||
+                // Error returned by RedirectPolicy.
+                //
+                // Don't retry error if we redirect too many.
+                err.is_redirect() ||
                 // We never use `Response::error_for_status`, just don't allow retry.
                 //
                 // Status should be checked by our services.

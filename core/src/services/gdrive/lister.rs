@@ -90,8 +90,10 @@ impl oio::PageList for GdriveLister {
             let path = format!("{}{}", &self.path, file.name);
             let normalized_path = build_rel_path(root, &path);
 
-            let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
+            // Update path cache with list result.
+            self.core.path_cache.insert(&path, &file.id);
 
+            let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
             ctx.entries.push_back(entry);
         }
 

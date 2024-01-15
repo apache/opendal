@@ -1,7 +1,7 @@
 {
   "entryPoints": ["index.d.ts"],
   "out": "docs",
-  "name": "Apache OpenDAL",
+  "name": "Apache OpenDAL™",
   "tsconfig": "tsconfig.json",
   "excludePrivate": true,
   "excludeProtected": true,

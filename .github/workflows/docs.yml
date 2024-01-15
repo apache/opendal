@@ -113,6 +113,10 @@ jobs:
         working-directory: bindings/nodejs
         run: pnpm install --frozen-lockfile
 
+      - name: Build docs theme
+        working-directory: bindings/nodejs
+        run: pnpm run build:theme
+
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
         run: pnpm run docs

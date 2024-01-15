@@ -635,10 +635,15 @@ mod tests {
         }
         "#;
         let response = serde_json::from_str::<IcloudWebservicesResponse>(data).unwrap();
-        assert_eq!(response.hsa_challenge_required,"false");
-        assert_eq!(response.hsa_trusted_browser,"true");
-        assert_eq!(response.webservices.docws.url,"https://p219-docws.icloud.com.cn:443");
-        assert_eq!(response.webservices.drivews.url,"https://p219-drivews.icloud.com.cn:443");
+        assert_eq!(response.hsa_challenge_required, "false");
+        assert_eq!(response.hsa_trusted_browser, "true");
+        assert_eq!(
+            response.webservices.docws.url,
+            "https://p219-docws.icloud.com.cn:443"
+        );
+        assert_eq!(
+            response.webservices.drivews.url,
+            "https://p219-drivews.icloud.com.cn:443"
+        );
     }
-
 }

@@ -86,7 +86,25 @@ impl Accessor for GdriveBackend {
             return Err(parse_error(resp).await?);
         }
 
-        let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
+        let bs = resp.into_body().bytes().await?;
+        let gdrive_file: GdriveFile =
+            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        };
+
+        let mut meta = Metadata::new(EntryMode::FILE);
+        if let Some(v) = gdrive_file.size {
+            meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?);
+        }
+        if let Some(v) = gdrive_file.modified_time {
+            meta = meta.with_last_modified(v.parse::<chrono::DateTime<Utc>>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?);
+        }
         Ok(RpStat::new(meta))
     }
 
@@ -155,6 +173,7 @@ impl Accessor for GdriveBackend {
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let from = build_abs_path(&self.core.root, from);
+
         let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             "the file to copy is not exist",
@@ -220,41 +239,5 @@ impl Accessor for GdriveBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-impl GdriveBackend {
-    pub(crate) fn parse_metadata(&self, body: Bytes) -> Result<Metadata> {
-        let metadata =
-            serde_json::from_slice::<GdriveFile>(&body).map_err(new_json_deserialize_error)?;
-
-        let mut meta = Metadata::new(match metadata.mime_type.as_str() {
-            "application/vnd.google-apps.folder" => EntryMode::DIR,
-            _ => EntryMode::FILE,
-        });
-
-        let size = if meta.mode() == EntryMode::DIR {
-            // Google Drive does not return the size for folders.
-            0
-        } else {
-            metadata
-                .size
-                .expect("file size must exist")
-                .parse::<u64>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                })?
-        };
-        meta = meta.with_content_length(size);
-        meta = meta.with_last_modified(
-            metadata
-                .modified_time
-                .expect("modified time must exist. please check your query param - fields")
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
-        );
-        Ok(meta)
     }
 }

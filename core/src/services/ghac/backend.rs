@@ -26,9 +26,9 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::USER_AGENT;
-use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::{header, Request};
 use log::debug;
 use serde::Deserialize;
 use serde::Serialize;
@@ -254,6 +254,11 @@ impl Accessor for GhacBackend {
         am
     }
 
+    /// Some self-hosted GHES instances are backed by AWS S3 services which only returns
+    /// signed url with `GET` method. So we will use `GET` with empty range to simulate
+    /// `HEAD` instead.
+    ///
+    /// In this way, we can support both self-hosted GHES and `github.com`.
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let req = self.ghac_query(path).await?;
 
@@ -268,14 +273,25 @@ impl Accessor for GhacBackend {
             return Err(parse_error(resp).await?);
         };
 
-        let req = self.ghac_head_location(&location).await?;
+        let req = Request::get(location)
+            .header(header::RANGE, "bytes=0-0")
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
 
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
+                let mut meta = parse_into_metadata(path, resp.headers())?;
+                // Correct content length via returning content range.
+                meta.set_content_length(
+                    meta.content_range()
+                        .expect("content range must be valid")
+                        .size()
+                        .expect("content range must contains size"),
+                );
 
+                resp.into_body().consume().await?;
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp).await?),
@@ -400,12 +416,6 @@ impl GhacBackend {
         }
 
         req.body(AsyncBody::Empty).map_err(new_request_build_error)
-    }
-
-    async fn ghac_head_location(&self, location: &str) -> Result<Request<AsyncBody>> {
-        Request::head(location)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
     }
 
     async fn ghac_reserve(&self, path: &str) -> Result<Request<AsyncBody>> {

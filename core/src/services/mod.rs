@@ -113,6 +113,11 @@ mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::Ipmfs;
 
+#[cfg(feature = "services-icloud")]
+mod icloud;
+#[cfg(feature = "services-icloud")]
+pub use icloud::iCloud;
+
 #[cfg(feature = "services-libsql")]
 mod libsql;
 #[cfg(feature = "services-libsql")]

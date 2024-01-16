@@ -73,11 +73,14 @@ impl GdriveCore {
             get_parent(&path)
         };
 
-        let components = current_path.split('/').collect::<Vec<_>>();
         let mut tmp = "".to_string();
         // All parents that need to check.
         let mut parents = vec![];
-        for component in components {
+        for component in current_path.split('/') {
+            if component.is_empty() {
+                continue;
+            }
+
             tmp.push_str(component);
             tmp.push('/');
             parents.push(tmp.to_string());

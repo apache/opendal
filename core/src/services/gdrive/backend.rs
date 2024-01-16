@@ -218,7 +218,25 @@ impl Accessor for GdriveBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.gdrive_patch_metadata_request(from, to).await?;
+        let source = build_abs_path(&self.core.root, from);
+        let target = build_abs_path(&self.core.root, to);
+
+        // rename will overwrite `to`, delete it if exist
+        if let Some(id) = self.core.path_cache.get(&target).await? {
+            let resp = self.core.gdrive_delete(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+                return Err(parse_error(resp).await?);
+            }
+
+            self.core.path_cache.remove(&target).await;
+            resp.into_body().consume().await?;
+        }
+
+        let resp = self
+            .core
+            .gdrive_patch_metadata_request(&source, &target)
+            .await?;
 
         let status = resp.status();
 

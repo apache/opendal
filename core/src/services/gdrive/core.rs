@@ -128,29 +128,30 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let source = build_abs_path(&self.root, source);
-        let target = build_abs_path(&self.root, target);
-
-        let file_id = self.path_cache.get(&source).await?.ok_or(Error::new(
+        let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("source path not found: {}", source),
         ))?;
-        let parent_id = self.path_cache.ensure_dir(get_parent(&target)).await?;
-        let file_name = get_basename(&target);
-
-        let source_parent = get_parent(&source);
+        let source_parent = get_parent(source);
         let source_parent_id = self
             .path_cache
             .get(source_parent)
             .await?
             .expect("old parent must exist");
+
+        let target_parent_id = self.path_cache.ensure_dir(get_parent(target)).await?;
+        let target_file_name = get_basename(target);
+
         let metadata = &json!({
-            "name": file_name,
+            "name": target_file_name,
             "removeParents": [source_parent_id],
-            "addParents": [parent_id],
+            "addParents": [target_parent_id],
         });
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{}",
+            source_file_id
+        );
         let mut req = Request::patch(url)
             .body(AsyncBody::Bytes(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;

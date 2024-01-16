@@ -34,9 +34,9 @@
     <artifactId>opendal-java</artifactId>
     <version>0.44.1</version>
 
-    <name>Apache OpenDAL</name>
+    <name>Apache OpenDAL™</name>
     <description>
-        OpenDAL is a data access layer that allows users to
+        Apache OpenDAL™ is a data access layer that allows users to
         easily and efficiently retrieve data from various storage services in a unified way.
     </description>
 

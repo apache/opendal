@@ -78,6 +78,7 @@
         <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
         <palantir-java-format.version>2.36.0</palantir-java-format.version>
         <spotless.version>2.39.0</spotless.version>
+        <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -261,6 +262,19 @@
                         <trimTrailingWhitespace/>
                         <endWithNewline/>
                     </java>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <bottom>
+                        Copyright © 2022-2024, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator,
+                        the Apache feather, the Apache Incubator logo and the Apache OpenDAL project logo are either registered
+                        trademarks or trademarks of the Apache Software Foundation.
+                    </bottom>
                 </configuration>
             </plugin>
         </plugins>

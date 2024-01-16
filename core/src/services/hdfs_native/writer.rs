@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio;
+use crate::raw::{oio, parse_hdfs_error};
 use crate::raw::oio::WriteBuf;
 use crate::*;
 use hdfs_native::file::FileWriter;
 use std::task::{Context, Poll};
+use futures::{ready, TryFutureExt};
 
 pub struct HdfsNativeWriter {
     f: FileWriter,
@@ -33,14 +34,19 @@ impl HdfsNativeWriter {
 
 impl oio::Write for HdfsNativeWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
-        todo!()
+        let usize = bs.remaining();
+        let bytes = bs.bytes(usize);
+        ready!(self.f.write(bytes).map_err(parse_hdfs_error).)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        todo!()
+        ready!(self.f.close().map_err(parse_hdfs_error))
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        todo!()
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "HdfsNativeWriter doesn't support abort",
+        )))
     }
 }

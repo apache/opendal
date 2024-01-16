@@ -22,18 +22,18 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 pub struct HdfsNativeLister {
-    root: String,
+    path: String,
     client: Arc<hdfs_native::Client>,
 }
 
 impl HdfsNativeLister {
     pub fn new(path: String, client: Arc<hdfs_native::Client>) -> Self {
-        HdfsNativeLister { root: path, client }
+        HdfsNativeLister { path: path, client }
     }
 }
 
 impl oio::List for HdfsNativeLister {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        todo!()
+        self.client.list_status(self.path.as_str(),false)
     }
 }

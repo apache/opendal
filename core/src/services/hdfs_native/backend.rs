@@ -20,6 +20,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use hdfs_native::WriteOptions;
 use log::debug;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -202,7 +203,13 @@ impl Accessor for HdfsNativeBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        todo!()
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self.client.create(&p, WriteOptions::default()).await.map_err(parse_hdfs_error)?;
+
+        let w = HdfsNativeWriter::new(f);
+
+        Ok((RpWrite::new(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -223,6 +230,7 @@ impl Accessor for HdfsNativeBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        todo!()
+        let l = HdfsNativeLister::new(p, self.client.clone());
+        Ok((RpList::new(), Some(l)))
     }
 }

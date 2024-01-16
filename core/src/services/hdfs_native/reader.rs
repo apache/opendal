@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::ready;
 use crate::raw::oio::{Read, Reader};
 use crate::*;
 use bytes::Bytes;
 use hdfs_native::file::FileReader;
 use std::io::SeekFrom;
 use std::task::{Context, Poll};
+use crate::raw::parse_hdfs_error;
 
 pub struct HdfsNativeReader {
     f: FileReader,
@@ -34,14 +36,24 @@ impl HdfsNativeReader {
 
 impl Read for HdfsNativeReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        todo!()
+        ready!(self.f.read_buf(buf).map_err(parse_hdfs_error))
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        todo!()
+        let (_, _) = (cx, pos);
+
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "HdfsNativeReader doesn't support seeking",
+        )))
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        todo!()
+        let _ = cx;
+
+        Poll::Ready(Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "HdfsNativeReader doesn't support iterating",
+        ))))
     }
 }

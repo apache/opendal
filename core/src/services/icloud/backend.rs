@@ -24,8 +24,8 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::*;
 use crate::raw::*;
+use crate::*;
 use crate::{Builder, Capability, Error, ErrorKind, Scheme};
 
 use super::client::Client;
@@ -67,7 +67,7 @@ impl Debug for IcloudConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("IcloudBuilder");
         d.field("root", &self.root);
-        d.field("is_china_mainland",&self.is_china_mainland);
+        d.field("is_china_mainland", &self.is_china_mainland);
         d.finish_non_exhaustive()
     }
 }
@@ -222,7 +222,10 @@ impl Builder for IcloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        debug!("Icloud backend is_china_mainland {}", &self.config.is_china_mainland);
+        debug!(
+            "Icloud backend is_china_mainland {}",
+            &self.config.is_china_mainland
+        );
 
         let client = if let Some(client) = self.http_client.take() {
             client

@@ -20,8 +20,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::{Error, ErrorKind, Result};
 use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
+use crate::{Error, ErrorKind, Result};
 
 use super::core::{IcloudItem, IcloudSigner};
 use super::drive::DriveService;

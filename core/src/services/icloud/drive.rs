@@ -23,13 +23,11 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::Result;
 use crate::raw::oio::WriteBuf;
 use crate::raw::{new_json_deserialize_error, AsyncBody, IncomingAsyncBody, OpRead};
+use crate::Result;
 
-use super::core::{
-    parse_error, IcloudItem, IcloudObject, IcloudRoot, IcloudSigner,
-};
+use super::core::{parse_error, IcloudItem, IcloudObject, IcloudRoot, IcloudSigner};
 
 #[derive(Clone)]
 pub struct File {

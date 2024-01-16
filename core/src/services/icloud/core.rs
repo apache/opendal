@@ -30,7 +30,10 @@ use serde_json::json;
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
-use crate::raw::{new_json_deserialize_error, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody, parse_header_to_str};
+use crate::raw::{
+    new_json_deserialize_error, parse_header_to_str, with_error_response_context, AsyncBody,
+    HttpClient, IncomingAsyncBody,
+};
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
@@ -231,10 +234,10 @@ impl IcloudSigner {
         // ("Referer", "https://www.icloud.com.cn/")
         // You can get more information from [apple.com](https://support.apple.com/en-us/111754)
         if self.is_china_mainland {
-            request = request.header("Origin","https://www.icloud.com.cn");
+            request = request.header("Origin", "https://www.icloud.com.cn");
             request = request.header("Referer", "https://www.icloud.com.cn/");
         } else {
-            request = request.header("Origin","https://www.icloud.com");
+            request = request.header("Origin", "https://www.icloud.com");
             request = request.header("Referer", "https://www.icloud.com/");
         }
 
@@ -258,18 +261,24 @@ impl IcloudSigner {
 
         match self.client.send(request.body(body).unwrap()).await {
             Ok(response) => {
-                if let Some(account_country) =parse_header_to_str(response.headers(),ACCOUNT_COUNTRY_HEADER)? {
-                    self.data.account_country=Some(account_country.to_string());
+                if let Some(account_country) =
+                    parse_header_to_str(response.headers(), ACCOUNT_COUNTRY_HEADER)?
+                {
+                    self.data.account_country = Some(account_country.to_string());
                 }
 
-                if let Some(session_id) = parse_header_to_str(response.headers(),SESSION_ID_HEADER)? {
+                if let Some(session_id) =
+                    parse_header_to_str(response.headers(), SESSION_ID_HEADER)?
+                {
                     self.data.session_id = Some(session_id.to_string());
                 }
-                if let Some(session_token) = parse_header_to_str(response.headers(),SESSION_TOKEN_HEADER)? {
+                if let Some(session_token) =
+                    parse_header_to_str(response.headers(), SESSION_TOKEN_HEADER)?
+                {
                     self.data.session_token = Some(session_token.to_string());
                 }
 
-                if let Some(scnt) = parse_header_to_str(response.headers(),SCNT_HEADER)? {
+                if let Some(scnt) = parse_header_to_str(response.headers(), SCNT_HEADER)? {
                     self.data.scnt = Some(scnt.to_string());
                 }
 

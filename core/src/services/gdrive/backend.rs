@@ -73,7 +73,8 @@ impl Accessor for GdriveBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let _ = self.core.ensure_parent_path(path).await?;
+        let path = build_abs_path(&self.core.root, path);
+        let _ = self.core.path_cache.ensure_dir(&path).await?;
 
         Ok(RpCreateDir::default())
     }
@@ -174,7 +175,11 @@ impl Accessor for GdriveBackend {
 
         let to_name = get_basename(to);
         let to_path = build_abs_path(&self.core.root, to);
-        let to_parent_id = self.core.ensure_parent_path(to).await?;
+        let to_parent_id = self
+            .core
+            .path_cache
+            .ensure_dir(get_parent(&to_path))
+            .await?;
 
         // copy will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&to_path).await? {

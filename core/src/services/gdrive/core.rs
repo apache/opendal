@@ -58,27 +58,9 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
-    /// Ensure the parent path exists.
-    /// If the parent path does not exist, create it.
-    ///
-    /// # Notes
-    ///
-    /// - The path is rooted at the root of the Google Drive.
-    /// - Will create the parent path recursively.
-    pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
-        let current_path = if path.ends_with('/') {
-            path.as_str()
-        } else {
-            get_parent(&path)
-        };
-
-        self.path_cache.ensure_dir(current_path).await
-    }
-
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_abs_path(&self.root, path);
-        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
+        let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("path not found: {}", path),
         ))?;
@@ -87,7 +69,7 @@ impl GdriveCore {
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(&format!(
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
-            path_id
+            file_id
         ))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -153,7 +135,7 @@ impl GdriveCore {
             ErrorKind::NotFound,
             &format!("source path not found: {}", source),
         ))?;
-        let parent_id = self.ensure_parent_path(&target).await?;
+        let parent_id = self.path_cache.ensure_dir(get_parent(&target)).await?;
         let file_name = get_basename(&target);
 
         let source_parent = get_parent(&source);
@@ -197,16 +179,17 @@ impl GdriveCore {
         size: u64,
         body: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let parent = self.ensure_parent_path(path).await?;
+        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
         let file_name = get_basename(path);
 
-        let metadata = &json!({
+        let metadata = serde_json::to_vec(&json!({
             "name": file_name,
             "parents": [parent],
-        });
+        }))
+        .map_err(new_json_serialize_error)?;
 
         let req = Request::post(url).header("X-Upload-Content-Length", size);
 
@@ -217,7 +200,7 @@ impl GdriveCore {
                         header::CONTENT_TYPE,
                         "application/json; charset=UTF-8".parse().unwrap(),
                     )
-                    .content(metadata.to_string()),
+                    .content(metadata),
             )
             .part(
                 FormDataPart::new("file")

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{get_basename, get_parent};
+use crate::raw::*;
 use crate::*;
 use async_trait::async_trait;
 use moka::sync::Cache;
@@ -29,6 +29,8 @@ pub trait PathQuery {
     async fn root(&self) -> Result<String>;
     /// Query the id by parent_id and name.
     async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>>;
+    /// Create dir by parent_id and name.
+    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String>;
 }
 
 /// PathCacher is a cache for path query.
@@ -123,6 +125,41 @@ impl<Q: PathQuery> PathCacher<Q> {
         self.query_down(&root_id, &paths).await
     }
 
+    /// Ensure input dir exists.
+    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
+        let _guard = self.lock().await;
+
+        let mut tmp = "".to_string();
+        // All parents that need to check.
+        let mut parents = vec![];
+        for component in path.split('/') {
+            if component.is_empty() {
+                continue;
+            }
+
+            tmp.push_str(component);
+            tmp.push('/');
+            parents.push(tmp.to_string());
+        }
+
+        let mut parent_id = self.get("/").await?.expect("the id for root must exist");
+        for parent in parents {
+            parent_id = match self.cache.get(&parent) {
+                Some(value) => value,
+                None => {
+                    let value = self
+                        .query
+                        .create_dir(&parent_id, get_basename(&parent))
+                        .await?;
+                    self.cache.insert(parent, value.clone());
+                    value
+                }
+            }
+        }
+
+        Ok(parent_id)
+    }
+
     async fn query_down(&self, start_id: &str, paths: &[String]) -> Result<Option<String>> {
         let mut current_id = start_id.to_string();
         for path in paths.iter().rev() {
@@ -158,6 +195,10 @@ mod tests {
                 return Ok(None);
             }
             Ok(Some(format!("{parent_id}{name}")))
+        }
+
+        async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+            Ok(format!("{parent_id}{name}"))
         }
     }
 

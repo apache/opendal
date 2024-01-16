@@ -73,38 +73,7 @@ impl GdriveCore {
             get_parent(&path)
         };
 
-        let mut tmp = "".to_string();
-        // All parents that need to check.
-        let mut parents = vec![];
-        for component in current_path.split('/') {
-            if component.is_empty() {
-                continue;
-            }
-
-            tmp.push_str(component);
-            tmp.push('/');
-            parents.push(tmp.to_string());
-        }
-
-        let mut parent_id = self
-            .path_cache
-            .get("/")
-            .await?
-            .expect("the id for root must exist");
-        for parent in parents {
-            parent_id = match self.path_cache.get(&parent).await? {
-                Some(value) => value,
-                None => {
-                    let value = self
-                        .gdrive_create_folder(&parent_id, get_basename(&parent))
-                        .await?;
-                    self.path_cache.insert(&parent, &value).await;
-                    value
-                }
-            }
-        }
-
-        Ok(parent_id)
+        self.path_cache.ensure_dir(current_path).await
     }
 
     /// Create a folder.
@@ -471,6 +440,34 @@ impl PathQuery for GdrivePathQuery {
             _ => Err(parse_error(resp).await?),
         }
     }
+
+    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+        let url = "https://www.googleapis.com/drive/v3/files";
+
+        let content = serde_json::to_vec(&json!({
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            // If the parent is not provided, the folder will be created in the root folder.
+            "parents": [parent_id],
+        }))
+        .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.signer.lock().await.sign(&mut req).await?;
+
+        let resp = self.client.send(req).await?;
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+        Ok(file.id)
+    }
 }
 
 #[derive(Deserialize)]
@@ -479,9 +476,9 @@ pub struct GdriveTokenResponse {
     expires_in: i64,
 }
 
-// This is the file struct returned by the Google Drive API.
-// This is a complex struct, but we only add the fields we need.
-// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
+/// This is the file struct returned by the Google Drive API.
+/// This is a complex struct, but we only add the fields we need.
+/// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GdriveFile {
@@ -497,7 +494,7 @@ pub struct GdriveFile {
     pub modified_time: Option<String>,
 }
 
-// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
+/// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GdriveFileList {

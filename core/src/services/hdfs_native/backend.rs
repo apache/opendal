@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use hdfs_native::WriteOptions;
 use log::debug;
 use serde::Deserialize;
-use uuid::Uuid;
+// use uuid::Uuid;
 
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
@@ -145,25 +145,25 @@ impl Builder for HdfsNativeBuilder {
         Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),
-            enable_append: self.config.enable_append,
+            _enable_append: self.config.enable_append,
         })
     }
 }
 
-#[inline]
-fn tmp_file_of(path: &str) -> String {
-    let name = get_basename(path);
-    let uuid = Uuid::new_v4().to_string();
-
-    format!("{name}.{uuid}")
-}
+// #[inline]
+// fn tmp_file_of(path: &str) -> String {
+//     let name = get_basename(path);
+//     let uuid = Uuid::new_v4().to_string();
+//
+//     format!("{name}.{uuid}")
+// }
 
 /// Backend for hdfs-native services.
 #[derive(Debug, Clone)]
 pub struct HdfsNativeBackend {
     root: String,
     client: Arc<hdfs_native::Client>,
-    enable_append: bool,
+    _enable_append: bool,
 }
 
 /// hdfs_native::Client is thread-safe.
@@ -183,7 +183,7 @@ impl Accessor for HdfsNativeBackend {
         todo!()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client
@@ -193,7 +193,7 @@ impl Accessor for HdfsNativeBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
@@ -203,7 +203,7 @@ impl Accessor for HdfsNativeBackend {
         Ok((RpRead::new(), r))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = self
@@ -217,23 +217,23 @@ impl Accessor for HdfsNativeBackend {
         Ok((RpWrite::new(), w))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(&self, _from: &str, _to: &str, _args: OpCopy) -> Result<RpCopy> {
         todo!()
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(&self, _from: &str, _to: &str, _args: OpRename) -> Result<RpRename> {
         todo!()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _path: &str, _args: OpStat) -> Result<RpStat> {
         todo!()
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self, _path: &str, _args: OpDelete) -> Result<RpDelete> {
         todo!()
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
         let l = HdfsNativeLister::new(p, self.client.clone());
         Ok((RpList::default(), Some(l)))

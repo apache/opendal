@@ -23,17 +23,17 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 pub struct HdfsNativeReader {
-    f: FileReader,
+    _f: FileReader,
 }
 
 impl HdfsNativeReader {
     pub fn new(f: FileReader) -> Self {
-        HdfsNativeReader { f }
+        HdfsNativeReader { _f: f }
     }
 }
 
 impl Read for HdfsNativeReader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<Result<usize>> {
         todo!()
     }
 

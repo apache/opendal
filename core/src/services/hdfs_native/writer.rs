@@ -22,25 +22,25 @@ use hdfs_native::file::FileWriter;
 use std::task::{Context, Poll};
 
 pub struct HdfsNativeWriter {
-    f: FileWriter,
+    _f: FileWriter,
 }
 
 impl HdfsNativeWriter {
     pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { f }
+        HdfsNativeWriter { _f: f }
     }
 }
 
 impl oio::Write for HdfsNativeWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _cx: &mut Context<'_>, _bs: &dyn WriteBuf) -> Poll<Result<usize>> {
         todo!()
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_close(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         todo!()
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_abort(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "HdfsNativeWriter doesn't support abort",

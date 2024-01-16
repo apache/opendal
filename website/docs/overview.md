@@ -1,7 +1,9 @@
 ---
-title: Welcome to Apache OpenDAL™
+sidebar_label: About
 sidebar_position: 1
 ---
+
+# Welcome to Apache OpenDAL™
 
 OpenDAL represents **Open** **D**ata **A**ccess **L**ayer. Our vision is to **access data freely**.
 
@@ -29,7 +31,7 @@ For example, we DO
 
 while we DO NOT
 
-- Add support for [Google Cloud Storage(GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which is more powerful
+- Add support for [Google Cloud Storage (GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which is more powerful
 - Add support for structural data in `MySQL/PostgreSQL`: We can treat a database as a simple key-value store, but we can't support unified access of structural data.
 
 ### 2. Free from implementations

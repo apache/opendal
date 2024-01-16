@@ -18,6 +18,6 @@
  */
 
 /**
- * JNI-based Java binding for <a href="https://opendal.apache.org/">Apache OpenDAL™</a>.
+ * Wrappers to configure the underneath layers.
  */
-package org.apache.opendal;
+package org.apache.opendal.layer;

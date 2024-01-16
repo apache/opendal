@@ -363,8 +363,8 @@ pub struct Webservices {
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Drivews {
-    #[allow(non_snake_case)]
-    pub pcsRequired: bool,
+    #[serde(rename = "pcsRequired")]
+    pub pcs_required: bool,
     pub status: String,
     pub url: Option<String>,
 }
@@ -372,8 +372,8 @@ pub struct Drivews {
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Docws {
-    #[allow(non_snake_case)]
-    pub pcsRequired: bool,
+    #[serde(rename = "pcsRequired")]
+    pub pcs_required: bool,
     pub status: String,
     pub url: Option<String>,
 }
@@ -634,8 +634,8 @@ mod tests {
         }
         "#;
         let response = serde_json::from_str::<IcloudWebservicesResponse>(data).unwrap();
-        assert_eq!(response.hsa_challenge_required, false);
-        assert_eq!(response.hsa_trusted_browser, true);
+        assert!(!response.hsa_challenge_required);
+        assert!(response.hsa_trusted_browser);
         assert_eq!(
             response.webservices.docws.url,
             Some("https://p219-docws.icloud.com.cn:443".to_string())

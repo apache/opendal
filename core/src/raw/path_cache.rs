@@ -35,15 +35,15 @@ pub trait PathQuery {
 
 /// PathCacher is a cache for path query.
 ///
-/// OpenDAL is designed for path based storage systemds, such as S3, HDFS, etc. But there are many
+/// OpenDAL is designed for path based storage systems, such as S3, HDFS, etc. But there are many
 /// services that are not path based, such as OneDrive, Google Drive, etc. For these services, we
 /// lookup files based on id. The lookup of id is very expensive, so we cache the path to id mapping
 /// in PathCacher.
 ///
 /// # Behavior
 ///
-/// The `path` in cache is always an absolute. For example, if service root is `/root/`, then the
-/// path of file `a/b` in cache will be `/root/a/b`.
+/// The `path` in the cache is always an absolute one. For example, if the service root is `/root/`,
+/// then the path of file `a/b` in cache will be `/root/a/b`.
 pub struct PathCacher<Q: PathQuery> {
     query: Q,
     cache: Cache<String, String>,

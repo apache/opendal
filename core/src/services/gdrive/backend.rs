@@ -170,7 +170,7 @@ impl Accessor for GdriveBackend {
 
         let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            "the file to copy is not exist",
+            "the file to copy does not exist",
         ))?;
 
         let to_name = get_basename(to);

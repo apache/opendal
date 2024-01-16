@@ -67,33 +67,38 @@ impl GdriveCore {
     /// - Will create the parent path recursively.
     pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
-        let mut current_path = if path.ends_with('/') {
+        let current_path = if path.ends_with('/') {
             path.as_str()
         } else {
             get_parent(&path)
         };
 
+        let components = current_path.split('/').collect::<Vec<_>>();
+        let mut tmp = String::new();
+        // All parents that need to check.
         let mut parents = vec![];
-        let mut parent_id;
-
-        loop {
-            let id = self.path_cache.get(current_path).await?;
-            match id {
-                Some(id) => {
-                    parent_id = id;
-                    break;
-                }
-                None => parents.push(current_path),
-            }
-            current_path = get_parent(current_path);
+        for component in components {
+            tmp.push_str(component);
+            tmp.push('/');
+            parents.push(tmp.to_string());
         }
-        debug_assert!(!parent_id.is_empty(), "parent_id must be valid after query");
 
-        for parent in parents.iter().rev() {
-            parent_id = self
-                .gdrive_create_folder(&parent_id, get_basename(parent))
-                .await?;
-            self.path_cache.insert(parent, &parent_id).await;
+        let mut parent_id = self
+            .path_cache
+            .get("/")
+            .await?
+            .expect("the id for root must exist");
+        for parent in parents {
+            parent_id = match self.path_cache.get(&parent).await? {
+                Some(value) => value,
+                None => {
+                    let value = self
+                        .gdrive_create_folder(&parent_id, get_basename(&parent))
+                        .await?;
+                    self.path_cache.insert(&parent, &value).await;
+                    value
+                }
+            }
         }
 
         Ok(parent_id)

@@ -267,12 +267,17 @@ impl WebhdfsBackend {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let mut req;
+        if status == StatusCode::TEMPORARY_REDIRECT {
+            let location = resp.headers().get("Location").unwrap().inner();
+            req = Request::put(&location);
+        }else{
+            let bs = resp.into_body().bytes().await?;
 
-        let resp =
-            serde_json::from_slice::<LocationResponse>(&bs).map_err(new_json_deserialize_error)?;
-
-        let mut req = Request::put(&resp.location);
+            let resp =
+                serde_json::from_slice::<LocationResponse>(&bs).map_err(new_json_deserialize_error)?;
+            req = Request::put(&resp.location);
+        }
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size);

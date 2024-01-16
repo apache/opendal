@@ -19,7 +19,7 @@ mod backend;
 pub use backend::HdfsNativeBuilder as HdfsNative;
 pub use backend::HdfsNativeConfig;
 
-mod hdfs_native_error_util;
+mod error;
 mod lister;
 mod reader;
 mod writer;

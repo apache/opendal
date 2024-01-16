@@ -70,7 +70,7 @@ impl oio::OneShotWrite for GdriveWriter {
                     let bs = resp.into_body().bytes().await?;
                     let file: GdriveFile =
                         serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-                    self.core.path_cache.insert(&self.path, &file.id);
+                    self.core.path_cache.insert(&self.path, &file.id).await;
                 } else {
                     resp.into_body().consume().await?;
                 }

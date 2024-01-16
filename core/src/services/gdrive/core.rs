@@ -47,11 +47,6 @@ pub struct GdriveCore {
 
     /// Cache the mapping from path to file id
     pub path_cache: PathCacher<GdrivePathQuery>,
-    /// Lock for creating folder.
-    ///
-    /// Gdrive allows the same folder to be created multiple times.
-    /// We add this lock explicitly to avoid creating the same folder multiple times.
-    pub create_folder_lock: Arc<Mutex<()>>,
 }
 
 impl Debug for GdriveCore {
@@ -71,8 +66,6 @@ impl GdriveCore {
     /// - The path is rooted at the root of the Google Drive.
     /// - Will create the parent path recursively.
     pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
-        let _guard = self.create_folder_lock.lock().await;
-
         let path = build_abs_path(&self.root, path);
         let mut current_path = if path.ends_with('/') {
             path.as_str()
@@ -100,7 +93,7 @@ impl GdriveCore {
             parent_id = self
                 .gdrive_create_folder(&parent_id, get_basename(parent))
                 .await?;
-            self.path_cache.insert(parent, &parent_id);
+            self.path_cache.insert(parent, &parent_id).await;
         }
 
         Ok(parent_id)

@@ -159,7 +159,7 @@ impl Accessor for GdriveBackend {
             return Err(parse_error(resp).await?);
         }
 
-        self.core.path_cache.remove(&path);
+        self.core.path_cache.remove(&path).await;
         resp.into_body().consume().await?;
         return Ok(RpDelete::default());
     }
@@ -190,7 +190,7 @@ impl Accessor for GdriveBackend {
                 return Err(parse_error(resp).await?);
             }
 
-            self.core.path_cache.remove(&to_path);
+            self.core.path_cache.remove(&to_path).await;
             resp.into_body().consume().await?;
         }
 
@@ -231,8 +231,10 @@ impl Accessor for GdriveBackend {
 
                 let cache = &self.core.path_cache;
 
-                cache.remove(&build_abs_path(&self.core.root, from));
-                cache.insert(&build_abs_path(&self.core.root, to), &meta.id);
+                cache.remove(&build_abs_path(&self.core.root, from)).await;
+                cache
+                    .insert(&build_abs_path(&self.core.root, to), &meta.id)
+                    .await;
 
                 Ok(RpRename::default())
             }

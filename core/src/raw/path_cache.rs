@@ -19,6 +19,7 @@ use crate::raw::{get_basename, get_parent};
 use crate::*;
 use async_trait::async_trait;
 use moka::sync::Cache;
+use tokio::sync::{Mutex, MutexGuard};
 
 /// The trait required for path cacher.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
@@ -44,6 +45,12 @@ pub trait PathQuery {
 pub struct PathCacher<Q: PathQuery> {
     query: Q,
     cache: Cache<String, String>,
+
+    /// This optional lock here is used to prevent concurrent insertions of the same path.
+    ///
+    /// Some services like gdrive allows the same name to exist in the same directory. We need to introduce
+    /// a global lock to prevent concurrent insertions of the same path.
+    lock: Option<Mutex<()>>,
 }
 
 impl<Q: PathQuery> PathCacher<Q> {
@@ -52,11 +59,28 @@ impl<Q: PathQuery> PathCacher<Q> {
         Self {
             query,
             cache: Cache::new(64 * 1024),
+            lock: None,
+        }
+    }
+
+    /// Enable the lock for the path cacher.
+    pub fn with_lock(mut self) -> Self {
+        self.lock = Some(Mutex::default());
+        self
+    }
+
+    async fn lock(&self) -> Option<MutexGuard<()>> {
+        if let Some(l) = &self.lock {
+            Some(l.lock().await)
+        } else {
+            None
         }
     }
 
     /// Insert a new cache entry.
-    pub fn insert(&self, path: &str, id: &str) {
+    pub async fn insert(&self, path: &str, id: &str) {
+        let _guard = self.lock().await;
+
         // This should never happen, but let's ignore the insert if happened.
         if self.cache.contains_key(path) {
             debug_assert!(
@@ -70,12 +94,16 @@ impl<Q: PathQuery> PathCacher<Q> {
     }
 
     /// Remove a cache entry.
-    pub fn remove(&self, path: &str) {
+    pub async fn remove(&self, path: &str) {
+        let _guard = self.lock().await;
+
         self.cache.invalidate(path)
     }
 
     /// Get the id for the given path.
     pub async fn get(&self, path: &str) -> Result<Option<String>> {
+        let _guard = self.lock().await;
+
         if let Some(id) = self.cache.get(path) {
             return Ok(Some(id));
         }

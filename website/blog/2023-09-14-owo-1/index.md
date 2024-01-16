@@ -9,7 +9,7 @@ authors:
     image_url: https://github.com/Xuanwo.png
 ---
 
-> OwO (Outcome, Working, Outlook) is our blog series where we share our current work status and future plans.
+> OwO (Outcome, Working, Outlook) is an Apache OpenDAL™ release blog series, where we share the current work status and future plans.
 
 Hello! It's been a while since our last update. We've been hard at work determining the optimal way to implement new features and improvements. We're thrilled to announce that we'll soon be releasing v0.40.
 
@@ -87,7 +87,7 @@ Other improvements in the core library can be found in our [CHANGELOG](https://g
 
 ### Bindings
 
-#### Cpp
+#### C++
 
 [`opendal-cpp`](https://github.com/apache/incubator-opendal/tree/main/bindings/cpp) is ready for its first release! Welcome to check it out and give us some feedback.
 

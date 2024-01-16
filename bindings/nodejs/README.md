@@ -14,7 +14,17 @@ npm install opendal
 
 ## Docs
 
-See our documentations on [opendal.apache.org](https://opendal.apache.org/docs/nodejs/).
+See our documentation on [opendal.apache.org](https://opendal.apache.org/docs/nodejs/).
+
+To build the docs locally, please run the following commands:
+
+```shell
+# Only need to run once unless you want to update the docs theme
+pnpm run build:theme
+
+# Build the docs
+pnpm run docs
+```
 
 ## Usage
 

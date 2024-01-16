@@ -4,7 +4,7 @@ title: Download
 
 # Download
 
-The official Apache OpenDAL (incubating) releases are as source artifacts.
+The official Apache OpenDAL (incubating) releases are provided as source artifacts.
 
 ## Releases
 

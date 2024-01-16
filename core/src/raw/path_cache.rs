@@ -19,6 +19,7 @@ use crate::raw::*;
 use crate::*;
 use async_trait::async_trait;
 use moka::sync::Cache;
+use std::collections::VecDeque;
 use tokio::sync::{Mutex, MutexGuard};
 
 /// The trait required for path cacher.
@@ -29,7 +30,7 @@ pub trait PathQuery {
     async fn root(&self) -> Result<String>;
     /// Query the id by parent_id and name.
     async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>>;
-    /// Create dir by parent_id and name.
+    /// Create a dir by parent_id and name.
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String>;
 }
 
@@ -110,20 +111,39 @@ impl<Q: PathQuery> PathCacher<Q> {
             return Ok(Some(id));
         }
 
-        let mut paths = vec![];
+        let mut paths = VecDeque::new();
         let mut current_path = path;
 
         while current_path != "/" && !current_path.is_empty() {
-            paths.push(current_path.to_string());
+            paths.push_front(current_path.to_string());
             current_path = get_parent(current_path);
             if let Some(id) = self.cache.get(current_path) {
-                return self.query_down(&id, &paths).await;
+                return self.query_down(&id, paths).await;
             }
         }
 
         let root_id = self.query.root().await?;
         self.cache.insert("/".to_string(), root_id.clone());
-        self.query_down(&root_id, &paths).await
+        self.query_down(&root_id, paths).await
+    }
+
+    /// `start_id` is the `file_id` to the start dir to query down.
+    /// `paths` is in the order like `["/a/", "/a/b/", "/a/b/c/"]`.
+    ///
+    /// We should fetch the next `file_id` by sending `query`.
+    async fn query_down(&self, start_id: &str, paths: VecDeque<String>) -> Result<Option<String>> {
+        let mut current_id = start_id.to_string();
+        for path in paths.into_iter() {
+            let name = get_basename(&path);
+            current_id = match self.query.query(&current_id, name).await? {
+                Some(id) => {
+                    self.cache.insert(path, id.clone());
+                    id
+                }
+                None => return Ok(None),
+            };
+        }
+        Ok(Some(current_id))
     }
 
     /// Ensure input dir exists.
@@ -166,21 +186,6 @@ impl<Q: PathQuery> PathCacher<Q> {
         }
 
         Ok(parent_id)
-    }
-
-    async fn query_down(&self, start_id: &str, paths: &[String]) -> Result<Option<String>> {
-        let mut current_id = start_id.to_string();
-        for path in paths.iter().rev() {
-            let name = get_basename(path);
-            current_id = match self.query.query(&current_id, name).await? {
-                Some(id) => {
-                    self.cache.insert(path.clone(), id.clone());
-                    id
-                }
-                None => return Ok(None),
-            };
-        }
-        Ok(Some(current_id))
     }
 }
 

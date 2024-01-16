@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::oio;
 use crate::raw::oio::WriteBuf;
-use crate::raw::{oio, parse_hdfs_error};
 use crate::*;
-use futures::{ready, TryFutureExt};
 use hdfs_native::file::FileWriter;
 use std::task::{Context, Poll};
 

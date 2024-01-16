@@ -36,22 +36,10 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
         HdfsError::FileNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::BlocksNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::IsADirectoryError(msg) => (ErrorKind::IsADirectory, false, msg.clone()),
-        HdfsError::UnsupportedErasureCodingPolicy(msg) => {
-            (ErrorKind::Unsupported, false, msg.clone())
-        }
-        HdfsError::ErasureCodingError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::UnsupportedFeature(msg) => (ErrorKind::Unsupported, false, msg.clone()),
-        HdfsError::InternalError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::InvalidRPCResponse(err) => (ErrorKind::Unexpected, false, err.to_string()),
-        HdfsError::RPCError(_, msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::FatalRPCError(_, msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::SASLError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        #[cfg(feature = "kerberos")]
-        HdfsError::GSSAPIError(_) => (ErrorKind::Unexpected, false, "GSSAPI error".to_string()),
-        HdfsError::NoSASLMechanism => (
+        _ => (
             ErrorKind::Unexpected,
             false,
-            "No valid SASL mechanism found".to_string(),
+            "unexpected error from hdfs".to_string(),
         ),
     };
 

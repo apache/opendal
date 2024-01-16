@@ -25,6 +25,7 @@ use log::debug;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use super::hdfs_native_error_util::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;

@@ -122,6 +122,7 @@ impl<Q: PathQuery> PathCacher<Q> {
         }
 
         let root_id = self.query.root().await?;
+        self.cache.insert("/".to_string(), root_id.clone());
         self.query_down(&root_id, &paths).await
     }
 
@@ -142,15 +143,22 @@ impl<Q: PathQuery> PathCacher<Q> {
             parents.push(tmp.to_string());
         }
 
-        let mut parent_id = self.get("/").await?.expect("the id for root must exist");
+        let mut parent_id = match self.cache.get("/") {
+            Some(v) => v,
+            None => self.query.root().await?,
+        };
         for parent in parents {
-            parent_id = match self.get(&parent).await? {
+            parent_id = match self.cache.get(&parent) {
                 Some(value) => value,
                 None => {
-                    let value = self
-                        .query
-                        .create_dir(&parent_id, get_basename(&parent))
-                        .await?;
+                    let value = match self.query.query(&parent_id, get_basename(&parent)).await? {
+                        Some(value) => value,
+                        None => {
+                            self.query
+                                .create_dir(&parent_id, get_basename(&parent))
+                                .await?
+                        }
+                    };
                     self.cache.insert(parent, value.clone());
                     value
                 }

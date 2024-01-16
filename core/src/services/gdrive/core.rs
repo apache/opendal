@@ -76,43 +76,6 @@ impl GdriveCore {
         self.path_cache.ensure_dir(current_path).await
     }
 
-    /// Create a folder.
-    ///
-    /// # Input
-    ///
-    /// `parent_id` is the parent folder id.
-    ///
-    /// # Output
-    ///
-    /// Returns created folder's id while success, otherwise returns an error.
-    pub async fn gdrive_create_folder(&self, parent_id: &str, name: &str) -> Result<String> {
-        let url = "https://www.googleapis.com/drive/v3/files";
-
-        let content = serde_json::to_vec(&json!({
-            "name": name,
-            "mimeType": "application/vnd.google-apps.folder",
-            // If the parent is not provided, the folder will be created in the root folder.
-            "parents": [parent_id],
-        }))
-        .map_err(new_json_serialize_error)?;
-
-        let mut req = Request::post(url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
-        let resp = self.client.send(req).await?;
-        if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
-        }
-
-        let body = resp.into_body().bytes().await?;
-        let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
-        Ok(file.id)
-    }
-
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(

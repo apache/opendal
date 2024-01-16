@@ -269,8 +269,8 @@ impl WebhdfsBackend {
 
         let mut req;
         if status == StatusCode::TEMPORARY_REDIRECT {
-            let location = resp.headers().get("Location").unwrap().inner();
-            req = Request::put(&location);
+            let location = resp.headers().get("Location").unwrap().to_str().unwrap();
+            req = Request::put(location);
         }else{
             let bs = resp.into_body().bytes().await?;
 

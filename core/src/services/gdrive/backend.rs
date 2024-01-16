@@ -126,21 +126,15 @@ impl Accessor for GdriveBackend {
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = build_abs_path(&self.core.root, path);
+
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
-        let file_id = self
-            .core
-            .path_cache
-            .get(&build_abs_path(&self.core.root, path))
-            .await?;
+        let file_id = self.core.path_cache.get(&path).await?;
 
         Ok((
             RpWrite::default(),
-            oio::OneShotWriter::new(GdriveWriter::new(
-                self.core.clone(),
-                path.to_string(),
-                file_id,
-            )),
+            oio::OneShotWriter::new(GdriveWriter::new(self.core.clone(), path, file_id)),
         ))
     }
 

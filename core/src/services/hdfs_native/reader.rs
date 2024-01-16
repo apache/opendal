@@ -36,7 +36,7 @@ impl HdfsNativeReader {
 
 impl Read for HdfsNativeReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        ready!(self.f.read_buf(buf).map_err(parse_hdfs_error))
+        todo!()
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {

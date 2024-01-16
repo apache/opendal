@@ -34,6 +34,6 @@ impl HdfsNativeLister {
 
 impl oio::List for HdfsNativeLister {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        self.client.list_status(self.path.as_str(),false)
+        todo!()
     }
 }

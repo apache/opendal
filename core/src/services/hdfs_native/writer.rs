@@ -34,13 +34,11 @@ impl HdfsNativeWriter {
 
 impl oio::Write for HdfsNativeWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
-        let usize = bs.remaining();
-        let bytes = bs.bytes(usize);
-        ready!(self.f.write(bytes).map_err(parse_hdfs_error).)
+        todo!()
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        ready!(self.f.close().map_err(parse_hdfs_error))
+        todo!()
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {

@@ -144,7 +144,7 @@ impl<Q: PathQuery> PathCacher<Q> {
 
         let mut parent_id = self.get("/").await?.expect("the id for root must exist");
         for parent in parents {
-            parent_id = match self.cache.get(&parent) {
+            parent_id = match self.get(&parent).await? {
                 Some(value) => value,
                 None => {
                     let value = self

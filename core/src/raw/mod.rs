@@ -35,6 +35,11 @@ pub use layer::*;
 mod path;
 pub use path::*;
 
+#[cfg(feature = "internal-path-cache")]
+mod path_cache;
+#[cfg(feature = "internal-path-cache")]
+pub use path_cache::*;
+
 mod operation;
 pub use operation::*;
 

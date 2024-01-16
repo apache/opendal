@@ -26,10 +26,10 @@ use log::debug;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
-use crate::raw::normalize_root;
 use crate::raw::HttpClient;
-use crate::services::gdrive::core::GdriveCore;
+use crate::raw::{normalize_root, PathCacher};
 use crate::services::gdrive::core::GdriveSigner;
+use crate::services::gdrive::core::{GdriveCore, GdrivePathQuery};
 use crate::Scheme;
 use crate::*;
 
@@ -144,13 +144,13 @@ impl Builder for GdriveBuilder {
             })?
         };
 
-        let signer = match (self.access_token.take(), self.refresh_token.take()) {
-            (Some(access_token), None) => GdriveSigner {
-                access_token,
+        let mut signer = GdriveSigner::new(client.clone());
+        match (self.access_token.take(), self.refresh_token.take()) {
+            (Some(access_token), None) => {
+                signer.access_token = access_token;
                 // We will never expire user specified access token.
-                expires_in: DateTime::<Utc>::MAX_UTC,
-                ..Default::default()
-            },
+                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+            }
             (None, Some(refresh_token)) => {
                 let client_id = self.client_id.take().ok_or_else(|| {
                     Error::new(
@@ -167,12 +167,10 @@ impl Builder for GdriveBuilder {
                     .with_context("service", Scheme::Gdrive)
                 })?;
 
-                GdriveSigner {
-                    refresh_token,
-                    client_id,
-                    client_secret,
-                    ..Default::default()
-                }
+                signer.refresh_token = refresh_token;
+                signer.client = client.clone();
+                signer.client_id = client_id;
+                signer.client_secret = client_secret;
             }
             (Some(_), Some(_)) => {
                 return Err(Error::new(
@@ -190,12 +188,13 @@ impl Builder for GdriveBuilder {
             }
         };
 
+        let signer = Arc::new(Mutex::new(signer));
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
                 root,
-                signer: Arc::new(Mutex::new(signer)),
-                client,
-                path_cache: Arc::default(),
+                signer: signer.clone(),
+                client: client.clone(),
+                path_cache: PathCacher::new(GdrivePathQuery::new(client, signer)).with_lock(),
             }),
         })
     }

@@ -63,7 +63,7 @@ impl oio::List for HdfsLister {
             oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
         };
 
-        Poll::Ready (Ok(Some(entry)))
+        Poll::Ready(Ok(Some(entry)))
     }
 }
 

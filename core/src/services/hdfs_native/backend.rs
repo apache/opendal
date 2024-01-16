@@ -136,7 +136,7 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(url).map_err()?;
+        let client = hdfs_native::Client::new(url).map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
 
@@ -205,7 +205,11 @@ impl Accessor for HdfsNativeBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self.client.create(&p, WriteOptions::default()).await.map_err(parse_hdfs_error)?;
+        let f = self
+            .client
+            .create(&p, WriteOptions::default())
+            .await
+            .map_err(parse_hdfs_error)?;
 
         let w = HdfsNativeWriter::new(f);
 
@@ -231,6 +235,6 @@ impl Accessor for HdfsNativeBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
         let l = HdfsNativeLister::new(p, self.client.clone());
-        Ok((RpList::new(), Some(l)))
+        Ok((RpList::default(), Some(l)))
     }
 }

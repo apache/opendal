@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::ready;
 use crate::raw::oio::{Read, Reader};
+use crate::raw::parse_hdfs_error;
 use crate::*;
 use bytes::Bytes;
 use hdfs_native::file::FileReader;
+use std::future::ready;
 use std::io::SeekFrom;
 use std::task::{Context, Poll};
-use crate::raw::parse_hdfs_error;
 
 pub struct HdfsNativeReader {
     f: FileReader,

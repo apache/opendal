@@ -20,8 +20,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
 use crate::{Error, ErrorKind, Result};
+use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
 
 use super::core::{IcloudItem, IcloudSigner};
 use super::drive::DriveService;
@@ -34,7 +34,7 @@ pub struct Client {
 }
 
 impl Client {
-    // Logs into iCloud using the provided credentials.
+    // Logs into icloud using the provided credentials.
     pub async fn login(&self) -> Result<()> {
         let mut core = self.core.lock().await;
 
@@ -56,8 +56,8 @@ impl Client {
         let path = build_rooted_abs_path(&self.root, path);
         let mut base = get_basename(&path);
 
-        if base.ends_with("/") {
-            base = base.trim_end_matches("/");
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
         }
         let cache = self.path_cache.lock().await;
         if let Some(id) = cache.get(base) {
@@ -148,11 +148,11 @@ impl Client {
         let drive = self
             .drive()
             .await
-            .expect("iCloud DriveService read drive not found");
+            .expect("icloud DriveService read drive not found");
         let path_id = self
             .get_file_id_by_path(path)
             .await
-            .expect("iCloud DriveService read path_id not found");
+            .expect("icloud DriveService read path_id not found");
 
         if let Some(docwsid) = path_id.unwrap().strip_prefix("FILE::com.apple.CloudDocs::") {
             Ok(drive
@@ -161,7 +161,7 @@ impl Client {
         } else {
             Err(Error::new(
                 ErrorKind::NotFound,
-                "iCloud DriveService read error",
+                "icloud DriveService read error",
             ))
         }
     }
@@ -171,21 +171,21 @@ impl Client {
         let path_id = self
             .get_file_id_by_path(path)
             .await
-            .expect("iCloud DriveService stat path_id don't find");
+            .expect("icloud DriveService stat path_id don't find");
 
         let drive = self
             .drive()
             .await
-            .expect("iCloud DriveService stat drive not found");
+            .expect("icloud DriveService stat drive not found");
 
         let folder_id = self
             .get_stat_folder_id(path)
             .await
-            .expect("iCloud DriveService stat folder_id don't find");
+            .expect("icloud DriveService stat folder_id don't find");
         if folder_id.is_empty() {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                "iCloud DriveService stat not exist path",
+                "icloud DriveService stat not exist path",
             ));
         }
 
@@ -200,13 +200,13 @@ impl Client {
                     Some(it) => Ok(it.clone()),
                     _ => Err(Error::new(
                         ErrorKind::NotFound,
-                        "iCloud DriveService stat parent items don't have same drivewsid",
+                        "icloud DriveService stat parent items don't have same drivewsid",
                     )),
                 }
             }
             None => Err(Error::new(
                 ErrorKind::NotFound,
-                "iCloud DriveService stat get parent items error",
+                "icloud DriveService stat get parent items error",
             )),
         }
     }

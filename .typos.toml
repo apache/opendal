@@ -31,5 +31,4 @@ extend-exclude = [
   # Generated SSH Keys.
   "fixtures/sftp/test_ssh_key",
   "fixtures/sftp/test_ssh_key.pub",
-  "core/src/services/icloud/core.rs"
 ]

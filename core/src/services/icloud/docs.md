@@ -21,19 +21,20 @@ This service can be used to:
 
 #### provide Session (Temporary)
 
-- `trust_token`: set the trust_token for iCloud drive api
+- `trust_token`: set the trust_token for icloud drive api
   Please notice its expiration.
-- `ds_web_auth_token`: set the ds_web_auth_token for iCloud drive api
+- `ds_web_auth_token`: set the ds_web_auth_token for icloud drive api
   Get web trust the session.
-- `region`: set the region for iCloud drive api
-  China region must use "https://www.icloud.com.cn"
+- `is_china_mainland`: set the is_china_mainland for icloud drive api
+  China region must true to use "https://www.icloud.com.cn"
   Otherwise Apple server will return 302.
+  More information you can get [apple.com](https://support.apple.com/en-us/111754)
 
 OpenDAL is a library, it cannot do the first step of OAuth2 for you.
-You need to get authorization code from user by calling iCloudDrive's authorize url
+You need to get authorization code from user by calling icloudDrive's authorize url
 and save it for session's trust_token and session_token(ds_web_auth_token).
 
-Make sure you have enabled Apple iCloud Drive API in your Apple iCloud ID.
+Make sure you have enabled Apple icloud Drive API in your Apple icloud ID.
 And your OAuth scope contains valid `Session`.
 
 You can get more information from [pyicloud](https://github.com/picklepete/pyicloud/tree/master?tab=readme-ov-file#authentication) or 
@@ -58,7 +59,7 @@ async fn main() -> Result<()> {
     builder.password("<password>");
     builder.trust_token("<trust_token>");
     builder.ds_web_auth_token("<ds_web_auth_token>");
-    builder.region("<region>");
+    builder.is_china_mainland("<is_china_mainland>");
 
     Ok(())
 }

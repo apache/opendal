@@ -24,12 +24,12 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::raw::*;
-use crate::services::icloud::core::{parse_error, IcloudSigner, SessionData};
 use crate::*;
+use crate::raw::*;
 use crate::{Builder, Capability, Error, ErrorKind, Scheme};
 
 use super::client::Client;
+use super::core::{parse_error, IcloudSigner, SessionData};
 
 /// Config for icloud services support.
 #[derive(Default, Deserialize)]
@@ -56,20 +56,18 @@ pub struct IcloudConfig {
     /// token must be valid.
     pub trust_token: Option<String>,
     pub ds_web_auth_token: Option<String>,
+    /// enable the china origin
     /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".
     ///
     /// otherwise Apple server will return 302.
-    pub region: Option<String>,
+    pub is_china_mainland: bool,
 }
 
 impl Debug for IcloudConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("iCloudBuilder");
+        let mut d = f.debug_struct("IcloudBuilder");
         d.field("root", &self.root);
-        d.field("trust_token", &self.trust_token);
-        d.field("ds_web_auth_token", &self.ds_web_auth_token);
-        d.field("region", &self.region);
-
+        d.field("is_china_mainland",&self.is_china_mainland);
         d.finish_non_exhaustive()
     }
 }
@@ -78,7 +76,14 @@ impl Debug for IcloudConfig {
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct IcloudBuilder {
+    /// icloud config for web session request
     pub config: IcloudConfig,
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
     pub http_client: Option<HttpClient>,
 }
 
@@ -126,11 +131,9 @@ impl IcloudBuilder {
         self
     }
 
-    /// Trust token and ds_web_auth_token is used for temporary access to the IcloudDrive API.
+    /// Trust token and ds_web_auth_token is used for temporary access to the icloudDrive API.
+    ///
     /// Authenticate using session token
-    /// You can get more information from [pyicloud](https://github.com/picklepete/pyicloud/tree/master?tab=readme-ov-file#authentication)
-    /// or [iCloud-API](https://github.com/MauriceConrad/iCloud-API?tab=readme-ov-file#getting-started)
-
     pub fn trust_token(&mut self, trust_token: &str) -> &mut Self {
         self.config.trust_token = if trust_token.is_empty() {
             None
@@ -152,15 +155,11 @@ impl IcloudBuilder {
 
         self
     }
+    /// Enable the china origin
     /// For China, use "https://www.icloud.com.cn"
     /// For Other region, use "https://www.icloud.com"
-    pub fn region(&mut self, region: &str) -> &mut Self {
-        self.config.region = if region.is_empty() {
-            None
-        } else {
-            Some(region.to_string())
-        };
-
+    pub fn is_china_mainland(&mut self, is_china_mainland: bool) -> &mut Self {
+        self.config.is_china_mainland = is_china_mainland;
         self
     }
 
@@ -222,15 +221,8 @@ impl Builder for IcloudBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Icloud)),
         }?;
-        debug!("iCloud backend use trust_token {}", &trust_token);
 
-        let region = match &self.config.region {
-            Some(region) => Ok(region.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "region is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Icloud)),
-        }?;
-        debug!("iCloud backend use region {}", &region);
+        debug!("Icloud backend is_china_mainland {}", &self.config.is_china_mainland);
 
         let client = if let Some(client) = self.http_client.take() {
             client
@@ -253,7 +245,7 @@ impl Builder for IcloudBuilder {
                     password,
                     trust_token: Some(trust_token),
                     ds_web_auth_token: Some(ds_web_auth_token),
-                    region: Some(region),
+                    is_china_mainland: self.config.is_china_mainland,
                 })),
                 root,
                 path_cache: Arc::new(Default::default()),
@@ -289,7 +281,7 @@ impl Accessor for IcloudBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // iCloud get the filename by id, instead obtain the metadata by filename
+        // icloud get the filename by id, instead obtain the metadata by filename
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }

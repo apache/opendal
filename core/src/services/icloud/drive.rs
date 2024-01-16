@@ -23,12 +23,12 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::Result;
 use crate::raw::oio::WriteBuf;
 use crate::raw::{new_json_deserialize_error, AsyncBody, IncomingAsyncBody, OpRead};
-use crate::{Error, ErrorKind, Result};
 
 use super::core::{
-    parse_error, IcloudCreateFolder, IcloudItem, IcloudObject, IcloudRoot, IcloudSigner,
+    parse_error, IcloudItem, IcloudObject, IcloudRoot, IcloudSigner,
 };
 
 #[derive(Clone)]
@@ -41,7 +41,7 @@ pub struct File {
     pub mime_type: String,
 }
 
-// A directory in iCloud Drive.
+// A directory in icloud Drive.
 #[derive(Clone)]
 pub struct Folder {
     pub id: Option<String>,
@@ -63,22 +63,12 @@ impl<'a> Iterator for FolderIter<'a> {
     }
 }
 
-impl Folder {
-    #[warn(dead_code)]
-    pub fn iter(&self) -> FolderIter {
-        FolderIter {
-            current: self.items.iter(),
-        }
-    }
-}
-
-// A node within the iCloud Drive filesystem.
+// A node within the icloud Drive filesystem.
 #[derive(Clone)]
 #[warn(unused_variables)]
 #[warn(dead_code)]
 pub enum DriveNode {
     Folder(Folder),
-    File(File),
 }
 
 impl DriveNode {
@@ -92,40 +82,9 @@ impl DriveNode {
         }))
     }
 
-    #[warn(dead_code)]
-    pub fn id(&self) -> Option<String> {
-        match self {
-            DriveNode::Folder(folder) => folder.id.clone(),
-            DriveNode::File(file) => file.id.clone(),
-        }
-    }
-    #[warn(dead_code)]
-    pub fn name(&self) -> &String {
-        match self {
-            DriveNode::Folder(folder) => &folder.name,
-            DriveNode::File(file) => &file.name,
-        }
-    }
-    #[warn(dead_code)]
-    pub fn size(&self) -> Option<u64> {
-        match self {
-            #[warn(unused_variables)]
-            DriveNode::Folder(folder) => None,
-            DriveNode::File(file) => Some(file.size),
-        }
-    }
-    #[warn(dead_code)]
-    pub fn mime_type(&self) -> String {
-        match self {
-            DriveNode::Folder(folder) => folder.mime_type.clone(),
-            DriveNode::File(file) => file.mime_type.clone(),
-        }
-    }
-
     pub fn items(&self) -> Option<Vec<IcloudItem>> {
         match self {
             DriveNode::Folder(folder) => Some(folder.items.clone()),
-            DriveNode::File(file) => None,
         }
     }
 }
@@ -143,13 +102,6 @@ impl std::fmt::Display for DriveNode {
                     folder.items.len()
                 )
             }
-            DriveNode::File(file) => {
-                write!(
-                    f,
-                    "File(id={:?},name={},dateCreated={:?},dataModified={:?},size={})",
-                    file.id, file.name, file.date_created, file.date_modified, file.size,
-                )
-            }
         }
     }
 }
@@ -161,7 +113,7 @@ pub struct DriveService {
 }
 
 impl DriveService {
-    // Constructs an interface to an iCloud Drive.
+    // Constructs an interface to an icloud Drive.
     pub fn new(
         core: Arc<Mutex<IcloudSigner>>,
         drive_url: String,
@@ -174,15 +126,14 @@ impl DriveService {
         }
     }
 
-    // Retrieves the root directory within the iCloud Drive.
+    // Retrieves the root directory within the icloud Drive.
     pub async fn root(&self) -> Result<Folder> {
         match self.get_root("FOLDER::com.apple.CloudDocs::root").await? {
             DriveNode::Folder(folder) => Ok(folder),
-            _ => Err(Error::new(ErrorKind::Unexpected, "InvalidDriveNodeType")),
         }
     }
 
-    // Retrieves a root within the iCloud Drive.
+    // Retrieves a root within the icloud Drive.
     //"FOLDER::com.apple.CloudDocs::root"
     pub async fn get_root(&self, id: &str) -> Result<DriveNode> {
         let uri = format!("{}/retrieveItemDetailsInFolders", self.drive_url);
@@ -203,7 +154,6 @@ impl DriveService {
         if response.status() == StatusCode::OK {
             let body = &response.into_body().bytes().await?;
 
-            //iCloudRoot
             let drive_node: Vec<IcloudRoot> =
                 serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
@@ -259,41 +209,6 @@ impl DriveService {
                 let response = core.client.send(async_body).await?;
 
                 Ok(response)
-            }
-            _ => Err(parse_error(response).await?),
-        }
-    }
-
-    #[warn(dead_code)]
-    pub async fn create_folder(&self, parent_id: &str, name: &str) -> Result<String> {
-        let mut core = self.core.lock().await;
-        let client_id = core.get_client_id();
-        let uri = format!("{}/createFolders", self.drive_url);
-        let body = json!(
-                         {
-                             "destinationDrivewsId": parent_id,
-                             "folders": [
-                             {
-                                "clientId": client_id,
-                                "name": name,
-                            }
-                            ],
-                         }
-        )
-        .to_string();
-
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-
-        let response = core.sign(Method::POST, uri, async_body).await?;
-
-        match response.status() {
-            StatusCode::OK => {
-                let body = &response.into_body().bytes().await?;
-
-                let create_folder: IcloudCreateFolder =
-                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-                Ok(create_folder.destination_drivews_id)
             }
             _ => Err(parse_error(response).await?),
         }

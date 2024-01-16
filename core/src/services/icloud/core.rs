@@ -30,10 +30,7 @@ use serde_json::json;
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
-use crate::raw::{
-    new_json_deserialize_error, with_error_response_context, AsyncBody, HttpClient,
-    IncomingAsyncBody,
-};
+use crate::raw::{new_json_deserialize_error, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody, parse_header_to_str};
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
@@ -103,15 +100,13 @@ pub struct IcloudSigner {
 
     pub trust_token: Option<String>,
     pub ds_web_auth_token: Option<String>,
-    pub region: Option<String>,
+    pub is_china_mainland: bool,
 }
 
 impl Debug for IcloudSigner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("iCloud signer");
-        de.field("trust_token", &self.trust_token);
-        de.field("ds_web_auth_token", &self.ds_web_auth_token);
-        de.field("region", &self.region);
+        let mut de = f.debug_struct("icloud signer");
+        de.field("is_china_mainland", &self.is_china_mainland);
         de.finish()
     }
 }
@@ -119,12 +114,6 @@ impl Debug for IcloudSigner {
 impl IcloudSigner {
     pub fn get_service_info(&self, name: String) -> Option<&ServiceInfo> {
         self.data.webservices.get(&name)
-    }
-
-    #[warn(dead_code)]
-    // create_dir could use client_id
-    pub fn get_client_id(&self) -> &String {
-        &self.data.oauth_state
     }
 }
 
@@ -205,7 +194,7 @@ impl IcloudSigner {
                     if auth_info.hsa_trusted_browser {
                         Ok(())
                     } else {
-                        Err(Error::new(ErrorKind::Unexpected, "Apple iCloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"))
+                        Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"))
                     }
                 } else {
                     Ok(())
@@ -213,7 +202,7 @@ impl IcloudSigner {
             }
             _ => Err(Error::new(
                 ErrorKind::Unexpected,
-                "Apple iCloud AuthenticationFailed:Unauthorized:Invalid token",
+                "Apple icloud AuthenticationFailed:Unauthorized:Invalid token",
             )),
         }
     }
@@ -240,9 +229,13 @@ impl IcloudSigner {
         // China region
         // ("Origin", "https://www.icloud.com.cn")
         // ("Referer", "https://www.icloud.com.cn/")
-        if let Some(region) = &self.region {
-            request = request.header("Origin", region);
-            request = request.header("Referer", (region.to_string() + "/").as_str());
+        // You can get more information from [apple.com](https://support.apple.com/en-us/111754)
+        if self.is_china_mainland {
+            request = request.header("Origin","https://www.icloud.com.cn");
+            request = request.header("Referer", "https://www.icloud.com.cn/");
+        } else {
+            request = request.header("Origin","https://www.icloud.com");
+            request = request.header("Referer", "https://www.icloud.com/");
         }
 
         if !self.data.cookies.is_empty() {
@@ -265,27 +258,25 @@ impl IcloudSigner {
 
         match self.client.send(request.body(body).unwrap()).await {
             Ok(response) => {
-                if let Some(account_country) = response.headers().get(ACCOUNT_COUNTRY_HEADER) {
-                    self.data.account_country =
-                        Some(String::from(account_country.to_str().unwrap()));
-                }
-                if let Some(session_id) = response.headers().get(SESSION_ID_HEADER) {
-                    self.data.session_id = Some(String::from(session_id.to_str().unwrap()));
-                }
-                if let Some(session_token) = response.headers().get(SESSION_TOKEN_HEADER) {
-                    self.data.session_token = Some(String::from(session_token.to_str().unwrap()));
+                if let Some(account_country) =parse_header_to_str(response.headers(),ACCOUNT_COUNTRY_HEADER)? {
+                    self.data.account_country=Some(account_country.to_string());
                 }
 
-                if let Some(scnt) = response.headers().get(SCNT_HEADER) {
-                    self.data.scnt = Some(String::from(scnt.to_str().unwrap()));
+                if let Some(session_id) = parse_header_to_str(response.headers(),SESSION_ID_HEADER)? {
+                    self.data.session_id = Some(session_id.to_string());
+                }
+                if let Some(session_token) = parse_header_to_str(response.headers(),SESSION_TOKEN_HEADER)? {
+                    self.data.session_token = Some(session_token.to_string());
+                }
+
+                if let Some(scnt) = parse_header_to_str(response.headers(),SCNT_HEADER)? {
+                    self.data.scnt = Some(scnt.to_string());
                 }
 
                 for (key, value) in response.headers() {
                     if key == header::SET_COOKIE {
-                        #[warn(clippy::single_char_pattern)]
-                        if let Some(cookie) = value.to_str().unwrap().split(";").next() {
-                            #[warn(clippy::single_char_pattern)]
-                            if let Some((key, value)) = cookie.split_once("=") {
+                        if let Some(cookie) = value.to_str().unwrap().split(';').next() {
+                            if let Some((key, value)) = cookie.split_once('=') {
                                 self.data
                                     .cookies
                                     .insert(String::from(key), String::from(value));
@@ -300,7 +291,7 @@ impl IcloudSigner {
             }
             _ => Err(Error::new(
                 ErrorKind::Unexpected,
-                "Apple iCloud AuthenticationFailed:Unauthorized request",
+                "Apple icloud AuthenticationFailed:Unauthorized request",
             )),
         }
     }

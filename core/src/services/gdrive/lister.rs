@@ -41,7 +41,7 @@ impl GdriveLister {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::PageList for GdriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let file_id = self.core.get_file_id_by_path(&self.path).await?;
+        let file_id = self.core.path_cache.get(&self.path).await?;
 
         let file_id = match file_id {
             Some(file_id) => file_id,
@@ -78,18 +78,22 @@ impl oio::PageList for GdriveLister {
 
         for mut file in decoded_response.files {
             let file_type = if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-                file.name = format!("{}/", file.name);
+                if !file.name.ends_with('/') {
+                    file.name += "/";
+                }
                 EntryMode::DIR
             } else {
                 EntryMode::FILE
             };
 
             let root = &self.core.root;
-            let path = format!("{}{}", build_rooted_abs_path(root, &self.path), file.name);
+            let path = format!("{}{}", &self.path, file.name);
             let normalized_path = build_rel_path(root, &path);
 
-            let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
+            // Update path cache with list result.
+            self.core.path_cache.insert(&path, &file.id).await;
 
+            let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
             ctx.entries.push_back(entry);
         }
 

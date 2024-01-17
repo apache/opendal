@@ -271,7 +271,7 @@
                 <version>${maven-javadoc-plugin.version}</version>
                 <configuration>
                     <bottom>
-                        Copyright © 2022-2024, The Apache Software Foundation Apache OpenDAL, OpenDAL, and Apache
+                        Copyright © 2022-2024, The Apache Software Foundation. Apache OpenDAL, OpenDAL, and Apache
                         are either registered trademarks or trademarks of the Apache Software Foundation.
                     </bottom>
                 </configuration>

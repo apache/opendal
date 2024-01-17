@@ -150,7 +150,7 @@ impl Accessor for GdriveBackend {
 
         let resp = self.core.gdrive_trash(&file_id).await?;
         let status = resp.status();
-        if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+        if status != StatusCode::OK {
             return Err(parse_error(resp).await?);
         }
 

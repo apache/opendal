@@ -197,6 +197,12 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
+    // Gdrive think that this test is an abuse of their service and redirect us
+    // to an infinite loop. Let's ignore this test for gdrive.
+    if op.info().scheme() == Scheme::Gdrive {
+        return Ok(());
+    }
+
     op.create_dir("test_list_rich_dir/").await?;
 
     let mut expected: Vec<String> = (0..=100)

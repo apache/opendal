@@ -131,6 +131,11 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
         return Ok(());
     }
+    // Gdrive think that this test is an abuse of their service and redirect us
+    // to an infinite loop. Let's ignore this test for gdrive.
+    if op.info().scheme() == Scheme::Gdrive {
+        return Ok(());
+    }
 
     let dir = uuid::Uuid::new_v4().to_string();
     op.create_dir(&format!("{dir}/"))

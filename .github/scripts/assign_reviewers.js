@@ -17,7 +17,7 @@
  * under the License.
  */
 
-async function run(github, context, fs) {
+async function run(github, core, fs) {
   try {
     const token = core.getInput('github-token', {required: true});
     const octokit = github.getOctokit(token);
@@ -65,6 +65,6 @@ async function run(github, context, fs) {
   }
 }
 
-module.exports = ({github, context, fs}) => {
-  return run(github, context, fs)
+module.exports = ({github, core, fs}) => {
+  return run(github, core, fs)
 }

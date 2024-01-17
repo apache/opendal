@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Assign Reviewers from COMMITTERS in CODEOWNERS
+name: Assign Reviewers
 
 on:
   pull_request_target:
@@ -37,5 +37,5 @@ jobs:
           script: |
             const fs = require('fs');
             const script = require('.github/scripts/assign_reviewers.js')
-            script({github, context, fs})
+            script({github, core, fs})
           github-token: ${{ secrets.GITHUB_TOKEN }}

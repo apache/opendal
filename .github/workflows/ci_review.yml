@@ -20,9 +20,6 @@ name: Assign Reviewers
 on:
   pull_request_target:
     types: [opened, reopened]
-  # Just for test, remove me later
-  pull_request:
-    types: [ opened, reopened, synchronize ]
 
 jobs:
   assign-reviewers:

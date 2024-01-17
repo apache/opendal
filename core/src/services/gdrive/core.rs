@@ -161,11 +161,16 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_delete(&self, file_id: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
-        let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+        let body = serde_json::to_vec(&json!({
+            "trashed": true
+        }))
+        .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::patch(&url)
+            .body(AsyncBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

@@ -148,9 +148,9 @@ impl Accessor for GdriveBackend {
             return Ok(RpDelete::default());
         };
 
-        let resp = self.core.gdrive_delete(&file_id).await?;
+        let resp = self.core.gdrive_trash(&file_id).await?;
         let status = resp.status();
-        if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+        if status != StatusCode::OK {
             return Err(parse_error(resp).await?);
         }
 
@@ -183,9 +183,9 @@ impl Accessor for GdriveBackend {
 
         // copy will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&to_path).await? {
-            let resp = self.core.gdrive_delete(&id).await?;
+            let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
-            if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+            if status != StatusCode::OK {
                 return Err(parse_error(resp).await?);
             }
 
@@ -223,9 +223,9 @@ impl Accessor for GdriveBackend {
 
         // rename will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&target).await? {
-            let resp = self.core.gdrive_delete(&id).await?;
+            let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
-            if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+            if status != StatusCode::OK {
                 return Err(parse_error(resp).await?);
             }
 

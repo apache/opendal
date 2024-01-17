@@ -245,7 +245,7 @@ impl WebhdfsBackend {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=CREATE&overwrite=true&noredirect=true",
+            "{}/webhdfs/v1/{}?op=CREATE&overwrite=true",
             self.endpoint,
             percent_encode_path(&p),
         );
@@ -253,31 +253,7 @@ impl WebhdfsBackend {
             url += format!("&{auth}").as_str();
         }
 
-        let req = Request::put(&url);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let mut req;
-        if status == StatusCode::TEMPORARY_REDIRECT {
-            let location = resp.headers().get("Location").unwrap().to_str().unwrap();
-            req = Request::put(location);
-        }else{
-            let bs = resp.into_body().bytes().await?;
-
-            let resp =
-                serde_json::from_slice::<LocationResponse>(&bs).map_err(new_json_deserialize_error)?;
-            req = Request::put(&resp.location);
-        }
+        let mut req = Request::put(&url);
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size);

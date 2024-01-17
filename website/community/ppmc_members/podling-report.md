@@ -9,7 +9,7 @@ Podling Status Report provides key updates on your podling's status and helps th
 
 New podlings are required to submit reports monthly for the first three months. After this period, the reporting frequency changes to quarterly. 
 
-**The current reporting frequency for OpenDAL is once per quarter.** Stay attentive to general@incubator.apache.org ([subscribe](mailto:general-subscribe@incubator.apache.org)), where due dates for these reports are announced.
+**The current reporting frequency for Apache OpenDAL™ is once per quarter.** Stay attentive to general@incubator.apache.org ([subscribe](mailto:general-subscribe@incubator.apache.org)), where due dates for these reports are announced.
 
 ### Report Preparation
 

@@ -148,7 +148,7 @@ impl HttpClient {
                 err.is_builder() ||
                 // Error returned by RedirectPolicy.
                 //
-                // We don't set this by hand, just don't allow retry.
+                // Don't retry error if we redirect too many.
                 err.is_redirect() ||
                 // We never use `Response::error_for_status`, just don't allow retry.
                 //

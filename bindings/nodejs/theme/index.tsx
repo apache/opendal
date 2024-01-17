@@ -28,9 +28,8 @@ export class FooterWithASFCopyright extends DefaultThemeRenderContext {
         <>
           <div class="tsd-generator">
             <p>
-              Copyright © 2022-2024, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator,
-              the Apache feather, the Apache Incubator logo and the Apache OpenDAL project logo are either registered
-              trademarks or trademarks of the Apache Software Foundation.
+              Copyright © 2022-2024, The Apache Software Foundation. Apache OpenDAL, OpenDAL, and Apache are either
+              registered trademarks or trademarks of the Apache Software Foundation.
             </p>
           </div>
         </>

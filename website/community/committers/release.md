@@ -3,8 +3,8 @@ title: Create a release
 sidebar_position: 3
 ---
 
-This document mainly introduces
-how the release manager releases a new version in accordance with the Apache requirements.
+This document mainly introduces how the release manager
+releases a new version of Apache OpenDAL™ in accordance with the Apache requirements.
 
 ## Introduction
 

@@ -246,7 +246,7 @@ impl WebhdfsBackend {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=CREATE&overwrite=true&noredirect=true",
+            "{}/webhdfs/v1/{}?op=CREATE&overwrite=true",
             self.endpoint,
             percent_encode_path(&p),
         );
@@ -254,29 +254,53 @@ impl WebhdfsBackend {
             url += format!("&{auth}").as_str();
         }
 
+        println!("Shubham webhdfs_create_object_request url - {:?}", url);
+
         let req = Request::put(&url);
 
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
+        println!("Shubham webhdfs_create_object_request - making first api call with empty body");
         let resp = self.client.send(req).await?;
+
+        println!(
+            "Shubham webhdfs_create_object_request 1st call response headers - {:?}",
+            resp.headers()
+        );
 
         let status = resp.status();
 
-        if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
+        println!(
+            "Shubham webhdfs_create_object_request 1st call response status - {:?}",
+            status
+        );
+
+        // if status != StatusCode::CREATED && status != StatusCode::OK {
+        //     return Err(parse_error(resp).await?);
+        // }
 
         let mut req;
         if status == StatusCode::TEMPORARY_REDIRECT {
             let location = resp.headers().get("Location").unwrap().to_str().unwrap();
+            println!(
+                "Shubham webhdfs_create_object_request if block temporary redirect location - {:?}",
+                location
+            );
             req = Request::put(location);
         } else {
             let bs = resp.into_body().bytes().await?;
-
+            println!(
+                "Shubham webhdfs_create_object_request else block bs - {:?}",
+                bs
+            );
             let resp = serde_json::from_slice::<LocationResponse>(&bs)
                 .map_err(new_json_deserialize_error)?;
+            println!(
+                "Shubham webhdfs_create_object_request else block location - {:?}",
+                resp
+            );
             req = Request::put(&resp.location);
         }
 
@@ -288,6 +312,8 @@ impl WebhdfsBackend {
             req = req.header(CONTENT_TYPE, content_type);
         };
         let req = req.body(body).map_err(new_request_build_error)?;
+
+        println!("Shubham webhdfs_create_object_request exiting");
 
         Ok(req)
     }

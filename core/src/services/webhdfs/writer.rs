@@ -48,7 +48,16 @@ impl oio::BlockWrite for WebhdfsWriter {
             .webhdfs_create_object_request(&self.path, Some(size), &self.op, body)
             .await?;
 
+        println!("Shubham write_once - req headers {:?}", req.headers());
+        println!("Shubham write_once - req uri {:?}", req.uri());
+
         let resp = self.backend.client.send(req).await?;
+
+        println!(
+            "Shubham write_once - response headers  {:?}",
+            resp.headers()
+        );
+        println!("Shubham write_once - response status  {:?}", resp.status());
 
         let status = resp.status();
         match status {

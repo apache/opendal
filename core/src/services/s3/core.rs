@@ -19,6 +19,8 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::atomic;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -83,6 +85,7 @@ pub struct S3Core {
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
+    pub credential_loaded: AtomicBool,
     pub client: HttpClient,
     pub batch_max_operations: usize,
 }
@@ -107,18 +110,31 @@ impl S3Core {
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else if self.allow_anonymous {
-            // If allow_anonymous has been set, we will not sign the request.
-            Ok(None)
-        } else {
-            // Mark this error as temporary since it could be caused by AWS STS.
-            Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "no valid credential found, please check configuration or try again",
-            )
-            .set_temporary())
+            // Update credential_loaded to true if we have load credential successfully.
+            self.credential_loaded
+                .store(true, atomic::Ordering::Relaxed);
+            return Ok(Some(cred));
         }
+
+        // If we have load credential before but failed to load this time, we should
+        // return error instead.
+        if self.credential_loaded.load(atomic::Ordering::Relaxed) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "credential was previously loaded successfully but has failed this time",
+            )
+            .set_temporary());
+        }
+
+        // Credential is empty and users allow anonymous access, we will not sign the request.
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "no valid credential found and anonymous access is not allowed",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {

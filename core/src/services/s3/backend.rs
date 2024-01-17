@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -966,6 +967,7 @@ impl Builder for S3Builder {
                 disable_stat_with_override: self.config.disable_stat_with_override,
                 signer,
                 loader,
+                credential_loaded: AtomicBool::new(false),
                 client,
                 batch_max_operations,
             }),

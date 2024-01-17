@@ -225,7 +225,7 @@ impl Accessor for GdriveBackend {
         if let Some(id) = self.core.path_cache.get(&target).await? {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
-            if status != StatusCode::NO_CONTENT && status != StatusCode::NOT_FOUND {
+            if status != StatusCode::OK {
                 return Err(parse_error(resp).await?);
             }
 

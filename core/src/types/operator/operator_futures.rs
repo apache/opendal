@@ -95,22 +95,20 @@ where
     ///
     /// In general, `Empty` state should not be polled.
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        *self = match mem::replace(self.as_mut().get_mut(), OperatorFuture::Empty) {
-            OperatorFuture::Idle(inner, path, args, f) => {
-                // Wake up to make sure the future is ready after the
-                // future has been built.
-                cx.waker().wake_by_ref();
-                OperatorFuture::Poll(f(inner, path, args))
+        loop {
+            *self = match mem::replace(self.as_mut().get_mut(), OperatorFuture::Empty) {
+                OperatorFuture::Idle(inner, path, args, f) => {
+                    OperatorFuture::Poll(f(inner, path, args))
+                }
+                OperatorFuture::Poll(mut fut) => match fut.as_mut().poll(cx) {
+                    Poll::Ready(v) => return Poll::Ready(v),
+                    Poll::Pending => OperatorFuture::Poll(fut),
+                },
+                OperatorFuture::Empty => {
+                    panic!("future polled after completion");
+                }
             }
-            OperatorFuture::Poll(mut fut) => match fut.as_mut().poll(cx) {
-                Poll::Pending => OperatorFuture::Poll(fut),
-                Poll::Ready(v) => return Poll::Ready(v),
-            },
-            OperatorFuture::Empty => {
-                panic!("future polled after completion");
-            }
-        };
-        Poll::Pending
+        }
     }
 }
 

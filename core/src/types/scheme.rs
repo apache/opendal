@@ -145,6 +145,8 @@ pub enum Scheme {
     Mongodb,
     /// [gridfs](crate::services::gridfs): MongoDB Gridfs Services
     Gridfs,
+    /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
+    HdfsNative,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -279,6 +281,8 @@ impl Scheme {
             Scheme::Redb,
             #[cfg(feature = "services-mongodb")]
             Scheme::Mongodb,
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative,
         ])
     }
 }
@@ -360,6 +364,7 @@ impl FromStr for Scheme {
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
             "mongodb" => Ok(Scheme::Mongodb),
+            "hdfs_native" => Ok(Scheme::HdfsNative),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -424,6 +429,7 @@ impl From<Scheme> for &'static str {
             Scheme::Upyun => "upyun",
             Scheme::YandexDisk => "yandex_disk",
             Scheme::Pcloud => "pcloud",
+            Scheme::HdfsNative => "hdfs_native",
             Scheme::Custom(v) => v,
         }
     }

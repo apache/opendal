@@ -77,6 +77,26 @@ impl HttpClient {
         })
     }
 
+    // Public method to update redirect behavior
+    pub fn update_redirect_behavior(&mut self, enable_redirect: bool) {
+        // Rebuild the internal reqwest::Client with the updated configuration
+        let mut builder = reqwest::ClientBuilder::new();
+        builder = builder.no_gzip();
+        builder = builder.no_brotli();
+        builder = builder.no_deflate();
+        builder = builder.connect_timeout(DEFAULT_CONNECT_TIMEOUT);
+
+        // Update redirect behavior based on self.enable_redirect
+        if !enable_redirect {
+            builder = builder.redirect(reqwest::redirect::Policy::none());
+        }
+
+        #[cfg(feature = "trust-dns")]
+        let builder = builder.trust_dns(true);
+
+        self.client = builder.build().expect("Failed to rebuild reqwest client");
+    }
+
     /// Build a new http client in async context.
     #[cfg(target_arch = "wasm32")]
     pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {

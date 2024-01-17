@@ -3,7 +3,7 @@ title: Maturity
 sidebar_position: 1
 ---
 
-# Maturity Assessment for Apache OpenDAL
+# Maturity Assessment for Apache OpenDAL™
 
 The goals of this maturity model are to describe how Apache projects operate in a concise and high-level way, and to provide a basic framework that projects may choose to use to evaluate themselves.
 

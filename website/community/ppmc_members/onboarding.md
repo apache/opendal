@@ -3,9 +3,9 @@ title: Onboarding
 sidebar_position: 1
 ---
 
-This document primarily serves as a guide for new PPMC members to OpenDAL.
+This document primarily serves as a guide for new PPMC members to Apache OpenDAL™.
 
-Upon receiving an invitation email from OpenDAL's PPMC, a new PPMC member should consider whether accepting.
+Upon receiving an invitation email from OpenDAL PPMC, a new PPMC member should consider whether accepting.
 If they decide in favor, they should select "Reply All" and express their decision.
 
 ### Subscribe to Private Mailing List

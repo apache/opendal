@@ -51,6 +51,9 @@ pub struct WebhdfsBuilder {
     disable_list_batch: bool,
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,
+    /// Older hdfs versions do not have support for noredirect on server,
+    /// our http client needs to be configured with enable_redirect as false
+    enable_redirect: Option<bool>,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -59,6 +62,7 @@ impl Debug for WebhdfsBuilder {
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("atomic_write_dir", &self.atomic_write_dir)
+            .field("enable_redirect", &self.enable_redirect)
             .finish_non_exhaustive()
     }
 }
@@ -134,6 +138,18 @@ impl WebhdfsBuilder {
         };
         self
     }
+
+    /// Set the enable_append for http client
+    ///
+    /// This configures if we wish to enable or disable auto direct on client side
+    ///
+    /// # Note
+    ///
+    /// By default reqwest client has redirection as true
+    pub fn enable_append(&mut self, enable_redirect: bool) -> &mut Self {
+        self.enable_redirect = Some(enable_redirect);
+        self
+    }
 }
 
 impl Builder for WebhdfsBuilder {
@@ -189,7 +205,10 @@ impl Builder for WebhdfsBuilder {
             .map(|dt| format!("delegation_token={dt}"));
 
         let mut client = HttpClient::new()?;
-        client.update_redirect_behavior(false);
+
+        if let Some(false) = self.enable_redirect {
+            client.update_redirect_behavior(false);
+        }
 
         let backend = WebhdfsBackend {
             root,
@@ -317,6 +336,10 @@ impl WebhdfsBackend {
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.location)
+            }
+            StatusCode::TEMPORARY_REDIRECT => {
+                let location = resp.headers().get("Location").unwrap().to_str().unwrap();
+                Ok(location.to_string())
             }
             _ => Err(parse_error(resp).await?),
         }

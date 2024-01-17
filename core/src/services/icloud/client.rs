@@ -15,22 +15,130 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use http::Response;
-use std::collections::HashMap;
+use async_trait::async_trait;
+use http::{Method, Response, StatusCode};
+use serde_json::json;
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::raw::{build_abs_path, build_rooted_abs_path, get_basename, IncomingAsyncBody, OpRead};
+use crate::raw::oio::WriteBuf;
+use crate::raw::*;
 use crate::{Error, ErrorKind, Result};
 
-use super::core::{IcloudItem, IcloudSigner};
+use super::core::{parse_error, IcloudCreateFolder, IcloudItem, IcloudRoot, IcloudSigner};
 use super::drive::DriveService;
 
-#[derive(Debug, Clone)]
 pub struct Client {
     pub core: Arc<Mutex<IcloudSigner>>,
     pub root: String,
-    pub path_cache: Arc<Mutex<HashMap<String, String>>>,
+    pub path_cache: PathCacher<IcloudPathQuery>,
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("IcloudClient");
+        de.field("root", &self.root);
+        de.finish()
+    }
+}
+
+pub struct IcloudPathQuery {
+    pub client: HttpClient,
+    pub core: Arc<Mutex<IcloudSigner>>,
+}
+
+impl IcloudPathQuery {
+    pub fn new(client: HttpClient, core: Arc<Mutex<IcloudSigner>>) -> Self {
+        IcloudPathQuery { client, core }
+    }
+}
+
+#[async_trait]
+impl PathQuery for IcloudPathQuery {
+    async fn root(&self) -> Result<String> {
+        Ok("FOLDER::com.apple.CloudDocs::root".to_string())
+    }
+
+    // Retrieves the root directory within the icloud Drive.
+    async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
+        let mut core = self.core.lock().await;
+        let drive_url = core
+            .get_service_info(String::from("drive"))
+            .unwrap()
+            .clone()
+            .url;
+
+        let uri = format!("{}/retrieveItemDetailsInFolders", drive_url);
+
+        let body = json!([
+                         {
+                             "drivewsid": parent_id,
+                             "partialData": false
+                         }
+        ])
+        .to_string();
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+
+        let response = core.sign(Method::POST, uri, async_body).await?;
+
+        if response.status() == StatusCode::OK {
+            let body = &response.into_body().bytes().await?;
+
+            let root: Vec<IcloudRoot> =
+                serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+            let node = &root[0];
+
+            let id = match node.items.iter().find(|it| it.name == name) {
+                Some(it) => Ok(Some(it.drivewsid.clone())),
+                None => Ok(None),
+            }?;
+            Ok(id)
+        } else {
+            Err(parse_error(response).await?)
+        }
+    }
+
+    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+        let mut core = self.core.lock().await;
+        let client_id = core.get_client_id();
+        let drive_url = core
+            .get_service_info(String::from("drive"))
+            .unwrap()
+            .url
+            .clone();
+        // https://p219-drivews.icloud.com.cn:443
+        let uri = format!("{}/createFolders", drive_url);
+        let body = json!(
+                         {
+                             "destinationDrivewsId": parent_id,
+                             "folders": [
+                             {
+                                "clientId": client_id,
+                                "name": name,
+                            }
+                            ],
+                         }
+        )
+        .to_string();
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+        let response = core.sign(Method::POST, uri, async_body).await?;
+
+        match response.status() {
+            StatusCode::OK => {
+                let body = &response.into_body().bytes().await?;
+
+                let create_folder: IcloudCreateFolder =
+                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+                Ok(create_folder.destination_drivews_id)
+            }
+            _ => Err(parse_error(response).await?),
+        }
+    }
 }
 
 impl Client {
@@ -51,110 +159,23 @@ impl Client {
             .map(|s| DriveService::new(clone, s.url.clone(), docw.url.clone()))
     }
 
-    #[warn(clippy::single_char_pattern)]
-    pub async fn get_stat_folder_id(&self, path: &str) -> Result<String> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let mut base = get_basename(&path);
-
-        if base.ends_with('/') {
-            base = base.trim_end_matches('/');
-        }
-        let cache = self.path_cache.lock().await;
-        if let Some(id) = cache.get(base) {
-            Ok(id.to_owned())
-        } else {
-            Ok("".to_string())
-        }
-    }
-
-    pub async fn get_file_id_by_path(&self, path: &str) -> Result<Option<String>> {
-        let path = build_abs_path(&self.root, path);
-
-        let mut cache = self.path_cache.lock().await;
-
-        if let Some(id) = cache.get(&path) {
-            return Ok(Some(id.to_owned()));
-        }
-
-        let drive = self.drive().await.unwrap();
-
-        let root = drive.root().await?;
-
-        let mut parent_id = root.id.to_owned().unwrap();
-
-        let mut file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
-        file_path_items.remove(0);
-
-        for (i, item) in file_path_items.iter().enumerate() {
-            let path_part = file_path_items[0..=i].join("/");
-            if let Some(id) = cache.get(&path_part) {
-                parent_id = self.get_id(id, item, &drive).await?.unwrap();
-                continue;
-            }
-
-            let id = if i != file_path_items.len() - 1 || path.ends_with('/') {
-                self.get_parent_id(&parent_id, item, &drive).await?
-            } else {
-                self.get_parent_id(&parent_id, item, &drive).await?
-            };
-
-            if let Some(id) = id {
-                cache.insert(path_part, id.clone());
-                parent_id = self.get_id(&parent_id, item, &drive).await?.unwrap();
-            } else {
-                return Ok(None);
-            };
-        }
-
-        Ok(Some(parent_id))
-    }
-
-    pub async fn get_parent_id(
-        &self,
-        parent_id: &str,
-        basename: &str,
-        drive: &DriveService,
-    ) -> Result<Option<String>> {
-        let node = drive.get_root(parent_id).await?;
-
-        match node.items() {
-            Some(items) => match items.iter().find(|it| it.name == basename) {
-                Some(it) => Ok(Some(it.parent_id.clone())),
-                None => Ok(None),
-            },
-            None => Err(Error::new(ErrorKind::NotFound, "get parent id error")),
-        }
-    }
-
-    pub async fn get_id(
-        &self,
-        parent_id: &str,
-        basename: &str,
-        drive: &DriveService,
-    ) -> Result<Option<String>> {
-        let node = drive.get_root(parent_id).await?;
-
-        match node.items() {
-            Some(items) => match items.iter().find(|it| it.name == basename) {
-                Some(it) => Ok(Some(it.drivewsid.clone())),
-                None => Ok(None),
-            },
-            None => Err(Error::new(ErrorKind::NotFound, "get parent id error")),
-        }
-    }
-
     pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
         self.login().await?;
+
+        let path = build_rooted_abs_path(&self.root, path);
+        let base = get_basename(&path);
+
+        let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("read path not found: {}", base),
+        ))?;
+
         let drive = self
             .drive()
             .await
             .expect("icloud DriveService read drive not found");
-        let path_id = self
-            .get_file_id_by_path(path)
-            .await
-            .expect("icloud DriveService read path_id not found");
 
-        if let Some(docwsid) = path_id.unwrap().strip_prefix("FILE::com.apple.CloudDocs::") {
+        if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
             Ok(drive
                 .get_file(docwsid, "com.apple.CloudDocs", args.clone())
                 .await?)
@@ -168,42 +189,41 @@ impl Client {
 
     pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
         self.login().await?;
-        let path_id = self
-            .get_file_id_by_path(path)
-            .await
-            .expect("icloud DriveService stat path_id don't find");
+
+        let path = build_rooted_abs_path(&self.root, path);
+
+        let mut base = get_basename(&path);
+        let parent = get_parent(&path);
+
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
+
+        let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", base),
+        ))?;
 
         let drive = self
             .drive()
             .await
             .expect("icloud DriveService stat drive not found");
 
-        let folder_id = self
-            .get_stat_folder_id(path)
-            .await
-            .expect("icloud DriveService stat folder_id don't find");
-        if folder_id.is_empty() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "icloud DriveService stat not exist path",
-            ));
-        }
+        let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", parent),
+        ))?;
 
         let node = drive.get_root(&folder_id).await?;
 
         match node.items() {
-            Some(items) => {
-                match items
-                    .iter()
-                    .find(|it| it.drivewsid == path_id.clone().unwrap())
-                {
-                    Some(it) => Ok(it.clone()),
-                    _ => Err(Error::new(
-                        ErrorKind::NotFound,
-                        "icloud DriveService stat parent items don't have same drivewsid",
-                    )),
-                }
-            }
+            Some(items) => match items.iter().find(|it| it.drivewsid == file_id.clone()) {
+                Some(it) => Ok(it.clone()),
+                _ => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "icloud DriveService stat parent items don't have same drivewsid",
+                )),
+            },
             None => Err(Error::new(
                 ErrorKind::NotFound,
                 "icloud DriveService stat get parent items error",

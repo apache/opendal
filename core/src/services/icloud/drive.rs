@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use chrono::Utc;
 use http::header::{IF_MATCH, IF_NONE_MATCH};
 use http::{Method, Request, Response, StatusCode};
 use log::debug;
@@ -34,8 +33,8 @@ pub struct File {
     pub id: Option<String>,
     pub name: String,
     pub size: u64,
-    pub date_created: Option<chrono::DateTime<Utc>>,
-    pub date_modified: Option<chrono::DateTime<Utc>>,
+    pub date_created: Option<String>,
+    pub date_modified: Option<String>,
     pub mime_type: String,
 }
 
@@ -44,7 +43,7 @@ pub struct File {
 pub struct Folder {
     pub id: Option<String>,
     pub name: String,
-    pub date_created: Option<chrono::DateTime<Utc>>,
+    pub date_created: Option<String>,
     pub items: Vec<IcloudItem>,
     pub mime_type: String,
 }
@@ -63,8 +62,6 @@ impl<'a> Iterator for FolderIter<'a> {
 
 // A node within the icloud Drive filesystem.
 #[derive(Clone)]
-#[warn(unused_variables)]
-#[warn(dead_code)]
 pub enum DriveNode {
     Folder(Folder),
 }
@@ -72,9 +69,9 @@ pub enum DriveNode {
 impl DriveNode {
     fn new_root(value: &IcloudRoot) -> Result<DriveNode> {
         Ok(DriveNode::Folder(Folder {
-            id: Option::from(value.drivewsid.to_string()),
+            id: Some(value.drivewsid.to_string()),
             name: value.name.to_string(),
-            date_created: value.date_created.parse::<chrono::DateTime<Utc>>().ok(),
+            date_created: Some(value.date_created.clone()),
             items: value.items.clone(),
             mime_type: "Folder".to_string(),
         }))
@@ -93,11 +90,8 @@ impl std::fmt::Display for DriveNode {
             DriveNode::Folder(folder) => {
                 write!(
                     f,
-                    "Folder(id={:?},name={},dateCreated={:?},items={})",
-                    folder.id,
-                    folder.name,
-                    folder.date_created,
-                    folder.items.len()
+                    "Folder(id={:?},name={},dateCreated={:?},items={:?})",
+                    folder.id, folder.name, folder.date_created, folder.items
                 )
             }
         }
@@ -124,15 +118,8 @@ impl DriveService {
         }
     }
 
-    // Retrieves the root directory within the icloud Drive.
-    pub async fn root(&self) -> Result<Folder> {
-        match self.get_root("FOLDER::com.apple.CloudDocs::root").await? {
-            DriveNode::Folder(folder) => Ok(folder),
-        }
-    }
-
     // Retrieves a root within the icloud Drive.
-    //"FOLDER::com.apple.CloudDocs::root"
+    // "FOLDER::com.apple.CloudDocs::root"
     pub async fn get_root(&self, id: &str) -> Result<DriveNode> {
         let uri = format!("{}/retrieveItemDetailsInFolders", self.drive_url);
 

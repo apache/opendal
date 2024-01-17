@@ -50,6 +50,8 @@ static APPLE_RESPONSE_HEADER: &str = "X-Apple-I-Rscd";
 
 const AUTH_HEADERS: [(&str, &str); 7] = [
     (
+        // This code inspire from
+        // https://github.com/picklepete/pyicloud/blob/master/pyicloud/base.py#L392
         "X-Apple-OAuth-Client-Id",
         "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d",
     ),
@@ -64,10 +66,12 @@ const AUTH_HEADERS: [(&str, &str); 7] = [
     ),
 ];
 
+#[derive(Clone)]
 pub struct ServiceInfo {
     pub url: String,
 }
 
+#[derive(Clone)]
 pub struct SessionData {
     oauth_state: String,
     session_id: Option<String>,
@@ -94,6 +98,7 @@ impl SessionData {
     }
 }
 
+#[derive(Clone)]
 pub struct IcloudSigner {
     pub client: HttpClient,
 
@@ -117,6 +122,11 @@ impl Debug for IcloudSigner {
 impl IcloudSigner {
     pub fn get_service_info(&self, name: String) -> Option<&ServiceInfo> {
         self.data.webservices.get(&name)
+    }
+
+    // create_dir could use client_id
+    pub fn get_client_id(&self) -> &String {
+        &self.data.oauth_state
     }
 }
 

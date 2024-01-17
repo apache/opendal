@@ -28,7 +28,7 @@ use crate::raw::*;
 use crate::*;
 use crate::{Builder, Capability, Error, ErrorKind, Scheme};
 
-use super::client::Client;
+use super::client::{Client, IcloudPathQuery};
 use super::core::{parse_error, IcloudSigner, SessionData};
 
 /// Config for icloud services support.
@@ -101,7 +101,12 @@ impl IcloudBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.config.root = Some(root.to_string());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -182,7 +187,6 @@ impl Builder for IcloudBuilder {
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = IcloudConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
-
         IcloudBuilder {
             config,
             http_client: None,
@@ -238,20 +242,22 @@ impl Builder for IcloudBuilder {
 
         let session_data = SessionData::new();
 
+        let core = IcloudSigner {
+            client: client.clone(),
+            data: session_data,
+            apple_id,
+            password,
+            trust_token: Some(trust_token),
+            ds_web_auth_token: Some(ds_web_auth_token),
+            is_china_mainland: self.config.is_china_mainland,
+        };
+
+        let core = Arc::new(Mutex::new(core));
         Ok(IcloudBackend {
             client: Arc::new(Client {
-                core: Arc::new(Mutex::new(IcloudSigner {
-                    client,
-
-                    data: session_data,
-                    apple_id,
-                    password,
-                    trust_token: Some(trust_token),
-                    ds_web_auth_token: Some(ds_web_auth_token),
-                    is_china_mainland: self.config.is_china_mainland,
-                })),
+                core: core.clone(),
                 root,
-                path_cache: Arc::new(Default::default()),
+                path_cache: PathCacher::new(IcloudPathQuery::new(client, core.clone())).with_lock(),
             }),
         })
     }

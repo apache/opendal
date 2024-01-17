@@ -17,14 +17,11 @@
  * under the License.
  */
 
-async function run(github, core, fs) {
+async function run(github, context, core, fs) {
   try {
-    const token = core.getInput('github-token', {required: true});
-    const octokit = github.getOctokit(token);
-
     // Pick two reviewers from list
     const numberOfReviewers = 2;
-    const repo = github.context.repo;
+    const repo = context.repo;
 
     // Read CODEOWNERS
     const codeownersContent = fs.readFileSync('.github/CODEOWNERS', 'utf8');
@@ -50,9 +47,9 @@ async function run(github, core, fs) {
     }
 
     // Assign reviewers Pull Request
-    if (github.context.payload.pull_request) {
-      const pullRequestNumber = github.context.payload.pull_request.number;
-      await octokit.rest.pulls.requestReviewers({
+    if (context.payload.pull_request) {
+      const pullRequestNumber = context.payload.pull_request.number;
+      await github.rest.pulls.requestReviewers({
         owner: repo.owner,
         repo: repo.repo,
         pull_number: pullRequestNumber,
@@ -65,6 +62,6 @@ async function run(github, core, fs) {
   }
 }
 
-module.exports = ({github, core, fs}) => {
-  return run(github, core, fs)
+module.exports = ({github, context, core, fs}) => {
+  return run(github, context, core, fs)
 }

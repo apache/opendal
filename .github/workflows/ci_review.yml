@@ -37,5 +37,5 @@ jobs:
           script: |
             const fs = require('fs');
             const script = require('.github/scripts/assign_reviewers.js')
-            script({github, core, fs})
+            script({github, context, core, fs})
           github-token: ${{ secrets.GITHUB_TOKEN }}

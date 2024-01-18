@@ -341,7 +341,7 @@ After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://op
 Title:
 
 ```
-[RESULT][VOTE] Release Apache OpenDAL ${release_version} - OpenDAL Vote Round 1
+[RESULT][VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1
 ```
 
 Content:

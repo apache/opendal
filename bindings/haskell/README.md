@@ -56,3 +56,9 @@ cabal haddock
 ```
 
 If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-$VERSION/doc/html/opendal/index.html`.
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

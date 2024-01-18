@@ -87,3 +87,9 @@ Contribution is not only about code, but also about documentation, examples, and
 If you have any questions or suggestions about `oli`, please feel free to open an issue on GitHub.
 
 As `oli` is a part of Apache OpenDAL, you should follow the [CONTRIBUTION](https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md) documentation. There are still lots works to do with `oli`, you could track them on this [GitHub Issue](https://github.com/apache/incubator-opendal/issues/422).
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

@@ -63,6 +63,9 @@ let readData = try op.blockingRead("/demo")
 print(readData!)
 ```
 
-## License
+## License and Trademarks
 
-[Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
+

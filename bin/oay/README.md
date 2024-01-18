@@ -15,3 +15,9 @@ Our first milestone is to provide S3 APIs.
 ### S3 API
 
 Only `list_object_v2` with `start_after` is supported.
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

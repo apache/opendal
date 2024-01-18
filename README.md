@@ -146,6 +146,8 @@ The first and most prominent mentions must use the full form: **Apache OpenDALâ„
 
 For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
 
-## License
+## License and Trademarks
 
-Licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

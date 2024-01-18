@@ -272,8 +272,9 @@ where
                 }
                 State::Init(fut) => {
                     let upload_id = ready!(fut.as_mut().poll(cx));
-                    self.upload_id = Some(Arc::new(upload_id?));
+                    // Make sure the future is dropped after it returned ready.
                     self.state = State::Idle;
+                    self.upload_id = Some(Arc::new(upload_id?));
                 }
                 State::Close(_) => {
                     unreachable!("MultipartWriter must not go into State::Close during poll_write")

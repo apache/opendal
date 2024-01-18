@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use async_trait::async_trait;
-use http::{StatusCode};
+use http::StatusCode;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -27,7 +27,7 @@ use crate::raw::*;
 use crate::*;
 use crate::{Capability, Scheme};
 
-use super::core::{parse_error, IcloudCore, SessionData, IcloudSigner, IcloudPathQuery};
+use super::core::{parse_error, IcloudCore, IcloudPathQuery, IcloudSigner, SessionData};
 
 /// Config for icloud services support.
 #[derive(Default, Deserialize)]
@@ -248,14 +248,13 @@ impl Builder for IcloudBuilder {
         let signer = Arc::new(Mutex::new(signer));
         Ok(IcloudBackend {
             core: Arc::new(IcloudCore {
-                signer:signer.clone(),
+                signer: signer.clone(),
                 root,
                 path_cache: PathCacher::new(IcloudPathQuery::new(client, signer.clone())),
             }),
         })
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct IcloudBackend {

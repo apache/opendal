@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use async_trait::async_trait;
 use bytes::Buf;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use async_trait::async_trait;
 
 use http::header;
 use http::header::{IF_MATCH, IF_NONE_MATCH};
@@ -35,7 +35,11 @@ use tokio::sync::Mutex;
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
-use crate::raw::{new_json_deserialize_error, parse_header_to_str, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody, OpRead, PathCacher, PathQuery, build_rooted_abs_path, get_basename, get_parent};
+use crate::raw::{
+    build_rooted_abs_path, get_basename, get_parent, new_json_deserialize_error,
+    parse_header_to_str, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody,
+    OpRead, PathCacher, PathQuery,
+};
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
@@ -323,7 +327,6 @@ pub struct IcloudCore {
     pub path_cache: PathCacher<IcloudPathQuery>,
 }
 
-
 impl Debug for IcloudCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("IcloudCore");
@@ -366,7 +369,7 @@ impl PathQuery for IcloudPathQuery {
                              "partialData": false
                          }
         ])
-            .to_string();
+        .to_string();
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
@@ -411,7 +414,7 @@ impl PathQuery for IcloudPathQuery {
                             ],
                          }
         )
-            .to_string();
+        .to_string();
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
         let response = core.sign(Method::POST, uri, async_body).await?;
@@ -596,7 +599,7 @@ impl DriveService {
                              "partialData": false
                          }
         ])
-            .to_string();
+        .to_string();
 
         let mut signer = self.signer.lock().await;
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));

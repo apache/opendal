@@ -354,10 +354,13 @@ impl PathQuery for IcloudPathQuery {
 
     // Retrieves the root directory within the icloud Drive.
     async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
-        let mut core = self.signer.lock().await;
-        let drive_url = core
+        let mut signer = self.signer.lock().await;
+        let drive_url = signer
             .get_service_info(String::from("drive"))
-            .unwrap()
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                "drive service info drivews not found",
+            ))?
             .clone()
             .url;
 
@@ -373,7 +376,7 @@ impl PathQuery for IcloudPathQuery {
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
 
-        let response = core.sign(Method::POST, uri, async_body).await?;
+        let response = signer.sign(Method::POST, uri, async_body).await?;
 
         if response.status() == StatusCode::OK {
             let body = &response.into_body().bytes().await?;
@@ -394,11 +397,14 @@ impl PathQuery for IcloudPathQuery {
     }
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
-        let mut core = self.signer.lock().await;
-        let client_id = core.get_client_id();
-        let drive_url = core
+        let mut signer = self.signer.lock().await;
+        let client_id = signer.get_client_id();
+        let drive_url = signer
             .get_service_info(String::from("drive"))
-            .unwrap()
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                "drive service info drivews not found",
+            ))?
             .url
             .clone();
 
@@ -417,7 +423,7 @@ impl PathQuery for IcloudPathQuery {
         .to_string();
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-        let response = core.sign(Method::POST, uri, async_body).await?;
+        let response = signer.sign(Method::POST, uri, async_body).await?;
 
         match response.status() {
             StatusCode::OK => {
@@ -436,19 +442,20 @@ impl PathQuery for IcloudPathQuery {
 impl IcloudCore {
     // Logs into icloud using the provided credentials.
     pub async fn login(&self) -> Result<()> {
-        let mut core = self.signer.lock().await;
+        let mut signer = self.signer.lock().await;
 
-        core.signer().await
+        signer.signer().await
     }
 
     //Apple Drive
     pub async fn drive(&self) -> Option<DriveService> {
         let clone = self.signer.clone();
-        let core = self.signer.lock().await;
+        let signer = self.signer.lock().await;
 
-        let docw = core.get_service_info(String::from("docw")).unwrap();
-        core.get_service_info(String::from("drive"))
-            .map(|s| DriveService::new(clone, s.url.clone(), docw.url.clone()))
+        let docws = signer.get_service_info(String::from("docw")).unwrap();
+        signer
+            .get_service_info(String::from("drive"))
+            .map(|s| DriveService::new(clone, s.url.clone(), docws.url.clone()))
     }
 
     pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
@@ -508,62 +515,12 @@ impl IcloudCore {
 
         let node = drive.get_root(&folder_id).await?;
 
-        match node.items() {
-            Some(items) => match items.iter().find(|it| it.drivewsid == file_id.clone()) {
-                Some(it) => Ok(it.clone()),
-                _ => Err(Error::new(
-                    ErrorKind::NotFound,
-                    "icloud DriveService stat parent items don't have same drivewsid",
-                )),
-            },
+        match node.items.iter().find(|it| it.drivewsid == file_id.clone()) {
+            Some(it) => Ok(it.clone()),
             None => Err(Error::new(
                 ErrorKind::NotFound,
                 "icloud DriveService stat get parent items error",
             )),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct File {
-    pub id: Option<String>,
-    pub name: String,
-    pub size: u64,
-    pub date_created: Option<String>,
-    pub date_modified: Option<String>,
-    pub mime_type: String,
-}
-
-// A directory in icloud Drive.
-#[derive(Clone)]
-pub struct Folder {
-    pub id: Option<String>,
-    pub name: String,
-    pub date_created: Option<String>,
-    pub items: Vec<IcloudItem>,
-    pub mime_type: String,
-}
-
-// A node within the icloud Drive filesystem.
-#[derive(Clone)]
-pub enum DriveNode {
-    Folder(Folder),
-}
-
-impl DriveNode {
-    fn new_root(value: &IcloudRoot) -> Result<DriveNode> {
-        Ok(DriveNode::Folder(Folder {
-            id: Some(value.drivewsid.to_string()),
-            name: value.name.to_string(),
-            date_created: Some(value.date_created.clone()),
-            items: value.items.clone(),
-            mime_type: "Folder".to_string(),
-        }))
-    }
-
-    pub fn items(&self) -> Option<Vec<IcloudItem>> {
-        match self {
-            DriveNode::Folder(folder) => Some(folder.items.clone()),
         }
     }
 }
@@ -590,7 +547,7 @@ impl DriveService {
 
     // Retrieves a root within the icloud Drive.
     // "FOLDER::com.apple.CloudDocs::root"
-    pub async fn get_root(&self, id: &str) -> Result<DriveNode> {
+    pub async fn get_root(&self, id: &str) -> Result<IcloudRoot> {
         let uri = format!("{}/retrieveItemDetailsInFolders", self.drive_url);
 
         let body = json!([
@@ -612,7 +569,7 @@ impl DriveService {
             let drive_node: Vec<IcloudRoot> =
                 serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
-            Ok(DriveNode::new_root(&drive_node[0])?)
+            Ok(drive_node[0].clone())
         } else {
             Err(parse_error(response).await?)
         }
@@ -651,7 +608,7 @@ impl DriveService {
 
                 let range = args.range();
                 if !range.is_full() {
-                    request_builder = request_builder.header(http::header::RANGE, range.to_header())
+                    request_builder = request_builder.header(header::RANGE, range.to_header())
                 }
 
                 if let Some(if_none_match) = args.if_none_match() {
@@ -815,7 +772,7 @@ pub struct IcloudCreateFolder {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::icloud::core::{IcloudRoot, IcloudWebservicesResponse};
+    use super::{IcloudRoot, IcloudWebservicesResponse};
 
     #[test]
     fn test_parse_icloud_drive_root_json() {

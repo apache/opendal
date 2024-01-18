@@ -624,7 +624,6 @@ impl DriveService {
         zone: &str,
         args: OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        //https://p219-docws.icloud.com.cn:443
         let uri = format!(
             "{}\
         /ws/{}/download/by_id?document_id={}",
@@ -675,7 +674,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let bs = body.bytes().await?;
 
     let mut kind = match parts.status.as_u16() {
-        //status:421 Misdirected Request
         421 | 450 | 500 => ErrorKind::NotFound,
         401 => ErrorKind::Unexpected,
         _ => ErrorKind::Unexpected,

@@ -15,21 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::StatusCode;
-use log::debug;
-use serde::Deserialize;
 use std::collections::HashMap;
+use async_trait::async_trait;
+use http::{StatusCode};
+use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::raw::*;
 use crate::*;
-use crate::{Builder, Capability, Error, ErrorKind, Scheme};
+use crate::{Capability, Scheme};
 
-use super::client::{Client, IcloudPathQuery};
-use super::core::{parse_error, IcloudSigner, SessionData};
+use super::core::{parse_error, IcloudCore, SessionData, IcloudSigner, IcloudPathQuery};
 
 /// Config for icloud services support.
 #[derive(Default, Deserialize)]
@@ -226,11 +224,6 @@ impl Builder for IcloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        debug!(
-            "Icloud backend is_china_mainland {}",
-            &self.config.is_china_mainland
-        );
-
         let client = if let Some(client) = self.http_client.take() {
             client
         } else {
@@ -242,7 +235,7 @@ impl Builder for IcloudBuilder {
 
         let session_data = SessionData::new();
 
-        let core = IcloudSigner {
+        let signer = IcloudSigner {
             client: client.clone(),
             data: session_data,
             apple_id,
@@ -252,20 +245,21 @@ impl Builder for IcloudBuilder {
             is_china_mainland: self.config.is_china_mainland,
         };
 
-        let core = Arc::new(Mutex::new(core));
+        let signer = Arc::new(Mutex::new(signer));
         Ok(IcloudBackend {
-            client: Arc::new(Client {
-                core: core.clone(),
+            core: Arc::new(IcloudCore {
+                signer:signer.clone(),
                 root,
-                path_cache: PathCacher::new(IcloudPathQuery::new(client, core.clone())).with_lock(),
+                path_cache: PathCacher::new(IcloudPathQuery::new(client, signer.clone())),
             }),
         })
     }
 }
 
+
 #[derive(Debug, Clone)]
 pub struct IcloudBackend {
-    client: Arc<Client>,
+    core: Arc<IcloudCore>,
 }
 
 #[async_trait]
@@ -280,7 +274,7 @@ impl Accessor for IcloudBackend {
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Icloud)
-            .set_root(&self.client.root)
+            .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
                 read: true,
@@ -295,7 +289,7 @@ impl Accessor for IcloudBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let node = self.client.stat(path).await?;
+        let node = self.core.stat(path).await?;
 
         let mut meta = Metadata::new(match node.type_field.as_str() {
             "FOLDER" => EntryMode::DIR,
@@ -315,7 +309,7 @@ impl Accessor for IcloudBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.client.read(path, &args).await?;
+        let resp = self.core.read(path, &args).await?;
         let status = resp.status();
 
         match status {

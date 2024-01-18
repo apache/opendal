@@ -18,22 +18,24 @@
 use bytes::Buf;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
+use async_trait::async_trait;
 
 use http::header;
+use http::header::{IF_MATCH, IF_NONE_MATCH};
 use http::Method;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::sync::Mutex;
 
 use crate::types::Result;
 use crate::{Error, ErrorKind};
 
-use crate::raw::{
-    new_json_deserialize_error, parse_header_to_str, with_error_response_context, AsyncBody,
-    HttpClient, IncomingAsyncBody,
-};
+use crate::raw::{new_json_deserialize_error, parse_header_to_str, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody, OpRead, PathCacher, PathQuery, build_rooted_abs_path, get_basename, get_parent};
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
@@ -152,7 +154,6 @@ impl IcloudSigner {
             StatusCode::OK => {
                 if let Some(rscd) = response.headers().get(APPLE_RESPONSE_HEADER) {
                     let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
-                    //409
                     if status_code != StatusCode::CONFLICT {
                         return Err(parse_error(response).await?);
                     }
@@ -316,6 +317,356 @@ impl IcloudSigner {
     }
 }
 
+pub struct IcloudCore {
+    pub signer: Arc<Mutex<IcloudSigner>>,
+    pub root: String,
+    pub path_cache: PathCacher<IcloudPathQuery>,
+}
+
+
+impl Debug for IcloudCore {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("IcloudCore");
+        de.field("root", &self.root);
+        de.finish()
+    }
+}
+
+pub struct IcloudPathQuery {
+    pub client: HttpClient,
+    pub signer: Arc<Mutex<IcloudSigner>>,
+}
+
+impl IcloudPathQuery {
+    pub fn new(client: HttpClient, signer: Arc<Mutex<IcloudSigner>>) -> Self {
+        IcloudPathQuery { client, signer }
+    }
+}
+
+#[async_trait]
+impl PathQuery for IcloudPathQuery {
+    async fn root(&self) -> Result<String> {
+        Ok("FOLDER::com.apple.CloudDocs::root".to_string())
+    }
+
+    // Retrieves the root directory within the icloud Drive.
+    async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
+        let mut core = self.signer.lock().await;
+        let drive_url = core
+            .get_service_info(String::from("drive"))
+            .unwrap()
+            .clone()
+            .url;
+
+        let uri = format!("{}/retrieveItemDetailsInFolders", drive_url);
+
+        let body = json!([
+                         {
+                             "drivewsid": parent_id,
+                             "partialData": false
+                         }
+        ])
+            .to_string();
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+
+        let response = core.sign(Method::POST, uri, async_body).await?;
+
+        if response.status() == StatusCode::OK {
+            let body = &response.into_body().bytes().await?;
+
+            let root: Vec<IcloudRoot> =
+                serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+            let node = &root[0];
+
+            let id = match node.items.iter().find(|it| it.name == name) {
+                Some(it) => Ok(Some(it.drivewsid.clone())),
+                None => Ok(None),
+            }?;
+            Ok(id)
+        } else {
+            Err(parse_error(response).await?)
+        }
+    }
+
+    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+        let mut core = self.signer.lock().await;
+        let client_id = core.get_client_id();
+        let drive_url = core
+            .get_service_info(String::from("drive"))
+            .unwrap()
+            .url
+            .clone();
+
+        let uri = format!("{}/createFolders", drive_url);
+        let body = json!(
+                         {
+                             "destinationDrivewsId": parent_id,
+                             "folders": [
+                             {
+                                "clientId": client_id,
+                                "name": name,
+                            }
+                            ],
+                         }
+        )
+            .to_string();
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+        let response = core.sign(Method::POST, uri, async_body).await?;
+
+        match response.status() {
+            StatusCode::OK => {
+                let body = &response.into_body().bytes().await?;
+
+                let create_folder: IcloudCreateFolder =
+                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+                Ok(create_folder.destination_drivews_id)
+            }
+            _ => Err(parse_error(response).await?),
+        }
+    }
+}
+
+impl IcloudCore {
+    // Logs into icloud using the provided credentials.
+    pub async fn login(&self) -> Result<()> {
+        let mut core = self.signer.lock().await;
+
+        core.signer().await
+    }
+
+    //Apple Drive
+    pub async fn drive(&self) -> Option<DriveService> {
+        let clone = self.signer.clone();
+        let core = self.signer.lock().await;
+
+        let docw = core.get_service_info(String::from("docw")).unwrap();
+        core.get_service_info(String::from("drive"))
+            .map(|s| DriveService::new(clone, s.url.clone(), docw.url.clone()))
+    }
+
+    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+        self.login().await?;
+
+        let path = build_rooted_abs_path(&self.root, path);
+        let base = get_basename(&path);
+
+        let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("read path not found: {}", base),
+        ))?;
+
+        let drive = self
+            .drive()
+            .await
+            .expect("icloud DriveService read drive not found");
+
+        if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
+            Ok(drive
+                .get_file(docwsid, "com.apple.CloudDocs", args.clone())
+                .await?)
+        } else {
+            Err(Error::new(
+                ErrorKind::NotFound,
+                "icloud DriveService read error",
+            ))
+        }
+    }
+
+    pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
+        self.login().await?;
+
+        let path = build_rooted_abs_path(&self.root, path);
+
+        let mut base = get_basename(&path);
+        let parent = get_parent(&path);
+
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
+
+        let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", base),
+        ))?;
+
+        let drive = self
+            .drive()
+            .await
+            .expect("icloud DriveService stat drive not found");
+
+        let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", parent),
+        ))?;
+
+        let node = drive.get_root(&folder_id).await?;
+
+        match node.items() {
+            Some(items) => match items.iter().find(|it| it.drivewsid == file_id.clone()) {
+                Some(it) => Ok(it.clone()),
+                _ => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "icloud DriveService stat parent items don't have same drivewsid",
+                )),
+            },
+            None => Err(Error::new(
+                ErrorKind::NotFound,
+                "icloud DriveService stat get parent items error",
+            )),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct File {
+    pub id: Option<String>,
+    pub name: String,
+    pub size: u64,
+    pub date_created: Option<String>,
+    pub date_modified: Option<String>,
+    pub mime_type: String,
+}
+
+// A directory in icloud Drive.
+#[derive(Clone)]
+pub struct Folder {
+    pub id: Option<String>,
+    pub name: String,
+    pub date_created: Option<String>,
+    pub items: Vec<IcloudItem>,
+    pub mime_type: String,
+}
+
+// A node within the icloud Drive filesystem.
+#[derive(Clone)]
+pub enum DriveNode {
+    Folder(Folder),
+}
+
+impl DriveNode {
+    fn new_root(value: &IcloudRoot) -> Result<DriveNode> {
+        Ok(DriveNode::Folder(Folder {
+            id: Some(value.drivewsid.to_string()),
+            name: value.name.to_string(),
+            date_created: Some(value.date_created.clone()),
+            items: value.items.clone(),
+            mime_type: "Folder".to_string(),
+        }))
+    }
+
+    pub fn items(&self) -> Option<Vec<IcloudItem>> {
+        match self {
+            DriveNode::Folder(folder) => Some(folder.items.clone()),
+        }
+    }
+}
+
+pub struct DriveService {
+    signer: Arc<Mutex<IcloudSigner>>,
+    drive_url: String,
+    docw_url: String,
+}
+
+impl DriveService {
+    // Constructs an interface to an icloud Drive.
+    pub fn new(
+        signer: Arc<Mutex<IcloudSigner>>,
+        drive_url: String,
+        docw_url: String,
+    ) -> DriveService {
+        DriveService {
+            signer,
+            drive_url,
+            docw_url,
+        }
+    }
+
+    // Retrieves a root within the icloud Drive.
+    // "FOLDER::com.apple.CloudDocs::root"
+    pub async fn get_root(&self, id: &str) -> Result<DriveNode> {
+        let uri = format!("{}/retrieveItemDetailsInFolders", self.drive_url);
+
+        let body = json!([
+                         {
+                             "drivewsid": id,
+                             "partialData": false
+                         }
+        ])
+            .to_string();
+
+        let mut signer = self.signer.lock().await;
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+
+        let response = signer.sign(Method::POST, uri, async_body).await?;
+
+        if response.status() == StatusCode::OK {
+            let body = &response.into_body().bytes().await?;
+
+            let drive_node: Vec<IcloudRoot> =
+                serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+            Ok(DriveNode::new_root(&drive_node[0])?)
+        } else {
+            Err(parse_error(response).await?)
+        }
+    }
+
+    pub async fn get_file(
+        &self,
+        id: &str,
+        zone: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        //https://p219-docws.icloud.com.cn:443
+        let uri = format!(
+            "{}\
+        /ws/{}/download/by_id?document_id={}",
+            self.docw_url, zone, id
+        );
+        debug!("{}", uri);
+
+        let mut signer = self.signer.lock().await;
+
+        let response = signer.sign(Method::GET, uri, AsyncBody::Empty).await?;
+
+        match response.status() {
+            StatusCode::OK => {
+                let body = &response.into_body().bytes().await?;
+                let object: IcloudObject =
+                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+                let url = object.data_token.url.to_string();
+
+                let mut request_builder = Request::builder().method(Method::GET).uri(url);
+
+                if let Some(if_match) = args.if_match() {
+                    request_builder = request_builder.header(IF_MATCH, if_match);
+                }
+
+                let range = args.range();
+                if !range.is_full() {
+                    request_builder = request_builder.header(http::header::RANGE, range.to_header())
+                }
+
+                if let Some(if_none_match) = args.if_none_match() {
+                    request_builder = request_builder.header(IF_NONE_MATCH, if_none_match);
+                }
+
+                let async_body = request_builder.body(AsyncBody::Empty).unwrap();
+
+                let response = signer.client.send(async_body).await?;
+
+                Ok(response)
+            }
+            _ => Err(parse_error(response).await?),
+        }
+    }
+}
+
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
@@ -354,7 +705,6 @@ struct IcloudError {
 }
 
 #[derive(Default, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct IcloudWebservicesResponse {
     #[serde(default)]
     pub hsa_challenge_required: bool,
@@ -364,14 +714,12 @@ pub struct IcloudWebservicesResponse {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Webservices {
     pub drivews: Drivews,
     pub docws: Docws,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Drivews {
     #[serde(rename = "pcsRequired")]
     pub pcs_required: bool,
@@ -380,7 +728,6 @@ pub struct Drivews {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Docws {
     #[serde(rename = "pcsRequired")]
     pub pcs_required: bool,
@@ -427,7 +774,6 @@ pub struct IcloudItem {
     pub etag: String,
     #[serde(default)]
     pub file_count: Option<i64>,
-    #[serde(rename = "item_id")]
     pub item_id: Option<String>,
     pub name: String,
     pub parent_id: String,
@@ -443,34 +789,24 @@ pub struct IcloudItem {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct IcloudObject {
-    #[serde(rename = "document_id")]
     pub document_id: String,
-    #[serde(rename = "item_id")]
     pub item_id: String,
-    #[serde(rename = "owner_dsid")]
     pub owner_dsid: i64,
-    #[serde(rename = "data_token")]
     pub data_token: DataToken,
-    #[serde(rename = "double_etag")]
     pub double_etag: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DataToken {
     pub url: String,
     pub token: String,
     pub signature: String,
-    #[serde(rename = "wrapping_key")]
     pub wrapping_key: String,
-    #[serde(rename = "reference_signature")]
     pub reference_signature: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct IcloudCreateFolder {
     pub destination_drivews_id: String,
     pub folders: Vec<IcloudItem>,
@@ -567,21 +903,6 @@ mod tests {
           "fileCount": 22,
           "items": [
             {
-              "dateChanged": "2021-02-18T14:10:46Z",
-              "dateCreated": "2021-02-10T07:01:28Z",
-              "dateModified": "2021-02-10T07:01:28Z",
-              "docwsid": "304F8B99-588B-4376-B7C8-12FCAE7A78D0",
-              "drivewsid": "FILE::com.apple.CloudDocs::304F8B99-588B-4376-B7C8-12FCAE7A78D0",
-              "etag": "5j::5i",
-              "extension": "pdf",
-              "item_id": "CJWdk48eEAAiEDBPi5lYi0N2t8gS_K56eNA",
-              "lastOpenTime": "2021-02-10T07:17:43Z",
-              "name": "1-10-longest-prefix-match-notes",
-              "parentId": "FOLDER::com.apple.CloudDocs::1E013608-C669-43DB-AC14-3D7A4E0A0500",
-              "size": 802970,
-              "type": "FILE",
-              "zone": "com.apple.CloudDocs"
-            },
             {
               "dateChanged": "2021-02-18T14:10:46Z",
               "dateCreated": "2021-02-10T07:01:34Z",

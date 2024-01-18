@@ -18,6 +18,4 @@
 mod backend;
 pub use backend::IcloudBuilder as Icloud;
 
-mod client;
 mod core;
-mod drive;

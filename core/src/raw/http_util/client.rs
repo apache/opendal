@@ -156,8 +156,8 @@ impl HttpClient {
                 err.is_status()
             );
 
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
-                .with_operation("http_util::Client::send_async")
+            let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
+                .with_operation("http_util::Client::send")
                 .with_context("url", uri.to_string())
                 .set_source(err);
             if is_temporary {

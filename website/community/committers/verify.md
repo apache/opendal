@@ -93,11 +93,11 @@ Now, we could start the verification.
 We've provided a script to verify the checksum and signature of the release candidate.
 
 The script is in the `scripts` directory of our repository.
-You can download it directly from [here](https://raw.githubusercontent.com/apache/incubator-opendal/main/scripts/check.sh)
+You can download it directly from [here](https://raw.githubusercontent.com/apache/opendal/main/scripts/check.sh)
 or check it out from the repository:
 
 ```shell
-git clone git@github.com:apache/incubator-opendal.git
+git clone git@github.com:apache/opendal.git
 ```
 
 Run the script on a specific release candidate:

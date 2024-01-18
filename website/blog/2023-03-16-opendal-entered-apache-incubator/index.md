@@ -12,7 +12,7 @@ authors:
 
 ![OpenDAL successfully entered Apache Incubator](opendal-entered-apache.png)
 
-On February 27th, 2023, the [OpenDAL](https://github.com/apache/incubator-opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
+On February 27th, 2023, the [OpenDAL](https://github.com/apache/opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
 
 <!--truncate-->
 
@@ -87,11 +87,11 @@ The OpenDAL project embodies my personal dream. Now it has entered the Apache in
 
 Let us follow the guidance of Apache Way to build a community together and create value for users by providing free, painless and efficient data access experience!
 
-## Join OpenDAL Community
+## Join Apache OpenDAL Community
 
 We welcome developers and users who are interested in participating in OpenDAL project to join OpenDAL community and follow OpenDAL's latest news. You can get more information through the following ways:
 
 - Visit OpenDAL official website: <https://opendal.apache.org>
-- Explore OpenDAL GitHub repository: <https://github.com/apache/incubator-opendal>
+- Explore OpenDAL GitHub repository: <https://github.com/apache/opendal>
 - Join OpenDAL Discord channel: <https://discord.gg/XQy8yGR2dg>
 - Subscribe to OpenDAL mailing list: <dev@opendal.apache.org>

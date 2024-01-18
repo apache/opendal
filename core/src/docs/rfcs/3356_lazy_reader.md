@@ -1,7 +1,7 @@
 - Proposal Name: `lazy_reader`
 - Start Date: 2023-10-22
-- RFC PR: [apache/incubator-opendal#3356](https://github.com/apache/incubator-opendal/pull/3356)
-- Tracking Issue: [apache/incubator-opendal#3359](https://github.com/apache/incubator-opendal/issues/3359)
+- RFC PR: [apache/opendal#3356](https://github.com/apache/opendal/pull/3356)
+- Tracking Issue: [apache/opendal#3359](https://github.com/apache/opendal/issues/3359)
 
 # Summary
 

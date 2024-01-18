@@ -83,40 +83,40 @@ let w = op.writer_with("path/to/file").buffer(8 * 1024 * 1024).await?
 
 #### Others
 
-Other improvements in the core library can be found in our [CHANGELOG](https://github.com/apache/incubator-opendal/blob/main/CHANGELOG.md).
+Other improvements in the core library can be found in our [CHANGELOG](https://github.com/apache/opendal/blob/main/CHANGELOG.md).
 
 ### Bindings
 
 #### C++
 
-[`opendal-cpp`](https://github.com/apache/incubator-opendal/tree/main/bindings/cpp) is ready for its first release! Welcome to check it out and give us some feedback.
+[`opendal-cpp`](https://github.com/apache/opendal/tree/main/bindings/cpp) is ready for its first release! Welcome to check it out and give us some feedback.
 
 #### Haskell
 
-[`opendal-hs`](https://github.com/apache/incubator-opendal/tree/main/bindings/haskell) is ready for its first release! Welcome to check it out and give us some feedback.
+[`opendal-hs`](https://github.com/apache/opendal/tree/main/bindings/haskell) is ready for its first release! Welcome to check it out and give us some feedback.
 
 #### Java
 
-[`opendal-java`](https://github.com/apache/incubator-opendal/tree/main/bindings/java) enabled more available services in this release, allowing user to visit services like `redis` that not enabled by default in rust core. And `opendal-java` enabled blocking layer to allow users visit services like `s3` in blocking way.
+[`opendal-java`](https://github.com/apache/opendal/tree/main/bindings/java) enabled more available services in this release, allowing user to visit services like `redis` that not enabled by default in rust core. And `opendal-java` enabled blocking layer to allow users visit services like `s3` in blocking way.
 
 Welcome to integrate `opendal-java` into your project and give us some feedback.
 
 #### New bindings!
 
-- [`opendal-dotnet`](https://github.com/apache/incubator-opendal/tree/main/bindings/dotnet)
-- [`opendal-php`](https://github.com/apache/incubator-opendal/tree/main/bindings/php)
+- [`opendal-dotnet`](https://github.com/apache/opendal/tree/main/bindings/dotnet)
+- [`opendal-php`](https://github.com/apache/opendal/tree/main/bindings/php)
 
 ### Applications
 
 #### oay
 
-[oay](https://github.com/apache/incubator-opendal/tree/main/bin/oay) is OpenDAL Gateway that allows users to access OpenDAL services via existing protocols like `s3` and `webdav`. It works like a proxy that forwarding requests to OpenDAL services.
+[oay](https://github.com/apache/opendal/tree/main/bin/oay) is OpenDAL Gateway that allows users to access OpenDAL services via existing protocols like `s3` and `webdav`. It works like a proxy that forwarding requests to OpenDAL services.
 
 In this release, we implement basic `webdav` support. Users can convert any storage services to a webdav server!
 
 #### oli
 
-[oli](https://github.com/apache/incubator-opendal/tree/main/bin/oay) is OpenDAL CLI that allows users to access storage services via CLI like `s3cmd` and `gcloud` does.
+[oli](https://github.com/apache/opendal/tree/main/bin/oay) is OpenDAL CLI that allows users to access storage services via CLI like `s3cmd` and `gcloud` does.
 
 We fixed some experience issues in this release and improved some docs. Welcome to try it out and give us some feedback.
 
@@ -124,11 +124,11 @@ We fixed some experience issues in this release and improved some docs. Welcome 
 
 #### object_store
 
-[object_store](https://github.com/apache/incubator-opendal/tree/main/integrations/object_store) instead to implement [`object_store`](https://github.com/apache/arrow-rs/tree/master/object_store)'s trait over OpenDAL Operator so that users can use OpenDAL as a backend for `object_store`.
+[object_store](https://github.com/apache/opendal/tree/main/integrations/object_store) instead to implement [`object_store`](https://github.com/apache/arrow-rs/tree/master/object_store)'s trait over OpenDAL Operator so that users can use OpenDAL as a backend for `object_store`.
 
 `object_store` is mostly functional, but there are some edge use cases that OpenDAL has yet to support.
 
-So far, this release hasn't seen progress in this area; we are awaiting the resolution of the issue [Allow list paths that do not end with `/`](https://github.com/apache/incubator-opendal/issues/2762).
+So far, this release hasn't seen progress in this area; we are awaiting the resolution of the issue [Allow list paths that do not end with `/`](https://github.com/apache/opendal/issues/2762).
 
 ## Working
 
@@ -136,16 +136,16 @@ We are working on the following things:
 
 - `object_store` support: Make `object_store` integration works and find a user for it.
 - Remove the `/` limitation for path, so we can list a path without ending with `/`.
-- Expand the `start-after` support to more services (Address [#2786](https://github.com/apache/incubator-opendal/issues/2786)).
+- Expand the `start-after` support to more services (Address [#2786](https://github.com/apache/opendal/issues/2786)).
 
 ## Outlook
 
 We are exploring some innovative ideas:
 
-- [OpenDAL REST/gRPC API](https://github.com/apache/incubator-opendal/discussions/2951): A REST/gRPC Server for OpenDAL.
-- [OpenDAL Cache](https://github.com/apache/incubator-opendal/discussions/2953): OpenDAL native cache libs that allowing users to access data more efficiently.
-- [OpenDAL File System](https://github.com/apache/incubator-opendal/discussions/2952): A read-only file system that built upon OpenDAL in rust!
-- [kio-opendal](https://github.com/apache/incubator-opendal/discussions/3042): A kio plugin powered by OpenDAL that allows users to visit different storage services in [KDE Dolphin](https://apps.kde.org/dolphin/).
+- [OpenDAL REST/gRPC API](https://github.com/apache/opendal/discussions/2951): A REST/gRPC Server for OpenDAL.
+- [OpenDAL Cache](https://github.com/apache/opendal/discussions/2953): OpenDAL native cache libs that allowing users to access data more efficiently.
+- [OpenDAL File System](https://github.com/apache/opendal/discussions/2952): A read-only file system that built upon OpenDAL in rust!
+- [kio-opendal](https://github.com/apache/opendal/discussions/3042): A kio plugin powered by OpenDAL that allows users to visit different storage services in [KDE Dolphin](https://apps.kde.org/dolphin/).
 - gvfs-opendal: A gvfs plugin powered by OpenDAL that allows users to visit different storage services in [GNOME Files](https://wiki.gnome.org/Apps/Files)
 
 Feel free to join in the discussion!

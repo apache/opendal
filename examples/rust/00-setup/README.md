@@ -80,7 +80,7 @@ We will see output like:
 
 ```shell
 :) cargo run
-   Compiling setup v0.1.0 (/home/xuanwo/Code/apache/incubator-opendal/examples/rust/00-setup)
+   Compiling setup v0.1.0 (/home/xuanwo/Code/apache/opendal/examples/rust/00-setup)
     Finished dev [unoptimized + debuginfo] target(s) in 0.32s
      Running `target/debug/setup`
 Hello, s3

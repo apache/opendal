@@ -1,7 +1,7 @@
 - Proposal Name: `multipart`
 - Start Date: 2022-07-11
-- RFC PR: [apache/incubator-opendal#438](https://github.com/apache/incubator-opendal/pull/438)
-- Tracking Issue: [apache/incubator-opendal#439](https://github.com/apache/incubator-opendal/issues/439)
+- RFC PR: [apache/opendal#438](https://github.com/apache/opendal/pull/438)
+- Tracking Issue: [apache/opendal#439](https://github.com/apache/opendal/issues/439)
 
 # Summary
 

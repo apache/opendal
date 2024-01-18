@@ -9,7 +9,7 @@ authors:
     email: dev@opendal.apache.org
 identifiers:
   - type: url
-    value: 'https://github.com/apache/incubator-opendal'
-repository-code: 'https://github.com/apache/incubator-opendal'
+    value: 'https://github.com/apache/opendal'
+repository-code: 'https://github.com/apache/opendal'
 url: 'https://opendal.apache.org/'
 license: Apache-2.0

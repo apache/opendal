@@ -53,7 +53,7 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// Read more backend init examples in [examples](https://github.com/apache/incubator-opendal/tree/main/examples).
+    /// Read more backend init examples in [examples](https://github.com/apache/opendal/tree/main/examples).
     ///
     /// ```
     /// # use anyhow::Result;

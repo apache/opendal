@@ -1,7 +1,7 @@
 - Proposal Name: `align_list_api`
 - Start Date: 2023-10-07
-- RFC PR: [apache/incubator-opendal#3232](https://github.com/apache/incubator-opendal/pull/3232)
-- Tracking Issue: [apache/incubator-opendal#3236](https://github.com/apache/incubator-opendal/issues/3236)
+- RFC PR: [apache/opendal#3232](https://github.com/apache/opendal/pull/3232)
+- Tracking Issue: [apache/opendal#3236](https://github.com/apache/opendal/issues/3236)
 
 # Summary
 

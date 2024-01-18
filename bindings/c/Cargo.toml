@@ -19,13 +19,13 @@
 name = "opendal-c"
 publish = false
 
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.67"
-version = "0.44.1"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "staticlib"]

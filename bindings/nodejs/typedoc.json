@@ -12,6 +12,6 @@
   "theme": "opendal",
   "navigationLinks": {
     "Homepage": "https://opendal.apache.org/",
-    "GitHub": "https://github.com/apache/incubator-opendal/tree/main/bindings/nodejs"
+    "GitHub": "https://github.com/apache/opendal/tree/main/bindings/nodejs"
   }
 }

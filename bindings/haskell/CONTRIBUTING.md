@@ -6,7 +6,6 @@
   - [Build](#build)
   - [Test](#test)
   - [Doc](#doc)
-  - [Misc](#misc)
 
 ## Setup
 
@@ -15,7 +14,7 @@ OpenDAL provides a pre-configured [dev container](https://containers.dev/) that 
 
 The fastest way is:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
 

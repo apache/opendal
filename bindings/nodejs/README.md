@@ -50,7 +50,7 @@ main();
 - Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 - Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

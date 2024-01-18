@@ -159,7 +159,7 @@ The examples are available at [here](../examples/rust).
 
 Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

@@ -2,7 +2,7 @@
 
 OpenDAL File System (ofs) is a userspace filesystem backing by OpenDAL.
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

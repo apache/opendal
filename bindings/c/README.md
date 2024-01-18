@@ -138,7 +138,7 @@ If you want to build the documentations yourself, you could use
 make doc
 ```
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

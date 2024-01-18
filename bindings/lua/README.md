@@ -65,7 +65,7 @@ $ busted -o gtest test/opendal_test.lua
 [  PASSED  ] 2 tests.
 ```
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

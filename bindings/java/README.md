@@ -157,7 +157,7 @@ export OPENDAL_REDIS_DB=0
 ./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

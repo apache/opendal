@@ -21,7 +21,7 @@ zig build libopendal_c
 zig build test --summary all
 ```
 
-## Trademarks & Licenses
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 

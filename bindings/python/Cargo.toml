@@ -155,3 +155,10 @@ opendal.workspace = true
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
+
+[target.'cfg(unix)'.dependencies.opendal]
+features = [
+  # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
+  "services-sftp",
+]
+workspace = true

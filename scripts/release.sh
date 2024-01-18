@@ -62,7 +62,7 @@ for package in "${PACKAGES[@]}"; do
 done
 
 echo "> Start package"
-git archive --format=tar.gz --output="dist/apache-opendal-incubating-$release_version-src.tar.gz" --prefix="apache-opendal-incubating-$release_version-src/" --add-file=Cargo.toml "$git_branch"
+git archive --format=tar.gz --output="dist/apache-opendal-$release_version-src.tar.gz" --prefix="apache-opendal-$release_version-src/" --add-file=Cargo.toml "$git_branch"
 
 cd dist
 echo "> Generate signature"

@@ -102,3 +102,9 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
+
+## Trademarks & Licenses
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

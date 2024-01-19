@@ -78,9 +78,9 @@ Thanks for everyone's support!
 ${your_name}
 ```
 
-## Send NOTICE to IPMC after VOTE PASSED
+## Send NOTICE to Board after VOTE PASSED
 
-The nominating PPMC member should send a message to the IPMC <private@incubator.apache.org> with a reference to the vote result in the following form:
+The nominating PMC member should send a message to the Board <board@apache.org> with a reference to the vote result in the following form:
 
 Title:
 

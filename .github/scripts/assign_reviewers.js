@@ -33,6 +33,13 @@ const candidates = [
 
 async function run(github, context, core, fs) {
   try {
+    // remove PR author from candidates
+    const requesterUsername = context.payload.sender.login;
+    const index = candidates.indexOf(requesterUsername);
+    if (index > -1) {
+      candidates.splice(index, 1);
+    }
+    
     // Pick two reviewers from list
     const numberOfReviewers = 2;
     const repo = context.repo;

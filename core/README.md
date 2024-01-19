@@ -2,8 +2,8 @@
 
 [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
-[build status]: https://img.shields.io/github/actions/workflow/status/apache/incubator-opendal/ci.yml?branch=main
-[actions]: https://github.com/apache/incubator-opendal/actions?query=branch%3Amain
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci.yml?branch=main
+[actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
 [latest version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
 [crate downloads]: https://img.shields.io/crates/d/opendal.svg
@@ -15,7 +15,7 @@
 - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
-![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Services
 
@@ -90,7 +90,7 @@
 
 </details>
 
-> Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
+> Welcome to add any services that are not currently supported [here](https://github.com/apache/opendal/issues/5).
 
 ## Features
 

@@ -1,7 +1,7 @@
 - Proposal Name: `init_from_iter`
 - Start Date: 2022-07-10
-- RFC PR: [apache/incubator-opendal#429](https://github.com/apache/incubator-opendal/pull/429)
-- Tracking Issue: [apache/incubator-opendal#430](https://github.com/apache/incubator-opendal/issues/430)
+- RFC PR: [apache/opendal#429](https://github.com/apache/opendal/pull/429)
+- Tracking Issue: [apache/opendal#430](https://github.com/apache/opendal/issues/430)
 
 # Summary
 

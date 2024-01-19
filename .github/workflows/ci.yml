@@ -152,7 +152,7 @@ jobs:
 
       - name: Cargo clippy
         # FIXME
-        # remove `-exclude opendal-php` after https://github.com/apache/incubator-opendal/issues/3055 addressed
+        # remove `-exclude opendal-php` after https://github.com/apache/opendal/issues/3055 addressed
         run: cargo clippy --all-targets --all-features --workspace --exclude opendal-php -- -D warnings
 
       - name: Check diff
@@ -280,7 +280,7 @@ jobs:
             # services-rocksdb
             services-s3
             services-seafile
-            # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/incubator-opendal/issues/2963
+            # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/opendal/issues/2963
             # services-sftp
             services-sled
             services-swift

@@ -1,7 +1,7 @@
 - Proposal Name: `list_prefix`
 - Start Date: 2023-10-08
-- RFC PR: [apache/incubator-opendal#3243](https://github.com/apache/incubator-opendal/pull/3243)
-- Tracking Issue: [apache/incubator-opendal#3247](https://github.com/apache/incubator-opendal/issues/3247)
+- RFC PR: [apache/opendal#3243](https://github.com/apache/opendal/pull/3243)
+- Tracking Issue: [apache/opendal#3247](https://github.com/apache/opendal/issues/3247)
 
 # Summary
 
@@ -15,8 +15,8 @@ As a side-effect of this design, OpenDAL always return exist for `stat("not_exis
 
 There are some issues and pull requests related to those issues.
 
-- [Invalid metadata for dir objects in s3](https://github.com/apache/incubator-opendal/issues/3199)
-- [`is_exist` always return true for key end with '/', in S3 service](https://github.com/apache/incubator-opendal/issues/2086)
+- [Invalid metadata for dir objects in s3](https://github.com/apache/opendal/issues/3199)
+- [`is_exist` always return true for key end with '/', in S3 service](https://github.com/apache/opendal/issues/2086)
 
 POSIX-like file systems also have their own issues, as they lack native support for listing a prefix.
 

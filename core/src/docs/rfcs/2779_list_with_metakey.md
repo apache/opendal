@@ -1,7 +1,7 @@
 - Proposal Name: `list_with_metakey`
 - Start Date: 2023-08-04
-- RFC PR: [apache/incubator-opendal#2779](https://github.com/apache/incubator-opendal/pull/2779)
-- Tracking Issue: [apache/incubator-opendal#2802](https://github.com/apache/incubator-opendal/issues/2802)
+- RFC PR: [apache/opendal#2779](https://github.com/apache/opendal/pull/2779)
+- Tracking Issue: [apache/opendal#2802](https://github.com/apache/opendal/issues/2802)
 
 # Summary
 

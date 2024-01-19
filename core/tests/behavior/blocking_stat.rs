@@ -70,9 +70,9 @@ pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
-    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    // Ignore test for supabase until https://github.com/apache/opendal/issues/2194 addressed.
     if op.info().scheme() == opendal::Scheme::Supabase {
-        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        warn!("ignore test for supabase until https://github.com/apache/opendal/issues/2194 is resolved");
         return Ok(());
     }
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.

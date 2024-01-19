@@ -1,7 +1,7 @@
 - Proposal Name: `new_builder`
 - Start Date: 2022-08-03
-- RFC PR: [apache/incubator-opendal#501](https://github.com/apache/incubator-opendal/pull/501)
-- Tracking Issue: [apache/incubator-opendal#502](https://github.com/apache/incubator-opendal/issues/502)
+- RFC PR: [apache/opendal#501](https://github.com/apache/opendal/pull/501)
+- Tracking Issue: [apache/opendal#502](https://github.com/apache/opendal/issues/502)
 
 # Summary
 

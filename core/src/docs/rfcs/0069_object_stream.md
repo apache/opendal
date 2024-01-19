@@ -1,7 +1,7 @@
 - Proposal Name: `object_stream`
 - Start Date: 2022-02-25
-- RFC PR: [apache/incubator-opendal#69](https://github.com/apache/incubator-opendal/pull/69)
-- Tracking Issue: [apache/incubator-opendal#69](https://github.com/apache/incubator-opendal/issues/69)
+- RFC PR: [apache/opendal#69](https://github.com/apache/opendal/pull/69)
+- Tracking Issue: [apache/opendal#69](https://github.com/apache/opendal/issues/69)
 
 # Summary
 
@@ -9,7 +9,7 @@ Allow user to read dir via `ObjectStream`.
 
 # Motivation
 
-Users need `readdir` support in `OpenDAL`: [Implement List support](https://github.com/apache/incubator-opendal/issues/12). Take [databend] for example, with `List` support, we can implement copy from `s3://bucket/path/to/dir` instead of only `s3://bucket/path/to/file`.
+Users need `readdir` support in `OpenDAL`: [Implement List support](https://github.com/apache/opendal/issues/12). Take [databend] for example, with `List` support, we can implement copy from `s3://bucket/path/to/dir` instead of only `s3://bucket/path/to/file`.
 
 # Guide-level explanation
 

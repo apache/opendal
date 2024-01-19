@@ -2,7 +2,7 @@
 
 **OpenDAL** is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
 
-![OpenDAL Architectural](https://github.com/apache/incubator-opendal/assets/5351546/c81013b2-5455-4950-9d31-dbf272b07998)
+![OpenDAL Architectural](https://github.com/apache/opendal/assets/5351546/c81013b2-5455-4950-9d31-dbf272b07998)
 
 Major components of the project include:
 
@@ -98,7 +98,7 @@ Major components of the project include:
 
 </details>
 
-> Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
+> Welcome to add any services that are not currently supported [here](https://github.com/apache/opendal/issues/5).
 
 ## Examples
 
@@ -113,9 +113,9 @@ The documentation is available at <https://opendal.apache.org>.
 OpenDAL is an active open-source project. We are always open to people who want to use it or contribute to it. Here are some ways to go.
 
 - Start with [Contributing Guide](CONTRIBUTING.md).
-- Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
+- Submit [Issues](https://github.com/apache/opendal/issues/new) for bug report or feature requests.
 - Discuss at [dev mailing list](mailto:dev-subscribe@opendal.apache.org) ([subscribe](mailto:dev-subscribe@opendal.apache.org?subject=(send%20this%20email%20to%20subscribe)) / [unsubscribe](mailto:dev-unsubscribe@opendal.apache.org?subject=(send%20this%20email%20to%20unsubscribe)) / [archives](https://lists.apache.org/list.html?dev@opendal.apache.org))
-- Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
+- Asking questions in the [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a).
 - Talk to community directly at [Discord](https://discord.gg/XQy8yGR2dg).
 
 ## Who is using OpenDAL?

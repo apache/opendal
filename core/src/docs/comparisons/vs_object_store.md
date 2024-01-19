@@ -23,9 +23,9 @@ Both `opendal` and `object_store` are licensed under [Apache 2.0](https://www.ap
 
 ### Owner
 
-`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
+`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by the [Apache Software Foundation](https://www.apache.org/).
 
-`opendal` is now hosted by [Apache Incubator](https://incubator.apache.org/projects/opendal.html).
+`opendal` is now hosted by the [Apache Software Foundation](https://www.apache.org/) also.
 
 ### Domain
 

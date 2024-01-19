@@ -5,7 +5,7 @@ sidebar_position: 2
 
 This document primarily serves as a guide for new committers to Apache OpenDAL™.
 
-Upon receiving an invitation email from OpenDAL PPMC, a new committer should consider whether accepting.
+Upon receiving an invitation email from OpenDAL PMC, a new committer should consider whether accepting.
 If they decide in favor, they should select "Reply All" and express their decision.
 
 ## Submit CLA
@@ -78,10 +78,10 @@ If you receive an email with the subject "WELCOME to dev@opendal.apache.org", yo
 
 ## Setup 1password
 
-OpenDAL offers a 1Password open-source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PPMC members will invite you to join the team.
+OpenDAL offers a 1Password open-source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PMC members will invite you to join the team.
 
 Please download your preferred clients to begin using it. Here are some important notes regarding the use of 1Password: 
 
-- You can create your own vault that is accessible only by yourself. Neither the 1password team nor OpenDAL PPMC members can access it unless you choose to share it.
+- You can create your own vault that is accessible only by yourself. Neither the 1password team nor OpenDAL PMC members can access it unless you choose to share it.
 - Please refrain from modifying secrets in the `Services` vault as this could disrupt our integration tests.
 - Ensure that you keep all secrets secure and avoid sharing them with others or making them public. Do not commit them anywhere else.

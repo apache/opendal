@@ -35,12 +35,12 @@ custom-setup
 
 source-repository head
     type:     git
-    location: https://github.com/apache/incubator-opendal
+    location: https://github.com/apache/opendal
     subdir:   bindings/haskell
 
 source-repository this
     type:     git
-    location: https://github.com/apache/incubator-opendal
+    location: https://github.com/apache/opendal
     tag:      v0.44.0
     subdir:   bindings/haskell
 

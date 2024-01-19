@@ -1,7 +1,7 @@
 - Proposal Name: `native_capability`
 - Start Date: 2023-08-11
-- RFC PR: [apache/incubator-opendal#2852](https://github.com/apache/incubator-opendal/pull/2852)
-- Tracking Issue: [apache/incubator-opendal#2859](https://github.com/apache/incubator-opendal/issues/2859)
+- RFC PR: [apache/opendal#2852](https://github.com/apache/opendal/pull/2852)
+- Tracking Issue: [apache/opendal#2859](https://github.com/apache/opendal/issues/2859)
 
 # Summary
 

@@ -2,7 +2,7 @@ package = "opendal"
 version = "0.1.0-1"
 
 source = {
-    url = "git+https://github.com/apache/incubator-opendal/",
+    url = "git+https://github.com/apache/opendal/",
 }
 
 description = {

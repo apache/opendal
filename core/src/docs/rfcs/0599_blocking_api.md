@@ -1,7 +1,7 @@
 - Proposal Name: `blocking_api`
 - Start Date: 2022-08-30
-- RFC PR: [apache/incubator-opendal#599](https://github.com/apache/incubator-opendal/pull/599)
-- Tracking Issue: [apache/incubator-opendal#601](https://github.com/apache/incubator-opendal/issues/601)
+- RFC PR: [apache/opendal#599](https://github.com/apache/opendal/pull/599)
+- Tracking Issue: [apache/opendal#601](https://github.com/apache/opendal/issues/601)
 
 # Summary
 
@@ -9,7 +9,7 @@ We are adding a blocking API for OpenDAL.
 
 # Motivation
 
-Blocking API is the most requested feature inside the OpenDAL community: [Opendal support sync read/write API](https://github.com/apache/incubator-opendal/discussions/68)
+Blocking API is the most requested feature inside the OpenDAL community: [Opendal support sync read/write API](https://github.com/apache/opendal/discussions/68)
 
 Our users want blocking API for:
 

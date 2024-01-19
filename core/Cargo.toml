@@ -154,6 +154,8 @@ services-http = []
 services-huggingface = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
+services-icloud = ["internal-path-cache"]
+services-koofr = []
 services-libsql = ["dep:hrana-client-proto"]
 services-memcached = ["dep:bb8"]
 services-memory = []
@@ -248,7 +250,7 @@ reqwest = { version = "0.11.18", features = [
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# TODO: remove `rt` after https://github.com/apache/incubator-opendal/issues/3948
+# TODO: remove `rt` after https://github.com/apache/opendal/issues/3948
 tokio = { version = "1.27", features = ["sync", "rt"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 

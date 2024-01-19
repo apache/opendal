@@ -1,7 +1,7 @@
 - Proposal Name: `split-capabilities`
 - Start Date: 2022-09-04
-- RFC PR: [apache/incubator-opendal#627](https://github.com/apache/incubator-opendal/pull/627)
-- Tracking Issue: [apache/incubator-opendal#628](https://github.com/apache/incubator-opendal/issues/628)
+- RFC PR: [apache/opendal#627](https://github.com/apache/opendal/pull/627)
+- Tracking Issue: [apache/opendal#628](https://github.com/apache/opendal/issues/628)
 
 # Summary
 

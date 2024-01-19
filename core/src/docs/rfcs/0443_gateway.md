@@ -1,7 +1,7 @@
 - Proposal Name: `gateway`
 - Start Date: 2022-07-18
-- RFC PR: [apache/incubator-opendal#443](https://github.com/apache/incubator-opendal/pull/443)
-- Tracking Issue: [apache/incubator-opendal#444](https://github.com/apache/incubator-opendal/issues/444)
+- RFC PR: [apache/opendal#443](https://github.com/apache/opendal/pull/443)
+- Tracking Issue: [apache/opendal#444](https://github.com/apache/opendal/issues/444)
 
 # Summary
 

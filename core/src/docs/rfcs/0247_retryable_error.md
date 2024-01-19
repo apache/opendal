@@ -1,7 +1,7 @@
 - Proposal Name: `retryable_error`
 - Start Date: 2022-04-12
-- RFC PR: [apache/incubator-opendal#247](https://github.com/apache/incubator-opendal/pull/247)
-- Tracking Issue: [apache/incubator-opendal#248](https://github.com/apache/incubator-opendal/issues/248)
+- RFC PR: [apache/opendal#247](https://github.com/apache/opendal/pull/247)
+- Tracking Issue: [apache/opendal#248](https://github.com/apache/opendal/issues/248)
 
 # Summary
 
@@ -11,7 +11,7 @@ Treat `io::ErrorKind::Interrupt` as retryable error.
 
 Supports retry make our users' lives easier:
 
-> [Feature request: Custom retries for the s3 backend](https://github.com/apache/incubator-opendal/issues/196)
+> [Feature request: Custom retries for the s3 backend](https://github.com/apache/opendal/issues/196)
 >
 > While the reading/writing from/to s3, AWS occasionally returns errors that could be retried (at least 5xx?). Currently, in the databend, this will fail the whole execution of the statement (which may have been running for an extended time).
 

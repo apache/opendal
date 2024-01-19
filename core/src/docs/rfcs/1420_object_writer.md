@@ -1,7 +1,7 @@
 - Proposal Name: `object_writer`
 - Start Date: 2023-02-27
-- RFC PR: [apache/incubator-opendal#1420](https://github.com/apache/incubator-opendal/pull/1420)
-- Tracking Issue: [apache/incubator-opendal#1421](https://github.com/apache/incubator-opendal/issues/1421)
+- RFC PR: [apache/opendal#1420](https://github.com/apache/opendal/pull/1420)
+- Tracking Issue: [apache/opendal#1421](https://github.com/apache/opendal/issues/1421)
 
 # Summary
 

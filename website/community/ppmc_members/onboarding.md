@@ -3,9 +3,9 @@ title: Onboarding
 sidebar_position: 1
 ---
 
-This document primarily serves as a guide for new PPMC members to Apache OpenDAL™.
+This document primarily serves as a guide for new PMC members to Apache OpenDAL™.
 
-Upon receiving an invitation email from OpenDAL PPMC, a new PPMC member should consider whether accepting.
+Upon receiving an invitation email from OpenDAL PMC, a new PMC member should consider whether accepting.
 If they decide in favor, they should select "Reply All" and express their decision.
 
 ### Subscribe to Private Mailing List
@@ -16,4 +16,4 @@ If they decide in favor, they should select "Reply All" and express their decisi
 
 If you receive an email with the subject "WELCOME to private@opendal.apache.org", you have successfully subscribed to the private mailing list.
 
-It's required for PPMC members to subscribe the private mailing list. The private list is only for confidential discussions that should not be made public, such as the suitability of a particular individual to become a committer or a member of the PPMC.
+It's required for PMC members to subscribe the private mailing list. The private list is only for confidential discussions that should not be made public, such as the suitability of a particular individual to become a committer or a member of the PMC.

@@ -46,7 +46,7 @@ test = ["pytest", "python-dotenv", "pytest-asyncio"]
 [project.urls]
 Documentation = "https://opendal.apache.org/docs/python/opendal.html"
 Homepage = "https://opendal.apache.org/"
-Repository = "https://github.com/apache/incubator-opendal"
+Repository = "https://github.com/apache/opendal"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

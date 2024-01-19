@@ -1,7 +1,7 @@
 {
   "name": "@opendal/lib-linux-arm64-gnu",
   "version": "0.44.1",
-  "repository": "git@github.com/apache/incubator-opendal.git",
+  "repository": "git@github.com/apache/opendal.git",
   "os": [
     "linux"
   ],

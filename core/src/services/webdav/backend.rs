@@ -394,7 +394,7 @@ impl Accessor for WebdavBackend {
     /// There is a strange dead lock issues when copying a non-exist file, so we will check
     /// if the source exists first.
     ///
-    /// For example: <https://github.com/apache/incubator-opendal/pull/2809>
+    /// For example: <https://github.com/apache/opendal/pull/2809>
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         if let Err(err) = self.stat(from, OpStat::default()).await {
             if err.kind() == ErrorKind::NotFound {

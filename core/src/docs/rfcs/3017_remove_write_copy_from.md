@@ -1,7 +1,7 @@
 - Proposal Name: `remove_write_copy_from`
 - Start Date: 2023-09-06
-- RFC PR: [apache/incubator-opendal#3017](https://github.com/apache/incubator-opendal/pull/3017)
-- Tracking Issue: [apache/incubator-opendal#3017](https://github.com/apache/incubator-opendal/issues/3017)
+- RFC PR: [apache/opendal#3017](https://github.com/apache/opendal/pull/3017)
+- Tracking Issue: [apache/opendal#3017](https://github.com/apache/opendal/issues/3017)
 
 # Summary
 

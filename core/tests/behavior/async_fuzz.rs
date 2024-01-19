@@ -60,7 +60,7 @@ async fn test_fuzz_read(
     Ok(())
 }
 
-/// This fuzz test is to reproduce <https://github.com/apache/incubator-opendal/issues/2717>.
+/// This fuzz test is to reproduce <https://github.com/apache/opendal/issues/2717>.
 ///
 /// The simplified cases could be seen as:
 ///
@@ -103,7 +103,7 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
     test_fuzz_read(op, 2, .., &actions).await
 }
 
-/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/opendal/pull/3395>.
 ///
 /// The simplified cases could be seen as:
 ///
@@ -124,7 +124,7 @@ pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
     test_fuzz_read(op, 1, 0.., &actions).await
 }
 
-/// This fuzz test is to reproduce bug inside <https://github.com/apache/incubator-opendal/pull/3395>.
+/// This fuzz test is to reproduce bug inside <https://github.com/apache/opendal/pull/3395>.
 ///
 /// The simplified cases could be seen as:
 ///

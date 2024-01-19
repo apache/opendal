@@ -21,7 +21,7 @@
 (license Apache-2.0)
 (maintainers "OpenDAL Contributors <dev@opendal.apache.org>")
 (authors "OpenDAL Contributors <dev@opendal.apache.org>")
-(source (github apache/incubator-opendal))
+(source (github apache/opendal))
 (documentation "https://opendal.apache.org/")
 (package
  (name opendal)

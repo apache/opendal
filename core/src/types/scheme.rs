@@ -48,6 +48,8 @@ pub enum Scheme {
     YandexDisk,
     /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
     Pcloud,
+    /// [Koofr][crate::services::Koofr]: Koofr Services.
+    Koofr,
     /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
     Chainsafe,
     /// [cacache][crate::services::Cacache]: cacache backend support.
@@ -88,6 +90,8 @@ pub enum Scheme {
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
     /// [memcached][crate::services::Memcached]: Memcached service support.
+    Icloud,
+    /// [icloud][crate::services::Icloud]: APPLE icloud services.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
     Memory,
@@ -221,6 +225,8 @@ impl Scheme {
             Scheme::Ipfs,
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs,
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud,
             #[cfg(feature = "services-libsql")]
             Scheme::Libsql,
             #[cfg(feature = "services-memcached")]
@@ -334,6 +340,8 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+            "icloud" => Ok(Scheme::Icloud),
+            "koofr" => Ok(Scheme::Koofr),
             "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
@@ -396,6 +404,8 @@ impl From<Scheme> for &'static str {
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
+            Scheme::Icloud => "icloud",
+            Scheme::Koofr => "koofr",
             Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",

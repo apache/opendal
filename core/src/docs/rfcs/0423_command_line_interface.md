@@ -1,7 +1,7 @@
 - Proposal Name: `command_line_interface`
 - Start Date: 2022-07-08
-- RFC PR: [apache/incubator-opendal#423](https://github.com/apache/incubator-opendal/pull/423)
-- Tracking Issue: [apache/incubator-opendal#422](https://github.com/apache/incubator-opendal/issues/422)
+- RFC PR: [apache/opendal#423](https://github.com/apache/opendal/pull/423)
+- Tracking Issue: [apache/opendal#422](https://github.com/apache/opendal/issues/422)
 
 # Summary
 

@@ -1,7 +1,7 @@
 - Proposal Name: `list_metadata_reuse`
 - Start Date: 2022-08-23
-- RFC PR: [apache/incubator-opendal#561](https://github.com/apache/incubator-opendal/pull/561)
-- Tracking Issue: [apache/incubator-opendal#570](https://github.com/apache/incubator-opendal/pull/570)
+- RFC PR: [apache/opendal#561](https://github.com/apache/opendal/pull/561)
+- Tracking Issue: [apache/opendal#570](https://github.com/apache/opendal/pull/570)
 
 # Summary
 

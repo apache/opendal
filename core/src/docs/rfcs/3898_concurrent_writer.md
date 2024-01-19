@@ -1,7 +1,7 @@
 - Proposal Name: `concurrent_writer`
 - Start Date: 2024-01-02
-- RFC PR: [apache/incubator-opendal#3898](https://github.com/apache/incubator-opendal/pull/3898)
-- Tracking Issue: [apache/incubator-opendal#3899](https://github.com/apache/incubator-opendal/issues/3899)
+- RFC PR: [apache/opendal#3898](https://github.com/apache/opendal/pull/3898)
+- Tracking Issue: [apache/opendal#3899](https://github.com/apache/opendal/issues/3899)
 
 # Summary
 

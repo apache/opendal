@@ -23,6 +23,8 @@
 "hellow" = "hellow"
 # Showed up in examples.
 "thw" = "thw"
+# Showed up in test.
+"hsa" = "hsa"
 
 [files]
 extend-exclude = [

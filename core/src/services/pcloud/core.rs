@@ -334,14 +334,12 @@ impl PcloudCore {
     pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
         let path = build_abs_path(&self.root, path);
 
-        let paths: Vec<&str> = path.split('/').collect();
-        let name = paths[paths.len() - 1];
-        let path = path.replace(&format!("/{}", name), "");
+        let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
 
         let url = format!(
             "{}/uploadfile?path=/{}&filename={}&username={}&password={}",
             self.endpoint,
-            percent_encode_path(&path),
+            percent_encode_path(path),
             percent_encode_path(name),
             self.username,
             self.password

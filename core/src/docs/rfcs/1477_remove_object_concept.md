@@ -1,7 +1,7 @@
 - Proposal Name: `remove_object_concept`
 - Start Date: `2023-03-05`
-- RFC PR: [apache/incubator-opendal#1477](https://github.com/apache/incubator-opendal/pull/1477)
-- Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
+- RFC PR: [apache/opendal#1477](https://github.com/apache/opendal/pull/1477)
+- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary
 

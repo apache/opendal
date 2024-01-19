@@ -1,7 +1,7 @@
 - Proposal Name: `object_metadataer`
 - Start Date: 2023-02-21
-- RFC PR: [apache/incubator-opendal#1391](https://github.com/apache/incubator-opendal/pull/1391)
-- Tracking Issue: [apache/incubator-opendal#1393](https://github.com/apache/incubator-opendal/issues/1393)
+- RFC PR: [apache/opendal#1391](https://github.com/apache/opendal/pull/1391)
+- Tracking Issue: [apache/opendal#1393](https://github.com/apache/opendal/issues/1393)
 
 # Summary
 

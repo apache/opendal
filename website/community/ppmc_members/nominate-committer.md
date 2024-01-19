@@ -3,7 +3,7 @@ title: Nominate Committer
 sidebar_position: 2
 ---
 
-This document mainly introduces how the PPMC member nominate a new committer.
+This document mainly introduces how a PMC member nominates a new committer.
 
 ## Start vote about the candidate
 
@@ -21,19 +21,19 @@ Title:
 Content:
 
 ```
-Hi, All OpenDAL PPMC members.
+Hi, All OpenDAL PMC members.
   
 I'd like to take this chance to call the vote for inviting committed
 contributor ${candidate_name} (github id: ${candidate_github_id}) as a new committer of Apache 
-OpenDAL (incubating).
+OpenDAL.
 
 ${candidate_contributions}
 
 ${candidate_name}'s great contributions could be found:
 
 - Github Account: https://github.com/${candidate_github_id}
-- Github Pull Requests: https://github.com/apache/incubator-opendal/pulls?q=is%3Apr+author%3A${candidate_github_id}+is%3Aclosed
-- Github Issues: https://github.com/apache/incubator-opendal/issues?q=is%3Aopen+mentions%3A${candidate_github_id}
+- Github Pull Requests: https://github.com/apache/opendal/pulls?q=is%3Apr+author%3A${candidate_github_id}+is%3Aclosed
+- Github Issues: https://github.com/apache/opendal/issues?q=is%3Aopen+mentions%3A${candidate_github_id}
 
 Please make your valuable evaluation on whether we could invite ${candidate_name} as a
 committer:
@@ -95,7 +95,7 @@ Content:
 ```
 Hello ${candidate_name},
 
-The OpenDAL PPMC hereby offers you committer privileges
+The OpenDAL PMC hereby offers you committer privileges
 to the project. These privileges are offered on the
 understanding that you'll use them reasonably and with
 common sense. We like to work on trust rather than
@@ -131,7 +131,7 @@ B. If you accept, the next step is to register an iCLA:
     unique Apache ID. Look to see if your preferred 
     ID is already taken at 
     https://people.apache.org/committer-index.html
-    This will allow the Secretary to notify the PPMC 
+    This will allow the Secretary to notify the PMC 
     when your iCLA has been recorded.
 
 When recording of your iCLA is noted, you will 
@@ -140,11 +140,11 @@ establishing you as a committer.
 
 With the expectation of your acceptance, welcome!
 
-${your_name} (as represents of The Apache OpenDAL(incubating) PPMC)
+${your_name} (as represents of The Apache OpenDAL PMC)
 ```
 
 ## Add the candidate to the committer list
 
-After the candidate accepts the invitation and the iCLA is recorded, add the candidate to the committer list by [whimsy roster tools](https://whimsy.apache.org/roster/ppmc/opendal)
+After the candidate accepts the invitation and the iCLA is recorded, add the candidate to the committer list by [whimsy roster tools](https://whimsy.apache.org/roster/committee/opendal)
 
 ![](roster-add-committer.png)

@@ -18,7 +18,7 @@ The first article will discuss OpenDAL's most commonly used data reading functio
 
 Before starting to introduce the specific OpenDAL interface, let's first get familiar with the OpenDAL project.
 
-[OpenDAL](https://github.com/apache/incubator-opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/docs/vision) is "free access to data":
+[OpenDAL](https://github.com/apache/opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/docs/vision) is "free access to data":
 
 - Free from services: Any service can be accessed freely through native interfaces
 - Free from implementations: No matter how the underlying implementation is, it can be called in a unified way
@@ -118,7 +118,7 @@ After the completion of the Layers, it's time to call the specific implementatio
 
 There's nothing particularly complex in the implementation of `oio::into_read_from_file`; read and seek are mostly calling the functions provided by the incoming File type. The tricky part is about the correct handling of seek and range: seeking to the right side of the range is allowed, and this will not cause an error, and reading will only return empty, but seeking to the left side of the range is illegal, and the Reader must return `InvalidInput` for proper upper-level handling.
 
-> Interesting history: there was [an issue](https://github.com/apache/incubator-opendal/issues/2717) in the initial implementation of this part, discovered during fuzz testing.
+> Interesting history: there was [an issue](https://github.com/apache/opendal/issues/2717) in the initial implementation of this part, discovered during fuzz testing.
 
 ### Services s3
 

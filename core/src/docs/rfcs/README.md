@@ -28,11 +28,11 @@ Preparing in advance before submitting an RFC hastily can increase its chances o
 
 It is great to seek feedback from other project developers first, as this can help validate the viability of the RFC. To ensure a sustained impact on the project, it is important to work together and reach a consensus.
 
-Common preparatory steps include presenting your idea on platforms such as GitHub [issues](https://github.com/apache/incubator-opendal/issues/) or [discussions](https://github.com/apache/incubator-opendal/discussions/categories/ideas), or engaging in discussions through our [email list](https://opendal.apache.org/community/#mailing-list) or [Discord server](https://discord.gg/XQy8yGR2dg). 
+Common preparatory steps include presenting your idea on platforms such as GitHub [issues](https://github.com/apache/opendal/issues/) or [discussions](https://github.com/apache/opendal/discussions/categories/ideas), or engaging in discussions through our [email list](https://opendal.apache.org/community/#mailing-list) or [Discord server](https://discord.gg/XQy8yGR2dg). 
 
 ## The RFC process
 
-- Fork the [OpenDAL repo](https://github.com/apache/incubator-opendal) and create your branch from `main`.
+- Fork the [OpenDAL repo](https://github.com/apache/opendal) and create your branch from `main`.
 - Copy [`0000_example.md`] to `0000-my-feature.md` (where "my-feature" is descriptive). Don't assign an RFC number yet; This is going to be the PR number, and we'll rename the file accordingly if the RFC is accepted.
 - Submit a pull request. As a pull request, the RFC will receive design feedback from the larger community, and the author should be prepared to revise it in response.
 - Now that your RFC has an open pull request, use the issue number of this PR to update your `0000-` prefix to that number.

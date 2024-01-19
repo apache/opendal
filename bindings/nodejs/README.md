@@ -4,7 +4,7 @@
 [![npm](https://img.shields.io/npm/v/opendal.svg?logo=npm)](https://www.npmjs.com/package/opendal)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/nodejs/)
 
-![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Installation
 
@@ -46,10 +46,12 @@ main();
 ## Contributing
 
 - Start with [Contributing Guide](CONTRIBUTING.md).
-- Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
-- Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
+- Submit [Issues](https://github.com/apache/opendal/issues/new) for bug report or feature requests.
+- Asking questions in the [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a).
 - Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).
 
-## License
+## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

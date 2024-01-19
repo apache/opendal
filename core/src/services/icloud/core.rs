@@ -244,9 +244,6 @@ impl IcloudSigner {
             request = request.header(SCNT_HEADER, scnt);
         }
 
-        // China region
-        // ("Origin", "https://www.icloud.com.cn")
-        // ("Referer", "https://www.icloud.com.cn/")
         // You can get more information from [apple.com](https://support.apple.com/en-us/111754)
         if self.is_china_mainland {
             request = request.header("Origin", "https://www.icloud.com.cn");

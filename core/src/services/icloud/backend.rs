@@ -146,6 +146,7 @@ impl IcloudBuilder {
 
         self
     }
+
     /// ds_web_auth_token must be set in Session
     ///
     /// Avoid Two Factor Authentication
@@ -158,9 +159,11 @@ impl IcloudBuilder {
 
         self
     }
-    /// Enable the china origin
-    /// For China, use "https://www.icloud.com.cn"
-    /// For Other region, use "https://www.icloud.com"
+
+    /// Set if your apple id in China mainland.
+    ///
+    /// If in china mainland, we will connect to `https://www.icloud.com.cn`.
+    /// Otherwise, we will connect to `https://www.icloud.com`.
     pub fn is_china_mainland(&mut self, is_china_mainland: bool) -> &mut Self {
         self.config.is_china_mainland = is_china_mainland;
         self

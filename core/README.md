@@ -56,10 +56,11 @@
 </details>
 
 <details>
-<summary>Consumer Cloud Storage Service (like gdrive, onedrive)</summary>
+<summary>Consumer Cloud Storage Service (like gdrive, onedrive, icloud drive)</summary>
 
 - gdrive: [Google Drive](https://www.google.com/drive/) *being worked on*
 - onedrive: [OneDrive](https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage) *being worked on*
+- icloud: [Icloud Drive](https://www.icloud.com.cn/iclouddrive/) *being worked on*
 
 </details>
 

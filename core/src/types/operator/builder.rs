@@ -209,6 +209,8 @@ impl Operator {
             Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud => Self::from_map::<services::Icloud>(map)?.finish(),
             #[cfg(feature = "services-libsql")]
             Scheme::Libsql => Self::from_map::<services::Libsql>(map)?.finish(),
             #[cfg(feature = "services-memcached")]

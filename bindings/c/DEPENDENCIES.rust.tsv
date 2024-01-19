@@ -4,7 +4,6 @@ adler@1.0.2	X	X						X
 android-tzdata@0.1.1		X						X					
 android_system_properties@0.1.5		X						X					
 anyhow@1.0.77		X						X					
-async-compat@0.2.3		X						X					
 async-trait@0.1.75		X						X					
 atty@0.2.14								X					
 autocfg@1.1.0		X						X					
@@ -83,7 +82,6 @@ lazy_static@1.4.0		X						X
 libc@0.2.151		X						X					
 libm@0.2.8		X						X					
 linux-raw-sys@0.4.12		X	X					X					
-lock_api@0.4.11		X						X					
 log@0.4.20		X						X					
 md-5@0.10.6		X						X					
 memchr@2.7.1								X				X	
@@ -98,13 +96,11 @@ num-traits@0.2.17		X						X
 num_cpus@1.16.0		X						X					
 object@0.32.2		X						X					
 once_cell@1.19.0		X						X					
-opendal@0.44.1		X											
-opendal-c@0.44.1		X											
+opendal@0.44.2		X											
+opendal-c@0.44.2		X											
 openssl-probe@0.1.5		X						X					
 ordered-multimap@0.7.1								X					
 os_str_bytes@6.6.1		X						X					
-parking_lot@0.12.1		X						X					
-parking_lot_core@0.9.9		X						X					
 pem@3.0.3								X					
 pem-rfc7468@0.7.0		X						X					
 percent-encoding@2.3.1		X						X					
@@ -137,7 +133,6 @@ rustls-pemfile@1.0.4		X					X	X
 rustls-webpki@0.101.7							X						
 ryu@1.0.16		X			X								
 schannel@0.1.23								X					
-scopeguard@1.2.0		X						X					
 sct@0.7.1		X					X	X					
 security-framework@2.9.2		X						X					
 security-framework-sys@2.9.1		X						X					

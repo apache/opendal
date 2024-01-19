@@ -4,7 +4,6 @@ adler@1.0.2	X	X						X
 android-tzdata@0.1.1		X						X				
 android_system_properties@0.1.5		X						X				
 anyhow@1.0.76		X						X				
-async-compat@0.2.3		X						X				
 async-trait@0.1.75		X						X				
 autocfg@1.1.0		X						X				
 backon@0.4.1		X										
@@ -72,7 +71,6 @@ jsonwebtoken@9.2.0								X
 lazy_static@1.4.0		X						X				
 libc@0.2.151		X						X				
 libm@0.2.8		X						X				
-lock_api@0.4.11		X						X				
 log@0.4.20		X						X				
 md-5@0.10.6		X						X				
 memchr@2.6.4								X			X	
@@ -93,12 +91,10 @@ ocaml-interop@0.8.8								X
 ocaml-sys@0.22.3							X					
 ocaml-sys@0.23.0							X					
 once_cell@1.19.0		X						X				
-opendal@0.44.1		X										
+opendal@0.44.2		X										
 opendal-ocaml@0.0.0		X										
 openssl-probe@0.1.5		X						X				
 ordered-multimap@0.7.1								X				
-parking_lot@0.12.1		X						X				
-parking_lot_core@0.9.9		X						X				
 pem@3.0.3								X				
 pem-rfc7468@0.7.0		X						X				
 percent-encoding@2.3.1		X						X				
@@ -117,7 +113,6 @@ quote@1.0.33		X						X
 rand@0.8.5		X						X				
 rand_chacha@0.3.1		X						X				
 rand_core@0.6.4		X						X				
-redox_syscall@0.4.1								X				
 reqsign@0.14.6		X										
 reqwest@0.11.23		X						X				
 ring@0.17.7									X			
@@ -130,7 +125,6 @@ rustls-pemfile@1.0.4		X					X	X
 rustls-webpki@0.101.7							X					
 ryu@1.0.16		X			X							
 schannel@0.1.22								X				
-scopeguard@1.2.0		X						X				
 sct@0.7.1		X					X	X				
 security-framework@2.9.2		X						X				
 security-framework-sys@2.9.1		X						X				

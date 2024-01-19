@@ -5,6 +5,112 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.44.2] - 2023-01-19
+
+### Added
+* feat: add behavior tests for blocking buffer reader by @WenyXu in https://github.com/apache/opendal/pull/3872
+* feat(services): add pcloud support by @hoslo in https://github.com/apache/opendal/pull/3892
+* feat(services/hdfs): Atomic write for hdfs by @shbhmrzd in https://github.com/apache/opendal/pull/3875
+* feat(services/hdfs): add atomic_write_dir to hdfsconfig debug by @shbhmrzd in https://github.com/apache/opendal/pull/3902
+* feat: add MongodbConfig by @zjregee in https://github.com/apache/opendal/pull/3906
+* RFC-3898: Concurrent Writer by @WenyXu in https://github.com/apache/opendal/pull/3898
+* feat(services): add yandex disk support by @hoslo in https://github.com/apache/opendal/pull/3918
+* feat: implement concurrent `MultipartUploadWriter` by @WenyXu in https://github.com/apache/opendal/pull/3915
+* feat: add concurrent writer behavior tests by @WenyXu in https://github.com/apache/opendal/pull/3920
+* feat: implement concurrent `RangeWriter` by @WenyXu in https://github.com/apache/opendal/pull/3923
+* feat: add `concurrent` and `buffer` parameters into FuzzInput by @WenyXu in https://github.com/apache/opendal/pull/3921
+* feat(fuzz): add azblob as test service by @suyanhanx in https://github.com/apache/opendal/pull/3931
+* feat(services/webhdfs): Implement write with append by @hoslo in https://github.com/apache/opendal/pull/3937
+* feat(core/bench): Add benchmark for concurrent write by @Xuanwo in https://github.com/apache/opendal/pull/3942
+* feat(oio): add block_write support by @hoslo in https://github.com/apache/opendal/pull/3945
+* feat(services/webhdfs): Implement multi write via CONCAT by @hoslo in https://github.com/apache/opendal/pull/3939
+* feat(core): Allow retry in concurrent write operations by @Xuanwo in https://github.com/apache/opendal/pull/3958
+* feat(services/ghac): Add workaround for AWS S3 based GHES by @Xuanwo in https://github.com/apache/opendal/pull/3985
+* feat: Implement path cache and refactor gdrive by @Xuanwo in https://github.com/apache/opendal/pull/3975
+* feat(services): add hdfs native layout by @shbhmrzd in https://github.com/apache/opendal/pull/3933
+* feat(services/s3): Return error if credential is empty after loaded by @Xuanwo in https://github.com/apache/opendal/pull/4000
+* feat(services/gdrive): Use trash instead of permanently deletes by @Xuanwo in https://github.com/apache/opendal/pull/4002
+* feat(services): add koofr support by @hoslo in https://github.com/apache/opendal/pull/3981
+* feat(icloud): Add basic Apple iCloud Drive support by @bokket in https://github.com/apache/opendal/pull/3980
+
+### Changed
+* refactor: Merge compose_{read,write} into enum_utils by @Xuanwo in https://github.com/apache/opendal/pull/3871
+* refactor(services/ftp): Impl parse_error instead of From<Error> by @bokket in https://github.com/apache/opendal/pull/3891
+* docs: very minor English wording fix in error message by @gabrielgrant in https://github.com/apache/opendal/pull/3900
+* refactor(services/rocksdb): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3903
+* refactor: Re-organize the layout of tests by @Xuanwo in https://github.com/apache/opendal/pull/3904
+* refactor(services/etcd): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3910
+* refactor(services/sftp): Impl parse_error instead of From<Error> by @G-XD in https://github.com/apache/opendal/pull/3914
+* refactor!: Bump MSRV to 1.75 by @Xuanwo in https://github.com/apache/opendal/pull/3851
+* refactor(services/redis): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3938
+* refactor!: Revert the bump of MSRV to 1.75 by @Xuanwo in https://github.com/apache/opendal/pull/3952
+* refactor(services/onedrive): Add OnedriveConfig to implement ConfigDeserializer by @Borber in https://github.com/apache/opendal/pull/3954
+* refactor(service/dropbox): Add DropboxConfig by @howiieyu in https://github.com/apache/opendal/pull/3961
+* refactor: Polish internal types and remove not needed deps by @Xuanwo in https://github.com/apache/opendal/pull/3964
+* refactor: Add concurrent error test for BlockWrite by @Xuanwo in https://github.com/apache/opendal/pull/3968
+* refactor: Remove not needed types in icloud by @Xuanwo in https://github.com/apache/opendal/pull/4021
+
+### Fixed
+* fix: Bump pyo3 to fix false positive of unnecessary_fallible_conversions by @Xuanwo in https://github.com/apache/opendal/pull/3873
+* fix(core): Handling content encoding correctly by @Xuanwo in https://github.com/apache/opendal/pull/3907
+* fix: fix RangeWriter incorrect `next_offset` by @WenyXu in https://github.com/apache/opendal/pull/3927
+* fix(oio::BlockWrite): fix write_once case by @hoslo in https://github.com/apache/opendal/pull/3953
+* fix: Don't retry close if concurrent > 1 to avoid content lost by @Xuanwo in https://github.com/apache/opendal/pull/3957
+* fix(doc): fix rfc typos by @howiieyu in https://github.com/apache/opendal/pull/3971
+* fix: Don't call wake_by_ref in OperatorFuture by @Xuanwo in https://github.com/apache/opendal/pull/4003
+* fix: async fn resumed after initiate part failed by @Xuanwo in https://github.com/apache/opendal/pull/4013
+* fix(pcloud,seafile): use get_basename and get_parent by @hoslo in https://github.com/apache/opendal/pull/4020
+* fix(ci): remove pr author from review candidates by @dqhl76 in https://github.com/apache/opendal/pull/4023
+
+### Docs
+* docs(bindings/python): drop unnecessary patchelf by @tisonkun in https://github.com/apache/opendal/pull/3889
+* docs: Polish core's quick start by @Xuanwo in https://github.com/apache/opendal/pull/3896
+* docs(gcs): correct the description of credential by @WenyXu in https://github.com/apache/opendal/pull/3928
+* docs: Add 0.44.1 download link by @Xuanwo in https://github.com/apache/opendal/pull/3929
+* docs(release): how to clean up old releases by @tisonkun in https://github.com/apache/opendal/pull/3934
+* docs(website): polish download page by @suyanhanx in https://github.com/apache/opendal/pull/3932
+* docs: improve user verify words by @tisonkun in https://github.com/apache/opendal/pull/3941
+* docs: fix incorrect word used by @zegevlier in https://github.com/apache/opendal/pull/3944
+* docs: improve wording for community pages by @tisonkun in https://github.com/apache/opendal/pull/3978
+* docs(bindings/nodejs): copyright in footer by @suyanhanx in https://github.com/apache/opendal/pull/3986
+* docs(bindings/nodejs): build docs locally doc by @suyanhanx in https://github.com/apache/opendal/pull/3987
+* docs: Fix missing word in download by @Xuanwo in https://github.com/apache/opendal/pull/3993
+* docs(bindings/java): copyright in footer by @G-XD in https://github.com/apache/opendal/pull/3996
+* docs(website): update footer by @suyanhanx in https://github.com/apache/opendal/pull/4008
+* docs: add trademark information to every possible published readme by @PsiACE in https://github.com/apache/opendal/pull/4014
+* docs(website): replace podling to project in website by @morristai in https://github.com/apache/opendal/pull/4015
+* docs: Update release guide to adapt as a new TLP by @Xuanwo in https://github.com/apache/opendal/pull/4011
+* docs: Add WebHDFS version compatibility details by @shbhmrzd in https://github.com/apache/opendal/pull/4024
+
+### CI
+* build(deps): bump actions/download-artifact from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/3885
+* build(deps): bump once_cell from 1.18.0 to 1.19.0 by @dependabot in https://github.com/apache/opendal/pull/3880
+* build(deps): bump napi-derive from 2.14.2 to 2.14.6 by @dependabot in https://github.com/apache/opendal/pull/3879
+* build(deps): bump url from 2.4.1 to 2.5.0 by @dependabot in https://github.com/apache/opendal/pull/3876
+* build(deps): bump mlua from 0.8.10 to 0.9.2 by @oowl in https://github.com/apache/opendal/pull/3890
+* ci: Disable supabase tests for our test org has been paused by @Xuanwo in https://github.com/apache/opendal/pull/3908
+* ci: Downgrade artifact actions until regression addressed by @Xuanwo in https://github.com/apache/opendal/pull/3935
+* ci: Refactor fuzz to integrate with test planner by @Xuanwo in https://github.com/apache/opendal/pull/3936
+* ci: Pick random reviewers from committer list by @Xuanwo in https://github.com/apache/opendal/pull/4001
+
+### Chore
+* chore: update release related docs and script by @dqhl76 in https://github.com/apache/opendal/pull/3870
+* chore(NOTICE): update copyright to year 2024 by @suyanhanx in https://github.com/apache/opendal/pull/3894
+* chore: Format code to make readers happy by @Xuanwo in https://github.com/apache/opendal/pull/3912
+* chore: Remove unused dep async-compat by @Xuanwo in https://github.com/apache/opendal/pull/3947
+* chore: display project logo on Rust docs by @tisonkun in https://github.com/apache/opendal/pull/3983
+* chore: improve trademarks in bindings docs by @tisonkun in https://github.com/apache/opendal/pull/3984
+* chore: use Apache OpenDAL™ in the first and most prominent mention by @tisonkun in https://github.com/apache/opendal/pull/3988
+* chore: add more information for javadocs by @tisonkun in https://github.com/apache/opendal/pull/3989
+* chore: precise footer by @tisonkun in https://github.com/apache/opendal/pull/3997
+* chore: use full form name when necessary by @tisonkun in https://github.com/apache/opendal/pull/3998
+* chore(bindings/python): Enable sftp service by default for unix platform by @Zheaoli in https://github.com/apache/opendal/pull/4006
+* chore: remove disclaimer by @suyanhanx in https://github.com/apache/opendal/pull/4009
+* chore: Remove incubating from releases by @Xuanwo in https://github.com/apache/opendal/pull/4010
+* chore: trim incubator prefix everywhere by @tisonkun in https://github.com/apache/opendal/pull/4016
+* chore: fixup doc link in release_java.yml by @tisonkun in https://github.com/apache/opendal/pull/4019
+* chore: simplify reviewer candidates logic by @tisonkun in https://github.com/apache/opendal/pull/4017
+
 ## [v0.44.1] - 2023-12-31
 
 ### Added
@@ -3234,6 +3340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.44.2]: https://github.com/apache/opendal/compare/v0.44.1...v0.44.2
 [v0.44.1]: https://github.com/apache/opendal/compare/v0.44.0...v0.44.1
 [v0.44.0]: https://github.com/apache/opendal/compare/v0.43.0...v0.44.0
 [v0.43.0]: https://github.com/apache/opendal/compare/v0.42.0...v0.43.0

@@ -340,11 +340,8 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
-<<<<<<< HEAD
             "icloud" => Ok(Scheme::Icloud),
-=======
             "koofr" => Ok(Scheme::Koofr),
->>>>>>> 47ed3a4a338233a294558829454dac985179ddaa
             "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),

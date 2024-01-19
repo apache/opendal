@@ -1,10 +1,6 @@
----
-title: Download
----
+# Apache OpenDAL™ Downloads
 
-# Download
-
-The official Apache OpenDAL (incubating) releases are provided as source artifacts.
+The official Apache OpenDAL releases are provided as source artifacts.
 
 ## Releases
 

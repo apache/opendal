@@ -99,7 +99,7 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL (incubating)',
+          alt: 'Apache OpenDAL',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
           href: '/',

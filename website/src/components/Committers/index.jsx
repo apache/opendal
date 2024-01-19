@@ -3,25 +3,25 @@ import styles from './index.module.css'
 
 // Sorted by apacheId
 const committers = [
-  { githubId: 'ClSlaid', apacheId: 'cailue', name: 'Cai Lue', inPPMC: true },
-  { githubId: 'Young-Flash', apacheId: 'dongyang', name: 'Dongyang Zheng', inPPMC: false },
-  { githubId: 'G-XD', apacheId: 'gxd', name: 'Xiangdong', inPPMC: false },
-  { githubId: 'Hexiaoqiao', apacheId: 'hexiaoqiao', name: 'Xiaoqiao He', inPPMC: true },
-  { githubId: 'oowl', apacheId: 'junouyang', name: 'Jun Ouyang', inPPMC: false },
-  { githubId: 'dqhl76', apacheId: 'liuqingyue', name: 'Liuqing Yue', inPPMC: false },
-  { githubId: 'Zheaoli', apacheId: 'manjusaka', name: 'Zheao Li', inPPMC: false },
-  { githubId: 'messense', apacheId: 'messense', name: 'Lusheng Lyu', inPPMC: false },
-  { githubId: 'morristai', apacheId: 'morristai', name: 'Morris Tai', inPPMC: false },
-  { githubId: 'WillemJiang', apacheId: 'ningjiang', name: 'Willem Ning Jiang', inPPMC: true },
-  { githubId: 'PsiACE', apacheId: 'psiace', name: 'Chojan Shang', inPPMC: true },
-  { githubId: 'silver-ymz', apacheId: 'silver', name: 'Mingzhuo Yin', inPPMC: true },
-  { githubId: 'sundy-li', apacheId: 'sundyli', name: 'Sundy Li', inPPMC: true },
-  { githubId: 'suyanhanx', apacheId: 'suyanhanx', name: 'Han Xu', inPPMC: true },
-  { githubId: 'tedliu1', apacheId: 'tedliu', name: 'Ted Liu', inPPMC: true },
-  { githubId: 'tisonkun', apacheId: 'tison', name: 'Zili Chen', inPPMC: true },
-  { githubId: 'wu-sheng', apacheId: 'wusheng', name: 'Sheng Wu', inPPMC: true },
-  { githubId: 'Xuanwo', apacheId: 'xuanwo', name: 'Hao Ding', inPPMC: true },
-  { githubId: 'Ji-Xinyou', apacheId: 'xyji', name: 'Xinyou Ji', inPPMC: false }
+  { githubId: 'ClSlaid', apacheId: 'cailue', name: 'Cai Lue', inPMC: true },
+  { githubId: 'Young-Flash', apacheId: 'dongyang', name: 'Dongyang Zheng', inPMC: false },
+  { githubId: 'G-XD', apacheId: 'gxd', name: 'Xiangdong', inPMC: false },
+  { githubId: 'Hexiaoqiao', apacheId: 'hexiaoqiao', name: 'Xiaoqiao He', inPMC: true },
+  { githubId: 'oowl', apacheId: 'junouyang', name: 'Jun Ouyang', inPMC: false },
+  { githubId: 'dqhl76', apacheId: 'liuqingyue', name: 'Liuqing Yue', inPMC: false },
+  { githubId: 'Zheaoli', apacheId: 'manjusaka', name: 'Zheao Li', inPMC: false },
+  { githubId: 'messense', apacheId: 'messense', name: 'Lusheng Lyu', inPMC: false },
+  { githubId: 'morristai', apacheId: 'morristai', name: 'Morris Tai', inPMC: false },
+  { githubId: 'WillemJiang', apacheId: 'ningjiang', name: 'Willem Ning Jiang', inPMC: true },
+  { githubId: 'PsiACE', apacheId: 'psiace', name: 'Chojan Shang', inPMC: true },
+  { githubId: 'silver-ymz', apacheId: 'silver', name: 'Mingzhuo Yin', inPMC: true },
+  { githubId: 'sundy-li', apacheId: 'sundyli', name: 'Sundy Li', inPMC: true },
+  { githubId: 'suyanhanx', apacheId: 'suyanhanx', name: 'Han Xu', inPMC: true },
+  { githubId: 'tedliu1', apacheId: 'tedliu', name: 'Ted Liu', inPMC: true },
+  { githubId: 'tisonkun', apacheId: 'tison', name: 'Zili Chen', inPMC: true },
+  { githubId: 'wu-sheng', apacheId: 'wusheng', name: 'Sheng Wu', inPMC: true },
+  { githubId: 'Xuanwo', apacheId: 'xuanwo', name: 'Hao Ding', inPMC: true },
+  { githubId: 'Ji-Xinyou', apacheId: 'xyji', name: 'Xinyou Ji', inPMC: false }
 ]
 
 export default function Committers() {
@@ -42,7 +42,7 @@ export default function Committers() {
           <tr key={v.name}>
             <td><img width={64} className={styles.contributorAvatar}
                      src={`https://github.com/${v.githubId}.png`} alt={v.name}/></td>
-            <td>{v.inPPMC ? <b>{v.name}</b> : v.name}</td>
+            <td>{v.inPMC ? <b>{v.name}</b> : v.name}</td>
             <td><a target='_blank' href={`https://people.apache.org/phonebook.html?uid=${v.apacheId}`}>{v.apacheId}</a></td>
             <td><a target='_blank' href={`https://github.com/${v.githubId}`}>{v.githubId}</a></td>
           </tr>

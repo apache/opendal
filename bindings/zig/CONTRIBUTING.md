@@ -1,13 +1,11 @@
 # Contributing
 
 - [Contributing](#contributing)
-   - [Setup](#setup)
-      - [Using a dev container environment](#using-a-dev-container-environment)
-      - [Bring your own toolbox](#bring-your-own-toolbox)
-   - [Build](#build)
-   - [Test](#test)
-   - [Docs](#docs)
-   - [Misc](#misc)
+  - [Setup](#setup)
+    - [Using a dev container environment](#using-a-dev-container-environment)
+    - [Bring your own toolbox](#bring-your-own-toolbox)
+  - [Build](#build)
+  - [Test](#test)
 
 ## Setup
 
@@ -17,7 +15,7 @@ OpenDAL provides a pre-configured [dev container](https://containers.dev/) that 
 
 The fastest way is:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
 

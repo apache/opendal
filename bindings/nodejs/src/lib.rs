@@ -880,7 +880,7 @@ impl NodeLayer for opendal::layers::RetryLayer {
 /// returns true. If operation still failed, this layer will set error to
 /// `Persistent` which means error has been retried.
 ///
-/// `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/incubator-opendal/issues/1223) for more details.
+/// `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
 ///
 /// # Examples
 ///

@@ -16,13 +16,16 @@
 # under the License.
 
 [package]
+name = "opendal-php"
+version = "0.1.0"
+publish = false
+
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
-name = "opendal-php"
-repository = "https://github.com/apache/incubator-opendal"
+repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib"]

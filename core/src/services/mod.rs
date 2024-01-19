@@ -17,7 +17,7 @@
 
 //! Services will provide builders to build underlying backends.
 //!
-//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/incubator-opendal/issues/5). Please feel free to submit issues if there are services not covered.
+//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
 #[cfg(feature = "services-azblob")]
 mod azblob;
@@ -371,3 +371,10 @@ mod yandex_disk;
 pub use yandex_disk::YandexDisk;
 #[cfg(feature = "services-yandex-disk")]
 pub use yandex_disk::YandexDiskConfig;
+
+#[cfg(feature = "services-koofr")]
+mod koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::Koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::KoofrConfig;

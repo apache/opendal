@@ -4,7 +4,7 @@
 
 ### Services
 
-Because of [a TLS lib issue](https://github.com/apache/incubator-opendal/issues/3650), we temporarily disable the `services-ftp` feature.
+Because of [a TLS lib issue](https://github.com/apache/opendal/issues/3650), we temporarily disable the `services-ftp` feature.
 
 ### Public API
 

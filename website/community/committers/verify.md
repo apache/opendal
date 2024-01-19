@@ -22,7 +22,7 @@ However, you should clearly state which checks you did. The release manager need
 
 ## Download links are valid
 
-To verify the release candidate, you need to download the release candidate from the [dist](https://dist.apache.org/repos/dist/dev/incubator/opendal/) directory.
+To verify the release candidate, you need to download the release candidate from the [dist](https://dist.apache.org/repos/dist/dev/opendal/) directory.
 
 Use the following command to download all artifacts, replace "${release_version}-${rc_version}" with the version ID of the version to be released:
 
@@ -34,11 +34,11 @@ svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}-${rc_ve
 
 The release candidate should have a checksum and signature file.
 
-For example, if the release candidate is `0.36.0-rc1`, the checksum and signature file should be:
+For example, if the release candidate is `0.45.0-rc1`, the checksum and signature file should be:
 
 ```
-https://dist.apache.org/repos/dist/dev/incubator/opendal/0.36.0-rc1/apache-opendal-0.36.0-rc1-src.tar.gz.sha512
-https://dist.apache.org/repos/dist/dev/incubator/opendal/0.36.0-rc1/apache-opendal-0.36.0-rc1-src.tar.gz.asc
+https://dist.apache.org/repos/dist/dev/opendal/0.45.0-rc1/apache-opendal-0.45.0-rc1-src.tar.gz.sha512
+https://dist.apache.org/repos/dist/dev/opendal/0.45.0-rc1/apache-opendal-0.45.0-rc1-src.tar.gz.asc
 ```
 
 ### Verify checksums and signatures
@@ -56,7 +56,7 @@ brew install gnupg
 Firstly, import the OpenDAL release manager's public key:
 
 ```shell
-curl https://downloads.apache.org/incubator/opendal/KEYS > KEYS # Download KEYS
+curl https://downloads.apache.org/opendal/KEYS > KEYS # Download KEYS
 gpg --import KEYS # Import KEYS to local
 ```
 
@@ -93,11 +93,11 @@ Now, we could start the verification.
 We've provided a script to verify the checksum and signature of the release candidate.
 
 The script is in the `scripts` directory of our repository.
-You can download it directly from [here](https://raw.githubusercontent.com/apache/incubator-opendal/main/scripts/check.sh)
+You can download it directly from [here](https://raw.githubusercontent.com/apache/opendal/main/scripts/check.sh)
 or check it out from the repository:
 
 ```shell
-git clone git@github.com:apache/incubator-opendal.git
+git clone git@github.com:apache/opendal.git
 ```
 
 Run the script on a specific release candidate:

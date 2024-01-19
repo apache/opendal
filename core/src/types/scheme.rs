@@ -48,6 +48,8 @@ pub enum Scheme {
     YandexDisk,
     /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
     Pcloud,
+    /// [Koofr][crate::services::Koofr]: Koofr Services.
+    Koofr,
     /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
     Chainsafe,
     /// [cacache][crate::services::Cacache]: cacache backend support.
@@ -338,7 +340,11 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+<<<<<<< HEAD
             "icloud" => Ok(Scheme::Icloud),
+=======
+            "koofr" => Ok(Scheme::Koofr),
+>>>>>>> 47ed3a4a338233a294558829454dac985179ddaa
             "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
@@ -402,6 +408,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
             Scheme::Icloud => "icloud",
+            Scheme::Koofr => "koofr",
             Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",

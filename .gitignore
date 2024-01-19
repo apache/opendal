@@ -8,8 +8,6 @@ dist/
 # env files for backends
 .env
 
-incubator-opendal-release-verify
-
 # profiling
 flamegraph.svg
 perf.*

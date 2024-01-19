@@ -35,7 +35,7 @@ public class OperatorUtf8DecodeTest {
     /**
      * Write file with non ascii name should succeed.
      *
-     * @see <a href="https://github.com/apache/incubator-opendal/issues/3194">More information</a>
+     * @see <a href="https://github.com/apache/opendal/issues/3194">More information</a>
      */
     @Test
     public void testWriteFileWithNonAsciiName() {

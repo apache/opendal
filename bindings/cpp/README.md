@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
-![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 Documents: [![Documents](https://img.shields.io/badge/opendal-cpp-blue?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/cpp/)
 
@@ -31,7 +31,7 @@ You can use `FetchContent` to add OpenDAL to your project.
 ```cmake
 FetchContent_Declare(
   opendal-cpp
-  GIT_REPOSITORY https://github.com/apache/incubator-opendal.git
+  GIT_REPOSITORY https://github.com/apache/opendal.git
   GIT_TAG        v0.40.0
   SOURCE_SUBDIR  bindings/cpp
 )
@@ -43,12 +43,12 @@ Or you can download the source code and add it to your project.
 ```shell
 mkdir third_party
 cd third_party
-git clone https://github.com/apache/incubator-opendal.git
+git clone https://github.com/apache/opendal.git
 git checkout v0.40.0
 ```
 
 ```cmake
-add_subdirectory(third_party/incubator-opendal/bindings/cpp)
+add_subdirectory(third_party/opendal/bindings/cpp)
 ```
 
 Now you can use OpenDAL in your project.
@@ -102,3 +102,9 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

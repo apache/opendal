@@ -19,11 +19,11 @@
 name = "opendal-c"
 publish = false
 
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
+repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
 version = "0.44.1"
 

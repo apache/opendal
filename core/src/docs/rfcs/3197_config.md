@@ -1,7 +1,7 @@
 - Proposal Name: `config`
 - Start Date: 2023-09-27
-- RFC PR: [apache/incubator-opendal#3197](https://github.com/apache/incubator-opendal/pull/3197)
-- Tracking Issue: [apache/incubator-opendal#3240](https://github.com/apache/incubator-opendal/issues/3240)
+- RFC PR: [apache/opendal#3197](https://github.com/apache/opendal/pull/3197)
+- Tracking Issue: [apache/opendal#3240](https://github.com/apache/opendal/issues/3240)
 
 # Summary
 
@@ -199,7 +199,7 @@ After our config supports `Serialize`, it's possible that users will serialize t
 
 ## Move `root` out of service config to operator level
 
-There is another way to solve the problem: [Move `root` out of service config to operator level](https://github.com/apache/incubator-opendal/issues/3151).
+There is another way to solve the problem: [Move `root` out of service config to operator level](https://github.com/apache/opendal/issues/3151).
 
 We can move `root` out of the service config and put it in `Operator` level. This way, users can configure `root` for all services in one place. However, this is a large breaking changes and users will need to maintain the `root` logic everywhere.
 

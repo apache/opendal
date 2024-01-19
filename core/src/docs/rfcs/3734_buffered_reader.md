@@ -1,7 +1,7 @@
 - Proposal Name: `buffered_reader`
 - Start Date: 2023-12-10
-- RFC PR: [apache/incubator-opendal#3574](https://github.com/apache/incubator-opendal/pull/3734)
-- Tracking Issue: [apache/incubator-opendal#3575](https://github.com/apache/incubator-opendal/issues/3735)
+- RFC PR: [apache/opendal#3574](https://github.com/apache/opendal/pull/3734)
+- Tracking Issue: [apache/opendal#3575](https://github.com/apache/opendal/issues/3735)
 
 # Summary
 

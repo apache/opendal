@@ -53,7 +53,7 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// Read more backend init examples in [examples](https://github.com/apache/incubator-opendal/tree/main/examples).
+    /// Read more backend init examples in [examples](https://github.com/apache/opendal/tree/main/examples).
     ///
     /// ```
     /// # use anyhow::Result;
@@ -159,6 +159,8 @@ impl Operator {
             Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
             #[cfg(feature = "services-upyun")]
             Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
+            #[cfg(feature = "services-koofr")]
+            Scheme::Koofr => Self::from_map::<services::Koofr>(map)?.finish(),
             #[cfg(feature = "services-yandex-disk")]
             Scheme::YandexDisk => Self::from_map::<services::YandexDisk>(map)?.finish(),
             #[cfg(feature = "services-pcloud")]

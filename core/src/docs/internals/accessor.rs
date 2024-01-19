@@ -316,7 +316,7 @@
 //! Super Power Ducks!
 //!
 //! What!? There are no Super Power Ducks? So sad, but never mind, we have
-//! really powerful storage services [here](https://github.com/apache/incubator-opendal/issues/5). Welcome to pick one to implement. I promise you won't
+//! really powerful storage services [here](https://github.com/apache/opendal/issues/5). Welcome to pick one to implement. I promise you won't
 //! have to `gagaga!()` this time.
 //!
 //! [`Accessor`]: crate::raw::Accessor

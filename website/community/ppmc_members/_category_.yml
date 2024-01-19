@@ -16,7 +16,7 @@
 # under the License.
 
 position: 4
-label: 'PPMC Members'
+label: 'PMC Members'
 collapsible: true
 collapsed: false
 link:

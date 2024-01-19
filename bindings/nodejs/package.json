@@ -6,7 +6,7 @@
   "main": "index.js",
   "types": "index.d.ts",
   "description": "Apache OpenDAL: Access data freely",
-  "repository": "git@github.com/apache/incubator-opendal.git",
+  "repository": "git@github.com/apache/opendal.git",
   "napi": {
     "name": "opendal",
     "package": {

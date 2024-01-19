@@ -22,7 +22,7 @@
 
 const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
-const repoAddress = 'https://github.com/apache/incubator-opendal';
+const repoAddress = 'https://github.com/apache/opendal';
 
 const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL ? process.env.OPENDAL_WEBSITE_BASE_URL : '/';
 const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST ? process.env.OPENDAL_WEBSITE_NOT_LATEST : false;
@@ -52,14 +52,14 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./docs/sidebars.js'),
           editUrl:
-            'https://github.com/apache/incubator-opendal/tree/main/website/',
+            'https://github.com/apache/opendal/tree/main/website/',
           showLastUpdateAuthor: true,
           showLastUpdateTime: true
         },
         blog: {
           showReadingTime: true,
           editUrl:
-            'https://github.com/apache/incubator-opendal/tree/main/website/',
+            'https://github.com/apache/opendal/tree/main/website/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -82,7 +82,7 @@ const config = {
             path: 'community',
             routeBasePath: 'community',
             sidebarPath: require.resolve('./community/sidebars.js'),
-            editUrl: 'https://github.com/apache/incubator-opendal/tree/main/website/',
+            editUrl: 'https://github.com/apache/opendal/tree/main/website/',
         },
     ],
     [require.resolve("docusaurus-plugin-image-zoom"), {}],
@@ -99,7 +99,7 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL (incubating)',
+          alt: 'Apache OpenDAL',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
           href: '/',

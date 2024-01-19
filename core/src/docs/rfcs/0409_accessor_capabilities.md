@@ -1,7 +1,7 @@
 - Proposal Name: `accessor_capabilities`
 - Start Date: 2022-06-29
-- RFC PR: [apache/incubator-opendal#409](https://github.com/apache/incubator-opendal/pull/409)
-- Tracking Issue: [apache/incubator-opendal#410](https://github.com/apache/incubator-opendal/issues/410)
+- RFC PR: [apache/opendal#409](https://github.com/apache/opendal/pull/409)
+- Tracking Issue: [apache/opendal#410](https://github.com/apache/opendal/issues/410)
 
 # Summary
 
@@ -11,8 +11,8 @@ Add support for accessor capabilities so that users can check if a given accesso
 
 Users of OpenDAL are requesting advanced features like the following:
 
-- [Support parallel upload object](https://github.com/apache/incubator-opendal/issues/256)
-- [Add presign url support](https://github.com/apache/incubator-opendal/issues/394)
+- [Support parallel upload object](https://github.com/apache/opendal/issues/256)
+- [Add presign url support](https://github.com/apache/opendal/issues/394)
 
 It's meaningful for OpenDAL to support them in a unified way. Of course, not all storage services have the same feature sets. OpenDAL needs to provide a way for users to check if a given accessor is capable of a given capability.
 

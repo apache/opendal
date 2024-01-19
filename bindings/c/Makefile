@@ -39,7 +39,7 @@ format:
 .PHONY: build
 build:
 	mkdir -p $(OBJ_DIR)
-	cargo build --target-dir=$(RPATH)
+	cargo build
 
 .PHONY: test
 test:

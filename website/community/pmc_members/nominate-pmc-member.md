@@ -32,7 +32,7 @@ ${candidate_name}'s great contributions could be found:
 - Github Issues: https://github.com/apache/opendal/issues?q=is%3Aopen+mentions%3A${candidate_github_id}
 
 Please make your valuable evaluation on whether we could invite ${candidate_name} as a
-committer:
+PMC member:
 
 [ +1 ] Agree to add ${candidate_name} as a PMC member of OpenDAL.
 [ 0  ] Have no sense.

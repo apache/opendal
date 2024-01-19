@@ -23,9 +23,7 @@ Content:
 ```
 Hi, All OpenDAL PMC members.
   
-I would like to nominate ${candidate_name} (github id: ${candidate_github_id}) as a candidate for the OpenDAL PMC member. Since becoming an OpenDAL committer, Xiangdong has made significant contributions to various modules of the project.
-
-${candidate_contributions}
+I would like to nominate ${candidate_name} (github id: ${candidate_github_id}) as a candidate for the OpenDAL PMC member. Since becoming an OpenDAL committer, ${candidate_name} has made significant contributions to various modules of the project.
 
 ${candidate_name}'s great contributions could be found:
 
@@ -85,13 +83,13 @@ The nominating PMC member should send a message to the Board <board@apache.org> 
 Title:
 
 ```
-[NOTICE] ${candidate_name} for OpenDAL PMC
+[NOTICE] ${candidate_name} for Apache OpenDAL PMC
 ```
 
 Content:
 
 ```
-${candidate_name} has been voted as a new member of the OpenDAL PMC. the vote thread is at: 
+${candidate_name} has been voted as a new member of the Apache OpenDAL PMC. the vote thread is at: 
 
 https://lists.apache.org/thread/yg2gz2tof3cvbrgp1wxzk6mf9o858h7t
 ```
@@ -103,7 +101,7 @@ Send an invitation to the candidate and cc <private@opendal.apache.org>:
 Title:
 
 ```
-Invitation to become OpenDAL PMC Member: ${candidate_name}
+Invitation to become Apache OpenDAL PMC Member: ${candidate_name}
 ```
 
 Content:
@@ -124,4 +122,4 @@ ${your_name} (as represents of The Apache OpenDAL PMC)
 
 After the candidate accepts the invitation, add the candidate to the PMC member list by [whimsy roster tools](https://whimsy.apache.org/roster/committee/opendal)
 
-![](roster-add-ppmc-member.png)
+![](roster-add-pmc-member.png)

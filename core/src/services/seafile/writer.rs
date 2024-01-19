@@ -48,16 +48,18 @@ impl SeafileWriter {
 #[async_trait]
 impl oio::OneShotWrite for SeafileWriter {
     async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let path = build_abs_path(&self.core.root, &self.path);
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
 
         let upload_url = self.core.get_upload_url().await?;
 
         let req = Request::post(upload_url);
 
-        let paths = path.split('/').collect::<Vec<&str>>();
-        let filename = paths[paths.len() - 1];
-        let relative_path = path.replace(filename, "");
+        let (filename, relative_path) = if self.path.ends_with('/') {
+            ("", build_abs_path(&self.core.root, &self.path))
+        } else {
+            let (filename, relative_path) = (get_basename(&self.path), get_parent(&self.path));
+            (filename, build_abs_path(&self.core.root, relative_path))
+        };
 
         let file_part = FormDataPart::new("file")
             .header(

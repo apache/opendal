@@ -4,12 +4,14 @@ import styles from './index.module.css'
 // Sorted by apacheId
 const committers = [
   { githubId: 'ClSlaid', apacheId: 'cailue', name: 'Cai Lue', inPMC: true },
+  { githubId: 'wcy-fdu', apacheId: 'congyi', name: 'Congyi Wang', inPMC: false },
   { githubId: 'Young-Flash', apacheId: 'dongyang', name: 'Dongyang Zheng', inPMC: false },
-  { githubId: 'G-XD', apacheId: 'gxd', name: 'Xiangdong', inPMC: false },
+  { githubId: 'G-XD', apacheId: 'gxd', name: 'Xiangdong', inPMC: true },
   { githubId: 'Hexiaoqiao', apacheId: 'hexiaoqiao', name: 'Xiaoqiao He', inPMC: true },
-  { githubId: 'oowl', apacheId: 'junouyang', name: 'Jun Ouyang', inPMC: false },
+  { githubId: 'oowl', apacheId: 'junouyang', name: 'Jun Ouyang', inPMC: true },
+  { githubId: 'WenyXu', apacheId: 'kangkang', name: 'Wenkang Xu', inPMC: false },
   { githubId: 'dqhl76', apacheId: 'liuqingyue', name: 'Liuqing Yue', inPMC: false },
-  { githubId: 'Zheaoli', apacheId: 'manjusaka', name: 'Zheao Li', inPMC: false },
+  { githubId: 'Zheaoli', apacheId: 'manjusaka', name: 'Zheao Li', inPMC: true },
   { githubId: 'messense', apacheId: 'messense', name: 'Lusheng Lyu', inPMC: false },
   { githubId: 'morristai', apacheId: 'morristai', name: 'Morris Tai', inPMC: false },
   { githubId: 'WillemJiang', apacheId: 'ningjiang', name: 'Willem Ning Jiang', inPMC: true },

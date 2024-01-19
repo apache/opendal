@@ -21,7 +21,7 @@ on:
   push:
     tags:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
-      # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
+      # https://opendal.apache.org/community/committers/release/#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   pull_request:
     branches:

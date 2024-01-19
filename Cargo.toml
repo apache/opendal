@@ -19,11 +19,6 @@
 default-members = ["core"]
 exclude = [
   "examples",
-
-  "bindings/c",
-  "bindings/ocaml",
-  "bindings/php",
-  "bindings/ruby",
 ]
 members = [
   "core",
@@ -31,13 +26,17 @@ members = [
   "core/edge/*",
   "core/benches/vs_*",
 
+  "bindings/c",
+  "bindings/cpp",
   "bindings/nodejs",
   "bindings/python",
   "bindings/java",
   "bindings/haskell",
   "bindings/lua",
   "bindings/dotnet",
-  "bindings/cpp",
+  "bindings/ocaml",
+  "bindings/php",
+  "bindings/ruby",
 
   "bin/oli",
   "bin/oay",

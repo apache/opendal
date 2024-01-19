@@ -250,10 +250,9 @@ impl Builder for IcloudBuilder {
         let signer = Arc::new(Mutex::new(signer));
         Ok(IcloudBackend {
             core: Arc::new(IcloudCore {
-                client: client.clone(),
                 signer: signer.clone(),
                 root,
-                path_cache: PathCacher::new(IcloudPathQuery::new(client, signer.clone())),
+                path_cache: PathCacher::new(IcloudPathQuery::new(signer.clone())),
             }),
         })
     }

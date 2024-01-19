@@ -276,7 +276,6 @@ impl IcloudSigner {
 }
 
 pub struct IcloudCore {
-    pub client: HttpClient,
     pub signer: Arc<Mutex<IcloudSigner>>,
     pub root: String,
     pub path_cache: PathCacher<IcloudPathQuery>,
@@ -431,13 +430,12 @@ impl IcloudCore {
 }
 
 pub struct IcloudPathQuery {
-    pub client: HttpClient,
     pub signer: Arc<Mutex<IcloudSigner>>,
 }
 
 impl IcloudPathQuery {
-    pub fn new(client: HttpClient, signer: Arc<Mutex<IcloudSigner>>) -> Self {
-        IcloudPathQuery { client, signer }
+    pub fn new(signer: Arc<Mutex<IcloudSigner>>) -> Self {
+        IcloudPathQuery { signer }
     }
 }
 

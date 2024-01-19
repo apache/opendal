@@ -366,3 +366,10 @@ mod yandex_disk;
 pub use yandex_disk::YandexDisk;
 #[cfg(feature = "services-yandex-disk")]
 pub use yandex_disk::YandexDiskConfig;
+
+#[cfg(feature = "services-koofr")]
+mod koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::Koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::KoofrConfig;

@@ -251,8 +251,6 @@ impl IcloudSigner {
                 header::COOKIE,
                 cookies.as_slice().join("; ").parse().unwrap(),
             );
-
-            println!("cookies {:?}", cookies);
         }
 
         for (key, value) in AUTH_HEADERS {

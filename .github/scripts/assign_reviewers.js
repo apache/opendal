@@ -17,33 +17,31 @@
  * under the License.
  */
 
+// All committers who what to join the review of not owned code.
+// More details could be found at https://github.com/apache/opendal/issues/3967.
+const candidates = [
+  "Xuanwo",
+  "Ji-Xinyou",
+  "morristai",
+  "dqhl76",
+  "ClSlaid",
+  "Young-Flash",
+  "G-XD",
+  "oowl",
+  "silver-ymz",
+];
+
 async function run(github, context, core, fs) {
   try {
     // Pick two reviewers from list
     const numberOfReviewers = 2;
     const repo = context.repo;
 
-    // Read CODEOWNERS
-    const codeownersContent = fs.readFileSync('.github/CODEOWNERS', 'utf8');
-    const lines = codeownersContent.split('\n');
-
-    // Search COMMITTERS
-    const placeholderLine = lines.find(line => line.startsWith('COMMITTERS_PLACEHOLDER'));
-    if (!placeholderLine) {
-      throw new Error("No COMMITTERS found in CODEOWNERS");
-    }
-
-    // Extract committers from placeholder line
-    const committers = placeholderLine.match(/@[\w-]+/g).map(u => u.substring(1));
-    if (committers.length === 0) {
-      throw new Error("No committer found in COMMITTERS_PLACEHOLDER");
-    }
-
     // Pick reviewers
     const selectedReviewers = [];
-    while (selectedReviewers.length < numberOfReviewers && committers.length > 0) {
-      const randomIndex = Math.floor(Math.random() * committers.length);
-      selectedReviewers.push(committers.splice(randomIndex, 1)[0]);
+    while (selectedReviewers.length < numberOfReviewers && candidates.length > 0) {
+      const randomIndex = Math.floor(Math.random() * candidates.length);
+      selectedReviewers.push(candidates.splice(randomIndex, 1)[0]);
     }
 
     // Assign reviewers Pull Request

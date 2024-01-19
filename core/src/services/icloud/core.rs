@@ -17,7 +17,6 @@
 
 use async_trait::async_trait;
 use bytes::{Buf, Bytes};
-use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
@@ -69,8 +68,6 @@ pub struct SessionData {
 
     scnt: Option<String>,
     account_country: Option<String>,
-    cookies: BTreeMap<String, String>,
-
     drivews_url: String,
     docws_url: String,
 }
@@ -83,7 +80,6 @@ impl SessionData {
             session_token: None,
             scnt: None,
             account_country: None,
-            cookies: Default::default(),
             drivews_url: String::new(),
             docws_url: String::new(),
         }
@@ -128,79 +124,81 @@ impl IcloudSigner {
     }
 
     /// iCloud will use our oauth state as client id.
-    pub fn client_id(&self) -> &str {
+    pub fn client_id(&mut self) -> &str {
         &self.data.oauth_state
     }
 
     async fn init(&mut self) -> Result<()> {
         // Sign the auth endpoint first.
-        let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
-        let body = serde_json::to_vec(&json!({
-            "accountName" : self.apple_id,
-            "password" : self.password,
-            "rememberMe": true,
-            "trustTokens": [self.trust_token.clone().unwrap()],
-        }))
-        .map_err(new_json_serialize_error)?;
+        if !self.initiated {
+            let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
+            let body = serde_json::to_vec(&json!({
+                "accountName" : self.apple_id,
+                "password" : self.password,
+                "rememberMe": true,
+                "trustTokens": [self.trust_token.clone().unwrap()],
+            }))
+            .map_err(new_json_serialize_error)?;
 
-        let mut req = Request::post(uri)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
-            .map_err(new_request_build_error)?;
-        self.sign(&mut req)?;
+            let mut req = Request::post(uri)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(AsyncBody::Bytes(Bytes::from(body)))
+                .map_err(new_request_build_error)?;
+            self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
-            let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
-            if status_code != StatusCode::CONFLICT {
+            let resp = self.client.send(req).await?;
+            if resp.status() != StatusCode::OK {
                 return Err(parse_error(resp).await?);
             }
-        }
 
-        // Setup to get the session id.
-        let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
-        let body = serde_json::to_vec(&json!({
+            if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
+                let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
+                if status_code != StatusCode::CONFLICT {
+                    return Err(parse_error(resp).await?);
+                }
+            }
+
+            // Setup to get the session id.
+            let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
+            let body = serde_json::to_vec(&json!({
             "accountCountryCode": self.data.account_country.clone().unwrap_or_default(),
             "dsWebAuthToken":self.ds_web_auth_token.clone().unwrap_or_default(),
             "extended_login": true,
-            "trustToken": self.trust_token.clone().unwrap_or_default(),
-        }))
-        .map_err(new_json_serialize_error)?;
+            "trustToken": self.trust_token.clone().unwrap_or_default(),}))
+            .map_err(new_json_serialize_error)?;
 
-        let mut req = Request::post(uri)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
-            .map_err(new_request_build_error)?;
-        self.sign(&mut req)?;
+            let mut req = Request::post(uri)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(AsyncBody::Bytes(Bytes::from(body)))
+                .map_err(new_request_build_error)?;
+            self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            let resp = self.client.send(req).await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp).await?);
+            }
+
+            // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
+            self.update(&resp)?;
+
+            let bs = resp.into_body().bytes().await?;
+            let auth_info: IcloudWebservicesResponse =
+                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+            // Check if we have extra challenge to take.
+            if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
+                return Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"));
+            }
+
+            if let Some(v) = &auth_info.webservices.drivews.url {
+                self.data.drivews_url = v.to_string();
+            }
+            if let Some(v) = &auth_info.webservices.docws.url {
+                self.data.docws_url = v.to_string();
+            }
+
+            self.initiated = true;
         }
-
-        // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
-        self.update(&resp)?;
-
-        let bs = resp.into_body().bytes().await?;
-        let auth_info: IcloudWebservicesResponse =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-
-        // Check if we have extra challenge to take.
-        if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
-            return Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"));
-        }
-
-        if let Some(v) = &auth_info.webservices.drivews.url {
-            self.data.drivews_url = v.to_string();
-        }
-        if let Some(v) = &auth_info.webservices.docws.url {
-            self.data.docws_url = v.to_string();
-        }
-
         Ok(())
     }
 
@@ -240,19 +238,6 @@ impl IcloudSigner {
             );
         }
 
-        if !self.data.cookies.is_empty() {
-            let cookies: Vec<String> = self
-                .data
-                .cookies
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect();
-            headers.insert(
-                header::COOKIE,
-                cookies.as_slice().join("; ").parse().unwrap(),
-            );
-        }
-
         for (key, value) in AUTH_HEADERS {
             headers.insert(key, build_header_value(value)?);
         }
@@ -266,7 +251,6 @@ impl IcloudSigner {
         {
             self.data.account_country = Some(account_country.to_string());
         }
-
         if let Some(session_id) = parse_header_to_str(resp.headers(), SESSION_ID_HEADER)? {
             self.data.session_id = Some(session_id.to_string());
         }
@@ -276,18 +260,6 @@ impl IcloudSigner {
 
         if let Some(scnt) = parse_header_to_str(resp.headers(), SCNT_HEADER)? {
             self.data.scnt = Some(scnt.to_string());
-        }
-
-        for (key, value) in resp.headers() {
-            if key == header::SET_COOKIE {
-                if let Some(cookie) = value.to_str().unwrap().split(';').next() {
-                    if let Some((key, value)) = cookie.split_once('=') {
-                        self.data
-                            .cookies
-                            .insert(String::from(key), String::from(value));
-                    }
-                }
-            }
         }
 
         Ok(())
@@ -302,12 +274,6 @@ impl IcloudSigner {
         &mut self,
         mut req: Request<AsyncBody>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        // Init the signer first.
-        if self.initiated {
-            self.init().await?;
-            self.initiated = true;
-        }
-
         self.sign(&mut req)?;
         let resp = self.client.send(req).await?;
 
@@ -527,8 +493,8 @@ impl PathQuery for IcloudPathQuery {
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
         let mut signer = self.signer.lock().await;
-        let clone = signer.clone();
-        let client_id = clone.client_id();
+
+        let client_id = signer.client_id().to_string();
 
         let drivews_url = signer.drivews_url().await?;
 

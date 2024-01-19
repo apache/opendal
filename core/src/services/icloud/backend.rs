@@ -23,11 +23,9 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use super::core::*;
 use crate::raw::*;
 use crate::*;
-use crate::{Capability, Scheme};
-
-use super::core::{parse_error, IcloudCore, IcloudPathQuery, IcloudSigner, SessionData};
 
 /// Config for icloud services support.
 #[derive(Default, Deserialize)]
@@ -146,6 +144,7 @@ impl IcloudBuilder {
 
         self
     }
+
     /// ds_web_auth_token must be set in Session
     ///
     /// Avoid Two Factor Authentication
@@ -158,9 +157,11 @@ impl IcloudBuilder {
 
         self
     }
-    /// Enable the china origin
-    /// For China, use "https://www.icloud.com.cn"
-    /// For Other region, use "https://www.icloud.com"
+
+    /// Set if your apple id in China mainland.
+    ///
+    /// If in china mainland, we will connect to `https://www.icloud.com.cn`.
+    /// Otherwise, we will connect to `https://www.icloud.com`.
     pub fn is_china_mainland(&mut self, is_china_mainland: bool) -> &mut Self {
         self.config.is_china_mainland = is_china_mainland;
         self
@@ -243,6 +244,7 @@ impl Builder for IcloudBuilder {
             trust_token: Some(trust_token),
             ds_web_auth_token: Some(ds_web_auth_token),
             is_china_mainland: self.config.is_china_mainland,
+            initiated: false,
         };
 
         let signer = Arc::new(Mutex::new(signer));
@@ -250,7 +252,7 @@ impl Builder for IcloudBuilder {
             core: Arc::new(IcloudCore {
                 signer: signer.clone(),
                 root,
-                path_cache: PathCacher::new(IcloudPathQuery::new(client, signer.clone())),
+                path_cache: PathCacher::new(IcloudPathQuery::new(signer.clone())),
             }),
         })
     }

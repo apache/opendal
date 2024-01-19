@@ -69,6 +69,8 @@ impl HttpClient {
 
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
+        #[cfg(feature = "internal-http-cookies")]
+        let builder = builder.cookie_store(true);
 
         Ok(Self {
             client: builder.build().map_err(|err| {

@@ -23,11 +23,9 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use super::core::*;
 use crate::raw::*;
 use crate::*;
-use crate::{Capability, Scheme};
-
-use super::core::{parse_error, IcloudCore, IcloudPathQuery, IcloudSigner, SessionData};
 
 /// Config for icloud services support.
 #[derive(Default, Deserialize)]
@@ -246,11 +244,13 @@ impl Builder for IcloudBuilder {
             trust_token: Some(trust_token),
             ds_web_auth_token: Some(ds_web_auth_token),
             is_china_mainland: self.config.is_china_mainland,
+            initiated: false,
         };
 
         let signer = Arc::new(Mutex::new(signer));
         Ok(IcloudBackend {
             core: Arc::new(IcloudCore {
+                client: client.clone(),
                 signer: signer.clone(),
                 root,
                 path_cache: PathCacher::new(IcloudPathQuery::new(client, signer.clone())),

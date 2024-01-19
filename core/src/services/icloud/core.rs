@@ -16,43 +16,31 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Buf;
-use std::collections::{BTreeMap, HashMap};
+use bytes::{Buf, Bytes};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use http::header;
 use http::header::{IF_MATCH, IF_NONE_MATCH};
-use http::Method;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::Mutex;
 
-use crate::types::Result;
-use crate::{Error, ErrorKind};
-
-use crate::raw::{
-    build_rooted_abs_path, get_basename, get_parent, new_json_deserialize_error,
-    parse_header_to_str, with_error_response_context, AsyncBody, HttpClient, IncomingAsyncBody,
-    OpRead, PathCacher, PathQuery,
-};
+use crate::raw::*;
+use crate::*;
 
 static ACCOUNT_COUNTRY_HEADER: &str = "X-Apple-ID-Account-Country";
 static OAUTH_STATE_HEADER: &str = "X-Apple-OAuth-State";
-
 static SESSION_ID_HEADER: &str = "X-Apple-ID-Session-Id";
-
 static SCNT_HEADER: &str = "scnt";
-
 static SESSION_TOKEN_HEADER: &str = "X-Apple-Session-Token";
+static APPLE_RESPONSE_HEADER: &str = "X-Apple-I-Rscd";
+
 static AUTH_ENDPOINT: &str = "https://idmsa.apple.com/appleauth/auth";
 static SETUP_ENDPOINT: &str = "https://setup.icloud.com/setup/ws/1";
-
-static APPLE_RESPONSE_HEADER: &str = "X-Apple-I-Rscd";
 
 const AUTH_HEADERS: [(&str, &str); 7] = [
     (
@@ -73,11 +61,6 @@ const AUTH_HEADERS: [(&str, &str); 7] = [
 ];
 
 #[derive(Clone)]
-pub struct ServiceInfo {
-    pub url: String,
-}
-
-#[derive(Clone)]
 pub struct SessionData {
     oauth_state: String,
     session_id: Option<String>,
@@ -86,8 +69,8 @@ pub struct SessionData {
     scnt: Option<String>,
     account_country: Option<String>,
 
-    cookies: BTreeMap<String, String>,
-    webservices: HashMap<String, ServiceInfo>,
+    drivews_url: String,
+    docws_url: String,
 }
 
 impl SessionData {
@@ -98,8 +81,8 @@ impl SessionData {
             session_token: None,
             scnt: None,
             account_country: None,
-            cookies: BTreeMap::new(),
-            webservices: HashMap::new(),
+            drivews_url: String::new(),
+            docws_url: String::new(),
         }
     }
 }
@@ -108,13 +91,14 @@ impl SessionData {
 pub struct IcloudSigner {
     pub client: HttpClient,
 
-    pub data: SessionData,
     pub apple_id: String,
     pub password: String,
-
+    pub is_china_mainland: bool,
     pub trust_token: Option<String>,
     pub ds_web_auth_token: Option<String>,
-    pub is_china_mainland: bool,
+
+    pub data: SessionData,
+    pub initiated: bool,
 }
 
 impl Debug for IcloudSigner {
@@ -126,199 +110,173 @@ impl Debug for IcloudSigner {
 }
 
 impl IcloudSigner {
-    pub fn get_service_info(&self, name: String) -> Option<&ServiceInfo> {
-        self.data.webservices.get(&name)
+    /// Get the session data from signer.
+    pub fn session_data(&self) -> &SessionData {
+        &self.data
     }
 
-    // create_dir could use client_id
-    pub fn get_client_id(&self) -> &String {
+    /// iCloud will use our oauth state as client id.
+    pub fn client_id(&self) -> &str {
         &self.data.oauth_state
     }
-}
 
-impl IcloudSigner {
-    pub async fn signer(&mut self) -> Result<()> {
-        let body = json!({
+    async fn init(&mut self) -> Result<()> {
+        // Sign the auth endpoint first.
+        let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
+        let body = serde_json::to_vec(&json!({
             "accountName" : self.apple_id,
             "password" : self.password,
             "rememberMe": true,
             "trustTokens": [self.trust_token.clone().unwrap()],
-        })
-        .to_string();
+        }))
+        .map_err(new_json_serialize_error)?;
 
-        let uri = format!("{}/signin?isRememberMeEnable=true", AUTH_ENDPOINT);
+        let mut req = Request::post(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req)?;
 
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-
-        let response = self.sign(Method::POST, uri, async_body).await?;
-
-        let status = response.status();
-
-        return match status {
-            StatusCode::OK => {
-                if let Some(rscd) = response.headers().get(APPLE_RESPONSE_HEADER) {
-                    let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
-                    if status_code != StatusCode::CONFLICT {
-                        return Err(parse_error(response).await?);
-                    }
-                }
-                self.authenticate().await
-            }
-            _ => Err(parse_error(response).await?),
-        };
-    }
-
-    pub async fn authenticate(&mut self) -> Result<()> {
-        let body = json!({
-            "accountCountryCode": self.data.account_country.as_ref().unwrap_or(&String::new()),
-            "dsWebAuthToken":self.ds_web_auth_token.as_ref().unwrap_or(&String::new()),
-                    "extended_login": true,
-                    "trustToken": self.trust_token.as_ref().unwrap_or(&String::new())
-        })
-        .to_string();
-
-        let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
-
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-
-        let response = self.sign(Method::POST, uri, async_body).await?;
-
-        let status = response.status();
-
-        match status {
-            StatusCode::OK => {
-                let body = &response.into_body().bytes().await?;
-                let auth_info: IcloudWebservicesResponse =
-                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-                if let Some(drivews_url) = &auth_info.webservices.drivews.url {
-                    self.data.webservices.insert(
-                        String::from("drive"),
-                        ServiceInfo {
-                            url: drivews_url.to_string(),
-                        },
-                    );
-                }
-                if let Some(docws_url) = &auth_info.webservices.docws.url {
-                    self.data.webservices.insert(
-                        String::from("docw"),
-                        ServiceInfo {
-                            url: docws_url.to_string(),
-                        },
-                    );
-                }
-
-                if auth_info.hsa_challenge_required {
-                    if auth_info.hsa_trusted_browser {
-                        Ok(())
-                    } else {
-                        Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"))
-                    }
-                } else {
-                    Ok(())
-                }
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                "Apple icloud AuthenticationFailed:Unauthorized:Invalid token",
-            )),
+        let resp = self.client.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+        if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
+            let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
+            if status_code != StatusCode::CONFLICT {
+                return Err(parse_error(resp).await?);
+            }
+        }
+
+        // Setup to get the session id.
+        let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
+        let body = serde_json::to_vec(&json!({
+            "accountCountryCode": self.data.account_country.clone().unwrap_or_default(),
+            "dsWebAuthToken":self.ds_web_auth_token.clone().unwrap_or_default(),
+            "extended_login": true,
+            "trustToken": self.trust_token.clone().unwrap_or_default(),
+        }))
+        .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req)?;
+
+        let resp = self.client.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let bs = resp.into_body().bytes().await?;
+        let auth_info: IcloudWebservicesResponse =
+            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+        // Check if we have extra challenge to take.
+        if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
+            return Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"));
+        }
+
+        if let Some(v) = &auth_info.webservices.drivews.url {
+            self.data.drivews_url = v.to_string();
+        }
+        if let Some(v) = &auth_info.webservices.docws.url {
+            self.data.docws_url = v.to_string();
+        }
+
+        Ok(())
     }
-}
 
-impl IcloudSigner {
-    pub async fn sign(
-        &mut self,
-        method: Method,
-        uri: String,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut request = Request::builder().method(method).uri(uri);
+    fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
+        let headers = req.headers_mut();
 
-        request = request.header(OAUTH_STATE_HEADER, self.data.oauth_state.clone());
+        headers.insert(
+            OAUTH_STATE_HEADER,
+            build_header_value(&self.data.oauth_state)?,
+        );
 
         if let Some(session_id) = &self.data.session_id {
-            request = request.header(SESSION_ID_HEADER, session_id);
+            headers.insert(SESSION_ID_HEADER, build_header_value(session_id)?);
         }
         if let Some(scnt) = &self.data.scnt {
-            request = request.header(SCNT_HEADER, scnt);
+            headers.insert(SCNT_HEADER, build_header_value(scnt)?);
         }
 
         // You can get more information from [apple.com](https://support.apple.com/en-us/111754)
         if self.is_china_mainland {
-            request = request.header("Origin", "https://www.icloud.com.cn");
-            request = request.header("Referer", "https://www.icloud.com.cn/");
+            headers.insert(
+                header::ORIGIN,
+                build_header_value("https://www.icloud.com.cn")?,
+            );
+            headers.insert(
+                header::REFERER,
+                build_header_value("https://www.icloud.com.cn/")?,
+            );
         } else {
-            request = request.header("Origin", "https://www.icloud.com");
-            request = request.header("Referer", "https://www.icloud.com/");
+            headers.insert(
+                header::ORIGIN,
+                build_header_value("https://www.icloud.com")?,
+            );
+            headers.insert(
+                header::REFERER,
+                build_header_value("https://www.icloud.com/")?,
+            );
         }
 
-        if !self.data.cookies.is_empty() {
-            let cookies: Vec<String> = self
-                .data
-                .cookies
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect();
-            request = request.header(header::COOKIE, cookies.as_slice().join("; "));
+        for (key, value) in AUTH_HEADERS {
+            headers.insert(key, build_header_value(value)?);
         }
 
-        if let Some(headers) = request.headers_mut() {
-            headers.insert("Content-Type", "application/json".parse().unwrap());
-            headers.insert("Accept", "*/*".parse().unwrap());
-            for (key, value) in AUTH_HEADERS {
-                headers.insert(key, value.parse().unwrap());
-            }
+        Ok(())
+    }
+
+    /// Update signer's data after request sent out.
+    fn update(&mut self, resp: &Response<IncomingAsyncBody>) -> Result<()> {
+        if let Some(account_country) = parse_header_to_str(resp.headers(), ACCOUNT_COUNTRY_HEADER)?
+        {
+            self.data.account_country = Some(account_country.to_string());
         }
 
-        match self.client.send(request.body(body).unwrap()).await {
-            Ok(response) => {
-                if let Some(account_country) =
-                    parse_header_to_str(response.headers(), ACCOUNT_COUNTRY_HEADER)?
-                {
-                    self.data.account_country = Some(account_country.to_string());
-                }
-
-                if let Some(session_id) =
-                    parse_header_to_str(response.headers(), SESSION_ID_HEADER)?
-                {
-                    self.data.session_id = Some(session_id.to_string());
-                }
-                if let Some(session_token) =
-                    parse_header_to_str(response.headers(), SESSION_TOKEN_HEADER)?
-                {
-                    self.data.session_token = Some(session_token.to_string());
-                }
-
-                if let Some(scnt) = parse_header_to_str(response.headers(), SCNT_HEADER)? {
-                    self.data.scnt = Some(scnt.to_string());
-                }
-
-                for (key, value) in response.headers() {
-                    if key == header::SET_COOKIE {
-                        if let Some(cookie) = value.to_str().unwrap().split(';').next() {
-                            if let Some((key, value)) = cookie.split_once('=') {
-                                self.data
-                                    .cookies
-                                    .insert(String::from(key), String::from(value));
-                            }
-                        }
-                    }
-                }
-                match response.status() {
-                    StatusCode::UNAUTHORIZED => Err(parse_error(response).await?),
-                    _ => Ok(response),
-                }
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                "Apple icloud AuthenticationFailed:Unauthorized request",
-            )),
+        if let Some(session_id) = parse_header_to_str(resp.headers(), SESSION_ID_HEADER)? {
+            self.data.session_id = Some(session_id.to_string());
         }
+        if let Some(session_token) = parse_header_to_str(resp.headers(), SESSION_TOKEN_HEADER)? {
+            self.data.session_token = Some(session_token.to_string());
+        }
+
+        if let Some(scnt) = parse_header_to_str(resp.headers(), SCNT_HEADER)? {
+            self.data.scnt = Some(scnt.to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Send will make sure the following things:
+    ///
+    /// - Init the signer if it's not initiated.
+    /// - Sign the request.
+    /// - Update the session data if needed.
+    pub async fn send(
+        &mut self,
+        mut req: Request<AsyncBody>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        // Init the signer first.
+        if self.initiated {
+            self.init().await?;
+            self.initiated = true;
+        }
+
+        self.sign(&mut req)?;
+        let resp = self.client.send(req).await?;
+        self.update(&resp)?;
+
+        Ok(resp)
     }
 }
 
 pub struct IcloudCore {
+    pub client: HttpClient,
     pub signer: Arc<Mutex<IcloudSigner>>,
     pub root: String,
     pub path_cache: PathCacher<IcloudPathQuery>,
@@ -329,6 +287,146 @@ impl Debug for IcloudCore {
         let mut de = f.debug_struct("IcloudCore");
         de.field("root", &self.root);
         de.finish()
+    }
+}
+
+impl IcloudCore {
+    // Retrieves a root within the icloud Drive.
+    // "FOLDER::com.apple.CloudDocs::root"
+    pub async fn get_root(&self, id: &str) -> Result<IcloudRoot> {
+        let mut signer = self.signer.lock().await;
+
+        let uri = format!(
+            "{}/retrieveItemDetailsInFolders",
+            signer.session_data().drivews_url
+        );
+
+        let body = serde_json::to_vec(&json!([
+             {
+                 "drivewsid": id,
+                 "partialData": false
+             }
+        ]))
+        .map_err(new_json_serialize_error)?;
+
+        let req = Request::post(uri)
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let drive_node: Vec<IcloudRoot> =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+        Ok(drive_node[0].clone())
+    }
+
+    pub async fn get_file(
+        &self,
+        id: &str,
+        zone: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut signer = self.signer.lock().await;
+
+        let uri = format!(
+            "{}/ws/{}/download/by_id?document_id={}",
+            signer.session_data().drivews_url,
+            zone,
+            id
+        );
+
+        let req = Request::get(uri)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let object: IcloudObject =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+        let url = object.data_token.url.to_string();
+
+        let mut req = Request::get(url);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        let range = args.range();
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header())
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        let resp = signer.client.send(req).await?;
+
+        Ok(resp)
+    }
+
+    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let base = get_basename(&path);
+
+        let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("read path not found: {}", base),
+        ))?;
+
+        if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
+            Ok(self
+                .get_file(docwsid, "com.apple.CloudDocs", args.clone())
+                .await?)
+        } else {
+            Err(Error::new(
+                ErrorKind::NotFound,
+                "icloud DriveService read error",
+            ))
+        }
+    }
+
+    pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
+        let path = build_rooted_abs_path(&self.root, path);
+
+        let mut base = get_basename(&path);
+        let parent = get_parent(&path);
+
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
+
+        let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", base),
+        ))?;
+
+        let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("stat path not found: {}", parent),
+        ))?;
+
+        let node = self.get_root(&folder_id).await?;
+
+        match node.items.iter().find(|it| it.drivewsid == file_id.clone()) {
+            Some(it) => Ok(it.clone()),
+            None => Err(Error::new(
+                ErrorKind::NotFound,
+                "icloud DriveService stat get parent items error",
+            )),
+        }
     }
 }
 
@@ -349,277 +447,79 @@ impl PathQuery for IcloudPathQuery {
         Ok("FOLDER::com.apple.CloudDocs::root".to_string())
     }
 
-    // Retrieves the root directory within the icloud Drive.
+    /// Retrieves the root directory within the icloud Drive.
+    ///
+    /// FIXME: we are reading the entire dir to find the file, this is not efficient.
+    /// Maybe we should build a new path cache for this kind of services instead.
     async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
         let mut signer = self.signer.lock().await;
-        let drive_url = signer
-            .get_service_info(String::from("drive"))
-            .ok_or(Error::new(
-                ErrorKind::NotFound,
-                "drive service info drivews not found",
-            ))?
-            .clone()
-            .url;
 
-        let uri = format!("{}/retrieveItemDetailsInFolders", drive_url);
+        let uri = format!(
+            "{}/retrieveItemDetailsInFolders",
+            signer.session_data().drivews_url
+        );
 
-        let body = json!([
-                         {
-                             "drivewsid": parent_id,
-                             "partialData": false
-                         }
-        ])
-        .to_string();
+        let body = serde_json::to_vec(&json!([
+             {
+                 "drivewsid": parent_id,
+                 "partialData": false
+             }
+        ]))
+        .map_err(new_json_serialize_error)?;
 
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
+        let req = Request::post(uri)
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
 
-        let response = signer.sign(Method::POST, uri, async_body).await?;
-
-        if response.status() == StatusCode::OK {
-            let body = &response.into_body().bytes().await?;
-
-            let root: Vec<IcloudRoot> =
-                serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-            let node = &root[0];
-
-            let id = match node.items.iter().find(|it| it.name == name) {
-                Some(it) => Ok(Some(it.drivewsid.clone())),
-                None => Ok(None),
-            }?;
-            Ok(id)
-        } else {
-            Err(parse_error(response).await?)
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+
+        let body = resp.into_body().bytes().await?;
+        let root: Vec<IcloudRoot> =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+        let node = &root[0];
+
+        let id = match node.items.iter().find(|it| it.name == name) {
+            Some(it) => Ok(Some(it.drivewsid.clone())),
+            None => Ok(None),
+        }?;
+        Ok(id)
     }
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
         let mut signer = self.signer.lock().await;
-        let client_id = signer.get_client_id();
-        let drive_url = signer
-            .get_service_info(String::from("drive"))
-            .ok_or(Error::new(
-                ErrorKind::NotFound,
-                "drive service info drivews not found",
-            ))?
-            .url
-            .clone();
+        let client_id = signer.client_id();
 
-        let uri = format!("{}/createFolders", drive_url);
-        let body = json!(
-                         {
-                             "destinationDrivewsId": parent_id,
-                             "folders": [
-                             {
-                                "clientId": client_id,
-                                "name": name,
-                            }
-                            ],
-                         }
-        )
-        .to_string();
-
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-        let response = signer.sign(Method::POST, uri, async_body).await?;
-
-        match response.status() {
-            StatusCode::OK => {
-                let body = &response.into_body().bytes().await?;
-
-                let create_folder: IcloudCreateFolder =
-                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-                Ok(create_folder.destination_drivews_id)
-            }
-            _ => Err(parse_error(response).await?),
-        }
-    }
-}
-
-impl IcloudCore {
-    // Logs into icloud using the provided credentials.
-    pub async fn login(&self) -> Result<()> {
-        let mut signer = self.signer.lock().await;
-
-        signer.signer().await
-    }
-
-    //Apple Drive
-    pub async fn drive(&self) -> Option<DriveService> {
-        let clone = self.signer.clone();
-        let signer = self.signer.lock().await;
-
-        let docws = signer.get_service_info(String::from("docw")).unwrap();
-        signer
-            .get_service_info(String::from("drive"))
-            .map(|s| DriveService::new(clone, s.url.clone(), docws.url.clone()))
-    }
-
-    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
-        self.login().await?;
-
-        let path = build_rooted_abs_path(&self.root, path);
-        let base = get_basename(&path);
-
-        let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            &format!("read path not found: {}", base),
-        ))?;
-
-        let drive = self
-            .drive()
-            .await
-            .expect("icloud DriveService read drive not found");
-
-        if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
-            Ok(drive
-                .get_file(docwsid, "com.apple.CloudDocs", args.clone())
-                .await?)
-        } else {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                "icloud DriveService read error",
-            ))
-        }
-    }
-
-    pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
-        self.login().await?;
-
-        let path = build_rooted_abs_path(&self.root, path);
-
-        let mut base = get_basename(&path);
-        let parent = get_parent(&path);
-
-        if base.ends_with('/') {
-            base = base.trim_end_matches('/');
-        }
-
-        let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            &format!("stat path not found: {}", base),
-        ))?;
-
-        let drive = self
-            .drive()
-            .await
-            .expect("icloud DriveService stat drive not found");
-
-        let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            &format!("stat path not found: {}", parent),
-        ))?;
-
-        let node = drive.get_root(&folder_id).await?;
-
-        match node.items.iter().find(|it| it.drivewsid == file_id.clone()) {
-            Some(it) => Ok(it.clone()),
-            None => Err(Error::new(
-                ErrorKind::NotFound,
-                "icloud DriveService stat get parent items error",
-            )),
-        }
-    }
-}
-
-pub struct DriveService {
-    signer: Arc<Mutex<IcloudSigner>>,
-    drive_url: String,
-    docw_url: String,
-}
-
-impl DriveService {
-    // Constructs an interface to an icloud Drive.
-    pub fn new(
-        signer: Arc<Mutex<IcloudSigner>>,
-        drive_url: String,
-        docw_url: String,
-    ) -> DriveService {
-        DriveService {
-            signer,
-            drive_url,
-            docw_url,
-        }
-    }
-
-    // Retrieves a root within the icloud Drive.
-    // "FOLDER::com.apple.CloudDocs::root"
-    pub async fn get_root(&self, id: &str) -> Result<IcloudRoot> {
-        let uri = format!("{}/retrieveItemDetailsInFolders", self.drive_url);
-
-        let body = json!([
-                         {
-                             "drivewsid": id,
-                             "partialData": false
-                         }
-        ])
-        .to_string();
-
-        let mut signer = self.signer.lock().await;
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body));
-
-        let response = signer.sign(Method::POST, uri, async_body).await?;
-
-        if response.status() == StatusCode::OK {
-            let body = &response.into_body().bytes().await?;
-
-            let drive_node: Vec<IcloudRoot> =
-                serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-            Ok(drive_node[0].clone())
-        } else {
-            Err(parse_error(response).await?)
-        }
-    }
-
-    pub async fn get_file(
-        &self,
-        id: &str,
-        zone: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let uri = format!(
-            "{}\
-        /ws/{}/download/by_id?document_id={}",
-            self.docw_url, zone, id
-        );
-        debug!("{}", uri);
-
-        let mut signer = self.signer.lock().await;
-
-        let response = signer.sign(Method::GET, uri, AsyncBody::Empty).await?;
-
-        match response.status() {
-            StatusCode::OK => {
-                let body = &response.into_body().bytes().await?;
-                let object: IcloudObject =
-                    serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-
-                let url = object.data_token.url.to_string();
-
-                let mut request_builder = Request::builder().method(Method::GET).uri(url);
-
-                if let Some(if_match) = args.if_match() {
-                    request_builder = request_builder.header(IF_MATCH, if_match);
+        let uri = format!("{}/createFolders", signer.session_data().drivews_url);
+        let body = serde_json::to_vec(&json!(
+             {
+                 "destinationDrivewsId": parent_id,
+                 "folders": [
+                 {
+                    "clientId": client_id,
+                    "name": name,
                 }
+                ],
+             }
+        ))
+        .map_err(new_json_serialize_error)?;
 
-                let range = args.range();
-                if !range.is_full() {
-                    request_builder = request_builder.header(header::RANGE, range.to_header())
-                }
+        let req = Request::post(uri)
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
 
-                if let Some(if_none_match) = args.if_none_match() {
-                    request_builder = request_builder.header(IF_NONE_MATCH, if_none_match);
-                }
-
-                let async_body = request_builder.body(AsyncBody::Empty).unwrap();
-
-                let response = signer.client.send(async_body).await?;
-
-                Ok(response)
-            }
-            _ => Err(parse_error(response).await?),
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
+
+        let body = resp.into_body().bytes().await?;
+        let create_folder: IcloudCreateFolder =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+        Ok(create_folder.destination_drivews_id)
     }
 }
 

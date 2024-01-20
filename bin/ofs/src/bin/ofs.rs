@@ -39,18 +39,18 @@ async fn main() -> Result<()> {
 #[command(version, about)]
 struct Config {
     /// fuse mount path
-    #[arg(short, long, env = "OFS_MOUNT_PATH")]
+    #[arg(env = "OFS_MOUNT_PATH", index = 1)]
     mount_path: String,
 
     /// location of opendal service
     /// format: <scheme>://?<key>=<value>&<key>=<value>
     /// example: fs://root=/tmp
-    #[arg(short, long, env = "OFS_BACKEND")]
+    #[arg(env = "OFS_BACKEND", index = 2)]
     backend: String,
 }
 
 async fn fuse() -> Result<()> {
-    let cfg = Config::parse();
+    let cfg = Config::try_parse().context("parse command line arguments")?;
 
     let location = Url::parse(&cfg.backend)?;
     if location.has_host() {

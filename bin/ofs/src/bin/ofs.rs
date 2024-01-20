@@ -43,8 +43,8 @@ struct Config {
     mount_path: String,
 
     /// location of opendal service
-    /// format: <scheme>://<host>:<port>
-    /// example: s3://127.0.0.1:9000?access_key=xxx&secret_key=xxx
+    /// format: <scheme>://?<key>=<value>&<key>=<value>
+    /// example: fs://root=/tmp
     #[arg(short, long, env = "OFS_BACKEND")]
     backend: String,
 }

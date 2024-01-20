@@ -1,0 +1,6 @@
+[backend]
+type = "fs"
+root = "/tmp"
+
+[frontends]
+mount_path = "./example"

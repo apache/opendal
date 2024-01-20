@@ -4604,9 +4604,7 @@ dependencies = [
  "log",
  "nix 0.27.1",
  "opendal",
- "serde",
  "tokio",
- "toml 0.8.8",
  "url",
 ]
 

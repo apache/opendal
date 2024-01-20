@@ -2329,16 +2329,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_filter"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2349,19 +2339,6 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eeb342678d785662fd2514be38c459bb925f02b68dd2a3e0f21d7ef82d979dd"
-dependencies = [
- "anstream",
- "anstyle",
- "env_filter",
- "humantime",
- "log",
 ]
 
 [[package]]
@@ -4620,7 +4597,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "env_logger 0.11.0",
+ "env_logger",
  "fuse3",
  "futures-util",
  "libc",
@@ -4641,7 +4618,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "dirs",
- "env_logger 0.10.1",
+ "env_logger",
  "futures",
  "log",
  "opendal",

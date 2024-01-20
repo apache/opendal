@@ -15,38 +15,66 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use clap::Parser;
 use fuse3::path::Session;
 use fuse3::MountOptions;
-use ofs::Config;
 use ofs::Ofs;
 use opendal::Operator;
 use opendal::Scheme;
+use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    ofs().await
+    env_logger::init();
+    fuse().await
 }
 
-async fn ofs() -> Result<()> {
-    let cfg: Config =
-        toml::from_str(&std::fs::read_to_string("ofs.toml").context("failed to open ofs.toml")?)?;
-    let scheme = Scheme::from_str(&cfg.backend.typ).context("unsupported scheme")?;
-    let op = Operator::via_map(scheme, cfg.backend.map.clone())?;
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Config {
+    /// fuse mount path
+    #[arg(short, long, env = "OFS_MOUNT_PATH")]
+    mount_path: String,
+
+    /// location of opendal service
+    /// format: <scheme>://<host>:<port>
+    /// example: s3://127.0.0.1:9000?access_key=xxx&secret_key=xxx
+    #[arg(short, long, env = "OFS_BACKEND")]
+    backend: String,
+}
+
+async fn fuse() -> Result<()> {
+    let cfg = Config::parse();
+
+    let location = Url::parse(&cfg.backend)?;
+    if location.has_host() {
+        Err(anyhow!("Host part in a location is not supported."))?;
+    }
+
+    let scheme_str = location.scheme();
+
+    let op_args = location
+        .query_pairs()
+        .into_owned()
+        .collect::<HashMap<String, String>>();
+
+    let scheme = Scheme::from_str(scheme_str).context("unsupported scheme")?;
+    let op = Operator::via_map(scheme, op_args)?;
 
     let mut mount_option = MountOptions::default();
     mount_option.uid(nix::unistd::getuid().into());
     mount_option.gid(nix::unistd::getgid().into());
 
-    let mount_path = cfg.frontends.mount_path.clone();
-
     let ofs = Ofs { op };
 
     let mounthandle = Session::new(mount_option)
-        .mount_with_unprivileged(ofs, mount_path)
+        .mount_with_unprivileged(ofs, cfg.mount_path)
         .await?;
 
     mounthandle.await?;

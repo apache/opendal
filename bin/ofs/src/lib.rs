@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod config;
-pub use config::*;
-
 use std::ffi::OsStr;
 use std::vec::IntoIter;
 

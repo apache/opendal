@@ -22,4 +22,5 @@ int main() {
   opendal::ReaderStream stream(reader);
   std::string res2;
   stream >> res2; // res2 == "abc"
+  std::cout<<res2<<std::endl;
 }

@@ -173,7 +173,7 @@ After pushing the tag, we need to check the GitHub action status to make sure th
 - Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
 - Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/bindings_nodejs.yml)
 
-In the most cases, it would be greate to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
+In the most cases, it would be great to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
 
 ## ASF Side
 

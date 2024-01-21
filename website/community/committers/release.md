@@ -118,7 +118,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Publish artifacts to SVN RELEASE branch
 - [ ] Change OpenDAL Website download link
 - [ ] Release Maven artifacts
-- [ ] Release Pypi artifacts
 - [ ] Send the announcement
 
 For details of each step, please refer to: https://opendal.apache.org/community/committers/release

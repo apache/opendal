@@ -118,6 +118,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Publish artifacts to SVN RELEASE branch
 - [ ] Change OpenDAL Website download link
 - [ ] Release Maven artifacts
+- [ ] Release Pypi artifacts
 - [ ] Send the announcement
 
 For details of each step, please refer to: https://opendal.apache.org/community/committers/release
@@ -299,6 +300,10 @@ Maven staging repo:
 
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
 
+Pypi testing repo:
+
+https://test.pypi.org/project/opendal/
+
 Please download, verify, and test.
 
 The VOTE will be open for at least 72 hours and until the necessary
@@ -335,6 +340,16 @@ ${name}
 ```
 
 Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
+
+The vote should be open for **at least 72 hours** except the following cases:
+
+1. Security issues
+2. The wild user effected bug fixs
+3. Any other emergency cases
+
+The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.
+
+> Tips: The 72 hours is the minimum time for voting, so we can ensure that community members from various time zones can participate in the verification process.
 
 After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://opendal.apache.org/community/#committers)) and no veto, claim the vote result:
 
@@ -424,6 +439,8 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 ### Send the announcement
 
 Send the release announcement to `dev@opendal.apache.org` and CC `announce@apache.org`.
+
+> Tips: Please following the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announce mailing list.
 
 Instead of adding breaking changes, let's include the new features as "notable changes" in the announcement.
 

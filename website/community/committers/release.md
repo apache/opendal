@@ -165,6 +165,16 @@ Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that cre
 
 :::
 
+### Check the GitHub action status
+
+After pushing the tag, we need to check the GitHub action status to make sure the release candidate is created successfully.
+
+- Python: [Bindings Python CI](https://github.com/apache/opendal/actions/workflows/bindings_python.yml)
+- Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
+- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/bindings_nodejs.yml)
+
+In the most cases, it would be greate to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
+
 ## ASF Side
 
 If any step in the ASF Release process fails and requires code changes,
@@ -425,6 +435,18 @@ It will take some time to sync the Maven artifacts to the Maven Central.
 If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 :::
+
+### Check the language binding artifacts
+
+We need to check the language binding artifacts in the language package repo to make sure they are released successfully.
+
+- Python: <https://pypi.org/project/opendal/>
+- Java: <https://repository.apache.org/#nexus-search;quick~opendal>
+- Node.js: <https://www.npmjs.com/package/opendal>
+
+For Java binding, if we can not find the latest version of artifacts in the repo, we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo. 
+
+For non-Java bindings, if we can not find the latest version of artifacts in the repo, we need to check the GitHub action status.
 
 ### Create a GitHub Release
 

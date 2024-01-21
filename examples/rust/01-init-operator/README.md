@@ -108,7 +108,7 @@ fn init_operator_via_builder() -> Result<Operator> {
 
 We have a new concept here:
 
-> `let mut builder = xxx;
+> let mut builder = xxx;
 
 The `mut` here means `mutable`, allowing its value to be changed later.
 

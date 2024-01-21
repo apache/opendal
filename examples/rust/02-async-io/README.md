@@ -14,7 +14,7 @@ In this chapter's `Cargo.toml`, we add a new dependence `tokio`:
 tokio = { version = "1", features = ["full"] }
 ```
 
-The syntex is different from what we used before:
+The syntax is different from what we used before:
 
 ```diff
 - tokio = "1"
@@ -104,7 +104,7 @@ impl Operator {
 }
 ```
 
-`impl Into<Bytes>` here is a syntex suger of rust, we can expand it like the following:
+`impl Into<Bytes>` here is a syntax sugar of rust, we can expand it like the following:
 
 ```rust
 impl Operator {
@@ -159,9 +159,9 @@ This API will read all data from `path` and return as a `Vec<u8>`.
 
 In this chapter we learnt a lot basic concepts in async rust! Now we have known that:
 
-- How to setup tokio async runtime
-- How to define and call an async function
-- How to write and read data via OpenDAL
+- How to setup tokio async runtime.
+- How to define and call an async function.
+- How to write and read data via OpenDAL.
 
 ## Challenge Time
 

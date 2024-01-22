@@ -25,7 +25,7 @@ use std::ffi:: CString;
 
 /// Support User Statically-Defined Tracing(aka USDT) on Linux
 /// 
-/// This layer is a experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
+/// This layer is an experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
 /// 
 /// Example:
 /// ```

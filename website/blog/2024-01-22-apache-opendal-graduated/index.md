@@ -67,7 +67,7 @@ The OpenDAL Community believes [the apache way](https://www.apache.org/theapache
 
 The original creators [Databend](https://github.com/datafuselabs/databend/) chosen to contribute OpenDAL to the ASF, embracing the Apache way through [joining the incubator program](https://opendal.apache.org/blog/opendal-entered-apache-incubator).
 
-## What's graduation means?
+## What's graduation?
 
 In the [Apache Incubator](https://incubator.apache.org/), the OpenDAL community is learning the Apache Way through daily development activities, growing its community and producing Apache releases.
 

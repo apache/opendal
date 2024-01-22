@@ -31,8 +31,19 @@ rust-version.workspace = true
 
 [dependencies]
 async-trait = "0.1.75"
-fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime"] }
+fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime", "unprivileged"] }
 futures-util = "0.3.30"
 libc = "0.2.151"
 log = "0.4.20"
+anyhow = "1"
+tokio = { version = "1.34", features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "io-std",
+] }
+nix = { version = "0.27.1", features = ["user"] }
+env_logger = "0.10"
+clap = { version = "4.4.18", features = ["derive", "env"] }
+url = "2.5.0"
 opendal.workspace = true

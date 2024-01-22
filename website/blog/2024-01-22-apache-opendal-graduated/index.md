@@ -1,5 +1,5 @@
 ---
-title: "Apache OpenDAL is now Graduated"
+title: "Apache OpenDAL™ is now Graduated"
 date: 2024-01-22
 slug: apache-opendal-graduated
 tags: [announcement]
@@ -9,7 +9,7 @@ authors:
     image_url: https://github.com/Xuanwo.png
 ---
 
-Hello, everyone! I'm happy to announce that [Apache OpenDAL](https://opendal.apache.org/) has graduated from the [Apache Incubator](https://incubator.apache.org/) to become a Top-Level Project of [the Apache Software Foundation](https://apache.org/).
+Hello, everyone! I'm happy to announce that [Apache OpenDAL™](https://opendal.apache.org/) has graduated from the [Apache Incubator](https://incubator.apache.org/) to become a Top-Level Project of [the Apache Software Foundation](https://apache.org/).
 
 ## What's Apache OpenDAL?
 

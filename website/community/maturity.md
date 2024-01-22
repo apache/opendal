@@ -1,6 +1,6 @@
 ---
 title: Maturity
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 # Maturity Assessment for Apache OpenDAL™

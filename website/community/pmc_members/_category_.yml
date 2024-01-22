@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-position: 4
+position: 6
 label: 'PMC Members'
 collapsible: true
 collapsed: false

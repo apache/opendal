@@ -17,9 +17,9 @@ Hello, everyone! I'm happy to announce that [Apache OpenDAL™](https://opendal.
 
 OpenDAL could be used as a **better** SDK for your storage services: A SDK with native integration of [retry](https://opendal.apache.org/docs/rust/opendal/layers/struct.RetryLayer.html), [logging](https://opendal.apache.org/docs/rust/opendal/layers/struct.LoggingLayer.html), [metrics](https://opendal.apache.org/docs/rust/opendal/layers/struct.MetricsLayer.html), [tracing](https://opendal.apache.org/docs/rust/opendal/layers/struct.TracingLayer.html), [timeout](https://opendal.apache.org/docs/rust/opendal/layers/struct.TimeoutLayer.html), [throttle](https://opendal.apache.org/docs/rust/opendal/layers/struct.ThrottleLayer.html), and [more](https://opendal.apache.org/docs/rust/opendal/layers/index.html).
 
-OpenDAL could be used a **super** connector for your storage services: A connector that support all kinds of storage services from Object Storage (s3, gcs, azblob), File Storage (fs, azdls, hdfs), Consumer Cloud Storage (gdrive, onedrive), Key-Value Storage (rocksdb, sled) to Cache Storage (memcached, moka).
+OpenDAL could be used as a **super** connector for your storage services: A connector that supports all kinds of storage services from Object Storage (s3, gcs, azblob), File Storage (fs, azdls, hdfs), Consumer Cloud Storage (gdrive, onedrive), Key-Value Storage (rocksdb, sled) to Cache Storage (memcached, moka).
 
-OpenDAL could be used an **elegant** client for your storage services: A client with well designed API and  many language bindings: [Rust](https://crates.io/crates/opendal), C, Cpp, Dotnet, Go, Haskell, [Java](https://mvnrepository.com/artifact/org.apache.opendal/opendal-java), Lua, [Node.js](https://www.npmjs.com/package/opendal), Ocaml, Php, [Python](https://pypi.org/project/opendal/), Ruby, Swift and Zig.
+OpenDAL could be used as an **elegant** client for your storage services: A client with well designed API and  many language bindings: [Rust](https://crates.io/crates/opendal), C, Cpp, Dotnet, Go, Haskell, [Java](https://mvnrepository.com/artifact/org.apache.opendal/opendal-java), Lua, [Node.js](https://www.npmjs.com/package/opendal), Ocaml, Php, [Python](https://pypi.org/project/opendal/), Ruby, Swift and Zig.
 
 Need to access data? Give OpenDAL a try!
 

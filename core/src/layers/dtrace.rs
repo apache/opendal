@@ -21,12 +21,12 @@ use std::fmt::Formatter;
 
 use crate::raw::*;
 use crate::*;
-use std::ffi:: CString;
+use std::ffi::CString;
 
 /// Support User Statically-Defined Tracing(aka USDT) on Linux
-/// 
+///
 /// This layer is an experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
-/// 
+///
 /// Example:
 /// ```
 ///

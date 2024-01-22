@@ -290,9 +290,11 @@ impl IcloudSigner {
 
         for cookie in cookies {
             if let Some((key, value)) = cookie.split_once('=') {
+
+                println!("{}={}",key,value);
                 self.data
                     .cookies
-                    .insert(key.into(), value.split(';').next().unwrap().into());
+                    .insert(key.into(), value.into());
             }
         }
 

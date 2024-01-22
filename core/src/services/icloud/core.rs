@@ -83,7 +83,7 @@ impl SessionData {
             scnt: None,
             account_country: None,
 
-            cookies: Default::default(),
+            cookies: BTreeMap::default(),
             drivews_url: String::new(),
             docws_url: String::new(),
         }
@@ -116,18 +116,14 @@ impl IcloudSigner {
     /// Get the drivews_url from signer session data.
     /// Async await init finish.
     pub async fn drivews_url(&mut self) -> Result<&str> {
-        if !self.initiated {
-            self.init().await?;
-        }
+        self.init().await?;
         Ok(&self.data.drivews_url)
     }
 
     /// Get the docws_url from signer session data.
     /// Async await init finish.
     pub async fn docws_url(&mut self) -> Result<&str> {
-        if !self.initiated {
-            self.init().await?;
-        }
+        self.init().await?;
         Ok(&self.data.docws_url)
     }
 
@@ -257,7 +253,7 @@ impl IcloudSigner {
                 .collect();
             headers.insert(
                 header::COOKIE,
-                cookies.as_slice().join("; ").parse().unwrap(),
+                build_header_value(&cookies.as_slice().join("; "))?,
             );
         }
 
@@ -285,15 +281,18 @@ impl IcloudSigner {
             self.data.scnt = Some(scnt.to_string());
         }
 
-        for (key, value) in resp.headers() {
-            if key == header::SET_COOKIE {
-                if let Some(cookie) = value.to_str().unwrap().split(';').next() {
-                    if let Some((key, value)) = cookie.split_once('=') {
-                        self.data
-                            .cookies
-                            .insert(String::from(key), String::from(value));
-                    }
-                }
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect();
+
+        for cookie in cookies {
+            if let Some((key, value)) = cookie.split_once('=') {
+                self.data
+                    .cookies
+                    .insert(key.into(), value.split(';').next().unwrap().into());
             }
         }
 

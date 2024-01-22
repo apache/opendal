@@ -178,7 +178,6 @@ impl Builder for KoofrBuilder {
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
-        println!("backend use root {}", &root);
 
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")

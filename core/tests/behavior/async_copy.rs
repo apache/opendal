@@ -63,7 +63,7 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
 
 /// Copy a file with non ascii name and test contents.
 pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
-    // Koofr does not support non-ascii name.(2024-01-22)
+    // Koofr does not support non-ascii name.(https://github.com/apache/opendal/issues/4051)
     if op.info().scheme() == Scheme::Koofr {
         return Ok(());
     }

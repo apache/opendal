@@ -75,7 +75,6 @@ native-tls-vendored = ["reqwest/native-tls-vendored"]
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
 internal-path-cache = ["dep:moka"]
-internal-http-cookies = ["reqwest/cookies"]
 
 # Enable all layers.
 layers-all = [
@@ -155,7 +154,7 @@ services-http = []
 services-huggingface = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
-services-icloud = ["internal-path-cache", "internal-http-cookies"]
+services-icloud = ["internal-path-cache"]
 services-koofr = []
 services-libsql = ["dep:hrana-client-proto"]
 services-memcached = ["dep:bb8"]

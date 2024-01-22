@@ -27,7 +27,7 @@ runs:
         export-env: true
       env:
         OPENDAL_KOOFR_ROOT: op://services/koofr/root
-        OPENDAL_KOOFR_ENDPOINT: "https://app.koofr.net"
+        OPENDAL_KOOFR_ENDPOINT: op://services/koofr/endpoint
         OPENDAL_KOOFR_EMAIL: op://services/koofr/email
         OPENDAL_KOOFR_PASSWORD: op://services/koofr/password
     - name: Setup

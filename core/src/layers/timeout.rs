@@ -83,7 +83,7 @@ use crate::*;
 /// a [`std::time::Instant`] and check the timeout by comparing the instant with current time.
 /// However, it doesn't works for all cases.
 ///
-/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be omit. The runtime
+/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emit. The runtime
 /// will never poll our future again. From the application side, this future is hanging forever
 /// until this TCP connection is closed for reaching the linux [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html) times.
 #[derive(Clone)]

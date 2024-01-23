@@ -323,18 +323,18 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
         Poll::Ready(v)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_timeout(cx, WriteOperation::Abort.into_static())?;
-
-        let v = ready!(self.inner.poll_abort(cx));
-        self.sleep = None;
-        Poll::Ready(v)
-    }
-
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_timeout(cx, WriteOperation::Close.into_static())?;
 
         let v = ready!(self.inner.poll_close(cx));
+        self.sleep = None;
+        Poll::Ready(v)
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_timeout(cx, WriteOperation::Abort.into_static())?;
+
+        let v = ready!(self.inner.poll_abort(cx));
         self.sleep = None;
         Poll::Ready(v)
     }

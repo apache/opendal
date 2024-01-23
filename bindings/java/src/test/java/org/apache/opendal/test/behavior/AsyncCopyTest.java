@@ -22,7 +22,6 @@ package org.apache.opendal.test.behavior;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.opendal.Capability;

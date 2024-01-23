@@ -24,7 +24,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use tokio::time::Sleep;
 
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
@@ -72,6 +71,21 @@ use crate::*;
 ///         .with_io_timeout(Duration::from_secs(3)))
 ///     .finish();
 /// ```
+///
+/// # Implementation Notes
+///
+/// TimeoutLayer is using [`tokio::time::timeout`] to implement timeout for operations. And IO
+/// Operations insides `reader`, `writer` will use `Pin<Box<tokio::time::Sleep>>` to track the
+/// timeout.
+///
+/// This might introduce a bit overhead for IO operations, but it's the only way to implement
+/// timeout correctly. We used to implement tiemout layer in zero cost way that only stores
+/// a [`std::time::Instant`] and check the timeout by comparing the instant with current time.
+/// However, it doesn't works for all cases.
+///
+/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be omit. The runtime
+/// will never poll our future again. From the application side, this future is hanging forever
+/// until this TCP connection is closed for reaching the linux [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html) times.
 #[derive(Clone)]
 pub struct TimeoutLayer {
     timeout: Duration,
@@ -256,7 +270,7 @@ pub struct TimeoutWrapper<R> {
     inner: R,
 
     timeout: Duration,
-    sleep: Option<Pin<Box<Sleep>>>,
+    sleep: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl<R> TimeoutWrapper<R> {

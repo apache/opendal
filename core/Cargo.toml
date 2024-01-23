@@ -251,7 +251,6 @@ reqwest = { version = "0.11.18", features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.27", features = ["sync"] }
-pollster = "0.3.0"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies

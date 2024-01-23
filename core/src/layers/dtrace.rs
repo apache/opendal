@@ -133,26 +133,26 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, fetch_reader_start, c_path.as_ptr());
+        probe_lazy!(opendal, reader_start, c_path.as_ptr());
         let result = self
             .inner
             .read(path, args)
             .await
             .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
-        probe_lazy!(opendal, fetch_reader_end, c_path.as_ptr());
+        probe_lazy!(opendal, reader_end, c_path.as_ptr());
         result
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, fetch_writer_start, c_path.as_ptr());
+        probe_lazy!(opendal, writer_start, c_path.as_ptr());
         let result = self
             .inner
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
 
-        probe_lazy!(opendal, fetch_writer_end, c_path.as_ptr());
+        probe_lazy!(opendal, writer_end, c_path.as_ptr());
         result
     }
 
@@ -202,23 +202,23 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, fetch_blocking_reader_start, c_path.as_ptr());
+        probe_lazy!(opendal, blocking_reader_start, c_path.as_ptr());
         let result = self
             .inner
             .blocking_read(path, args)
             .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
-        probe_lazy!(opendal, fetch_blocking_reader_end, c_path.as_ptr());
+        probe_lazy!(opendal, blocking_reader_end, c_path.as_ptr());
         result
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, fetch_blocking_writer_start, c_path.as_ptr());
+        probe_lazy!(opendal, blocking_writer_start, c_path.as_ptr());
         let result = self
             .inner
             .blocking_write(path, args)
             .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
-        probe_lazy!(opendal, fetch_blocking_writer_end, c_path.as_ptr());
+        probe_lazy!(opendal, blocking_writer_end, c_path.as_ptr());
         result
     }
 
@@ -266,12 +266,12 @@ impl<R: oio::Read> oio::Read for DtraceLayerWarpper<R> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, poll_read_start, c_path.as_ptr());
         self.inner.poll_read(cx, buf).map(|res| match res {
-            Ok(bytes) => {
-                probe_lazy!(opendal, poll_read_complete_success, c_path.as_ptr(), bytes);
-                Ok(bytes)
+            Ok(n) => {
+                probe_lazy!(opendal, poll_read_complete_ok, c_path.as_ptr(), n);
+                Ok(n)
             }
             Err(e) => {
-                probe_lazy!(opendal, poll_read_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_read_complete_error, c_path.as_ptr());
                 Err(e)
             }
         })
@@ -281,11 +281,11 @@ impl<R: oio::Read> oio::Read for DtraceLayerWarpper<R> {
         probe_lazy!(opendal, poll_seek_start, c_path.as_ptr());
         self.inner.poll_seek(cx, pos).map(|res| match res {
             Ok(n) => {
-                probe_lazy!(opendal, poll_seek_complete_success, c_path.as_ptr(), n);
+                probe_lazy!(opendal, poll_seek_complete_ok, c_path.as_ptr(), n);
                 Ok(n)
             }
             Err(e) => {
-                probe_lazy!(opendal, poll_seek_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_seek_complete_error, c_path.as_ptr());
                 Err(e)
             }
         })
@@ -296,16 +296,11 @@ impl<R: oio::Read> oio::Read for DtraceLayerWarpper<R> {
         probe_lazy!(opendal, poll_next_start, c_path.as_ptr());
         self.inner.poll_next(cx).map(|res| match res {
             Some(Ok(bytes)) => {
-                probe_lazy!(
-                    opendal,
-                    poll_next_complete_success,
-                    c_path.as_ptr(),
-                    bytes.len()
-                );
+                probe_lazy!(opendal, poll_next_complete_ok, c_path.as_ptr(), bytes.len());
                 Some(Ok(bytes))
             }
             Some(Err(e)) => {
-                probe_lazy!(opendal, poll_next_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_next_complete_error, c_path.as_ptr());
                 Some(Err(e))
             }
             None => {
@@ -323,11 +318,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
         self.inner
             .read(buf)
             .map(|n| {
-                probe_lazy!(opendal, read_complete_success, c_path.as_ptr(), n);
+                probe_lazy!(opendal, read_complete_ok, c_path.as_ptr(), n);
                 n
             })
             .map_err(|e| {
-                probe_lazy!(opendal, read_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, read_complete_error, c_path.as_ptr());
                 e
             })
     }
@@ -338,11 +333,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
         self.inner
             .seek(pos)
             .map(|res| {
-                probe_lazy!(opendal, seek_complete_success, c_path.as_ptr(), res);
+                probe_lazy!(opendal, seek_complete_ok, c_path.as_ptr(), res);
                 res
             })
             .map_err(|e| {
-                probe_lazy!(opendal, seek_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, seek_complete_error, c_path.as_ptr());
                 e
             })
     }
@@ -352,11 +347,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
         probe_lazy!(opendal, next_start, c_path.as_ptr());
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                probe_lazy!(opendal, next_complete_success, c_path.as_ptr(), bytes.len());
+                probe_lazy!(opendal, next_complete_ok, c_path.as_ptr(), bytes.len());
                 Ok(bytes)
             }
             Err(e) => {
-                probe_lazy!(opendal, next_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, next_complete_error, c_path.as_ptr());
                 Err(e)
             }
         })
@@ -370,11 +365,11 @@ impl<R: oio::Write> oio::Write for DtraceLayerWarpper<R> {
         self.inner
             .poll_write(cx, bs)
             .map_ok(|n| {
-                probe_lazy!(opendal, poll_write_complete_success, c_path.as_ptr(), n);
+                probe_lazy!(opendal, poll_write_complete_ok, c_path.as_ptr(), n);
                 n
             })
             .map_err(|err| {
-                probe_lazy!(opendal, poll_write_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_write_complete_error, c_path.as_ptr());
                 err
             })
     }
@@ -385,10 +380,10 @@ impl<R: oio::Write> oio::Write for DtraceLayerWarpper<R> {
         self.inner
             .poll_abort(cx)
             .map_ok(|_| {
-                probe_lazy!(opendal, poll_abort_complete_success, c_path.as_ptr());
+                probe_lazy!(opendal, poll_abort_complete_ok, c_path.as_ptr());
             })
             .map_err(|err| {
-                probe_lazy!(opendal, poll_abort_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_abort_complete_error, c_path.as_ptr());
                 err
             })
     }
@@ -399,10 +394,10 @@ impl<R: oio::Write> oio::Write for DtraceLayerWarpper<R> {
         self.inner
             .poll_close(cx)
             .map_ok(|_| {
-                probe_lazy!(opendal, poll_close_complete_success, c_path.as_ptr());
+                probe_lazy!(opendal, poll_close_complete_ok, c_path.as_ptr());
             })
             .map_err(|err| {
-                probe_lazy!(opendal, poll_close_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, poll_close_complete_error, c_path.as_ptr());
                 err
             })
     }
@@ -415,11 +410,11 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWarpper<R> {
         self.inner
             .write(bs)
             .map(|n| {
-                probe_lazy!(opendal, write_complete_success, c_path.as_ptr(), n);
+                probe_lazy!(opendal, write_complete_ok, c_path.as_ptr(), n);
                 n
             })
             .map_err(|err| {
-                probe_lazy!(opendal, write_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, write_complete_error, c_path.as_ptr());
                 err
             })
     }
@@ -430,10 +425,10 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWarpper<R> {
         self.inner
             .close()
             .map(|_| {
-                probe_lazy!(opendal, close_complete_success, c_path.as_ptr());
+                probe_lazy!(opendal, close_complete_ok, c_path.as_ptr());
             })
             .map_err(|err| {
-                probe_lazy!(opendal, close_complete_failed, c_path.as_ptr());
+                probe_lazy!(opendal, close_complete_error, c_path.as_ptr());
                 err
             })
     }

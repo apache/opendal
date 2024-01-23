@@ -55,7 +55,7 @@ use crate::*;
 /// # Examples
 ///
 /// The following examples will create a timeout layer with 10 seconds timeout for all non-io
-/// operations, 3 seconds timeout for all io operations and 2 consecutive io timeouts are allowed.
+/// operations, 3 seconds timeout for all io operations.
 ///
 /// ```
 /// use anyhow::Result;
@@ -67,7 +67,9 @@ use crate::*;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(TimeoutLayer::default().with_timeout(Duration::from_secs(10)).with_io_timeout(3))
+///     .layer(TimeoutLayer::default()
+///         .with_timeout(Duration::from_secs(10))
+///         .with_io_timeout(Duration::from_secs(3)))
 ///     .finish();
 /// ```
 #[derive(Clone)]

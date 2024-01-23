@@ -79,7 +79,7 @@ use crate::*;
 /// timeout.
 ///
 /// This might introduce a bit overhead for IO operations, but it's the only way to implement
-/// timeout correctly. We used to implement tiemout layer in zero cost way that only stores
+/// timeout correctly. We used to implement timeout layer in zero cost way that only stores
 /// a [`std::time::Instant`] and check the timeout by comparing the instant with current time.
 /// However, it doesn't works for all cases.
 ///

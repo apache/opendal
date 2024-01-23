@@ -65,9 +65,7 @@ class AsyncCopyTest extends BehaviorTestBase {
     @Test
     public void testCopyFileWithNonAsciiName() {
         // Services-koofr doesn't support non-ascii name (https://github.com/apache/opendal/issues/4051)
-        if (op().info.scheme == "koofr") {
-            return;
-        }
+        assumeTrue(op().info.scheme != "koofr", "Services-koofr doesn't support non-ascii name");
 
         final String sourcePath = "🐂🍺中文.docx";
         final String targetPath = "😈🐅Français.docx";

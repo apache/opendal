@@ -35,7 +35,6 @@ use crate::ErrorKind;
 use crate::Result;
 
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
-const DEFAULT_TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -65,8 +64,6 @@ impl HttpClient {
         builder = builder.no_brotli();
         // Make sure we don't enable auto deflate decompress.
         builder = builder.no_deflate();
-        // Make sure we keep tcp alive for 60s to avoid waiting dead connection.
-        builder = builder.tcp_keepalive(DEFAULT_TCP_KEEPALIVE);
         // Make sure we don't wait a connection establishment forever.
         builder = builder.connect_timeout(DEFAULT_CONNECT_TIMEOUT);
 

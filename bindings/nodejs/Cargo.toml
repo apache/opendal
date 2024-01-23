@@ -28,8 +28,8 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
+  # Enable all opendal default feature by default.
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -44,6 +44,9 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
+
+  # Enable blocking layer for blocking ops support.
+  "opendal/layers-blocking",
 ]
 
 services-all = [

@@ -56,11 +56,11 @@ default = [
 
 # Build test utils or not.
 #
-# This features is used to control whether or not to build opendal's test utils.
+# These features are used to control whether to build opendal's test utils.
 # And doesn't have any other effects.
 #
 # You should never enable this feature unless you are developing opendal.
-tests = ["dep:rand", "dep:sha2", "dep:dotenvy"]
+tests = ["dep:rand", "dep:sha2", "dep:dotenvy", "layers-blocking", "tokio/rt-multi-thread"]
 
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns"]
@@ -86,6 +86,7 @@ layers-all = [
   "layers-throttle",
   "layers-await-tree",
   "layers-async-backtrace",
+  "layers-blocking",
 ]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
@@ -109,6 +110,7 @@ layers-throttle = ["dep:governor"]
 layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
+layers-blocking = ["tokio/rt"]
 
 services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]

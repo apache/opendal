@@ -106,6 +106,5 @@ pub use self::async_backtrace::AsyncBacktraceLayer;
 
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
-pub use self::dtrace::DTraceLayer;
+pub use self::dtrace::DtraceLayer;

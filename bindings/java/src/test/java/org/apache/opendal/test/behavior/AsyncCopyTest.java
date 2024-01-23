@@ -22,6 +22,8 @@ package org.apache.opendal.test.behavior;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import java.util.Objects;
 import java.util.UUID;
 import org.apache.opendal.Capability;
 import org.apache.opendal.OpenDALException;
@@ -65,7 +67,7 @@ class AsyncCopyTest extends BehaviorTestBase {
     @Test
     public void testCopyFileWithNonAsciiName() {
         // Services-koofr doesn't support non-ascii name (https://github.com/apache/opendal/issues/4051)
-        assumeTrue(op().info.scheme != "koofr", "Services-koofr doesn't support non-ascii name");
+        assumeTrue(!Objects.equals(op().info.scheme, "koofr"), "Services-koofr doesn't support non-ascii name");
 
         final String sourcePath = "🐂🍺中文.docx";
         final String targetPath = "😈🐅Français.docx";

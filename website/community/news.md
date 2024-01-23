@@ -4,7 +4,8 @@ title: News
 sidebar_position: 2
 ---
 
-- 2024-02-22: New PMC Member, Liuqing Yue [@dqhl76](https://github.com/dqhl76)
+- 2024-01-23: New Committer, Yang Shuai [@hoslo](https://github.com/hoslo)
+- 2024-01-22: New PMC Member, Liuqing Yue [@dqhl76](https://github.com/dqhl76)
 - 2024-01-21: Apache OpenDAL [0.44.2](https://github.com/apache/opendal/releases/tag/v0.44.2) released. RM=[Zheao Li](https://github.com/Zheaoli)
 - 2024-01-18: [Apache OpenDAL Graduated](https://opendal.apache.org/blog/apache-opendal-graduated)
 - 2024-01-06: Apache OpenDAL (incubating) 0.44.1 released. RM=Hao Ding

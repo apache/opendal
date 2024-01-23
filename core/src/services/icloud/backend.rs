@@ -25,6 +25,7 @@ use tokio::sync::Mutex;
 
 use super::core::*;
 use crate::raw::*;
+use crate::services::icloud::writer::IcloudWriter;
 use crate::*;
 
 /// Config for icloud services support.
@@ -267,7 +268,7 @@ pub struct IcloudBackend {
 impl Accessor for IcloudBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = ();
+    type Writer = oio::OneShotWriter<IcloudWriter>;
     type BlockingWriter = ();
     type Lister = ();
     type BlockingLister = ();
@@ -278,10 +279,21 @@ impl Accessor for IcloudBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-                read: true,
+                // read: true,
+                write: true,
+
+                create_dir: true,
                 ..Default::default()
             });
         ma
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let path = build_abs_path(&self.core.root, path);
+
+        let _ = self.core.path_cache.ensure_dir(&path).await?;
+
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -307,6 +319,24 @@ impl Accessor for IcloudBackend {
         meta = meta.with_last_modified(last_modified);
 
         Ok(RpStat::new(meta))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = build_abs_path(&self.core.root, path);
+
+        let parent = get_parent(&path);
+
+        // As Icloud Drive don't allow files have the same name, we need not to check if the file exists.
+        // If the file exists, we will keep its ID and update it.
+        let folder_id = self.core.path_cache.get(parent).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            &format!("write parent_path not found: {}", parent),
+        ))?;
+
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(IcloudWriter::new(self.core.clone(), path, folder_id)),
+        ))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

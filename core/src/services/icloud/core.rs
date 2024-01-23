@@ -20,6 +20,7 @@ use bytes::{Buf, Bytes};
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use http::header;
 use http::header::{IF_MATCH, IF_NONE_MATCH};
@@ -143,7 +144,7 @@ impl IcloudSigner {
             "accountName" : self.apple_id,
             "password" : self.password,
             "rememberMe": true,
-            "trustTokens": [self.trust_token.clone().unwrap()],
+            "trustTokens": [],
         }))
         .map_err(new_json_serialize_error)?;
 
@@ -307,6 +308,7 @@ impl IcloudSigner {
         mut req: Request<AsyncBody>,
     ) -> Result<Response<IncomingAsyncBody>> {
         self.sign(&mut req)?;
+
         let resp = self.client.send(req).await?;
 
         Ok(resp)
@@ -414,13 +416,148 @@ impl IcloudCore {
         Ok(resp)
     }
 
-    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let base = get_basename(&path);
+    pub async fn get_upload_contentws_url(
+        &self,
+        name: &str,
+        zone: &str,
+        size: u64,
+    ) -> Result<IcloudUpload> {
+        let mut signer = self.signer.lock().await;
 
-        let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
+        //"https://p219-docws.icloud.com.cn:443"
+        let uri = format!("{}/ws/{}/upload/web", signer.docws_url().await?, zone);
+
+        println!("get_upload_url path:{}", name);
+
+        let body = serde_json::to_vec(&json!([
+            {
+                "filename": name,
+                "type": "FILE",
+                "content_type": "text/plain",
+                "size": size,
+            }
+        ]))
+        .map_err(new_json_serialize_error)?;
+
+        let req = Request::post(uri)
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let upload: Vec<IcloudUpload> =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+        println!("{}", upload[0].url);
+
+        Ok(upload[0].clone())
+    }
+
+    pub async fn send_file(
+        &self,
+        folder_id: &str,
+        path: &str,
+        zone: &str,
+        size: u64,
+        data: Bytes,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let base = get_basename(path);
+        println!("write base:{}", base);
+
+        let upload = self.get_upload_contentws_url(base, zone, size).await?;
+
+        let mut signer = self.signer.lock().await;
+
+        let req = Request::post(upload.url);
+
+        // headers.insert(CONTENT_TYPE,"multipart/form-data".parse()?);
+
+        let multipart = Multipart::new().part(
+            FormDataPart::new("file")
+                .header(
+                    header::CONTENT_TYPE,
+                    "application/octet-stream".parse().unwrap(),
+                )
+                .content(data),
+        );
+
+        let req = multipart.apply(req)?;
+
+        let resp = signer.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let contentws: IcloudContentws =
+            serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
+
+        println!("{}", contentws.single_file.size);
+
+        let docwsid = folder_id
+            .strip_prefix("FILE::com.apple.CloudDocs::")
+            .ok_or(Error::new(
+                ErrorKind::NotFound,
+                &format!("send_file docwsid not found: {}", folder_id),
+            ))?;
+
+        println!("docwsid:{}", docwsid);
+
+        let sf_info = contentws.single_file;
+
+        let mut body = serde_json::to_value(&json!(
+            {
+            "data": {
+                "signature": sf_info.file_checksum,
+                "wrapping_key": sf_info.wrapping_key,
+                "reference_signature": sf_info.reference_checksum,
+                "size": sf_info.size,
+            },
+            "command": "add_file",
+            "create_short_guid": true,
+            "document_id": upload.document_id,
+            "path": {
+                "starting_document_id": docwsid,
+                "path": base,
+            },
+            "allow_conflict": true,
+            "file_flags": {
+                "is_writable": true,
+                "is_executable": false,
+                "is_hidden": false,
+            },
+            "mtime": SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64,
+            "btime": SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64,
+            })).map_err(new_json_serialize_error)?;
+
+        //Add the receipt if we have one. Will be absent for 0-sized files
+        if !sf_info.receipt.is_empty() {
+            let data = body["data"].as_object_mut().unwrap();
+            data.insert("receipt".to_string(), json!(sf_info.receipt));
+        }
+
+        let data = body.to_string();
+
+        let uri = format!("{}/ws/{}/update/documents", signer.docws_url().await?, zone);
+
+        let req = Request::post(uri)
+            .body(AsyncBody::Bytes(Bytes::from(data)))
+            .map_err(new_request_build_error)?;
+
+        let resp = signer.send(req).await?;
+        Ok(resp)
+    }
+
+    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+        let path = build_abs_path(&self.root, path);
+
+        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("read path not found: {}", base),
+            &format!("read path not found: {}", path),
         ))?;
 
         if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
@@ -436,23 +573,18 @@ impl IcloudCore {
     }
 
     pub async fn stat(&self, path: &str) -> Result<IcloudItem> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_abs_path(&self.root, path);
 
-        let mut base = get_basename(&path);
         let parent = get_parent(&path);
 
-        if base.ends_with('/') {
-            base = base.trim_end_matches('/');
-        }
-
-        let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
+        let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", base),
+            &format!("stat file_path not found: {}", path),
         ))?;
 
         let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", parent),
+            &format!("stat parent_path not found: {}", parent),
         ))?;
 
         let node = self.get_root(&folder_id).await?;
@@ -518,10 +650,17 @@ impl PathQuery for IcloudPathQuery {
 
         let node = &root[0];
 
-        let id = match node.items.iter().find(|it| it.name == name) {
+        let mut base = name;
+
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
+
+        let id = match node.items.iter().find(|it| it.name == base) {
             Some(it) => Ok(Some(it.drivewsid.clone())),
             None => Ok(None),
         }?;
+
         Ok(id)
     }
 
@@ -530,6 +669,12 @@ impl PathQuery for IcloudPathQuery {
 
         let client_id = signer.client_id().to_string();
 
+        let mut base = name;
+
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
+
         let uri = format!("{}/createFolders", signer.drivews_url().await?);
         let body = serde_json::to_vec(&json!(
              {
@@ -537,7 +682,7 @@ impl PathQuery for IcloudPathQuery {
                  "folders": [
                  {
                     "clientId": client_id,
-                    "name": name,
+                    "name": base,
                 }
                 ],
              }
@@ -554,9 +699,11 @@ impl PathQuery for IcloudPathQuery {
         }
 
         let body = resp.into_body().bytes().await?;
+
         let create_folder: IcloudCreateFolder =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
-        Ok(create_folder.destination_drivews_id)
+
+        Ok(create_folder.folders[0].drivewsid.clone())
     }
 }
 
@@ -700,8 +847,68 @@ pub struct DataToken {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IcloudCreateFolder {
+    #[serde(rename = "destinationDrivewsId")]
     pub destination_drivews_id: String,
     pub folders: Vec<IcloudItem>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IcloudUpdate {
+    pub results: Vec<IcloudResult>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IcloudResult {
+    pub document: IcloudDocument,
+}
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IcloudDocument {
+    pub deleted: bool,
+    pub document_id: String,
+    pub etag: String,
+    pub has_chained_parent: bool,
+    pub item_id: String,
+    pub last_editor_name: String,
+    pub mtime: i64,
+    pub name: String,
+    pub parent_id: String,
+    pub short_guid: String,
+    pub size: i64,
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub urls: IcloudUpdateUrls,
+    pub zone: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IcloudUpdateUrls {
+    pub url_download: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IcloudContentws {
+    #[serde(rename = "singleFile")]
+    pub single_file: SingleFile,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SingleFile {
+    #[serde(rename = "fileChecksum")]
+    pub file_checksum: String,
+    pub receipt: String,
+    #[serde(rename = "referenceChecksum")]
+    pub reference_checksum: String,
+    pub size: i64,
+    pub wrapping_key: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IcloudUpload {
+    pub document_id: String,
+    pub owner: String,
+    pub owner_id: String,
+    pub url: String,
 }
 
 #[cfg(test)]

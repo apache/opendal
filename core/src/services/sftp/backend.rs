@@ -94,6 +94,7 @@ impl Debug for SftpBuilder {
 
 impl SftpBuilder {
     /// set endpoint for sftp backend.
+    /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
@@ -173,10 +174,7 @@ impl Builder for SftpBuilder {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
         };
 
-        let user = match self.config.user.clone() {
-            Some(v) => v,
-            None => return Err(Error::new(ErrorKind::ConfigInvalid, "user is empty")),
-        };
+        let user = self.config.user.clone();
 
         let root = self
             .config
@@ -229,7 +227,7 @@ impl Builder for SftpBuilder {
 pub struct SftpBackend {
     endpoint: String,
     root: String,
-    user: String,
+    user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
     copyable: bool,
@@ -500,13 +498,15 @@ impl SftpBackend {
 async fn connect_sftp(
     endpoint: &str,
     root: String,
-    user: String,
+    user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
 ) -> Result<Sftp> {
     let mut session = SessionBuilder::default();
 
-    session.user(user);
+    if let Some(user) = user {
+        session.user(user);
+    }
 
     if let Some(key) = &key {
         session.keyfile(key);

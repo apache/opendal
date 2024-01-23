@@ -8,6 +8,7 @@ sidebar_position: 2
 - 2024-01-22: New PMC Member, Liuqing Yue [@dqhl76](https://github.com/dqhl76)
 - 2024-01-21: Apache OpenDAL [0.44.2](https://github.com/apache/opendal/releases/tag/v0.44.2) released. RM=[Zheao Li](https://github.com/Zheaoli)
 - 2024-01-18: [Apache OpenDAL Graduated](https://opendal.apache.org/blog/apache-opendal-graduated)
+- 2024-01-12: New Committer, Wenkang Xu [@WenyXu](https://github.com/wenyxu).
 - 2024-01-06: Apache OpenDAL (incubating) 0.44.1 released. RM=Hao Ding
 - 2024-01-01: New Committer, Congyi Wang.
 - 2023-12-31: Apache OpenDAL (incubating) 0.44.0 released. RM=Liuqing Yue

@@ -72,6 +72,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
+  "services-koofr",
   "services-mysql",
   "services-redb",
   "services-redis",
@@ -125,6 +126,7 @@ services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]

@@ -89,6 +89,7 @@ services-all = [
   "services-b2",
   "services-seafile",
   "services-upyun",
+  "services-koofr",
 ]
 
 # Default services provided by opendal.
@@ -122,6 +123,7 @@ services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]

@@ -197,7 +197,7 @@ services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 # Deprecated
 # wasabi services support has been removed.
-# We will remove this feature in next version.
+# We will remove this feature in the next version.
 services-wasabi = []
 services-webdav = []
 services-webhdfs = []

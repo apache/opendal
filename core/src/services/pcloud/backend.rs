@@ -27,6 +27,7 @@ use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
+use super::error::parse_result;
 use super::error::PcloudError;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
@@ -277,6 +278,9 @@ impl Accessor for PcloudBackend {
                 let resp: StatResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
+
+                parse_result(result)?;
+
                 if result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
                 }
@@ -338,9 +342,10 @@ impl Accessor for PcloudBackend {
                 let resp: PcloudError =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
-
-                // pCloud returns 2005 or 2009 if the file or folder is not found
-                if result != 0 && result != 2005 && result != 2009 {
+                parse_result(result)?;
+                // pCloud returns 2005 if the folder is not found.
+                // And 2009 or 2002 if the file is not found.
+                if result != 0 && result != 2005 && result != 2009 && result != 2002 {
                     return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
                 }
 
@@ -372,6 +377,8 @@ impl Accessor for PcloudBackend {
                 let resp: PcloudError =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
+
+                parse_result(result)?;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
                 }
@@ -402,6 +409,8 @@ impl Accessor for PcloudBackend {
                 let resp: PcloudError =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
+
+                parse_result(result)?;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
                 }

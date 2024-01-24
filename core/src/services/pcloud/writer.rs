@@ -21,8 +21,10 @@ use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::PcloudCore;
+use super::core::StatResponse;
+use super::core::UploadFileResponse;
 use super::error::parse_error;
-use super::error::PcloudError;
+use super::error::parse_result;
 use crate::raw::*;
 use crate::*;
 
@@ -46,24 +48,49 @@ impl oio::OneShotWrite for PcloudWriter {
 
         self.core.ensure_dir_exists(&self.path).await?;
 
-        let resp = self.core.upload_file(&self.path, bs).await?;
+        let mut exist = false;
 
-        let status = resp.status();
+        while !exist {
+            let resp = self.core.upload_file(&self.path, bs.clone()).await?;
 
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
+            let status = resp.status();
 
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+            match status {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let resp: UploadFileResponse =
+                        serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    let result = resp.result;
+
+                    parse_result(result)?;
+
+                    if result != 0 {
+                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    }
+
+                    if resp.metadata.len() != 1 {
+                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    }
+
+                    let resp = self.core.stat(&self.path).await?;
+
+                    let bs = resp.into_body().bytes().await?;
+                    let resp: StatResponse =
+                        serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    let result = resp.result;
+
+                    parse_result(result)?;
+
+                    if result == 2010 || result == 2055 || result == 2002 {
+                        let mut err = Error::new(ErrorKind::Unexpected, &format!("{resp:?}"));
+                        err = err.set_temporary();
+                        return Err(err);
+                    }
+                    exist = true;
                 }
-
-                Ok(())
+                _ => return Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
         }
+        Ok(())
     }
 }

@@ -52,6 +52,7 @@ default = [
   "services-webdav",
   "services-webhdfs",
   "services-azfile",
+  "services-pcloud"
 ]
 
 # Build test utils or not.

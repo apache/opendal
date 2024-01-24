@@ -42,15 +42,37 @@ impl Debug for PcloudError {
     }
 }
 
+/// Deal with error response result.
+pub fn parse_result(result: u32) -> Result<()> {
+    match result / 1000 {
+        4 | 5 => {
+            let mut err = Error::new(ErrorKind::Unexpected, "Pcloud service returns an error.");
+            err = err.set_temporary();
+            Err(err)
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
+
+    let (kind, retryable) = match parts.status.as_u16() {
+        429 | 500 | 502 | 503 | 504 | 509 => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
     let bs = body.bytes().await?;
     let message = String::from_utf8_lossy(&bs).into_owned();
 
-    let mut err = Error::new(ErrorKind::Unexpected, &message);
+    let mut err = Error::new(kind, &message);
 
     err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
 
     Ok(err)
 }

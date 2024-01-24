@@ -71,6 +71,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
+  "services-pcloud",
   "services-koofr",
   "services-mysql",
   "services-redb",
@@ -135,6 +136,7 @@ services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
+services-pcloud = ["opendal/services-pcloud"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]

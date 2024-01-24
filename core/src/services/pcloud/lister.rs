@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::*;
-use super::error::parse_error;
+use super::error::{parse_error, parse_result};
 use crate::raw::oio::Entry;
 use crate::raw::*;
 use crate::*;
@@ -55,6 +55,8 @@ impl oio::PageList for PcloudLister {
                 let resp: ListFolderResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
+
+                parse_result(result)?;
 
                 if result == 2005 {
                     ctx.done = true;

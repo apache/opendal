@@ -347,7 +347,12 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
         probe_lazy!(opendal, blocking_next_start, c_path.as_ptr());
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                probe_lazy!(opendal, blocking_next_complete_ok, c_path.as_ptr(), bytes.len());
+                probe_lazy!(
+                    opendal,
+                    blocking_next_complete_ok,
+                    c_path.as_ptr(),
+                    bytes.len()
+                );
                 Ok(bytes)
             }
             Err(e) => {

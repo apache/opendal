@@ -29,7 +29,6 @@ version.workspace = true
 
 [features]
 default = [
-  # Enable all opendal default feature by default.
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -44,9 +43,6 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
-
-  # Enable blocking layer for blocking ops support.
-  "opendal/layers-blocking",
 ]
 
 services-all = [
@@ -154,7 +150,7 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-opendal.workspace = true
+opendal = { workspace = true, features = ["layers-blocking"] }
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"

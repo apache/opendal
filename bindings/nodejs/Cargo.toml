@@ -29,7 +29,6 @@ version.workspace = true
 
 [features]
 default = [
-  # Enable all opendal default feature by default.
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -44,9 +43,6 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
-
-  # Enable blocking layer for blocking ops support.
-  "opendal/layers-blocking",
 ]
 
 services-all = [
@@ -157,7 +153,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.14.6"
-opendal.workspace = true
+opendal = { workspace = true, features = ["layers-blocking"] }
 tokio = "1"
 
 [build-dependencies]

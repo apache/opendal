@@ -80,14 +80,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     // Enable blocking layer if needed.
     if !op.info().full_capability().blocking {
         let _guard = TEST_RUNTIME.enter();
-        #[cfg(feature = "layers-blocking")]
-        {
-            op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
-        }
-        #[cfg(not(feature = "layers-blocking"))]
-        {
-            panic!("blocking layer cannot be created because feature is not activated");
-        }
+        op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
     }
 
     Ok(Some(op))

@@ -19,12 +19,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Bytes;
+use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
 use super::error::parse_error;
+use super::error::parse_result;
 use super::error::PcloudError;
 use crate::raw::*;
 use crate::*;
@@ -88,6 +90,9 @@ impl PcloudCore {
                 let resp: GetFileLinkResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
+
+                parse_result(result)?;
+
                 if result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
                 }
@@ -136,6 +141,9 @@ impl PcloudCore {
                     let resp: PcloudError =
                         serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                     let result = resp.result;
+
+                    parse_result(result)?;
+
                     if result == 2010 || result == 2055 || result == 2002 {
                         return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
                     }
@@ -337,20 +345,28 @@ impl PcloudCore {
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
 
         let url = format!(
-            "{}/uploadfile?path=/{}&filename={}&username={}&password={}",
+            "{}/uploadfile?path=/{}&nopartial=1&mtime={}&username={}&password={}",
             self.endpoint,
             percent_encode_path(path),
-            percent_encode_path(name),
+            chrono::Local::now().timestamp(),
             self.username,
             self.password
         );
 
-        let req = Request::put(url);
+        let req = Request::post(url);
 
-        // set body
-        let req = req
-            .body(AsyncBody::Bytes(bs))
-            .map_err(new_request_build_error)?;
+        let file_part = FormDataPart::new("file")
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!("form-data; name=\"file\"; filename=\"{name}\"")
+                    .parse()
+                    .unwrap(),
+            )
+            .content(bs);
+
+        let multipart = Multipart::new().part(file_part);
+
+        let req = multipart.apply(req)?;
 
         self.send(req).await
     }
@@ -423,14 +439,14 @@ pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
 
 #[derive(Debug, Deserialize)]
 pub struct GetFileLinkResponse {
-    pub result: u64,
+    pub result: u32,
     pub path: Option<String>,
     pub hosts: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct StatResponse {
-    pub result: u64,
+    pub result: u32,
     pub metadata: Option<StatMetadata>,
 }
 
@@ -445,7 +461,7 @@ pub struct StatMetadata {
 
 #[derive(Debug, Deserialize)]
 pub struct ListFolderResponse {
-    pub result: u64,
+    pub result: u32,
     pub metadata: Option<ListMetadata>,
 }
 
@@ -458,4 +474,10 @@ pub struct ListMetadata {
     pub size: Option<u64>,
     pub contenttype: Option<String>,
     pub contents: Option<Vec<ListMetadata>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UploadFileResponse {
+    pub result: u32,
+    pub metadata: Vec<StatMetadata>,
 }

@@ -110,6 +110,8 @@ layers-throttle = ["dep:governor"]
 layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
+# Enable dtrace support.
+layers-dtrace=["dep:probe"]
 layers-blocking = ["internal-tokio-rt"]
 
 services-alluxio = []
@@ -362,6 +364,8 @@ prometheus = { version = "0.13", features = ["process"], optional = true }
 prometheus-client = { version = "0.22.0", optional = true }
 # for layers-tracing
 tracing = { version = "0.1", optional = true }
+# for layers-dtrace
+probe = { version = "0.5.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

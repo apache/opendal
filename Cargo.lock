@@ -4650,6 +4650,7 @@ dependencies = [
  "percent-encoding",
  "persy",
  "pretty_assertions",
+ "probe",
  "prometheus",
  "prometheus-client",
  "prost 0.11.9",
@@ -5388,6 +5389,12 @@ dependencies = [
  "autocfg",
  "indexmap 1.9.3",
 ]
+
+[[package]]
+name = "probe"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8e2d2444b730c8f027344c60f9e1f1554d7a3342df9bdd425142ed119a6e5a3"
 
 [[package]]
 name = "proc-macro-crate"

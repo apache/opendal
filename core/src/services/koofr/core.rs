@@ -210,7 +210,9 @@ impl KoofrCore {
                 let status = resp.status();
 
                 match status {
-                    StatusCode::OK | StatusCode::CREATED => Ok(()),
+                    // When the directory already exists, Koofr returns 400 Bad Request.
+                    // We should treat it as success.
+                    StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => Ok(()),
                     _ => Err(parse_error(resp).await?),
                 }
             }

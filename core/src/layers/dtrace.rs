@@ -32,6 +32,85 @@ use std::task::Poll;
 ///
 /// This layer is an experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
 ///
+/// For now we have following probes:
+///
+/// ### For Accessor
+///
+/// 1. ${operation}_start, arguments: path
+///     1. create_dir
+///     2. read
+///     3. write
+///     4. stat
+///     5. delete
+///     6. list
+///     7. presign
+///     8. blocking_create_dir
+///     9. blocking_read
+///     10. blocking_write
+///     11. blocking_stat
+///     12. blocking_delete
+///     13. blocking_list
+/// 2. ${operation}_end, arguments: path
+///     1. create_dir
+///     2. read
+///     3. write
+///     4. stat
+///     5. delete
+///     6. list
+///     7. presign
+///     8. blocking_create_dir
+///     9. blocking_read
+///     10. blocking_write
+///     11. blocking_stat
+///     12. blocking_delete
+///     13. blocking_list
+///
+/// ### For Reader
+///
+/// 1. reader_read_start, arguments: path
+/// 2. reader_read_ok, arguments: path, length
+/// 3. reader_read_error, arguments: path
+/// 4. reader_seek_start, arguments: path
+/// 5. reader_seek_ok, arguments: path, offset
+/// 6. reader_seek_error, arguments: path
+/// 7. reader_next_start, arguments: path
+/// 8. reader_next_ok, arguments: path, length
+/// 9. reader_next_error, arguments: path
+/// 10. reader_next_end, arguments: path
+///
+/// ### For BlockingReader
+///
+/// 1. blocking_reader_read_start, arguments: path
+/// 2. blocking_reader_read_ok, arguments: path, length
+/// 3. blocking_reader_read_error, arguments: path
+/// 4. blocking_reader_seek_start, arguments: path
+/// 5. blocking_reader_seek_ok, arguments: path, offset
+/// 6. blocking_reader_seek_error, arguments: path
+/// 7. blocking_reader_next_start, arguments: path
+/// 8. blocking_reader_next_ok, arguments: path, length
+/// 9. blocking_reader_next_error, arguments: path
+///
+/// ### For Writer
+///
+/// 1. writer_write_start, arguments: path
+/// 2. writer_write_ok, arguments: path, length
+/// 3. writer_write_error, arguments: path
+/// 4. writer_poll_abort_start, arguments: path
+/// 5. writer_poll_abort_ok, arguments: path
+/// 6. writer_poll_abort_error, arguments: path
+/// 7. writer_close_start, arguments: path
+/// 8. writer_close_ok, arguments: path
+/// 9. writer_close_error, arguments: path
+///
+/// ### For BlockingWriter
+///
+/// 1. blocking_writer_write_start, arguments: path
+/// 2. blocking_writer_write_ok, arguments: path, length
+/// 3. blocking_writer_write_error, arguments: path
+/// 4. blocking_writer_close_start, arguments: path
+/// 5. blocking_writer_close_ok, arguments: path
+/// 6. blocking_writer_close_error, arguments: path
+///
 /// Example:
 /// ```
 ///

@@ -71,10 +71,10 @@ impl oio::OneShotWrite for SeafileWriter {
             .stream(bs.len() as u64, Box::new(bs));
 
         let multipart = Multipart::new()
-            .part(file_part)
             .part(FormDataPart::new("parent_dir").content("/"))
             .part(FormDataPart::new("relative_path").content(relative_path.clone()))
-            .part(FormDataPart::new("replace").content("1"));
+            .part(FormDataPart::new("replace").content("1"))
+            .part(file_part);
 
         let req = multipart.apply(req)?;
 

@@ -30,9 +30,3 @@ runs:
         OPENDAL_KOOFR_ENDPOINT: op://services/koofr/endpoint
         OPENDAL_KOOFR_EMAIL: op://services/koofr/email
         OPENDAL_KOOFR_PASSWORD: op://services/koofr/password
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        RUST_TEST_THREADS=1
-        EOF

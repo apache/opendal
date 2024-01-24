@@ -95,7 +95,7 @@ typedef struct BlockingLister BlockingLister;
  *
  * Read more backend init examples in [`services`]
  *
- * ```
+ * ```rust
  * # use anyhow::Result;
  * use opendal::services::Fs;
  * use opendal::BlockingOperator;
@@ -121,7 +121,6 @@ typedef struct BlockingLister BlockingLister;
  * Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
  * to wrap the async operator to make it blocking.
  *
- * ```rust
  * # use anyhow::Result;
  * use opendal::layers::BlockingLayer;
  * use opendal::services::S3;

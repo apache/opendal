@@ -28,7 +28,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
   "services-azblob",
   "services-azdls",
@@ -153,7 +152,7 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-opendal.workspace = true
+opendal = { workspace = true, features = ["layers-blocking"] }
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"

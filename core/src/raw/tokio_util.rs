@@ -18,7 +18,6 @@
 use crate::{Error, ErrorKind};
 
 /// Parse tokio error into opendal::Error.
-// HACK - tokio::task::JoinError is not always present, use an existential type.
-pub fn new_task_join_error(e: impl Into<anyhow::Error>) -> Error {
+pub fn new_task_join_error(e: tokio::task::JoinError) -> Error {
     Error::new(ErrorKind::Unexpected, "tokio task join failed").set_source(e)
 }

@@ -60,7 +60,7 @@ default = [
 # And doesn't have any other effects.
 #
 # You should never enable this feature unless you are developing opendal.
-tests = ["dep:rand", "dep:sha2", "dep:dotenvy", "layers-blocking", "tokio/rt-multi-thread"]
+tests = ["dep:rand", "dep:sha2", "dep:dotenvy", "layers-blocking"]
 
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns"]
@@ -110,7 +110,7 @@ layers-throttle = ["dep:governor"]
 layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
-layers-blocking = ["tokio/rt"]
+layers-blocking = ["internal-tokio-rt"]
 
 services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]
@@ -177,12 +177,12 @@ services-oss = [
   "reqsign?/reqwest_request",
 ]
 services-pcloud = []
-services-persy = ["dep:persy"]
+services-persy = ["dep:persy", "internal-tokio-rt"]
 services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
-services-redb = ["dep:redb"]
+services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
-services-rocksdb = ["dep:rocksdb"]
+services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
   "dep:reqsign",
   "reqsign?/services-aws",
@@ -190,8 +190,8 @@ services-s3 = [
 ]
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client"]
-services-sled = ["dep:sled"]
-services-sqlite = ["dep:rusqlite", "dep:r2d2"]
+services-sled = ["dep:sled", "internal-tokio-rt"]
+services-sqlite = ["dep:rusqlite", "dep:r2d2", "internal-tokio-rt"]
 services-supabase = []
 services-swift = []
 services-tikv = ["tikv-client"]
@@ -205,6 +205,8 @@ services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
 services-hdfs-native = ["hdfs-native"]
+
+internal-tokio-rt = ["tokio/rt-multi-thread"]
 
 [lib]
 bench = false

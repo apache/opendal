@@ -61,7 +61,9 @@ pub use serde_util::*;
 mod chrono_util;
 pub use chrono_util::*;
 
+#[cfg(feature = "internal-tokio-rt")]
 mod tokio_util;
+#[cfg(feature = "internal-tokio-rt")]
 pub use tokio_util::*;
 
 mod std_io_util;

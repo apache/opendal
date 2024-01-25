@@ -44,7 +44,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_nested_dir,
             test_list_dir_with_file_path,
             test_list_with_start_after,
-            test_list_with_recursive,
+            test_list_dir_with_recursive,
+            test_list_dir_with_recursive_no_trailing_slash,
+            test_list_file_with_recursive,
             test_list_root_with_recursive,
             test_remove_all
         ))
@@ -476,31 +478,30 @@ pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
         .map(|v| v.path().to_string())
         .collect::<HashSet<_>>();
 
-    assert!(!actual.contains("/"), "empty root should return itself");
-    assert!(!actual.contains(""), "empty root should return empty");
+    assert!(!actual.contains("/"), "empty root should not return itself");
+    assert!(!actual.contains(""), "empty root should not return empty");
     Ok(())
 }
 
 // Walk top down should output as expected
-pub async fn test_list_with_recursive(op: Operator) -> Result<()> {
+pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let expected = [
-        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    let paths = [
+        "x/", "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
     ];
-    for path in expected.iter() {
+    for path in paths.iter() {
         if path.ends_with('/') {
             op.create_dir(&format!("{parent}/{path}")).await?;
         } else {
             op.write(&format!("{parent}/{path}"), "test_scan").await?;
         }
     }
-
     let w = op
         .lister_with(&format!("{parent}/x/"))
         .recursive(true)
         .await?;
-    let actual = w
+    let mut actual = w
         .try_collect::<Vec<_>>()
         .await?
         .into_iter()
@@ -510,13 +511,82 @@ pub async fn test_list_with_recursive(op: Operator) -> Result<()> {
                 .unwrap()
                 .to_string()
         })
-        .collect::<HashSet<_>>();
+        .collect::<Vec<_>>();
+    actual.sort();
 
-    debug!("walk top down: {:?}", actual);
+    let expected = vec![
+        "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+    ];
+    assert_eq!(actual, expected);
+    Ok(())
+}
 
-    assert!(actual.contains("x/y"));
-    assert!(actual.contains("x/x/y"));
-    assert!(actual.contains("x/x/x/y"));
+// same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
+pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let paths = [
+        "x/", "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+    ];
+    for path in paths.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}")).await?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
+        }
+    }
+    let w = op
+        .lister_with(&format!("{parent}/x"))
+        .recursive(true)
+        .await?;
+    let mut actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| {
+            v.path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+
+    let expected = paths.to_vec();
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
+pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let paths = ["y", "yy"];
+    for path in paths.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}")).await?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
+        }
+    }
+    let w = op
+        .lister_with(&format!("{parent}/y"))
+        .recursive(true)
+        .await?;
+    let mut actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| {
+            v.path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+
+    let expected = vec!["yy"];
+    assert_eq!(actual, expected);
     Ok(())
 }
 

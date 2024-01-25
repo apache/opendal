@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use anyhow::Result;
 use log::debug;
@@ -33,7 +32,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_blocking_list_dir_with_metakey,
             test_blocking_list_dir_with_metakey_complete,
             test_blocking_list_non_exist_dir,
-            test_blocking_scan,
+            test_blocking_list_dir_with_recursive,
+            test_blocking_list_dir_with_recursive_no_trailing_slash,
+            test_blocking_list_file_with_recursive,
             test_blocking_remove_all
         ))
     }
@@ -172,45 +173,6 @@ pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-// Walk top down should output as expected
-pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-
-    let expected = [
-        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-    ];
-    for path in expected.iter() {
-        if path.ends_with('/') {
-            op.create_dir(&format!("{parent}/{path}"))?;
-        } else {
-            op.write(&format!("{parent}/{path}"), "test_scan")?;
-        }
-    }
-
-    let w = op
-        .lister_with(&format!("{parent}/x/"))
-        .recursive(true)
-        .call()?;
-    let actual = w
-        .collect::<Vec<_>>()
-        .into_iter()
-        .map(|v| {
-            v.unwrap()
-                .path()
-                .strip_prefix(&format!("{parent}/"))
-                .unwrap()
-                .to_string()
-        })
-        .collect::<HashSet<_>>();
-
-    debug!("walk top down: {:?}", actual);
-
-    assert!(actual.contains("x/y"));
-    assert!(actual.contains("x/x/y"));
-    assert!(actual.contains("x/x/x/y"));
-    Ok(())
-}
-
 // Remove all should remove all in this path.
 pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
@@ -239,5 +201,112 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
         )
     }
 
+    Ok(())
+}
+
+// Walk top down should output as expected
+pub fn test_blocking_list_dir_with_recursive(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let paths = [
+        "x/", "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+    ];
+    for path in paths.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}"))?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
+        }
+    }
+    let w = op
+        .lister_with(&format!("{parent}/x/"))
+        .recursive(true)
+        .call()?;
+    let mut actual = w
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|v| {
+            v.unwrap()
+                .path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+    let expected = vec![
+        "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+    ];
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
+// Walk top down should output as expected
+// same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
+pub fn test_blocking_list_dir_with_recursive_no_trailing_slash(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let paths = [
+        "x/", "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+    ];
+    for path in paths.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}"))?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
+        }
+    }
+    let w = op
+        .lister_with(&format!("{parent}/x"))
+        .recursive(true)
+        .call()?;
+    let mut actual = w
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|v| {
+            v.unwrap()
+                .path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+    let expected = paths.to_vec();
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
+// Walk top down should output as expected
+// same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
+pub fn test_blocking_list_file_with_recursive(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let paths = ["y", "yy"];
+    for path in paths.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}"))?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
+        }
+    }
+    let w = op
+        .lister_with(&format!("{parent}/y"))
+        .recursive(true)
+        .call()?;
+    let mut actual = w
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|v| {
+            v.unwrap()
+                .path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+    let expected = vec!["yy"];
+    assert_eq!(actual, expected);
     Ok(())
 }

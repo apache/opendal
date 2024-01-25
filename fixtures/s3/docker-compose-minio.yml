@@ -19,7 +19,7 @@ version: '3.8'
 
 services:
   minio:
-    image: wktk/minio-server
+    image: bitnami/minio:2024.1.18
     ports:
       - 9000:9000
     environment:

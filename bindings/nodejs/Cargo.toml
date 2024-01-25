@@ -28,7 +28,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
   "services-azblob",
   "services-azdls",
@@ -49,7 +48,9 @@ default = [
 services-all = [
   "default",
 
+  "services-alluxio",
   "services-azfile",
+  "services-b2",
   "services-cacache",
   "services-dashmap",
   "services-dropbox",
@@ -59,13 +60,17 @@ services-all = [
   # FIXME waiting for this issue close https://github.com/async-rs/async-tls/issues/55
   #  "services-ftp",
   "services-gdrive",
+  "services-gridfs",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
   "services-huggingface",
   "services-ipfs",
+  "services-koofr",
+  "services-libsql",
   "services-memcached",
   "services-mini-moka",
   "services-moka",
+  "services-mongodb",
   "services-onedrive",
   "services-persy",
   "services-postgresql",
@@ -73,20 +78,15 @@ services-all = [
   "services-redb",
   "services-redis",
   "services-rocksdb",
+  "services-seafile",
   "services-sled",
+  "services-sqlite",
   "services-supabase",
   "services-swift",
   "services-tikv",
+  "services-upyun",
   "services-vercel-artifacts",
   "services-wasabi",
-  "services-mongodb",
-  "services-gridfs",
-  "services-sqlite",
-  "services-libsql",
-  "services-alluxio",
-  "services-b2",
-  "services-seafile",
-  "services-upyun",
 ]
 
 # Default services provided by opendal.
@@ -120,6 +120,7 @@ services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -154,7 +155,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.14.6"
-opendal.workspace = true
+opendal = { workspace = true, features = ["layers-blocking"] }
 tokio = "1"
 
 [build-dependencies]

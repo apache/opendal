@@ -15,27 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "opendal-c"
-publish = false
+name: koofr
+description: 'Behavior test for Koofr. This service is sponsored by @suyanhanx.'
 
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.67"
-version = "0.44.2"
-
-[lib]
-crate-type = ["cdylib", "staticlib"]
-doc = false
-
-[build-dependencies]
-cbindgen = "0.26.0"
-
-[dependencies]
-bytes = "1.4.0"
-once_cell = "1.17.1"
-opendal = { path = "../../core", features = ["layers-blocking"] }
-tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
+runs:
+  using: "composite"
+  steps:
+    - name: Setup
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_KOOFR_ROOT: op://services/koofr/root
+        OPENDAL_KOOFR_ENDPOINT: op://services/koofr/endpoint
+        OPENDAL_KOOFR_EMAIL: op://services/koofr/email
+        OPENDAL_KOOFR_PASSWORD: op://services/koofr/password

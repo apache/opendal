@@ -38,7 +38,9 @@ pub use logging::LoggingLayer;
 mod timeout;
 pub use timeout::TimeoutLayer;
 
+#[cfg(feature = "layers-blocking")]
 mod blocking;
+#[cfg(feature = "layers-blocking")]
 pub use blocking::BlockingLayer;
 
 #[cfg(feature = "layers-chaos")]
@@ -101,3 +103,8 @@ pub use self::await_tree::AwaitTreeLayer;
 mod async_backtrace;
 #[cfg(feature = "layers-async-backtrace")]
 pub use self::async_backtrace::AsyncBacktraceLayer;
+
+#[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
+mod dtrace;
+#[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
+pub use self::dtrace::DtraceLayer;

@@ -50,7 +50,7 @@ pub struct KoofrConfig {
     pub endpoint: String,
     /// Koofr email.
     pub email: String,
-    /// password of this backend.
+    /// password of this backend. (Must be the application password)
     pub password: Option<String>,
 }
 
@@ -115,10 +115,16 @@ impl KoofrBuilder {
         self
     }
 
-    /// Koofr app password.
+    /// Koofr application password.
     ///
     /// Go to https://app.koofr.net/app/admin/preferences/password.
-    /// Click "Generate Password" button to generate a new password.
+    /// Click "Generate Password" button to generate a new application password.
+    ///
+    /// # Notes
+    ///
+    /// This is not user's Koofr account password.
+    /// Please use the application password instead.
+    /// Please also remind users of this.
     pub fn password(&mut self, password: &str) -> &mut Self {
         self.config.password = if password.is_empty() {
             None
@@ -173,7 +179,6 @@ impl Builder for KoofrBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        // Handle endpoint.
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
@@ -182,7 +187,6 @@ impl Builder for KoofrBuilder {
 
         debug!("backend use endpoint {}", &self.config.endpoint);
 
-        // Handle email.
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
                 .with_operation("Builder::build")
@@ -253,7 +257,9 @@ impl Accessor for KoofrBackend {
                 write_can_empty: true,
 
                 delete: true,
+
                 rename: true,
+
                 copy: true,
 
                 list: true,
@@ -348,6 +354,11 @@ impl Accessor for KoofrBackend {
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         self.core.ensure_dir_exists(to).await?;
+
+        if from == to {
+            return Ok(RpCopy::default());
+        }
+
         let resp = self.core.remove(to).await?;
 
         let status = resp.status();
@@ -372,6 +383,11 @@ impl Accessor for KoofrBackend {
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         self.core.ensure_dir_exists(to).await?;
+
+        if from == to {
+            return Ok(RpRename::default());
+        }
+
         let resp = self.core.remove(to).await?;
 
         let status = resp.status();

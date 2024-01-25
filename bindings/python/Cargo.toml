@@ -28,7 +28,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
   "services-azblob",
   "services-azdls",
@@ -89,6 +88,7 @@ services-all = [
   "services-b2",
   "services-seafile",
   "services-upyun",
+  "services-koofr",
 ]
 
 # Default services provided by opendal.
@@ -122,6 +122,7 @@ services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -151,7 +152,7 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-opendal.workspace = true
+opendal = { workspace = true, features = ["layers-blocking"] }
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"

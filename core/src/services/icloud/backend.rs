@@ -20,6 +20,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -235,7 +238,18 @@ impl Builder for IcloudBuilder {
             })?
         };
 
-        let session_data = SessionData::new();
+        let session_data: SessionData;
+
+        let path = Path::new("/home/bokket/dal/core/src/services/icloud/cache.json");
+        if path.exists() {
+            let file = File::open(path).expect("open must success");
+            let reader = BufReader::new(file);
+            session_data = serde_json::from_reader(reader).expect("read must success");
+        } else {
+            session_data = SessionData::new();
+        };
+
+        //let session_data = SessionData::new();
 
         let signer = IcloudSigner {
             client: client.clone(),
@@ -279,7 +293,7 @@ impl Accessor for IcloudBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-                // read: true,
+                read: true,
                 write: true,
 
                 create_dir: true,
@@ -321,13 +335,14 @@ impl Accessor for IcloudBackend {
         Ok(RpStat::new(meta))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let path = build_abs_path(&self.core.root, path);
 
         let parent = get_parent(&path);
 
+        let _ = self.core.path_cache.ensure_dir(&parent).await?;
+
         // As Icloud Drive don't allow files have the same name, we need not to check if the file exists.
-        // If the file exists, we will keep its ID and update it.
         let folder_id = self.core.path_cache.get(parent).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("write parent_path not found: {}", parent),
@@ -335,7 +350,7 @@ impl Accessor for IcloudBackend {
 
         Ok((
             RpWrite::default(),
-            oio::OneShotWriter::new(IcloudWriter::new(self.core.clone(), path, folder_id)),
+            oio::OneShotWriter::new(IcloudWriter::new(self.core.clone(), path, folder_id, op)),
         ))
     }
 

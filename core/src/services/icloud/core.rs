@@ -62,7 +62,7 @@ const AUTH_HEADERS: [(&str, &str); 7] = [
     ),
 ];
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SessionData {
     oauth_state: String,
     session_id: Option<String>,
@@ -131,6 +131,54 @@ impl IcloudSigner {
     /// iCloud will use our oauth state as client id.
     pub fn client_id(&self) -> &str {
         &self.data.oauth_state
+    }
+
+    /// TODO!!!
+    /// Now iCloud automatically limits PCS protection after multiple authentication
+    /// This is not good for individual accounts, we need to persist the cookies with PCS and not init() next time
+    async fn authenticate(&mut self) -> Result<()> {
+        // Setup to get the session id.
+        let uri = format!("{}/accountLogin", SETUP_ENDPOINT);
+
+        let body = serde_json::to_vec(&json!({
+            "accountCountryCode": self.data.account_country.clone().unwrap_or_default(),
+            "dsWebAuthToken":self.ds_web_auth_token.clone().unwrap_or_default(),
+            "extended_login": true,
+            "trustToken": self.trust_token.clone().unwrap_or_default(),}))
+        .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req)?;
+
+        let resp = self.client.send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp).await?);
+        }
+
+        // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
+        // If we just don't update the signer's data on the next persistence.
+        // Its global session is invalid.
+        self.update(&resp)?;
+
+        let bs = resp.into_body().bytes().await?;
+        let auth_info: IcloudWebservicesResponse =
+            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+
+        // Check if we have extra challenge to take.
+        if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
+            return Err(Error::new(ErrorKind::Unexpected, "Apple icloud AuthenticationFailed:Unauthorized request:Needs two-factor authentication"));
+        }
+
+        if let Some(v) = &auth_info.webservices.drivews.url {
+            self.data.drivews_url = v.to_string();
+        }
+        if let Some(v) = &auth_info.webservices.docws.url {
+            self.data.docws_url = v.to_string();
+        }
+        Ok(())
     }
 
     async fn init(&mut self) -> Result<()> {
@@ -245,6 +293,10 @@ impl IcloudSigner {
             );
         }
 
+        for (key, value) in AUTH_HEADERS {
+            headers.insert(key, build_header_value(value)?);
+        }
+
         if !self.data.cookies.is_empty() {
             let cookies: Vec<String> = self
                 .data
@@ -257,11 +309,6 @@ impl IcloudSigner {
                 build_header_value(&cookies.as_slice().join("; "))?,
             );
         }
-
-        for (key, value) in AUTH_HEADERS {
-            headers.insert(key, build_header_value(value)?);
-        }
-
         Ok(())
     }
 
@@ -427,8 +474,6 @@ impl IcloudCore {
         //"https://p219-docws.icloud.com.cn:443"
         let uri = format!("{}/ws/{}/upload/web", signer.docws_url().await?, zone);
 
-        println!("get_upload_url path:{}", name);
-
         let body = serde_json::to_vec(&json!([
             {
                 "filename": name,
@@ -452,8 +497,6 @@ impl IcloudCore {
         let upload: Vec<IcloudUpload> =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
-        println!("{}", upload[0].url);
-
         Ok(upload[0].clone())
     }
 
@@ -465,27 +508,44 @@ impl IcloudCore {
         size: u64,
         data: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let base = get_basename(path);
-        println!("write base:{}", base);
+        let mut base = get_basename(path);
+        if base.ends_with('/') {
+            base = base.trim_end_matches('/');
+        }
 
         let upload = self.get_upload_contentws_url(base, zone, size).await?;
 
         let mut signer = self.signer.lock().await;
 
+        let file_part = FormDataPart::new("file")
+            .header(
+                header::CONTENT_LENGTH,
+                build_header_value(size.to_string().as_str())?,
+            )
+            .header(header::CONTENT_TYPE, "multipart/form-data".parse().unwrap())
+            .content(data);
+
+        let multipart = Multipart::new().part(file_part);
+
         let req = Request::post(upload.url);
+
+        let req = multipart.apply(req)?;
 
         // headers.insert(CONTENT_TYPE,"multipart/form-data".parse()?);
 
-        let multipart = Multipart::new().part(
-            FormDataPart::new("file")
-                .header(
-                    header::CONTENT_TYPE,
-                    "application/octet-stream".parse().unwrap(),
-                )
-                .content(data),
-        );
-
-        let req = multipart.apply(req)?;
+        // let req = Request::post(upload.url);
+        //
+        // let multipart = Multipart::new().part(
+        //     FormDataPart::new("file")
+        //         .header(header::CONTENT_LENGTH,build_header_value(&size.to_string())?)
+        //         .header(
+        //             header::CONTENT_TYPE,
+        //             "multipart/form-data".parse().unwrap(),
+        //         )
+        //         .content(data),
+        // );
+        //
+        // let req = multipart.apply(req)?;
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
@@ -496,16 +556,17 @@ impl IcloudCore {
         let contentws: IcloudContentws =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
-        println!("{}", contentws.single_file.size);
-
         let docwsid = folder_id
-            .strip_prefix("FILE::com.apple.CloudDocs::")
+            .strip_prefix("FOLDER::com.apple.CloudDocs::")
             .ok_or(Error::new(
                 ErrorKind::NotFound,
                 &format!("send_file docwsid not found: {}", folder_id),
             ))?;
 
-        println!("docwsid:{}", docwsid);
+        println!(
+            "get_upload_url path:{} | contenws size:{} | docwsid:{}",
+            base, contentws.single_file.size, docwsid
+        );
 
         let sf_info = contentws.single_file;
 
@@ -540,15 +601,23 @@ impl IcloudCore {
             data.insert("receipt".to_string(), json!(sf_info.receipt));
         }
 
-        let data = body.to_string();
+        let async_body = body.to_string();
 
         let uri = format!("{}/ws/{}/update/documents", signer.docws_url().await?, zone);
 
         let req = Request::post(uri)
-            .body(AsyncBody::Bytes(Bytes::from(data)))
+            .body(AsyncBody::Bytes(Bytes::from(async_body)))
             .map_err(new_request_build_error)?;
 
         let resp = signer.send(req).await?;
+
+        self.path_cache
+            .insert(
+                path,
+                &format!("FILE::com.apple.CloudDocs::{}", upload.document_id),
+            )
+            .await;
+
         Ok(resp)
     }
 
@@ -703,6 +772,11 @@ impl PathQuery for IcloudPathQuery {
         let create_folder: IcloudCreateFolder =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
+        println!(
+            "name:{},create_dir:{}",
+            base, create_folder.folders[0].docwsid
+        );
+
         Ok(create_folder.folders[0].drivewsid.clone())
     }
 }
@@ -783,6 +857,7 @@ pub struct IcloudRoot {
     pub date_created: String,
     #[serde(default)]
     pub direct_children_count: i64,
+    #[serde(rename = "docwsid")]
     pub docwsid: String,
     pub drivewsid: String,
     pub etag: String,
@@ -862,17 +937,22 @@ pub struct IcloudResult {
     pub document: IcloudDocument,
 }
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct IcloudDocument {
     pub deleted: bool,
+    #[serde(rename = "document_id")]
     pub document_id: String,
     pub etag: String,
+    #[serde(rename = "hasChainedParent")]
     pub has_chained_parent: bool,
+    #[serde(rename = "item_id")]
     pub item_id: String,
+    #[serde(rename = "last_editor_name")]
     pub last_editor_name: String,
     pub mtime: i64,
     pub name: String,
+    #[serde(rename = "parent_id")]
     pub parent_id: String,
+    #[serde(rename = "short_guid")]
     pub short_guid: String,
     pub size: i64,
     #[serde(rename = "type")]
@@ -900,6 +980,7 @@ pub struct SingleFile {
     #[serde(rename = "referenceChecksum")]
     pub reference_checksum: String,
     pub size: i64,
+    #[serde(rename = "wrappingKey")]
     pub wrapping_key: String,
 }
 

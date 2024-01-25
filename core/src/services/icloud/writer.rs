@@ -19,9 +19,9 @@ use async_trait::async_trait;
 use http::StatusCode;
 use std::sync::Arc;
 
-use super::core::{parse_error, IcloudCore};
-use crate::raw::oio;
+use super::core::{parse_error, IcloudCore, IcloudUpdate};
 use crate::raw::oio::WriteBuf;
+use crate::raw::{new_json_deserialize_error, oio, OpWrite};
 use crate::Result;
 
 pub struct IcloudWriter {
@@ -30,14 +30,17 @@ pub struct IcloudWriter {
     path: String,
 
     folder_id: String,
+
+    op: OpWrite,
 }
 
 impl IcloudWriter {
-    pub fn new(core: Arc<IcloudCore>, path: String, folder_id: String) -> Self {
+    pub fn new(core: Arc<IcloudCore>, path: String, folder_id: String, op: OpWrite) -> Self {
         IcloudWriter {
             core,
             path,
             folder_id,
+            op,
         }
     }
 }

@@ -94,9 +94,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
     # Remove all files that ends with `.md`
     changed_files = [f for f in changed_files if not f.endswith(".md")]
 
-    service_pattern = r"core/src/services/([^/]+)/"
-    test_pattern = r".github/services/([^/]+)/"
-
     for p in changed_files:
         # workflow behavior tests affected
         if p == ".github/workflows/behavior_test.yml":
@@ -134,7 +131,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 hint.all_service = True
 
         # core service affected
-        match = re.search(service_pattern, p)
+        match = re.search(r"core/src/services/([^/]+)/", p)
         if match:
             hint.core = True
             for language in LANGUAGE_BINDING:
@@ -142,7 +139,15 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.services.add(match.group(1))
 
         # core test affected
-        match = re.search(test_pattern, p)
+        match = re.search(r".github/services/([^/]+)/", p)
+        if match:
+            hint.core = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
+            hint.services.add(match.group(1))
+
+        # fixture affected
+        match = re.search(r"fixtures/([^/]+)/", p)
         if match:
             hint.core = True
             for language in LANGUAGE_BINDING:

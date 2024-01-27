@@ -22,10 +22,12 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use chrono::DateTime;
 use log::debug;
+use nuclei::Handle;
 use uuid::Uuid;
 
 use super::lister::FsLister;
 use super::writer::FsWriter;
+use crate::raw::oio::NucleiReader;
 use crate::raw::*;
 use crate::*;
 
@@ -240,8 +242,8 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::TokioReader<tokio::fs::File>;
-    type Writer = FsWriter<tokio::fs::File>;
+    type Reader = NucleiReader<Handle<std::fs::File>>;
+    type Writer = FsWriter<std::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type BlockingReader = oio::StdReader<std::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
@@ -321,13 +323,13 @@ impl Accessor for FsBackend {
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let f = tokio::fs::OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .read(true)
             .open(&p)
-            .await
             .map_err(new_std_io_error)?;
+        let f = Handle::new(f).unwrap();
 
-        let r = oio::TokioReader::new(f);
+        let r = oio::NucleiReader::new(f);
         Ok((RpRead::new(), r))
     }
 
@@ -353,7 +355,7 @@ impl Accessor for FsBackend {
             (p, None)
         };
 
-        let mut open_options = tokio::fs::OpenOptions::new();
+        let mut open_options = std::fs::OpenOptions::new();
         open_options.create(true).write(true);
         if op.append() {
             open_options.append(true);
@@ -363,7 +365,6 @@ impl Accessor for FsBackend {
 
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .await
             .map_err(new_std_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))

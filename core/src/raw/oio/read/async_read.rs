@@ -22,21 +22,28 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use tokio::io::AsyncRead;
-use tokio::io::AsyncSeek;
-use tokio::io::ReadBuf;
+use futures::AsyncSeek;
+use futures::{AsyncRead, Stream};
+use pin_project_lite::pin_project;
 
 use crate::raw::*;
 use crate::*;
 
-/// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
-pub struct TokioReader<R: AsyncRead + AsyncSeek> {
-    inner: R,
+pin_project! {
+    /// NucleiReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
+    pub struct NucleiReader<R>
+    where
+        R: AsyncRead,
+        R: AsyncSeek
+    {
+        #[pin]
+        inner: R,
 
-    seek_pos: Option<SeekFrom>,
+        seek_pos: Option<SeekFrom>,
+    }
 }
 
-impl<R: AsyncRead + AsyncSeek> TokioReader<R> {
+impl<R: AsyncRead + AsyncSeek> NucleiReader<R> {
     /// Create a new tokio reader.
     pub fn new(inner: R) -> Self {
         Self {
@@ -46,40 +53,50 @@ impl<R: AsyncRead + AsyncSeek> TokioReader<R> {
     }
 }
 
-impl<R> oio::Read for TokioReader<R>
+impl<R> oio::Read for NucleiReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let mut buf = ReadBuf::new(buf);
+    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
+        let this = Pin::new(self).project();
 
-        ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf)).map_err(|err| {
+        this.inner.poll_read(cx, &mut buf).map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Read)
-                .with_context("source", "TokioReader")
-        })?;
-
-        Poll::Ready(Ok(buf.filled().len()))
+                .with_context("source", "NucleiReader")
+        })
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        if self.seek_pos != Some(pos) {
-            Pin::new(&mut self.inner).start_seek(pos).map_err(|err| {
+        let mut this = Pin::new(self).project();
+        let mut seek_pos = this.seek_pos.as_mut();
+
+        let mut read_pos: u64 = 0;
+        if seek_pos != Some(pos).as_mut() {
+            let p = this.inner.poll_seek(cx, pos).map_err(|err| {
                 new_std_io_error(err)
                     .with_operation(oio::ReadOperation::Seek)
-                    .with_context("source", "TokioReader")
-            })?;
-            self.seek_pos = Some(pos)
+                    .with_context("source", "NucleiReader")
+            });
+
+            match p {
+                Poll::Ready(o) => match o {
+                    Ok(x) => {
+                        read_pos = x;
+                        seek_pos = Some(pos).as_mut();
+                    }
+                    Err(err) => {
+                        seek_pos = None.as_mut();
+                    }
+                },
+                Poll::Pending => {}
+            }
+
+            // Ensure that next iteration comes with a position.
+            seek_pos = Some(pos).as_mut()
         }
 
-        // NOTE: don't return error by `?` here, we need to reset seek_pos.
-        let pos = ready!(Pin::new(&mut self.inner).poll_complete(cx).map_err(|err| {
-            new_std_io_error(err)
-                .with_operation(oio::ReadOperation::Seek)
-                .with_context("source", "TokioReader")
-        }));
-        self.seek_pos = None;
-        Poll::Ready(pos)
+        Poll::Ready(Ok(read_pos))
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {

@@ -40,8 +40,8 @@ pub use into_read_from_stream::FromStreamReader;
 mod futures_read;
 pub use futures_read::FuturesReader;
 
-mod tokio_read;
-pub use tokio_read::TokioReader;
+mod async_read;
+pub use async_read::NucleiReader;
 
 mod std_read;
 pub use std_read::StdReader;

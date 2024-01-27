@@ -24,6 +24,10 @@ exclude = [
   "bindings/ocaml",
   "bindings/php",
   "bindings/ruby",
+  "bindings/haskell",
+  "bindings/lua",
+  "bindings/dotnet",
+  "bindings/cpp",
 ]
 members = [
   "core",
@@ -34,10 +38,6 @@ members = [
   "bindings/nodejs",
   "bindings/python",
   "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/cpp",
 
   "bin/oli",
   "bin/oay",

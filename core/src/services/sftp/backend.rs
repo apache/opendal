@@ -242,7 +242,7 @@ impl Debug for SftpBackend {
 
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = oio::TokioReader<Pin<Box<TokioCompatFile>>>;
+    type Reader = oio::NucleiReader<Pin<Box<TokioCompatFile>>>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type BlockingReader = ();
@@ -328,7 +328,7 @@ impl Accessor for SftpBackend {
         // - `TokioCompatFile::new(f)` makes it implements tokio AsyncRead + AsyncSeek for openssh File.
         // - `Box::pin(x)` to make sure this reader implements `Unpin`, since `TokioCompatFile` is not.
         // - `oio::TokioReader::new(x)` makes it a `oio::TokioReader` which implements `oio::Read`.
-        let r = oio::TokioReader::new(Box::pin(TokioCompatFile::new(f)));
+        let r = oio::NucleiReader::new(Box::pin(TokioCompatFile::new(f)));
 
         Ok((RpRead::new(), r))
     }

@@ -19,13 +19,13 @@
 name = "opendal-cpp"
 publish = false
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.67"
+version = "0.44.2"
 
 [lib]
 crate-type = ["staticlib"]
@@ -34,7 +34,7 @@ crate-type = ["staticlib"]
 anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
-opendal.workspace = true
+opendal = { path = "../../core" }
 
 [build-dependencies]
 cxx-build = "1.0"

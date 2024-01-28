@@ -53,6 +53,7 @@ services-all = [
   "default",
 
   "services-cacache",
+  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
   "services-etcd",
@@ -98,6 +99,7 @@ services-all = [
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-cos = ["opendal/services-cos"]
+services-chainsafe = ["opendal/services-chainsafe"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]
 services-ghac = ["opendal/services-ghac"]

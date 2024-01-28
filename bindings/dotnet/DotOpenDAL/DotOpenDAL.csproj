@@ -18,7 +18,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="../target/native/osx-aarch_64/libopendal_dotnet.dylib">
+        <None Include="../target/debug/libopendal_dotnet.so">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>

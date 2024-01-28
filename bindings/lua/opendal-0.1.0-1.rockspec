@@ -24,5 +24,5 @@ build = {
     modules = {
         ["opendal"] = "opendal_lua",
     },
-    target_path = "../../target",
+    target_path = "target",
 }

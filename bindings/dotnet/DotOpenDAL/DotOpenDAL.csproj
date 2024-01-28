@@ -27,7 +27,7 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>
-    <ItemGroup Condition="$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier.StartsWith('linux'))">
+    <ItemGroup Condition="$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier.StartsWith('win'))">
         <None Include="../target/debug/libopendal_dotnet.dll">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>

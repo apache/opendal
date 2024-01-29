@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+use http::{header, HeaderMap, StatusCode};
 use log::debug;
 use serde::Deserialize;
 
@@ -200,14 +200,15 @@ impl Builder for PcloudBuilder {
                 .with_context("service", Scheme::Pcloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Pcloud)
-            })?
-        };
+        // Make sure all connection closed.
+        //
+        // Ref: https://docs.pcloud.com/protocols/http_json_protocol/single_connection.html
+        let client_builder = reqwest::ClientBuilder::new().default_headers({
+            let mut map = HeaderMap::default();
+            map.insert(header::CONNECTION, build_header_value("close")?);
+            map
+        });
+        let client = HttpClient::build(client_builder)?;
 
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {

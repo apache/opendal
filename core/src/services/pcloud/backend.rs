@@ -253,7 +253,6 @@ impl Accessor for PcloudBackend {
                 delete: true,
                 rename: true,
                 copy: true,
-
                 list: true,
 
                 ..Default::default()

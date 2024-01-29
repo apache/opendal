@@ -30,3 +30,9 @@ runs:
         OPENDAL_PCLOUD_ENDPOINT: op://services/pcloud/endpoint
         OPENDAL_PCLOUD_USERNAME: op://services/pcloud/username
         OPENDAL_PCLOUD_PASSWORD: op://services/pcloud/password
+    - name: Only run pcloud with 1 thread
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        RUST_TEST_THREADS=1
+        EOF

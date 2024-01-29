@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.45.0] - 2024-01-29
+
+### Added
+* feat(ofs): introduce ofs execute bin by @oowl in https://github.com/apache/opendal/pull/4033
+* feat: add a missing news by @WenyXu in https://github.com/apache/opendal/pull/4056
+* feat(services/koofr): set test for koofr by @suyanhanx in https://github.com/apache/opendal/pull/4050
+* feat(layers/dtrace): Support User Statically-Defined Tracing(aka USDT) on Linux by @Zheaoli in https://github.com/apache/opendal/pull/4053
+* feat(website): add missing news and organize the onboarding guide by @morristai in https://github.com/apache/opendal/pull/4072
+### Changed
+* refactor!: avoid hard dep to tokio rt by @tisonkun in https://github.com/apache/opendal/pull/4061
+### Fixed
+* fix(examples/cpp): display the results to standard output. by @SYaoJun in https://github.com/apache/opendal/pull/4040
+* fix(service/icloud):Missing 'X-APPLE-WEBAUTH-USER cookie' and URL initialized failed by @bokket in https://github.com/apache/opendal/pull/4029
+* fix: Implement timeout layer correctly by using timeout by @Xuanwo in https://github.com/apache/opendal/pull/4059
+* fix(koofr): create_dir when exist by @hoslo in https://github.com/apache/opendal/pull/4062
+* fix(seafile): test_list_dir_with_metakey by @hoslo in https://github.com/apache/opendal/pull/4063
+* fix: list path recursive should not return path itself by @youngsofun in https://github.com/apache/opendal/pull/4067
+### Docs
+* docs: Remove not needed actions in release guide by @Xuanwo in https://github.com/apache/opendal/pull/4037
+* docs: fix spelling errors in README.md by @SYaoJun in https://github.com/apache/opendal/pull/4039
+* docs: New PMC member Liuqing Yue by @Xuanwo in https://github.com/apache/opendal/pull/4047
+* docs: New Committer Yang Shuai by @Xuanwo in https://github.com/apache/opendal/pull/4054
+* docs(services/sftp): add more explanation for endpoint config by @silver-ymz in https://github.com/apache/opendal/pull/4055
+### CI
+* ci(services/s3): Use minio/minio image instead by @Xuanwo in https://github.com/apache/opendal/pull/4070
+* ci: Fix CI after moving out of workspacs by @Xuanwo in https://github.com/apache/opendal/pull/4081
+### Chore
+* chore: Delete bindings/ruby/cucumber.yml by @tisonkun in https://github.com/apache/opendal/pull/4030
+* chore(website): Bump download link for 0.44.2 release by @Zheaoli in https://github.com/apache/opendal/pull/4034
+* chore(website): Update the release tips by @Zheaoli in https://github.com/apache/opendal/pull/4036
+* chore: add doap file by @tisonkun in https://github.com/apache/opendal/pull/4038
+* chore(website): Add extra artifacts check process in release document by @Zheaoli in https://github.com/apache/opendal/pull/4041
+* chore(bindings/dotnet): update cargo.lock and set up ci by @suyanhanx in https://github.com/apache/opendal/pull/4084
+* chore(bindings/dotnet): build os detect by @suyanhanx in https://github.com/apache/opendal/pull/4085
+* chore(bindings/ocaml): pinning OCaml binding opendal version for release by @Ranxy in https://github.com/apache/opendal/pull/4086
+
+
 ## [v0.44.2] - 2023-01-19
 
 ### Added

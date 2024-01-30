@@ -213,6 +213,11 @@ impl OpPresign {
     pub fn expire(&self) -> Duration {
         self.expire
     }
+
+    /// Consume OpPresign into (Duration, PresignOperation)
+    pub fn into_parts(self) -> (Duration, PresignOperation) {
+        (self.expire, self.op)
+    }
 }
 
 /// Presign operation used for presign.
@@ -302,6 +307,9 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    /// The maximum buffer capability.
+    /// `None` stand for disable buffer.
+    buffer: Option<usize>,
 }
 
 impl OpRead {
@@ -404,6 +412,18 @@ impl OpRead {
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
+
+    /// Set the buffer capability.
+    pub fn with_buffer(mut self, buffer: usize) -> Self {
+        self.buffer = Some(buffer);
+
+        self
+    }
+
+    /// Get buffer from option.
+    pub fn buffer(&self) -> Option<usize> {
+        self.buffer
+    }
 }
 
 /// Args for `stat` operation.
@@ -411,6 +431,9 @@ impl OpRead {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    override_content_type: Option<String>,
+    override_cache_control: Option<String>,
+    override_content_disposition: Option<String>,
     version: Option<String>,
 }
 
@@ -442,6 +465,40 @@ impl OpStat {
         self.if_none_match.as_deref()
     }
 
+    /// Sets the content-disposition header that should be send back by the remote read operation.
+    pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
+        self.override_content_disposition = Some(content_disposition.into());
+        self
+    }
+
+    /// Returns the content-disposition header that should be send back by the remote read
+    /// operation.
+    pub fn override_content_disposition(&self) -> Option<&str> {
+        self.override_content_disposition.as_deref()
+    }
+
+    /// Sets the cache-control header that should be send back by the remote read operation.
+    pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
+        self.override_cache_control = Some(cache_control.into());
+        self
+    }
+
+    /// Returns the cache-control header that should be send back by the remote read operation.
+    pub fn override_cache_control(&self) -> Option<&str> {
+        self.override_cache_control.as_deref()
+    }
+
+    /// Sets the content-type header that should be send back by the remote read operation.
+    pub fn with_override_content_type(mut self, content_type: &str) -> Self {
+        self.override_content_type = Some(content_type.into());
+        self
+    }
+
+    /// Returns the content-type header that should be send back by the remote read operation.
+    pub fn override_content_type(&self) -> Option<&str> {
+        self.override_content_type.as_deref()
+    }
+
     /// Set the version of the option
     pub fn with_version(mut self, version: &str) -> Self {
         self.version = Some(version.to_string());
@@ -459,6 +516,7 @@ impl OpStat {
 pub struct OpWrite {
     append: bool,
     buffer: Option<usize>,
+    concurrent: usize,
 
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -542,6 +600,17 @@ impl OpWrite {
     /// Set the content type of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
+        self
+    }
+
+    /// Get the concurrent.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
         self
     }
 }

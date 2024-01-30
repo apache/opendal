@@ -23,41 +23,63 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use log::debug;
+use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
-use crate::raw::normalize_root;
-use crate::raw::HttpClient;
-use crate::services::gdrive::core::GdriveCore;
+use crate::raw::{normalize_root, PathCacher};
+use crate::raw::{ConfigDeserializer, HttpClient};
 use crate::services::gdrive::core::GdriveSigner;
+use crate::services::gdrive::core::{GdriveCore, GdrivePathQuery};
 use crate::Scheme;
 use crate::*;
+
+/// [GoogleDrive](https://drive.google.com/) configuration.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct GdriveConfig {
+    /// The root for gdrive
+    pub root: Option<String>,
+    /// Access token for gdrive.
+    pub access_token: Option<String>,
+    /// Refresh token for gdrive.
+    pub refresh_token: Option<String>,
+    /// Client id for gdrive.
+    pub client_id: Option<String>,
+    /// Client secret for gdrive.
+    pub client_secret: Option<String>,
+}
+
+impl Debug for GdriveConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
 #[derive(Default)]
 #[doc = include_str!("docs.md")]
 pub struct GdriveBuilder {
-    root: Option<String>,
-
-    access_token: Option<String>,
-
-    refresh_token: Option<String>,
-    client_id: Option<String>,
-    client_secret: Option<String>,
+    config: GdriveConfig,
 
     http_client: Option<HttpClient>,
 }
 
 impl Debug for GdriveBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").field("root", &self.root).finish()
+        f.debug_struct("Backend")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
 impl GdriveBuilder {
     /// Set root path of GoogleDrive folder.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.config.root = Some(root.to_string());
         self
     }
 
@@ -72,7 +94,7 @@ impl GdriveBuilder {
     /// - If you want to use the access token for a long time,
     /// you can use the refresh token to get a new access token.
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
-        self.access_token = Some(access_token.to_string());
+        self.config.access_token = Some(access_token.to_string());
         self
     }
 
@@ -82,7 +104,7 @@ impl GdriveBuilder {
     ///
     /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
     pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
-        self.refresh_token = Some(refresh_token.to_string());
+        self.config.refresh_token = Some(refresh_token.to_string());
         self
     }
 
@@ -90,7 +112,7 @@ impl GdriveBuilder {
     ///
     /// This is required for OAuth 2.0 Flow to refresh the access token.
     pub fn client_id(&mut self, client_id: &str) -> &mut Self {
-        self.client_id = Some(client_id.to_string());
+        self.config.client_id = Some(client_id.to_string());
         self
     }
 
@@ -98,7 +120,7 @@ impl GdriveBuilder {
     ///
     /// This is required for OAuth 2.0 Flow with refresh the access token.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
-        self.client_secret = Some(client_secret.to_string());
+        self.config.client_secret = Some(client_secret.to_string());
         self
     }
 
@@ -120,19 +142,18 @@ impl Builder for GdriveBuilder {
     type Accessor = GdriveBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
+        let config = GdriveConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("access_token").map(|v| builder.access_token(v));
-        map.get("refresh_token").map(|v| builder.refresh_token(v));
-        map.get("client_id").map(|v| builder.client_id(v));
-        map.get("client_secret").map(|v| builder.client_secret(v));
+        Self {
+            config,
 
-        builder
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -144,22 +165,25 @@ impl Builder for GdriveBuilder {
             })?
         };
 
-        let signer = match (self.access_token.take(), self.refresh_token.take()) {
-            (Some(access_token), None) => GdriveSigner {
-                access_token,
+        let mut signer = GdriveSigner::new(client.clone());
+        match (
+            self.config.access_token.take(),
+            self.config.refresh_token.take(),
+        ) {
+            (Some(access_token), None) => {
+                signer.access_token = access_token;
                 // We will never expire user specified access token.
-                expires_in: DateTime::<Utc>::MAX_UTC,
-                ..Default::default()
-            },
+                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+            }
             (None, Some(refresh_token)) => {
-                let client_id = self.client_id.take().ok_or_else(|| {
+                let client_id = self.config.client_id.take().ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
                     .with_context("service", Scheme::Gdrive)
                 })?;
-                let client_secret = self.client_secret.take().ok_or_else(|| {
+                let client_secret = self.config.client_secret.take().ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
@@ -167,12 +191,10 @@ impl Builder for GdriveBuilder {
                     .with_context("service", Scheme::Gdrive)
                 })?;
 
-                GdriveSigner {
-                    refresh_token,
-                    client_id,
-                    client_secret,
-                    ..Default::default()
-                }
+                signer.refresh_token = refresh_token;
+                signer.client = client.clone();
+                signer.client_id = client_id;
+                signer.client_secret = client_secret;
             }
             (Some(_), Some(_)) => {
                 return Err(Error::new(
@@ -190,12 +212,13 @@ impl Builder for GdriveBuilder {
             }
         };
 
+        let signer = Arc::new(Mutex::new(signer));
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
                 root,
-                signer: Arc::new(Mutex::new(signer)),
-                client,
-                path_cache: Arc::default(),
+                signer: signer.clone(),
+                client: client.clone(),
+                path_cache: PathCacher::new(GdrivePathQuery::new(client, signer)).with_lock(),
             }),
         })
     }

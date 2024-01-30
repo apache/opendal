@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::RocksdbBuilder as Rocksdb;
+pub use backend::RocksdbConfig;

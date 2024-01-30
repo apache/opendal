@@ -19,7 +19,123 @@
 
 /// <reference types="node" />
 
-const { Operator, RetryLayer } = require('./generated.js')
+const { Writable, Readable } = require('node:stream')
+
+class ReadStream extends Readable {
+  constructor(reader, options) {
+    super(options)
+    this.reader = reader
+  }
+
+  _read(size) {
+    const buf = Buffer.alloc(size)
+    this.reader
+      .read(buf)
+      .then((s) => {
+        if (s === 0n) {
+          this.push(null)
+        } else {
+          this.push(buf.subarray(0, Number(s)))
+        }
+      })
+      .catch((e) => {
+        this.emit('error', e)
+      })
+  }
+}
+
+class BlockingReadStream extends Readable {
+  constructor(reader, options) {
+    super(options)
+    this.reader = reader
+  }
+
+  _read(size) {
+    try {
+      const buf = Buffer.alloc(size)
+      let s = this.reader.read(buf)
+      if (s === 0n) {
+        this.push(null)
+      } else {
+        this.push(buf.subarray(0, Number(s)))
+      }
+    } catch (e) {
+      this.emit('error', e)
+    }
+  }
+}
+
+class WriteStream extends Writable {
+  constructor(writer, options) {
+    super(options)
+    this.writer = writer
+  }
+
+  _write(chunk, encoding, callback) {
+    this.writer
+      .write(chunk)
+      .then(() => {
+        callback()
+      })
+      .catch((e) => {
+        callback(e)
+      })
+  }
+
+  _final(callback) {
+    this.writer
+      .close()
+      .then(() => {
+        callback()
+      })
+      .catch((e) => {
+        callback(e)
+      })
+  }
+}
+
+class BlockingWriteStream extends Writable {
+  constructor(writer, options) {
+    super(options)
+    this.writer = writer
+  }
+
+  _write(chunk, encoding, callback) {
+    try {
+      this.writer.write(chunk)
+      callback()
+    } catch (e) {
+      callback(e)
+    }
+  }
+
+  _final(callback) {
+    try {
+      this.writer.close()
+      callback()
+    } catch (e) {
+      callback(e)
+    }
+  }
+}
+
+const { Operator, RetryLayer, BlockingReader, Reader, BlockingWriter, Writer } = require('./generated.js')
+
+BlockingReader.prototype.createReadStream = function (options) {
+  return new BlockingReadStream(this, options)
+}
+
+Reader.prototype.createReadStream = function (options) {
+  return new ReadStream(this, options)
+}
+
+BlockingWriter.prototype.createWriteStream = function (options) {
+  return new BlockingWriteStream(this, options)
+}
+
+Writer.prototype.createWriteStream = function (options) {
+  return new WriteStream(this, options)
+}
 
 module.exports.Operator = Operator
 module.exports.layers = {

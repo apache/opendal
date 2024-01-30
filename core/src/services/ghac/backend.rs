@@ -26,9 +26,9 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::USER_AGENT;
-use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::{header, Request};
 use log::debug;
 use serde::Deserialize;
 use serde::Serialize;
@@ -227,10 +227,10 @@ pub struct GhacBackend {
 #[async_trait]
 impl Accessor for GhacBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = GhacWriter;
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -254,6 +254,50 @@ impl Accessor for GhacBackend {
         am
     }
 
+    /// Some self-hosted GHES instances are backed by AWS S3 services which only returns
+    /// signed url with `GET` method. So we will use `GET` with empty range to simulate
+    /// `HEAD` instead.
+    ///
+    /// In this way, we can support both self-hosted GHES and `github.com`.
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let req = self.ghac_query(path).await?;
+
+        let resp = self.client.send(req).await?;
+
+        let location = if resp.status() == StatusCode::OK {
+            let slc = resp.into_body().bytes().await?;
+            let query_resp: GhacQueryResponse =
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+            query_resp.archive_location
+        } else {
+            return Err(parse_error(resp).await?);
+        };
+
+        let req = Request::get(location)
+            .header(header::RANGE, "bytes=0-0")
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        let resp = self.client.send(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
+                let mut meta = parse_into_metadata(path, resp.headers())?;
+                // Correct content length via returning content range.
+                meta.set_content_length(
+                    meta.content_range()
+                        .expect("content range must be valid")
+                        .size()
+                        .expect("content range must contains size"),
+                );
+
+                resp.into_body().consume().await?;
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let req = self.ghac_query(path).await?;
 
@@ -275,9 +319,16 @@ impl Accessor for GhacBackend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -299,34 +350,6 @@ impl Accessor for GhacBackend {
         };
 
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let req = self.ghac_query(path).await?;
-
-        let resp = self.client.send(req).await?;
-
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
-            let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
-            query_resp.archive_location
-        } else {
-            return Err(parse_error(resp).await?);
-        };
-
-        let req = self.ghac_head_location(&location).await?;
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -393,12 +416,6 @@ impl GhacBackend {
         }
 
         req.body(AsyncBody::Empty).map_err(new_request_build_error)
-    }
-
-    async fn ghac_head_location(&self, location: &str) -> Result<Request<AsyncBody>> {
-        Request::head(location)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
     }
 
     async fn ghac_reserve(&self, path: &str) -> Result<Request<AsyncBody>> {

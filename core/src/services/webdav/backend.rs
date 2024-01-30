@@ -29,6 +29,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
@@ -37,25 +38,50 @@ use super::writer::WebdavWriter;
 use crate::raw::*;
 use crate::*;
 
+/// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct WebdavConfig {
+    /// endpoint of this backend
+    pub endpoint: Option<String>,
+    /// username of this backend
+    pub username: Option<String>,
+    /// password of this backend
+    pub password: Option<String>,
+    /// token of this backend
+    pub token: Option<String>,
+    /// root of this backend
+    pub root: Option<String>,
+}
+
+impl Debug for WebdavConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("WebdavConfig");
+
+        d.field("endpoint", &self.endpoint)
+            .field("username", &self.username)
+            .field("root", &self.root);
+
+        d.finish_non_exhaustive()
+    }
+}
+
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct WebdavBuilder {
-    endpoint: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    token: Option<String>,
-    root: Option<String>,
+    config: WebdavConfig,
     http_client: Option<HttpClient>,
 }
 
 impl Debug for WebdavBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("Builder");
-        de.field("endpoint", &self.endpoint);
-        de.field("root", &self.root);
+        let mut d = f.debug_struct("WebdavBuilder");
 
-        de.finish()
+        d.field("config", &self.config);
+
+        d.finish_non_exhaustive()
     }
 }
 
@@ -64,7 +90,7 @@ impl WebdavBuilder {
     ///
     /// For example: `https://example.com`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -73,12 +99,12 @@ impl WebdavBuilder {
         self
     }
 
-    /// set the password for Webdav
+    /// set the username for Webdav
     ///
-    /// default: no password
+    /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
-            self.username = Some(username.to_owned());
+            self.config.username = Some(username.to_owned());
         }
         self
     }
@@ -88,7 +114,7 @@ impl WebdavBuilder {
     /// default: no password
     pub fn password(&mut self, password: &str) -> &mut Self {
         if !password.is_empty() {
-            self.password = Some(password.to_owned());
+            self.config.password = Some(password.to_owned());
         }
         self
     }
@@ -98,14 +124,14 @@ impl WebdavBuilder {
     /// default: no access token
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_owned());
+            self.config.token = Some(token.to_owned());
         }
         self
     }
 
     /// Set root path of http backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -145,7 +171,7 @@ impl Builder for WebdavBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
@@ -162,7 +188,7 @@ impl Builder for WebdavBuilder {
         // returned in the `href`.
         let base_dir = uri.path().trim_end_matches('/');
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -175,13 +201,13 @@ impl Builder for WebdavBuilder {
         };
 
         let mut auth = None;
-        if let Some(username) = &self.username {
+        if let Some(username) = &self.config.username {
             auth = Some(format_authorization_by_basic(
                 username,
-                self.password.as_deref().unwrap_or_default(),
+                self.config.password.as_deref().unwrap_or_default(),
             )?);
         }
-        if let Some(token) = &self.token {
+        if let Some(token) = &self.config.token {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 
@@ -220,10 +246,10 @@ impl Debug for WebdavBackend {
 #[async_trait]
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<WebdavWriter>;
-    type BlockingWriter = ();
     type Lister = Option<oio::PageLister<WebdavLister>>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -248,7 +274,6 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -261,68 +286,6 @@ impl Accessor for WebdavBackend {
         self.create_dir_internal(path).await?;
 
         Ok(RpCreateDir::default())
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.webdav_get(path, args).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.ensure_parent_path(path).await?;
-
-        let p = build_abs_path(&self.root, path);
-
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(WebdavWriter::new(self.clone(), args, p)),
-        ))
-    }
-
-    /// # Notes
-    ///
-    /// There is a strange dead lock issues when copying a non-exist file, so we will check
-    /// if the source exists first.
-    ///
-    /// For example: <https://github.com/apache/incubator-opendal/pull/2809>
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        if let Err(err) = self.stat(from, OpStat::default()).await {
-            if err.kind() == ErrorKind::NotFound {
-                return Err(err);
-            }
-        }
-
-        self.ensure_parent_path(to).await?;
-
-        let resp = self.webdav_copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.ensure_parent_path(to).await?;
-
-        let resp = self.webdav_move(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -344,7 +307,7 @@ impl Accessor for WebdavBackend {
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
         let item = result
             .response
-            .get(0)
+            .first()
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
@@ -353,6 +316,37 @@ impl Accessor for WebdavBackend {
             })?
             .parse_into_metadata()?;
         Ok(RpStat::new(item))
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.webdav_get(path, args).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.ensure_parent_path(path).await?;
+
+        let p = build_abs_path(&self.root, path);
+
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(WebdavWriter::new(self.clone(), args, p)),
+        ))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -391,6 +385,44 @@ impl Accessor for WebdavBackend {
                 Ok((RpList::default(), Some(oio::PageLister::new(l))))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    /// # Notes
+    ///
+    /// There is a strange dead lock issues when copying a non-exist file, so we will check
+    /// if the source exists first.
+    ///
+    /// For example: <https://github.com/apache/opendal/pull/2809>
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        if let Err(err) = self.stat(from, OpStat::default()).await {
+            if err.kind() == ErrorKind::NotFound {
+                return Err(err);
+            }
+        }
+
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_move(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

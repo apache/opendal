@@ -1,8 +1,14 @@
+# Upgrade to v0.44
+
+## Breaking change
+
+Because of [a TLS lib issue](https://github.com/apache/opendal/issues/3650), we temporarily disable the `services-ftp` feature.
+
 # Upgrade to v0.41
 
 ## Breaking change for constructing operators
 
-[PR-3166](https://github.com/apache/incubator-opendal/pull/3166) changes the API for constructing operators:
+[PR-3166](https://github.com/apache/opendal/pull/3166) changes the API for constructing operators:
 
 Previous:
 

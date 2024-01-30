@@ -42,8 +42,8 @@ runs:
             shell: bash
             working-directory: bindings/nodejs
             run: |
-                yarn build:debug
-                yarn test
+                pnpm build:debug
+                pnpm test
             env:
               NAPI_FEATURES: ${{ inputs.feature }}
               OPENDAL_TEST: ${{ inputs.service }}

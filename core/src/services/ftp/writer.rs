@@ -21,6 +21,7 @@ use futures::AsyncWriteExt;
 use super::backend::FtpBackend;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
+use crate::services::ftp::err::parse_error;
 use crate::*;
 
 pub type FtpWriters = oio::OneShotWriter<FtpWriter>;
@@ -53,12 +54,18 @@ impl oio::OneShotWrite for FtpWriter {
         let bs = bs.bytes(size);
 
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
-        let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
+        let mut data_stream = ftp_stream
+            .append_with_stream(&self.path)
+            .await
+            .map_err(parse_error)?;
         data_stream.write_all(&bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
         })?;
 
-        ftp_stream.finalize_put_stream(data_stream).await?;
+        ftp_stream
+            .finalize_put_stream(data_stream)
+            .await
+            .map_err(parse_error)?;
         Ok(())
     }
 }

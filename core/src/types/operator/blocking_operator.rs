@@ -33,7 +33,7 @@ use crate::*;
 ///
 /// Read more backend init examples in [`services`]
 ///
-/// ```
+/// ```rust
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
 /// use opendal::BlockingOperator;
@@ -59,7 +59,8 @@ use crate::*;
 /// Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
 /// to wrap the async operator to make it blocking.
 ///
-/// ```rust
+#[cfg_attr(feature = "layers-blocking", doc = "```rust")]
+#[cfg_attr(not(feature = "layers-blocking"), doc = "```ignore")]
 /// # use anyhow::Result;
 /// use opendal::layers::BlockingLayer;
 /// use opendal::services::S3;
@@ -399,20 +400,18 @@ impl BlockingOperator {
                 }
 
                 let range = args.range();
-                let size_hint = match range.size() {
-                    Some(v) => v,
-                    None => {
-                        let mut size = inner
-                            .blocking_stat(&path, OpStat::default())?
-                            .into_metadata()
-                            .content_length();
-                        size -= range.offset().unwrap_or(0);
-                        size
-                    }
+                let (size_hint, range) = if let Some(size) = range.size() {
+                    (size, range)
+                } else {
+                    let size = inner
+                        .blocking_stat(&path, OpStat::default())?
+                        .into_metadata()
+                        .content_length();
+                    let range = range.complete(size);
+                    (range.size().unwrap(), range)
                 };
 
-                let (_, mut s) = inner.blocking_read(&path, args)?;
-
+                let (_, mut s) = inner.blocking_read(&path, args.with_range(range))?;
                 let mut buf = Vec::with_capacity(size_hint as usize);
                 s.read_to_end(&mut buf)?;
 
@@ -888,17 +887,17 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// List entries within a given directory.
+    /// List entries that starts with given `path` in parent dir.
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use `BlockingOperator::list_with("path").recursive(true)`
     /// instead.
     ///
-    /// ## Streaming
+    /// ## Streaming List
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -907,7 +906,7 @@ impl BlockingOperator {
     /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please use [`BlockingOperator::list_with`] and `metakey`.
@@ -939,20 +938,20 @@ impl BlockingOperator {
         self.list_with(path).call()
     }
 
-    /// List entries within a given directory with options.
+    /// List entries that starts with given `path` in parent dir. with options.
     ///
     /// # Notes
     ///
-    /// ## For streaming
+    /// ## Streaming List
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
     /// contains a lot of entries.
     ///
-    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Metadata
+    /// ## Reuse Metadata
     ///
     /// The only metadata that is guaranteed to be available is the `Mode`.
     /// For fetching more metadata, please specify the `metakey`.
@@ -1024,16 +1023,6 @@ impl BlockingOperator {
             path,
             OpList::default(),
             |inner, path, args| {
-                if !validate_path(&path, EntryMode::DIR) {
-                    return Err(Error::new(
-                        ErrorKind::NotADirectory,
-                        "the path trying to list should end with `/`",
-                    )
-                    .with_operation("BlockingOperator::list")
-                    .with_context("service", inner.info().scheme().into_static())
-                    .with_context("path", &path));
-                }
-
                 let lister = BlockingLister::create(inner, &path, args)?;
 
                 lister.collect()
@@ -1041,15 +1030,14 @@ impl BlockingOperator {
         ))
     }
 
-    /// List entries within a given directory as an iterator.
+    /// List entries that starts with given `path` in parent dir.
     ///
-    /// This function will create a new handle to list entries.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// This function will create a new [`BlockingLister`] to list entries. Users can stop listing
+    /// via dropping this [`Lister`].
     ///
     /// # Notes
     ///
-    /// ## Listing recursively
+    /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use [`BlockingOperator::lister_with`] and `delimiter("")`
@@ -1197,19 +1185,7 @@ impl BlockingOperator {
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                if !validate_path(&path, EntryMode::DIR) {
-                    return Err(Error::new(
-                        ErrorKind::NotADirectory,
-                        "the path trying to list should end with `/`",
-                    )
-                    .with_operation("BlockingOperator::list")
-                    .with_context("service", inner.info().scheme().into_static())
-                    .with_context("path", &path));
-                }
-
-                BlockingLister::create(inner, &path, args)
-            },
+            |inner, path, args| BlockingLister::create(inner, &path, args),
         ))
     }
 }

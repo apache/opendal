@@ -23,7 +23,7 @@
 // Nearly all the functions exposed to C FFI are unsafe.
 #![allow(clippy::missing_safety_doc)]
 
-//! The OpenDAL C binding.
+//! The Apache OpenDAL C binding.
 //!
 //! The OpenDAL C binding allows users to utilize the OpenDAL's amazing storage accessing capability
 //! in the C programming language.

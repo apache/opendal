@@ -17,14 +17,12 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use pin_project::pin_project;
 
 use crate::*;
 
@@ -38,9 +36,6 @@ pub type Streamer = Box<dyn Stream>;
 pub trait Stream: Unpin + Send + Sync {
     /// Poll next item `Result<Bytes>` from the stream.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
-
-    /// Reset this stream to the beginning.
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
 }
 
 impl Stream for () {
@@ -48,12 +43,6 @@ impl Stream for () {
         let _ = cx;
 
         unimplemented!("poll_next is required to be implemented for oio::Stream")
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let _ = cx;
-
-        unimplemented!("poll_reset is required to be implemented for oio::Stream")
     }
 }
 
@@ -63,65 +52,11 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         (**self).poll_next(cx)
     }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        (**self).poll_reset(cx)
-    }
 }
 
 impl Stream for dyn raw::oio::Read {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         raw::oio::Read::poll_next(self, cx)
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let _ = raw::oio::Read::poll_seek(self, cx, std::io::SeekFrom::Start(0))?;
-
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match self.try_lock() {
-            Ok(mut this) => this.poll_next(cx),
-            Err(_) => Poll::Ready(Some(Err(Error::new(
-                ErrorKind::Unexpected,
-                "the stream is expected to have only one consumer, but it's not",
-            )))),
-        }
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match self.try_lock() {
-            Ok(mut this) => this.poll_reset(cx),
-            Err(_) => Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "the stream is expected to have only one consumer, but it's not",
-            ))),
-        }
-    }
-}
-
-impl<T: Stream + ?Sized> Stream for Arc<tokio::sync::Mutex<T>> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match self.try_lock() {
-            Ok(mut this) => this.poll_next(cx),
-            Err(_) => Poll::Ready(Some(Err(Error::new(
-                ErrorKind::Unexpected,
-                "the stream is expected to have only one consumer, but it's not",
-            )))),
-        }
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match self.try_lock() {
-            Ok(mut this) => this.poll_reset(cx),
-            Err(_) => Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "the stream is expected to have only one consumer, but it's not",
-            ))),
-        }
     }
 }
 
@@ -143,11 +78,6 @@ pub trait StreamExt: Stream {
     /// Build a future for `poll_next`.
     fn next(&mut self) -> NextFuture<'_, Self> {
         NextFuture { inner: self }
-    }
-
-    /// Build a future for `poll_reset`.
-    fn reset(&mut self) -> ResetFuture<'_, Self> {
-        ResetFuture { inner: self }
     }
 
     /// Chain this stream with another stream.
@@ -174,8 +104,6 @@ pub trait StreamExt: Stream {
     }
 }
 
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
 pub struct NextFuture<'a, T: Stream + Unpin + ?Sized> {
     inner: &'a mut T,
 }
@@ -186,27 +114,8 @@ where
 {
     type Output = Option<Result<Bytes>>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let this = self.project();
-        Pin::new(this.inner).poll_next(cx)
-    }
-}
-
-/// Make this future `!Unpin` for compatibility with async trait methods.
-#[pin_project(!Unpin)]
-pub struct ResetFuture<'a, T: Stream + Unpin + ?Sized> {
-    inner: &'a mut T,
-}
-
-impl<T> Future for ResetFuture<'_, T>
-where
-    T: Stream + Unpin + ?Sized,
-{
-    type Output = Result<()>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
-        Pin::new(this.inner).poll_reset(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        self.inner.poll_next(cx)
     }
 }
 
@@ -227,13 +136,6 @@ impl<S1: Stream, S2: Stream> Stream for Chain<S1, S2> {
             self.first = None;
         }
         self.second.poll_next(cx)
-    }
-
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "chained stream doesn't support reset",
-        )))
     }
 }
 

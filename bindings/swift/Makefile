@@ -30,7 +30,7 @@ all: build-swift
 build-c: $(DIRS)
 	cargo build --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
 	cp $(C_BINDING_SRC_DIR)/include/* $(INCLUDE_DIR)
-	cp $(ROOT_DIR)/target/debug/libopendal_c.a $(LIB_DIR)
+	cp $(C_BINDING_SRC_DIR)/target/debug/libopendal_c.a $(LIB_DIR)
 
 .PHONY: build-swift
 build-swift: build-c

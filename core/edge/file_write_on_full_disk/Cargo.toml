@@ -21,6 +21,8 @@ name = "edge_test_file_write_on_full_disk"
 publish = false
 version = "0.0.0"
 
+license.workspace = true
+
 [dependencies]
 futures = "0.3"
 opendal = { workspace = true }

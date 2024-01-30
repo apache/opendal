@@ -1,6 +1,6 @@
 # File Write on Fill Disk
 
-Reported by [The `FsBackend` only writes partial bytes and doesn't raise any errors](https://github.com/apache/incubator-opendal/issues/3052).
+Reported by [The `FsBackend` only writes partial bytes and doesn't raise any errors](https://github.com/apache/opendal/issues/3052).
 
 Setup:
 

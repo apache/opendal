@@ -116,8 +116,6 @@ pub struct opendal_capability {
     pub list_with_limit: bool,
     /// If backend supports list with start after.
     pub list_with_start_after: bool,
-    /// If backend support list with using slash as delimiter.
-    pub list_without_recursive: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
 
@@ -266,7 +264,6 @@ impl From<core::Capability> for opendal_capability {
             list_with_limit: value.list_with_limit,
             list_with_start_after: value.list_with_start_after,
             list_with_recursive: value.list_with_recursive,
-            list_without_recursive: value.list_without_recursive,
             presign: value.presign,
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,

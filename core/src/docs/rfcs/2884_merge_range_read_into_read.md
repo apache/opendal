@@ -1,7 +1,7 @@
 - Proposal Name: `merge_range_read_into_read`
 - Start Date: 2023-08-20
-- RFC PR: [apache/incubator-opendal#2884](https://github.com/apache/incubator-opendal/pull/2884)
-- Tracking Issue: [apache/incubator-opendal#2885](https://github.com/apache/incubator-opendal/issues/2885)
+- RFC PR: [apache/opendal#2884](https://github.com/apache/opendal/pull/2884)
+- Tracking Issue: [apache/opendal#2885](https://github.com/apache/opendal/issues/2885)
 
 # Summary
 

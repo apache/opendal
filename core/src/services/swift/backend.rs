@@ -215,10 +215,10 @@ pub struct SwiftBackend {
 #[async_trait]
 impl Accessor for SwiftBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<SwiftWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<SwiftLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -237,49 +237,11 @@ impl Accessor for SwiftBackend {
                 delete: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 ..Default::default()
             });
         am
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.swift_read(path, args).await?;
-
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
-
-        let w = oio::OneShotWriter::new(writer);
-
-        return Ok((RpWrite::default(), w));
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        // cannot copy objects larger than 5 GB.
-        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
-        let resp = self.core.swift_copy(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -294,6 +256,34 @@ impl Accessor for SwiftBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.swift_read(path, args).await?;
+
+        match resp.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
+
+        let w = oio::OneShotWriter::new(writer);
+
+        return Ok((RpWrite::default(), w));
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
@@ -317,5 +307,21 @@ impl Accessor for SwiftBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        // cannot copy objects larger than 5 GB.
+        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
+        let resp = self.core.swift_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

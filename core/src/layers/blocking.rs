@@ -170,7 +170,8 @@ pub struct BlockingAccessor<A: Accessor> {
     handle: Handle,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;

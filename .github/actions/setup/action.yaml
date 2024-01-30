@@ -26,6 +26,8 @@ inputs:
     description: "This setup needs nextest or not"
   need-protoc:
     description: "This setup needs protoc or not"
+  need-deny:
+      description: "This setup needs cargo-deny or not"
   github-token:
     description: "Github Token"
     default: ""
@@ -38,7 +40,8 @@ runs:
       run: |
         # Disable full debug symbol generation to speed up CI build and keep memory down
         # "1" means line tables only, which is useful for panic tracebacks.
-        echo "RUSTFLAGS=-C debuginfo=1" >> $GITHUB_ENV
+        # About `force-frame-pointers`, here's the discussion history: https://github.com/apache/opendal/issues/3756
+        echo "RUSTFLAGS=-C force-frame-pointers=yes -C debuginfo=1" >> $GITHUB_ENV
         # Enable backtraces
         echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
         # Enable logging
@@ -75,6 +78,21 @@ runs:
       if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
       shell: bash
       run: cargo install cargo-nextest@0.9.59 --locked
+
+    - name: Cache cargo-deny on linux
+      id: cache-deny
+      uses: actions/cache@v3
+      if: inputs.need-deny == 'true'
+      with:
+          path: |
+              ~/.cargo/bin/cargo-deny
+              ~/.cargo/bin/cargo-deny.exe
+          key: r0-${{runner.os}}-deny-0.14.3
+
+    - name: Build cargo-deny if not cached
+      if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
+      shell: bash
+      run: cargo install cargo-deny@0.14.3 --locked
 
     - name: Setup rust on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'

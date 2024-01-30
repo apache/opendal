@@ -26,26 +26,43 @@ use opendal::raw::tests::WriteChecker;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use opendal::Result;
+use tracing::warn;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 struct FuzzInput {
     actions: Vec<WriteAction>,
+    buffer: Option<usize>,
+    concurrent: Option<usize>,
 }
 
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let mut actions = vec![];
+        let buffer = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(1..=8 * 1024 * 1024)?)
+        } else {
+            None
+        };
+        let concurrent = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(0..=16)?)
+        } else {
+            None
+        };
 
-        let count = u.int_in_range(128..=1024)?;
+        let count = u.int_in_range(1..=1024)?;
 
         for _ in 0..count {
             let size = u.int_in_range(1..=MAX_DATA_SIZE)?;
             actions.push(WriteAction::Write(size));
         }
 
-        Ok(FuzzInput { actions })
+        Ok(FuzzInput {
+            actions,
+            buffer,
+            concurrent,
+        })
     }
 }
 
@@ -62,7 +79,17 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 
     let checker = WriteChecker::new(total_size);
 
-    let mut writer = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
+    let mut writer = op.writer_with(&path);
+    if let Some(buffer) = input.buffer {
+        writer = writer.buffer(buffer);
+    } else if let Some(min_size) = op.info().full_capability().write_multi_min_size {
+        writer = writer.buffer(min_size);
+    }
+    if let Some(concurrent) = input.concurrent {
+        writer = writer.concurrent(concurrent);
+    }
+
+    let mut writer = writer.await?;
 
     for chunk in checker.chunks() {
         writer.write(chunk.clone()).await?;
@@ -87,6 +114,11 @@ fuzz_target!(|input: FuzzInput| {
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {
+        if !op.info().full_capability().write_can_multi {
+            warn!("service doesn't support write multi, skip fuzzing");
+            return;
+        }
+
         TEST_RUNTIME.block_on(async {
             fuzz_writer(op, input.clone())
                 .await

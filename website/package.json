@@ -41,5 +41,5 @@
   "engines": {
     "node": ">=16.14"
   },
-  "packageManager": "yarn@3.5.1"
+  "packageManager": "pnpm@8.11.0"
 }

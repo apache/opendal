@@ -28,7 +28,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
   "services-azblob",
   "services-azdls",
@@ -51,15 +50,18 @@ services-all = [
 
   "services-azfile",
   "services-cacache",
+  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
-  "services-etcd",
+  # FIXME this service need protoc
+  # "services-etcd",
   # FIXME this requires a preinstalled fdb library
   # "services-foundationdb",
-  "services-ftp",
+  # "services-ftp",
   "services-gdrive",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
+  "services-huggingface",
   "services-ipfs",
   "services-memcached",
   "services-mini-moka",
@@ -70,11 +72,13 @@ services-all = [
   "services-mysql",
   "services-redb",
   "services-redis",
-  "services-rocksdb",
+  # FIXME how to support rocksdb services in bindings?
+  # "services-rocksdb",
   "services-sled",
   "services-supabase",
   "services-swift",
-  "services-tikv",
+  # FIXME this service need protoc
+  # "services-tikv",
   "services-vercel-artifacts",
   "services-wasabi",
   "services-mongodb",
@@ -82,12 +86,17 @@ services-all = [
   "services-sqlite",
   "services-libsql",
   "services-alluxio",
+  "services-b2",
+  "services-seafile",
+  "services-upyun",
+  "services-koofr",
 ]
 
 # Default services provided by opendal.
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-cos = ["opendal/services-cos"]
+services-chainsafe = ["opendal/services-chainsafe"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]
 services-ghac = ["opendal/services-ghac"]
@@ -103,6 +112,7 @@ services-webhdfs = ["opendal/services-webhdfs"]
 # Optional services provided by opendal.
 services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
+services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]
@@ -112,7 +122,9 @@ services-ftp = ["opendal/services-ftp"]
 services-gdrive = ["opendal/services-gdrive"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
+services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -125,12 +137,14 @@ services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]
+services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
+services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 
@@ -140,7 +154,14 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-opendal.workspace = true
-pyo3 = "0.19"
-pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
+opendal = { workspace = true, features = ["layers-blocking"] }
+pyo3 = "0.20.1"
+pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
+
+[target.'cfg(unix)'.dependencies.opendal]
+features = [
+  # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
+  "services-sftp",
+]
+workspace = true

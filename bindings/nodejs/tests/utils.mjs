@@ -19,15 +19,14 @@
 
 import crypto from 'node:crypto'
 
+// Generate random bytes between 1 and 1024 KB
 export function generateBytes() {
-  const size = Math.floor(Math.random() * 1024) + 1
-  const content = []
+  return crypto.randomBytes((Math.floor(Math.random() * 1024) + 1) * 1024)
+}
 
-  for (let i = 0; i < size; i++) {
-    content.push(Math.floor(Math.random() * 256))
-  }
-
-  return Buffer.from(content)
+// Generate random bytes with given size
+export function generateFixedBytes(size) {
+  return crypto.randomBytes(size)
 }
 
 export function loadTestSchemeFromEnv() {

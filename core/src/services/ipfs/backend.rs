@@ -162,10 +162,10 @@ impl Debug for IpfsBackend {
 #[async_trait]
 impl Accessor for IpfsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = oio::PageLister<DirStream>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -180,23 +180,11 @@ impl Accessor for IpfsBackend {
                 read_with_range: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });
 
         ma
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipfs_get(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     /// IPFS's stat behavior highly depends on its implementation.
@@ -346,6 +334,17 @@ impl Accessor for IpfsBackend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.ipfs_get(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
             _ => Err(parse_error(resp).await?),
         }
     }

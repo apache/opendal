@@ -21,7 +21,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
-use async_trait::async_trait;
 use suppaftp::list::File;
 
 use crate::raw::*;
@@ -41,7 +40,6 @@ impl FtpLister {
     }
 }
 
-#[async_trait]
 impl oio::List for FtpLister {
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         let de = match self.file_iter.next() {

@@ -1,7 +1,7 @@
 - Proposal Name: `operation_extension`
 - Start Date: 2023-03-23
-- RFC PR: [apache/incubator-opendal#1735](https://github.com/apache/incubator-opendal/pull/1735)
-- Tracking Issue: [apache/incubator-opendal#1738](https://github.com/apache/incubator-opendal/issues/1738)
+- RFC PR: [apache/opendal#1735](https://github.com/apache/opendal/pull/1735)
+- Tracking Issue: [apache/opendal#1738](https://github.com/apache/opendal/issues/1738)
 
 # Summary
 
@@ -16,9 +16,9 @@ OpenDAL only supports a limited set of capabilities for operations.
 
 Our community has a strong need for more additional native features. For example:
 
-- [opendal#892](https://github.com/apache/incubator-opendal/issues/892) wants [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control): Allow users to specify the cache control headers for the uploaded files.
-- [opendal#825](https://github.com/apache/incubator-opendal/issues/825) wants [If-Match](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Match) and [If-None-Match](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match): Allow users to makes a request conditional.
-- [opendal#1726](https://github.com/apache/incubator-opendal/issues/1726) wants [response-content-disposition](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html): Allow users to specify the content disposition for the downloaded files.
+- [opendal#892](https://github.com/apache/opendal/issues/892) wants [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control): Allow users to specify the cache control headers for the uploaded files.
+- [opendal#825](https://github.com/apache/opendal/issues/825) wants [If-Match](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Match) and [If-None-Match](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match): Allow users to makes a request conditional.
+- [opendal#1726](https://github.com/apache/opendal/issues/1726) wants [response-content-disposition](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html): Allow users to specify the content disposition for the downloaded files.
 
 All of these feature requests are essentially asking for the same thing: the capability to define supplementary arguments for operations, particularly about HTTP services.
 

@@ -17,27 +17,31 @@
 
 [workspace]
 default-members = ["core"]
-exclude = ["examples"]
+exclude = [
+  "examples",
+
+  "bindings/c",
+  "bindings/ocaml",
+  "bindings/php",
+  "bindings/ruby",
+  "bindings/haskell",
+  "bindings/lua",
+  "bindings/dotnet",
+  "bindings/cpp",
+]
 members = [
   "core",
   "core/fuzz",
   "core/edge/*",
   "core/benches/vs_*",
 
-  "bindings/c",
   "bindings/nodejs",
   "bindings/python",
-  "bindings/ruby",
   "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
-  "bindings/php",
-  "bindings/cpp",
 
   "bin/oli",
   "bin/oay",
+  "bin/ofs",
 
   "integrations/object_store",
   "integrations/dav-server",
@@ -45,16 +49,16 @@ members = [
 resolver = "2"
 
 [workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
+repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.42.0"
+version = "0.44.2"
 
 [workspace.dependencies]
-opendal = { version = "0.42", path = "core" }
+opendal = { version = "0.44", path = "core" }
 
 [profile.bench]
 debug = true

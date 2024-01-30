@@ -129,7 +129,8 @@ pub struct MinitraceAccessor<A> {
     inner: A,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     type Inner = A;
     type Reader = MinitraceWrapper<A::Reader>;
@@ -335,7 +336,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let _g = self.span.set_local_parent();
@@ -370,7 +370,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::List> oio::List for MinitraceWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         let _g = self.span.set_local_parent();

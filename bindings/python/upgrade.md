@@ -1,3 +1,10 @@
+# Upgrade to v0.44
+
+## Breaking change
+
+Because of [a TLS lib issue](https://github.com/apache/opendal/issues/3650), we temporarily disable the `services-ftp` feature.
+
+
 # Upgrade to v0.42
 
 ## Breaking change for layers

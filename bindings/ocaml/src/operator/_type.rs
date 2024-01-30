@@ -30,3 +30,7 @@ ocaml::custom!(Reader);
 #[ocaml::sig]
 pub struct Metadata(pub(crate) od::Metadata);
 ocaml::custom!(Metadata);
+
+#[ocaml::sig]
+pub struct Entry(pub(crate) od::Entry);
+ocaml::custom!(Entry);

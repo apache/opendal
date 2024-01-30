@@ -16,16 +16,15 @@
 // under the License.
 
 use std::cmp;
-use std::collections::VecDeque;
+use std::future::Future;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use flagset::FlagSet;
-use futures::FutureExt;
 use futures::Stream;
-use tokio::task::JoinHandle;
+use futures::StreamExt;
 
 use crate::raw::oio::List;
 use crate::raw::*;
@@ -34,7 +33,9 @@ use crate::*;
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
 ///
-/// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`].
+/// Users can construct Lister by [`Operator::lister`] or [`Operator::lister_with`], and can use `metakey` along with list.
+/// For example, suppose you need to access `content_length`, you can bring the corresponding field in metakey when listing:
+/// `op.list_with("dir/").metakey(Metakey::ContentLength).await?;`.
 ///
 /// - Lister implements `Stream<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
@@ -44,16 +45,75 @@ pub struct Lister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
-    /// task_queue is used to store tasks that are run in concurrent.
-    task_queue: VecDeque<StatTask>,
+    /// tasks is used to store tasks that are run in concurrent.
+    tasks: ConcurrentFutures<StatTask>,
     errored: bool,
 }
 
+/// StatTask is used to store the task that is run in concurrent.
+///
+/// # Note for clippy
+///
+/// Clippy will raise error for this enum like the following:
+///
+/// ```shell
+/// error: large size difference between variants
+///   --> core/src/types/list.rs:64:1
+///    |
+/// 64 | / enum StatTask {
+/// 65 | |     /// BoxFuture is used to store the join handle of spawned task.
+/// 66 | |     Handle(BoxFuture<(String, Result<RpStat>)>),
+///    | |     -------------------------------------------- the second-largest variant contains at least 0 bytes
+/// 67 | |     /// KnownEntry is used to store the entry that already contains the required metakey.
+/// 68 | |     KnownEntry(Option<Entry>),
+///    | |     ------------------------- the largest variant contains at least 264 bytes
+/// 69 | | }
+///    | |_^ the entire enum is at least 0 bytes
+///    |
+///    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
+///    = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+///    = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`
+/// help: consider boxing the large fields to reduce the total size of the enum
+///    |
+/// 68 |     KnownEntry(Box<Option<Entry>>),
+///    |                ~~~~~~~~~~~~~~~~~~
+/// ```
+/// But this lint is wrong since it doesn't take the generic param JoinHandle into account. In fact, they have exactly
+/// the same size:
+///
+/// ```rust
+/// use std::mem::size_of;
+///
+/// use opendal::Entry;
+/// use opendal::Result;
+///
+/// assert_eq!(264, size_of::<(String, Result<opendal::raw::RpStat>)>());
+/// assert_eq!(264, size_of::<Option<Entry>>());
+/// ```
+///
+/// So let's ignore this lint:
+#[allow(clippy::large_enum_variant)]
 enum StatTask {
-    /// Handle is used to store the join handle of spawned task.
-    Handle(JoinHandle<(String, Result<RpStat>)>),
-    /// KnownEntry is used to store the entry that already contains the required metakey.
-    KnownEntry(Box<Option<(String, Metadata)>>),
+    /// Stating is used to store the join handle of spawned task.
+    ///
+    /// TODO: Replace with static future type after rust supported.
+    Stating(BoxedFuture<(String, Result<Metadata>)>),
+    /// Known is used to store the entry that already contains the required metakey.
+    Known(Option<(String, Metadata)>),
+}
+
+impl Future for StatTask {
+    type Output = (String, Result<Metadata>);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.get_mut() {
+            StatTask::Stating(fut) => Pin::new(fut).poll(cx),
+            StatTask::Known(entry) => {
+                let (path, metadata) = entry.take().expect("entry should not be None");
+                Poll::Ready((path, Ok(metadata)))
+            }
+        }
+    }
 }
 
 /// # Safety
@@ -74,7 +134,7 @@ impl Lister {
             lister: Some(lister),
             required_metakey,
 
-            task_queue: VecDeque::with_capacity(concurrent),
+            tasks: ConcurrentFutures::new(concurrent),
             errored: false,
         })
     }
@@ -89,31 +149,23 @@ impl Stream for Lister {
             return Poll::Ready(None);
         }
 
-        let task_queue_len = self.task_queue.len();
-        let task_queue_cap = self.task_queue.capacity();
-
-        if let Some(lister) = self.lister.as_mut() {
-            if task_queue_len < task_queue_cap {
+        // Trying to pull more tasks if there are more space.
+        if self.tasks.has_remaining() {
+            if let Some(lister) = self.lister.as_mut() {
                 match lister.poll_next(cx) {
-                    Poll::Pending => {
-                        if task_queue_len == 0 {
-                            return Poll::Pending;
-                        }
-                    }
+                    Poll::Pending => {}
                     Poll::Ready(Ok(Some(oe))) => {
                         let (path, metadata) = oe.into_entry().into_parts();
-                        // TODO: we can optimize this by checking the provided metakey provided by services.
                         if metadata.contains_metakey(self.required_metakey) {
-                            self.task_queue
-                                .push_back(StatTask::KnownEntry(Box::new(Some((path, metadata)))));
+                            self.tasks
+                                .push_back(StatTask::Known(Some((path, metadata))));
                         } else {
                             let acc = self.acc.clone();
                             let fut = async move {
                                 let res = acc.stat(&path, OpStat::default()).await;
-                                (path, res)
+                                (path, res.map(|rp| rp.into_metadata()))
                             };
-                            self.task_queue
-                                .push_back(StatTask::Handle(tokio::spawn(fut)));
+                            self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
                         }
                     }
                     Poll::Ready(Ok(None)) => {
@@ -127,32 +179,17 @@ impl Stream for Lister {
             }
         }
 
-        if let Some(handle) = self.task_queue.front_mut() {
-            return match handle {
-                StatTask::Handle(handle) => {
-                    let (path, rp) = ready!(handle.poll_unpin(cx)).map_err(new_task_join_error)?;
-
-                    match rp {
-                        Ok(rp) => {
-                            self.task_queue.pop_front();
-                            let metadata = rp.into_metadata();
-                            Poll::Ready(Some(Ok(Entry::new(path, metadata))))
-                        }
-                        Err(err) => {
-                            self.errored = true;
-                            Poll::Ready(Some(Err(err)))
-                        }
-                    }
-                }
-                StatTask::KnownEntry(entry) => {
-                    let (path, metadata) = entry.take().expect("entry must be valid");
-                    self.task_queue.pop_front();
-                    Poll::Ready(Some(Ok(Entry::new(path, metadata))))
-                }
-            };
+        // Try to poll tasks
+        if let Some((path, rp)) = ready!(self.tasks.poll_next_unpin(cx)) {
+            let metadata = rp?;
+            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        Poll::Ready(None)
+        if self.lister.is_some() {
+            Poll::Pending
+        } else {
+            Poll::Ready(None)
+        }
     }
 }
 
@@ -213,7 +250,6 @@ impl Iterator for BlockingLister {
         };
 
         let (path, metadata) = entry.into_entry().into_parts();
-        // TODO: we can optimize this by checking the provided metakey provided by services.
         if metadata.contains_metakey(self.required_metakey) {
             return Some(Ok(Entry::new(path, metadata)));
         }

@@ -53,7 +53,7 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// Read more backend init examples in [examples](https://github.com/apache/incubator-opendal/tree/main/examples).
+    /// Read more backend init examples in [examples](https://github.com/apache/opendal/tree/main/examples).
     ///
     /// ```
     /// # use anyhow::Result;
@@ -157,6 +157,16 @@ impl Operator {
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
+            #[cfg(feature = "services-koofr")]
+            Scheme::Koofr => Self::from_map::<services::Koofr>(map)?.finish(),
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk => Self::from_map::<services::YandexDisk>(map)?.finish(),
+            #[cfg(feature = "services-pcloud")]
+            Scheme::Pcloud => Self::from_map::<services::Pcloud>(map)?.finish(),
+            #[cfg(feature = "services-chainsafe")]
+            Scheme::Chainsafe => Self::from_map::<services::Chainsafe>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
             #[cfg(feature = "services-azdls")]
@@ -193,10 +203,14 @@ impl Operator {
             Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
             #[cfg(feature = "services-http")]
             Scheme::Http => Self::from_map::<services::Http>(map)?.finish(),
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface => Self::from_map::<services::Huggingface>(map)?.finish(),
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud => Self::from_map::<services::Icloud>(map)?.finish(),
             #[cfg(feature = "services-libsql")]
             Scheme::Libsql => Self::from_map::<services::Libsql>(map)?.finish(),
             #[cfg(feature = "services-memcached")]
@@ -227,6 +241,8 @@ impl Operator {
             Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),
             #[cfg(feature = "services-s3")]
             Scheme::S3 => Self::from_map::<services::S3>(map)?.finish(),
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile => Self::from_map::<services::Seafile>(map)?.finish(),
             #[cfg(feature = "services-sftp")]
             Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
             #[cfg(feature = "services-sled")]
@@ -249,6 +265,8 @@ impl Operator {
             Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
             #[cfg(feature = "services-mongodb")]
             Scheme::Mongodb => Self::from_map::<services::Mongodb>(map)?.finish(),
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative => Self::from_map::<services::HdfsNative>(map)?.finish(),
             v => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

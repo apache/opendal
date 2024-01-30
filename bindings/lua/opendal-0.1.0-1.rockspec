@@ -2,11 +2,11 @@ package = "opendal"
 version = "0.1.0-1"
 
 source = {
-    url = "git+https://github.com/apache/incubator-opendal/",
+    url = "git+https://github.com/apache/opendal/",
 }
 
 description = {
-    summary = "Apache OpenDAL LUA binding: access data freely. ",
+    summary = "Apache OpenDAL™ LUA binding: access data freely. ",
     detailed = [[
         OpenDAL is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
     ]],
@@ -24,5 +24,5 @@ build = {
     modules = {
         ["opendal"] = "opendal_lua",
     },
-    target_path = "../../target",
+    target_path = "target",
 }

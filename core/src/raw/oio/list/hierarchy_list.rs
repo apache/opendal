@@ -37,11 +37,12 @@ pub struct HierarchyLister<P> {
     lister: P,
     path: String,
     visited: HashSet<String>,
+    recursive: bool,
 }
 
 impl<P> HierarchyLister<P> {
     /// Create a new hierarchy lister
-    pub fn new(lister: P, path: &str) -> HierarchyLister<P> {
+    pub fn new(lister: P, path: &str, recursive: bool) -> HierarchyLister<P> {
         let path = if path == "/" {
             "".to_string()
         } else {
@@ -52,6 +53,7 @@ impl<P> HierarchyLister<P> {
             lister,
             path,
             visited: HashSet::default(),
+            recursive,
         }
     }
 
@@ -72,6 +74,11 @@ impl<P> HierarchyLister<P> {
 
         // Dir itself should not be returned in hierarchy page.
         if e.path() == self.path {
+            return false;
+        }
+
+        // Don't return already visited path.
+        if self.visited.contains(e.path()) {
             return false;
         }
 
@@ -125,6 +132,9 @@ impl<P: oio::List> oio::List for HierarchyLister<P> {
                 None => return Poll::Ready(Ok(None)),
             };
 
+            if self.recursive {
+                return Poll::Ready(Ok(Some(entry)));
+            }
             if self.keep_entry(&mut entry) {
                 return Poll::Ready(Ok(Some(entry)));
             }
@@ -139,6 +149,10 @@ impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
                 Some(entry) => entry,
                 None => return Ok(None),
             };
+
+            if self.recursive {
+                return Ok(Some(entry));
+            }
 
             if self.keep_entry(&mut entry) {
                 return Ok(Some(entry));
@@ -191,7 +205,7 @@ mod tests {
         let lister = MockLister::new(vec![
             "x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a",
         ]);
-        let mut lister = HierarchyLister::new(lister, "");
+        let mut lister = HierarchyLister::new(lister, "", false);
 
         let mut entries = Vec::default();
 

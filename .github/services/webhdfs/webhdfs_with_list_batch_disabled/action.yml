@@ -32,5 +32,6 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_WEBHDFS_ROOT=/
         OPENDAL_WEBHDFS_ENDPOINT=http://127.0.0.1:9870
+        OPENDAL_WEBHDFS_ATOMIC_WRITE_DIR=.opendal_tmp/
         OPENDAL_WEBHDFS_DISABLE_LIST_BATCH=true
         EOF

@@ -22,7 +22,6 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
@@ -55,7 +54,6 @@ impl<P> FsLister<P> {
 /// We will only take `&mut Self` reference for FsLister.
 unsafe impl<P> Sync for FsLister<P> {}
 
-#[async_trait]
 impl oio::List for FsLister<tokio::fs::ReadDir> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         if let Some(fut) = self.fut.as_mut() {

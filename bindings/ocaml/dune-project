@@ -1,4 +1,4 @@
-(lang dune 2.0)
+(lang dune 2.1)
 ; Licensed to the Apache Software Foundation (ASF) under one
 ; or more contributor license agreements.  See the NOTICE file
 ; distributed with this work for additional information
@@ -21,15 +21,15 @@
 (license Apache-2.0)
 (maintainers "OpenDAL Contributors <dev@opendal.apache.org>")
 (authors "OpenDAL Contributors <dev@opendal.apache.org>")
-(source (github apache/incubator-opendal))
+(source (github apache/opendal))
 (documentation "https://opendal.apache.org/")
 (package
  (name opendal)
- (synopsis "Open Data Access Layer: Access data freely")
+ (synopsis "Apache OpenDAL™ OCaml Binding")
  (description
-  "OpenDAL is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.")
+  "Apache OpenDAL™ is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.")
  (depends
   (ounit2 (and (>= 2.2.6) :with-test))
-  (ocaml (>= "4.03.0"))
-  (dune (>= "1.5"))
+  (ocaml (and (>= "4.10.0") (< 5)))
+  (dune (>= "2.1"))
   conf-rust))

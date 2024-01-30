@@ -230,10 +230,10 @@ pub struct AzdlsBackend {
 #[async_trait]
 impl Accessor for AzdlsBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AzdlsWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AzdlsLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -255,7 +255,6 @@ impl Accessor for AzdlsBackend {
                 rename: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -281,55 +280,6 @@ impl Accessor for AzdlsBackend {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzdlsWriters::Two(oio::AppendObjectWriter::new(w))
-        } else {
-            AzdlsWriters::One(oio::OneShotWriter::new(w))
-        };
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
-            let status = resp.status();
-            match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {
-                    resp.into_body().consume().await?;
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        }
-
-        let resp = self.core.azdls_rename(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -381,6 +331,38 @@ impl Accessor for AzdlsBackend {
         Ok(RpStat::new(meta))
     }
 
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.azdls_read(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzdlsWriters::Two(oio::AppendWriter::new(w))
+        } else {
+            AzdlsWriters::One(oio::OneShotWriter::new(w))
+        };
+        Ok((RpWrite::default(), w))
+    }
+
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.azdls_delete(path).await?;
 
@@ -396,6 +378,30 @@ impl Accessor for AzdlsBackend {
         let l = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
+            let status = resp.status();
+            match status {
+                StatusCode::CREATED | StatusCode::CONFLICT => {
+                    resp.into_body().consume().await?;
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        }
+
+        let resp = self.core.azdls_rename(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED => {
+                resp.into_body().consume().await?;
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

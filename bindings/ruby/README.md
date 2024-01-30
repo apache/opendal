@@ -1,10 +1,10 @@
-# OpenDAL Ruby Binding (WIP)
+# Apache OpenDAL™ Ruby Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
 This crate intends to build a native ruby binding.
 
-![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Development
 
@@ -20,8 +20,14 @@ Build bindings:
 rake compile
 ```
 
-Run some tests:
+Run tests:
 
 ```shell
-rake test
+rake spec
 ```
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

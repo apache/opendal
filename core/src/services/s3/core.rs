@@ -19,6 +19,8 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::atomic;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -79,9 +81,11 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
+    pub disable_stat_with_override: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
+    pub credential_loaded: AtomicBool,
     pub client: HttpClient,
     pub batch_max_operations: usize,
 }
@@ -106,18 +110,31 @@ impl S3Core {
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else if self.allow_anonymous {
-            // If allow_anonymous has been set, we will not sign the request.
-            Ok(None)
-        } else {
-            // Mark this error as temporary since it could be caused by AWS STS.
-            Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "no valid credential found, please check configuration or try again",
-            )
-            .set_temporary())
+            // Update credential_loaded to true if we have load credential successfully.
+            self.credential_loaded
+                .store(true, atomic::Ordering::Relaxed);
+            return Ok(Some(cred));
         }
+
+        // If we have load credential before but failed to load this time, we should
+        // return error instead.
+        if self.credential_loaded.load(atomic::Ordering::Relaxed) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "credential was previously loaded successfully but has failed this time",
+            )
+            .set_temporary());
+        }
+
+        // Credential is empty and users allow anonymous access, we will not sign the request.
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "no valid credential found and anonymous access is not allowed",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
@@ -232,25 +249,47 @@ impl S3Core {
 }
 
 impl S3Core {
-    pub fn s3_head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
 
         req = self.insert_sse_headers(req, false);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -377,10 +416,9 @@ impl S3Core {
     pub async fn s3_head_object(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
+        args: OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_head_object_request(path, if_none_match, if_match)?;
+        let mut req = self.s3_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

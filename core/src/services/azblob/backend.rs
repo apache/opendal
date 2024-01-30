@@ -539,13 +539,14 @@ pub struct AzblobBackend {
     has_sas_token: bool,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AzblobWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AzblobLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -575,7 +576,6 @@ impl Accessor for AzblobBackend {
                 copy: true,
 
                 list: true,
-                list_without_recursive: true,
                 list_with_recursive: true,
 
                 presign: self.has_sas_token,
@@ -593,46 +593,6 @@ impl Accessor for AzblobBackend {
         am
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azblob_get_blob(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzblobWriters::Two(oio::AppendObjectWriter::new(w))
-        } else {
-            AzblobWriters::One(oio::OneShotWriter::new(w))
-        };
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
@@ -642,6 +602,39 @@ impl Accessor for AzblobBackend {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.azblob_get_blob(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzblobWriters::Two(oio::AppendWriter::new(w))
+        } else {
+            AzblobWriters::One(oio::OneShotWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -664,6 +657,20 @@ impl Accessor for AzblobBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.azblob_copy_blob(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::ACCEPTED => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

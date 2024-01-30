@@ -21,7 +21,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 
 use crate::raw::*;
 use crate::*;
@@ -36,7 +35,8 @@ use crate::*;
 /// - Services impl `PageList`
 /// - `PageLister` impl `List`
 /// - Expose `PageLister` as `Accessor::Lister`
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait PageList: Send + Sync + Unpin + 'static {
     /// next_page is used to fetch next page of entries from underlying storage.
     async fn next_page(&self, ctx: &mut PageContext) -> Result<()>;
@@ -72,9 +72,13 @@ pub struct PageLister<L: PageList> {
 
 enum State<L> {
     Idle(Option<(L, PageContext)>),
-    Fetch(BoxFuture<'static, ((L, PageContext), Result<()>)>),
+    Fetch(BoxedFuture<((L, PageContext), Result<()>)>),
 }
 
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<L: PageList> Send for State<L> {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for State.

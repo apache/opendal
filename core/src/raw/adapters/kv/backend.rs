@@ -28,6 +28,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use super::Adapter;
+use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::*;
 
@@ -63,14 +64,15 @@ where
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = oio::Cursor;
     type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Lister = KvLister;
-    type BlockingLister = KvLister;
+    type Lister = HierarchyLister<KvLister>;
+    type BlockingLister = HierarchyLister<KvLister>;
 
     fn info(&self) -> AccessorInfo {
         let mut am: AccessorInfo = self.kv.metadata().into();
@@ -87,14 +89,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.write {
             cap.write_can_empty = true;
             cap.delete = true;
-        }
-
-        if cap.read && cap.write {
-            cap.copy = true;
-        }
-
-        if cap.read && cap.write && cap.delete {
-            cap.rename = true;
         }
 
         if cap.list {
@@ -189,82 +183,22 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.scan(&p).await?;
         let lister = KvLister::new(&self.root, res);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.blocking_scan(&p)?;
         let lister = KvLister::new(&self.root, res);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.get(&from).await? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.set(&to, &bs).await?;
-
-        self.kv.delete(&from).await?;
-        Ok(RpRename::default())
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.blocking_get(&from)? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.blocking_set(&to, &bs)?;
-
-        self.kv.blocking_delete(&from)?;
-        Ok(RpRename::default())
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.get(&from).await? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.set(&to, &bs).await?;
-
-        Ok(RpCopy::default())
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let bs = match self.kv.blocking_get(&from)? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        self.kv.blocking_set(&to, &bs)?;
-
-        Ok(RpCopy::default())
     }
 }
 
@@ -314,7 +248,6 @@ impl KvLister {
     }
 }
 
-#[async_trait]
 impl oio::List for KvLister {
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
         Poll::Ready(Ok(self.inner_next()))
@@ -356,7 +289,6 @@ enum Buffer {
 /// We will only take `&mut Self` reference for KvWriter.
 unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
-#[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if self.future.is_some() {

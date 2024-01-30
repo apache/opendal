@@ -16,6 +16,7 @@
 // under the License.
 
 mod _type;
+mod entry;
 mod metadata;
 mod reader;
 
@@ -31,6 +32,20 @@ pub fn operator(
 ) -> Result<ocaml::Pointer<Operator>, String> {
     let op = map_res_error(new_operator(scheme_str, map))?;
     Ok(Operator(op.blocking()).into())
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> string -> (entry array, string) Result.t ")]
+pub fn blocking_list(
+    operator: &mut Operator,
+    path: String,
+) -> Result<Vec<ocaml::Pointer<Entry>>, String> {
+    map_res_error(
+        operator
+            .0
+            .list(path.as_str())
+            .map(|m| m.into_iter().map(|it| Entry(it).into()).collect()),
+    )
 }
 
 #[ocaml::func]

@@ -48,7 +48,7 @@ jobs:
           need-nextest: true
 
       - name: Setup java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -112,7 +112,7 @@ jobs:
           need-nextest: true
 
       - name: Setup java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -136,3 +136,40 @@ jobs:
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
           OPENDAL_HDFS_ENABLE_APPEND: true
+
+  hdfs-default-with-atomic-write-dir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Setup java env
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup hadoop env
+        shell: bash
+        run: |
+          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: |
+          export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+          export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
+          cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${{ env.HADOOP_HOME }}/etc/hadoop/hdfs-site.xml
+
+          cargo test behavior --features tests,services-hdfs
+        env:
+          HADOOP_HOME: "/home/runner/hadoop-3.3.5"
+          OPENDAL_TEST: hdfs
+          OPENDAL_HDFS_ROOT: /tmp/opendal/
+          OPENDAL_HDFS_ATOMIC_WRITE_DIR: /tmp/atomic_write_dir/opendal/
+          OPENDAL_HDFS_NAME_NODE: default
+          OPENDAL_HDFS_ENABLE_APPEND: false

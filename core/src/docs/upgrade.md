@@ -1,4 +1,32 @@
-# Unreleased
+# Upgrade to v0.45
+
+## Public API
+
+### BlockingLayer is not enabled by default
+
+To further enhance the optionality of `tokio`, we have introduced a new feature called `layers-blocking`. The default usage of the blocking layer has been disabled. To utilize the `BlockingLayer`, please enable the `layers-blocking` feature.
+
+### TimeoutLayer deprecated `with_speed`
+
+The `with_speed` API has been deprecated. Please use `with_io_timeout` instead.
+
+## Raw API
+
+No raw API changes.
+
+# Upgrade to v0.44
+
+## Public API
+
+### Moka Service Configuration
+
+- The `thread_pool_enabled` option has been removed.
+
+### List Prefix Supported
+
+After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we have changed the behavior of `list` a path without `/`. OpenDAL used to return `NotADirectory` error, but now we will return the list of entries that start with given prefix instead.
+
+# Upgrade to v0.43
 
 ## Public API
 
@@ -557,7 +585,7 @@ Thus, we removed the `seekable_reader` API. They can be replaced by `range_reade
 
 Most changes only happen inside. Users not using `opendal::raw::*` will not be affected.
 
-Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/apache/incubator-opendal/discussions).
+Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/apache/opendal/discussions).
 
 # Upgrade to v0.21
 

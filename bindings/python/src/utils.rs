@@ -19,7 +19,6 @@ use std::os::raw::c_int;
 
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::AsPyPointer;
 
 /// A bytes-like object that implements buffer protocol.
 #[pyclass(module = "opendal")]

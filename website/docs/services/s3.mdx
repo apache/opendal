@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
 import { Operator } from "opendal";
 
 async function main() {
-  const op = new Operator("azblob", {
+  const op = new Operator("s3", {
     root: "/path/to/dir",
     bucket: "test",
     region: "us-east-1",
@@ -65,7 +65,7 @@ async function main() {
 ```python
 import opendal
 
-op = opendal.Operator("azblob",
+op = opendal.Operator("s3",
     root="/path/to/dir",
     bucket="test",
     region="us-east-1",

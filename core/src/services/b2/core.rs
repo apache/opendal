@@ -89,7 +89,7 @@ impl B2Core {
 
         {
             let mut signer = self.signer.write().await;
-            let req = Request::get("https://api.backblazeb2.com/b2api/v3/b2_authorize_account")
+            let req = Request::get("https://api.backblazeb2.com/b2api/v2/b2_authorize_account")
                 .header(
                     header::AUTHORIZATION,
                     format_authorization_by_basic(
@@ -110,8 +110,8 @@ impl B2Core {
                         .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
                         authorization_token: token.authorization_token.clone(),
-                        api_url: token.api_info.storage_api.api_url.clone(),
-                        download_url: token.api_info.storage_api.download_url.clone(),
+                        api_url: token.api_url.clone(),
+                        download_url: token.download_url.clone(),
                         // This authorization token is valid for at most 24 hours.
                         expires_in: Utc::now() + chrono::Duration::hours(20),
                     };
@@ -149,7 +149,7 @@ impl B2Core {
 
         let range = args.range();
         if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req
@@ -210,7 +210,7 @@ impl B2Core {
 
         let range = args.range();
         if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
         let body = GetDownloadAuthorizationRequest {
             bucket_id: self.bucket_id.clone(),
@@ -444,7 +444,6 @@ impl B2Core {
         }
 
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
             url.push_str(&format!(
                 "&startFileName={}",
                 percent_encode_path(&start_after)
@@ -586,18 +585,6 @@ pub struct AuthorizeAccountResponse {
     /// An authorization token to use with all calls, other than b2_authorize_account, that need an Authorization header. This authorization token is valid for at most 24 hours.
     /// So we should call b2_authorize_account every 24 hours.
     pub authorization_token: String,
-    pub api_info: ApiInfo,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiInfo {
-    pub storage_api: StorageApi,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StorageApi {
     pub api_url: String,
     pub download_url: String,
 }

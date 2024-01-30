@@ -43,10 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Haskell toolchain (ghc-9.2.8)
+      - name: Setup Haskell toolchain (ghc-9.4.8)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-          ghcup install ghc 9.2.8 --set
+          ghcup install ghc 9.4.8 --set
           ghcup install cabal --set
           cabal update
       - name: Setup Rust toolchain

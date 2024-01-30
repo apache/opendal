@@ -50,14 +50,6 @@ let test_block_write_and_read test_ctxt =
   assert_equal "helloworld"
     (data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
 
-let test_copy_and_read test_ctxt =
-  let bo = new_test_block_operator test_ctxt in
-  let data = "helloworld" in
-  ignore (test_check_result (Operator.write bo "foo" (Bytes.of_string data)));
-  ignore (test_check_result (Operator.copy bo "foo" "bar"));
-  let got_res = test_check_result (Operator.read bo "bar") in
-  assert_equal data (got_res |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
-
 let test_operator_reader test_ctxt =
   let bo = new_test_block_operator test_ctxt in
   ignore
@@ -82,15 +74,32 @@ let test_operator_stat test_ctxt =
   assert_equal 10L (Operator.Metadata.content_length metadata);
   ()
 
+let test_list test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore (test_check_result (Operator.create_dir bo "/testdir/"));
+  ignore
+    (test_check_result
+       (Operator.write bo "/testdir/foo" (Bytes.of_string "bar")));
+  ignore
+    (test_check_result
+       (Operator.write bo "/testdir/bar" (Bytes.of_string "foo")));
+  let array = Operator.list bo "testdir/" |> test_check_result in
+  let actual = Array.map Operator.Entry.name array in
+  let expected = [| "foo"; "bar" |] in
+  List.iter (Array.sort compare) [ expected; actual ];
+  assert_equal expected actual;
+  assert_equal 2 (Array.length array);
+  ()
+
 let suite =
   "suite"
   >::: [
          "test_new_block_operator" >:: test_new_block_operator;
          "test_create_dir_and_remove_all" >:: test_create_dir_and_remove_all;
          "test_block_write_and_read" >:: test_block_write_and_read;
-         "test_copy_and_read" >:: test_copy_and_read;
          "test_operator_reader" >:: test_operator_reader;
          "test_operator_stat" >:: test_operator_stat;
+         "test_list" >:: test_list;
        ]
 
 let () = run_test_tt_main suite

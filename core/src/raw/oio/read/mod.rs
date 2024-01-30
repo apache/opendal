@@ -48,3 +48,6 @@ pub use std_read::StdReader;
 
 mod lazy_read;
 pub use lazy_read::LazyReader;
+
+mod buffer_reader;
+pub use buffer_reader::BufferReader;

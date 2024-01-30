@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -196,6 +197,10 @@ pub struct S3Config {
     ///
     /// Please tune this value based on services' document.
     pub batch_max_operations: Option<usize>,
+    /// Disable stat with override so that opendal will not send stat request with override queries.
+    ///
+    /// For example, R2 doesn't support stat with `response_content_type` query.
+    pub disable_stat_with_override: bool,
 }
 
 impl Debug for S3Config {
@@ -556,6 +561,14 @@ impl S3Builder {
         self
     }
 
+    /// Disable stat with override so that opendal will not send stat request with override queries.
+    ///
+    /// For example, R2 doesn't support stat with `response_content_type` query.
+    pub fn disable_stat_with_override(&mut self) -> &mut Self {
+        self.config.disable_stat_with_override = true;
+        self
+    }
+
     /// Adding a customed credential load for service.
     ///
     /// If customed_credential_load has been set, we will ignore all other
@@ -848,8 +861,11 @@ impl Builder for S3Builder {
         // This is our current config.
         let mut cfg = AwsConfig::default();
         if !self.config.disable_config_load {
-            cfg = cfg.from_profile();
-            cfg = cfg.from_env();
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                cfg = cfg.from_profile();
+                cfg = cfg.from_env();
+            }
         }
 
         if let Some(v) = self.config.region.take() {
@@ -948,8 +964,10 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
+                disable_stat_with_override: self.config.disable_stat_with_override,
                 signer,
                 loader,
+                credential_loaded: AtomicBool::new(false),
                 client,
                 batch_max_operations,
             }),
@@ -963,13 +981,14 @@ pub struct S3Backend {
     core: Arc<S3Core>,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = S3Writers;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<S3Lister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -981,6 +1000,9 @@ impl Accessor for S3Backend {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_with_override_cache_control: !self.core.disable_stat_with_override,
+                stat_with_override_content_disposition: !self.core.disable_stat_with_override,
+                stat_with_override_content_type: !self.core.disable_stat_with_override,
 
                 read: true,
                 read_can_next: true,
@@ -1016,7 +1038,6 @@ impl Accessor for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_without_recursive: true,
 
                 presign: true,
                 presign_stat: true,
@@ -1032,6 +1053,17 @@ impl Accessor for S3Backend {
         am
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.s3_head_object(path, args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.s3_get_object(path, args).await?;
 
@@ -1040,50 +1072,27 @@ impl Accessor for S3Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = S3Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartUploadWriter::new(writer);
+        let w = oio::MultipartWriter::new(writer, concurrent);
 
         Ok((RpWrite::default(), w))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
-                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self
-            .core
-            .s3_head_object(path, args.if_none_match(), args.if_match())
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -1112,14 +1121,30 @@ impl Accessor for S3Backend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .s3_head_object_request(path, v.if_none_match(), v.if_match())?
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.s3_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
             }
-            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v.clone())?,
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let (expire, op) = args.into_parts();
+
+        // We will not send this request out, just for signing.
+        let mut req = match op {
+            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v)?,
             PresignOperation::Write(_) => self.core.s3_put_object_request(
                 path,
                 None,
@@ -1128,7 +1153,7 @@ impl Accessor for S3Backend {
             )?,
         };
 
-        self.core.sign_query(&mut req, args.expire()).await?;
+        self.core.sign_query(&mut req, expire).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

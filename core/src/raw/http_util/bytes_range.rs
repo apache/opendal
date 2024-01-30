@@ -113,6 +113,16 @@ impl BytesRange {
         )
     }
 
+    /// Complete range with total size.
+    pub fn complete(&self, total_size: u64) -> Self {
+        match (self.offset(), self.size()) {
+            (Some(_), Some(_)) => *self,
+            (Some(offset), None) => Self(Some(offset), Some(total_size - offset)),
+            (None, Some(size)) => Self(Some(total_size - size), Some(size)),
+            (None, None) => Self(Some(0), Some(total_size)),
+        }
+    }
+
     /// apply_on_bytes will apply range on bytes.
     pub fn apply_on_bytes(&self, mut bs: Bytes) -> Bytes {
         match (self.0, self.1) {

@@ -1,10 +1,11 @@
 # Contributing
 
-- [Setup](#setup)
-  - [Using a dev container environment](#using-a-devcontainer-environment)
-  - [Bring your own toolbox](#bring-your-own-toolbox)
-- [Build](#build)
-- [Test](#test)
+- [Contributing](#contributing)
+  - [Setup](#setup)
+    - [Using a dev container environment](#using-a-dev-container-environment)
+    - [Bring your own toolbox](#bring-your-own-toolbox)
+  - [Build](#build)
+  - [Test](#test)
 
 ## Setup
 
@@ -18,7 +19,7 @@ OpenDAL provides a pre-configured [dev container](https://containers.dev/) that 
 
 The fastest way is:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
 
@@ -40,39 +41,42 @@ For RHEL, CentOS, CloudLinux, Amazon Linux or Fedora:
 > curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
 ```
 
-Afterwards, you will need to enable `corepack` to ensure that `yarn` has been set up correctly:
+Afterward, you will need to enable `corepack` to ensure that `pnpm` has been set up correctly:
 
 ```shell
 > sudo corepack enable
 ```
 
-To verify that everything is working properly, run `yarn --version`:
+To verify that everything is working properly, run `pnpm --version`:
 
 ```shell
-> yarn --version
-3.4.1
+> pnpm --version
+8.11.0
 ```
 
 ## Build
 
 ```bash
 # Install dependencies.
-> yarn
+> pnpm install
 # Build from source.
-> yarn build
+> pnpm build
 # Build from source with debug info.
-> yarn build:debug
+> pnpm build:debug
 ```
 
 ## Test
 
-We use [`Cucumber`](https://cucumber.io/) for behavior testing. Refer to [here](https://cucumber.io/docs/guides/overview/) for more information about `Cucumber`.
+We are using our own developed behavior testing framework.
+Taking 'service-memory' as an example, you can use the following command to run it.
 
 ```bash
-> yarn test
-............
+> OPENDAL_TEST=memory pnpm test
 
-2 scenarios (2 passed)
-12 steps (12 passed)
-0m00.055s (executing steps: 0m00.004s)
+✓ |opendal| tests/service.test.mjs  (8 tests | 2 skipped) 40ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed | 2 skipped (8)
+   Start at  01:42:07
+   Duration  233ms (transform 25ms, setup 0ms, collect 56ms, tests 40ms, environment 0ms, prepare 52ms)
 ```

@@ -24,7 +24,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
 
 use crate::raw::*;
 use crate::*;
@@ -51,11 +50,15 @@ pub struct RangeReader<A: Accessor, R> {
 
 enum State<R> {
     Idle,
-    SendStat(BoxFuture<'static, Result<RpStat>>),
-    SendRead(BoxFuture<'static, Result<(RpRead, R)>>),
+    SendStat(BoxedFuture<Result<RpStat>>),
+    SendRead(BoxedFuture<Result<(RpRead, R)>>),
     Read(R),
 }
 
+/// # Safety
+///
+/// wasm32 is a special target that we only have one event-loop for this state.
+unsafe impl<R> Send for State<R> {}
 /// Safety: State will only be accessed under &mut.
 unsafe impl<R> Sync for State<R> {}
 
@@ -96,11 +99,14 @@ where
         }
     }
 
-    /// Fill current reader's range by total_size.
-    fn fill_range(&mut self, total_size: u64) -> Result<()> {
+    /// Ensure current reader's offset is valid via total_size.
+    fn ensure_offset(&mut self, total_size: u64) -> Result<()> {
         (self.offset, self.size) = match (self.offset, self.size) {
             (None, Some(size)) => {
                 if size > total_size {
+                    // If returns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
                         "read to a negative or overflowing position is invalid",
@@ -125,6 +131,48 @@ where
         Ok(())
     }
 
+    /// Ensure size will use the information returned by RpRead to calculate the correct size for reader.
+    ///
+    /// - If `RpRead` returns `range`, we can calculate the correct size by `range.size()`.
+    /// - If `RpRead` returns `size`, we can use it's as the returning body's size.
+    fn ensure_size(&mut self, total_size: Option<u64>, content_size: Option<u64>) {
+        if let Some(total_size) = total_size {
+            // It's valid for reader to seek to a position that out of the content length.
+            // We should return `Ok(0)` instead of an error at this case to align fs behavior.
+            let size = total_size
+                .checked_sub(self.offset.expect("reader offset must be valid"))
+                .unwrap_or_default();
+
+            // Ensure size when:
+            //
+            // - reader's size is unknown.
+            // - reader's size is larger than file's size.
+            if self.size.is_none() || Some(size) < self.size {
+                self.size = Some(size);
+                return;
+            }
+        }
+
+        if let Some(content_size) = content_size {
+            if content_size == 0 {
+                // Skip size set if content size is 0 since it could be invalid.
+                //
+                // For example, users seek to `u64::MAX` and calling read.
+                return;
+            }
+
+            let calculated_size = content_size + self.cur;
+
+            // Ensure size when:
+            //
+            // - reader's size is unknown.
+            // - reader's size is larger than file's size.
+            if self.size.is_none() || Some(calculated_size) < self.size {
+                self.size = Some(calculated_size);
+            }
+        }
+    }
+
     /// Calculate the current range, maybe sent as next read request.
     ///
     /// # Panics
@@ -147,7 +195,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, R)>> {
+    fn read_future(&self) -> BoxedFuture<Result<(RpRead, R)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 
@@ -163,7 +211,7 @@ where
         Box::pin(async move { acc.read(&path, op).await })
     }
 
-    fn stat_future(&self) -> BoxFuture<'static, Result<RpStat>> {
+    fn stat_future(&self) -> BoxedFuture<Result<RpStat>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 
@@ -256,12 +304,7 @@ where
                 })?;
 
                 let length = rp.into_metadata().content_length();
-                self.fill_range(length).map_err(|err| {
-                    // If stat future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
+                self.ensure_offset(length)?;
 
                 self.state = State::Idle;
                 self.poll_read(cx, buf)
@@ -274,12 +317,8 @@ where
                     err
                 })?;
 
-                // Set size if read returns size hint.
-                if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
-                        self.size = Some(size + self.cur);
-                    }
-                }
+                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+
                 self.state = State::Read(r);
                 self.poll_read(cx, buf)
             }
@@ -339,7 +378,7 @@ where
                 })?;
 
                 let length = rp.into_metadata().content_length();
-                self.fill_range(length)?;
+                self.ensure_offset(length)?;
 
                 self.state = State::Idle;
                 self.poll_seek(cx, pos)
@@ -391,7 +430,7 @@ where
                 })?;
 
                 let length = rp.into_metadata().content_length();
-                self.fill_range(length)?;
+                self.ensure_offset(length)?;
 
                 self.state = State::Idle;
                 self.poll_next(cx)
@@ -405,11 +444,8 @@ where
                 })?;
 
                 // Set size if read returns size hint.
-                if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
-                        self.size = Some(size + self.cur);
-                    }
-                }
+                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+
                 self.state = State::Read(r);
                 self.poll_next(cx)
             }
@@ -450,17 +486,13 @@ where
                     let rp = self.stat_action()?;
 
                     let length = rp.into_metadata().content_length();
-                    self.fill_range(length)?;
+                    self.ensure_offset(length)?;
                 }
 
                 let (rp, r) = self.read_action()?;
 
                 // Set size if read returns size hint.
-                if let Some(size) = rp.size() {
-                    if size != 0 && self.size.is_none() {
-                        self.size = Some(size + self.cur);
-                    }
-                }
+                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
 
                 self.state = State::Read(r);
                 self.read(buf)
@@ -502,7 +534,7 @@ where
                         } else {
                             let rp = self.stat_action()?;
                             let length = rp.into_metadata().content_length();
-                            self.fill_range(length)?;
+                            self.ensure_offset(length)?;
 
                             let size = self.size.expect("size must be valid after fill_range");
                             (size as i64, n)
@@ -561,13 +593,16 @@ where
                     };
 
                     let length = rp.into_metadata().content_length();
-                    if let Err(err) = self.fill_range(length) {
+                    if let Err(err) = self.ensure_offset(length) {
                         return Some(Err(err));
                     }
                 }
 
                 let r = match self.read_action() {
-                    Ok((_, r)) => r,
+                    Ok((rp, r)) => {
+                        self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+                        r
+                    }
                     Err(err) => return Some(Err(err)),
                 };
                 self.state = State::Read(r);
@@ -637,10 +672,10 @@ mod tests {
     #[async_trait]
     impl Accessor for MockReadService {
         type Reader = MockReader;
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
+        type BlockingReader = ();
+        type BlockingWriter = ();
         type BlockingLister = ();
 
         fn info(&self) -> AccessorInfo {

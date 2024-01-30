@@ -68,14 +68,6 @@ TEST_F(OpendalTest, BasicTest) {
   op.create_dir(dir_path);
   EXPECT_TRUE(op.is_exist(dir_path));
 
-  // copy
-  op.copy(file_path, file_path_copied);
-  EXPECT_TRUE(op.is_exist(file_path_copied));
-
-  // rename
-  op.rename(file_path_copied, file_path_renamed);
-  EXPECT_TRUE(op.is_exist(file_path_renamed));
-
   // stat
   auto metadata = op.stat(file_path);
   EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);

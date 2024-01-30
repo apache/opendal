@@ -1,7 +1,7 @@
 - Proposal Name: `concurrent_stat_in_list`
 - Start Date: 2023-11-13
-- RFC PR: [apache/incubator-opendal#3574](https://github.com/apache/incubator-opendal/pull/3574)
-- Tracking Issue: [apache/incubator-opendal#3575](https://github.com/apache/incubator-opendal/issues/3575)
+- RFC PR: [apache/opendal#3574](https://github.com/apache/opendal/pull/3574)
+- Tracking Issue: [apache/opendal#3575](https://github.com/apache/opendal/issues/3575)
 
 # Summary
 
@@ -9,7 +9,7 @@ Add concurrent stat in list operation.
 
 # Motivation
 
-[RFC-2779](https://github.com/apache/incubator-opendal/pull/2779) allows user to list with metakey.
+[RFC-2779](https://github.com/apache/opendal/pull/2779) allows user to list with metakey.
 However, the stat inside list could make the list process much slower. We should allow concurrent stat during list so that stat could be sent concurrently.
 
 

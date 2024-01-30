@@ -1,15 +1,17 @@
 {
   "entryPoints": ["index.d.ts"],
   "out": "docs",
-  "name": "Apache OpenDAL",
+  "name": "Apache OpenDAL™",
   "tsconfig": "tsconfig.json",
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeExternals": true,
   "includeVersion": true,
   "githubPages": false,
+  "plugin": ["./theme/dist/index.js"],
+  "theme": "opendal",
   "navigationLinks": {
     "Homepage": "https://opendal.apache.org/",
-    "GitHub": "https://github.com/apache/incubator-opendal/tree/main/bindings/nodejs"
+    "GitHub": "https://github.com/apache/opendal/tree/main/bindings/nodejs"
   }
 }

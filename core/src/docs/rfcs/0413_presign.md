@@ -1,7 +1,7 @@
 - Proposal Name: `presign`
 - Start Date: 2022-06-30
-- RFC PR: [apache/incubator-opendal#0413](https://github.com/apache/incubator-opendal/pull/413)
-- Tracking Issue: [apache/incubator-opendal#394](https://github.com/apache/incubator-opendal/issues/394)
+- RFC PR: [apache/opendal#0413](https://github.com/apache/opendal/pull/413)
+- Tracking Issue: [apache/opendal#394](https://github.com/apache/opendal/issues/394)
 
 # Summary
 

@@ -45,13 +45,55 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v3.6.0
+        uses: korandoru/hawkeye@v4.0.4
 
       - name: Cargo format
         run: cargo fmt --all -- --check
 
       - name: Check diff
         run: git diff --exit-code
+
+  check_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-deny: true
+
+      - name: Check dependencies
+        run: python3 ./scripts/dependencies.py check
+
+  check_website_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
+      - name: Install Dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Check dependencies
+        working-directory: website
+        run: |
+          npx license-checker --producation --excludePrivatePackages --csv > DEPENDENCIES.node.csv
+          git diff --exit-code
 
   check_docs:
     runs-on: ubuntu-latest
@@ -66,12 +108,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -95,12 +137,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -110,7 +152,7 @@ jobs:
 
       - name: Cargo clippy
         # FIXME
-        # remove `-exclude opendal-php` after https://github.com/apache/incubator-opendal/issues/3055 addressed
+        # remove `-exclude opendal-php` after https://github.com/apache/opendal/issues/3055 addressed
         run: cargo clippy --all-targets --all-features --workspace --exclude opendal-php -- -D warnings
 
       - name: Check diff
@@ -152,11 +194,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -182,11 +224,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
@@ -220,6 +262,7 @@ jobs:
             # FIXME how to support HDFS services in other platforms?
             # services-hdfs
             services-http
+            services-huggingface
             services-ipfs
             services-ipmfs
             services-memcached
@@ -236,7 +279,8 @@ jobs:
             # TODO: we need to find ways to using pre-install rocksdb library
             # services-rocksdb
             services-s3
-            # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/incubator-opendal/issues/2963
+            services-seafile
+            # TODO: sftp is known to not work on windows, waiting for https://github.com/apache/opendal/issues/2963
             # services-sftp
             services-sled
             services-swift
@@ -249,16 +293,35 @@ jobs:
           )
           cargo build --features "${FEATURES[*]}"
 
+  # We only support some services(see `available_services` below) for now.
+  build_under_wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: |
+          FEATURES=(
+            services-azblob
+            services-gdrive
+            services-s3
+          )
+          rustup target add wasm32-unknown-unknown
+          cargo build --target wasm32-unknown-unknown --no-default-features --features="${FEATURES[*]}"
+
   unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Checkout java env
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"

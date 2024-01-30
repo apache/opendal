@@ -49,26 +49,28 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
 
       - name: Corepack
         run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Check format
-        run: yarn run prettier --check .
+        run: pnpm exec prettier --check .
 
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Check diff
         run: git diff --exit-code
@@ -89,7 +91,7 @@ jobs:
               -e NAPI_TARGET=x86_64-unknown-linux-gnu \
               -w /build/bindings/nodejs \
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
-              bash -c "yarn build"
+              bash -c "pnpm build"
               cd bindings/nodejs
               # change owner to current user
               sudo chown -R 1001:121 *.node
@@ -102,7 +104,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64 \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-gnu &&
-              yarn build --target aarch64-unknown-linux-gnu &&
+              pnpm build --target aarch64-unknown-linux-gnu &&
               aarch64-unknown-linux-gnu-strip *.node"
               cd bindings/nodejs
               # change owner to current user
@@ -116,7 +118,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-musl &&
-              yarn build --target aarch64-unknown-linux-musl &&
+              pnpm build --target aarch64-unknown-linux-musl &&
               /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node"
               cd bindings/nodejs
               # change owner to current user
@@ -131,18 +133,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
       - name: Build
         shell: bash
         working-directory: .
@@ -159,11 +162,11 @@ jobs:
       matrix:
         settings:
           - target: x86_64-pc-windows-msvc
-            build: yarn build
+            build: pnpm build
           - target: aarch64-pc-windows-msvc
             build: |
               rustup target add aarch64-pc-windows-msvc;
-              NAPI_TARGET=aarch64-pc-windows-msvc yarn build
+              NAPI_TARGET=aarch64-pc-windows-msvc pnpm build
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -174,18 +177,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
       - name: Build
         shell: bash
         run: ${{ matrix.settings.build }}
@@ -202,7 +206,7 @@ jobs:
         settings:
           - target: x86_64-apple-darwin
             build: |
-              yarn build
+              pnpm build
               strip -x *.node
           - target: aarch64-apple-darwin
             build: |
@@ -214,7 +218,7 @@ jobs:
               rustup target add aarch64-apple-darwin;
 
               export NAPI_TARGET=aarch64-apple-darwin;
-              yarn build
+              pnpm build
               strip -x *.node
 
     # Notes: this defaults only apply on run tasks.
@@ -226,18 +230,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
-        env:
-          SKIP_YARN_COREPACK_CHECK: true
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
@@ -260,23 +265,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Corepack
-        run: corepack enable
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
+      - name: Corepack
+        run: corepack enable
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts
-        run: yarn run napi artifacts
+        run: pnpm exec napi artifacts
 
       - name: List packages
         run: ls -R ./npm

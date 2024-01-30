@@ -136,7 +136,7 @@ impl B2Builder {
     }
 
     /// Set bucket name of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.config.bucket = bucket.to_string();
 
@@ -144,7 +144,7 @@ impl B2Builder {
     }
 
     /// Set bucket id of this backend.
-    /// You can find it in https://secure.backblaze.com/b2_buckets.html
+    /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
     pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
         self.config.bucket_id = bucket_id.to_string();
 
@@ -268,15 +268,10 @@ pub struct B2Backend {
 #[async_trait]
 impl Accessor for B2Backend {
     type Reader = IncomingAsyncBody;
-
-    type BlockingReader = ();
-
     type Writer = B2Writers;
-
-    type BlockingWriter = ();
-
     type Lister = oio::PageLister<B2Lister>;
-
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -301,7 +296,11 @@ impl Accessor for B2Backend {
                 // The max multipart size of b2 is 5 Gb.
                 //
                 // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 copy: true,
@@ -310,7 +309,6 @@ impl Accessor for B2Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_without_recursive: true,
 
                 presign: true,
                 presign_read: true,
@@ -321,29 +319,6 @@ impl Accessor for B2Backend {
             });
 
         am
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_file_by_name(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = B2Writer::new(self.core.clone(), path, args);
-
-        let w = oio::MultipartUploadWriter::new(writer);
-
-        Ok((RpWrite::default(), w))
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
@@ -376,6 +351,69 @@ impl Accessor for B2Backend {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.download_file_by_name(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                resp.into_body().consume().await?;
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
+        let writer = B2Writer::new(self.core.clone(), path, args);
+
+        let w = oio::MultipartWriter::new(writer, concurrent);
+
+        Ok((RpWrite::default(), w))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.hide_file(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpDelete::default()),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpDelete::default()),
+                    // Representative deleted
+                    ErrorKind::AlreadyExists => Ok(RpDelete::default()),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        Ok((
+            RpList::default(),
+            oio::PageLister::new(B2Lister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -414,38 +452,6 @@ impl Accessor for B2Backend {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.hide_file(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    // Representative deleted
-                    ErrorKind::AlreadyExists => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            oio::PageLister::new(B2Lister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            )),
-        ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

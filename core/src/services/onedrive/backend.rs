@@ -63,10 +63,10 @@ impl Debug for OnedriveBackend {
 #[async_trait]
 impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = oio::OneShotWriter<OneDriveWriter>;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<OnedriveLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -80,34 +80,34 @@ impl Accessor for OnedriveBackend {
                 delete: true,
                 create_dir: true,
                 list: true,
-                list_without_recursive: true,
                 ..Default::default()
             });
 
         ma
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.onedrive_get_content(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_rooted_abs_path(&self.root, path);
+        let path_before_last_slash = get_parent(&path);
+        let encoded_path = percent_encode_path(path_before_last_slash);
 
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(OneDriveWriter::new(self.clone(), args, path)),
-        ))
+        let uri = format!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
+            encoded_path
+        );
+
+        let folder_name = get_basename(&path);
+        let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
+
+        let body = CreateDirPayload::new(folder_name.to_string());
+
+        let response = self.onedrive_create_dir(&uri, body).await?;
+
+        let status = response.status();
+        match status {
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
+            _ => Err(parse_error(response).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -149,6 +149,33 @@ impl Accessor for OnedriveBackend {
         }
     }
 
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.onedrive_get_content(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = build_rooted_abs_path(&self.root, path);
+
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(OneDriveWriter::new(self.clone(), args, path)),
+        ))
+    }
+
     /// Delete operation
     /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -166,30 +193,6 @@ impl Accessor for OnedriveBackend {
         let l = OnedriveLister::new(self.root.clone(), path.into(), self.clone());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let path_before_last_slash = get_parent(&path);
-        let encoded_path = percent_encode_path(path_before_last_slash);
-
-        let uri = format!(
-            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
-            encoded_path
-        );
-
-        let folder_name = get_basename(&path);
-        let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
-
-        let body = CreateDirPayload::new(folder_name.to_string());
-
-        let response = self.onedrive_create_dir(&uri, body).await?;
-
-        let status = response.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(response).await?),
-        }
     }
 }
 

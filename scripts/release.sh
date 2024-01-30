@@ -53,11 +53,16 @@ PACKAGES=(
     "integrations\/"
 )
 for package in "${PACKAGES[@]}"; do
-  sed -i "/${package}/d" Cargo.toml
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS system sed usage is different from others
+    sed -i '' "/${package}/d" Cargo.toml
+  else
+    sed -i "/${package}/d" Cargo.toml
+  fi
 done
 
 echo "> Start package"
-git archive --format=tar.gz --output="dist/apache-opendal-incubating-$release_version-src.tar.gz" --prefix="apache-opendal-incubating-$release_version-src/" --add-file=Cargo.toml "$git_branch"
+git archive --format=tar.gz --output="dist/apache-opendal-$release_version-src.tar.gz" --prefix="apache-opendal-$release_version-src/" --add-file=Cargo.toml "$git_branch"
 
 cd dist
 echo "> Generate signature"

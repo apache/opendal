@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-RPATH=$(PWD)/../../target/debug
+RPATH=$(PWD)/target/debug
 OBJ_DIR=./build
 DOC_DIR=./docs
 

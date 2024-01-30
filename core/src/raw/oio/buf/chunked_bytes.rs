@@ -328,13 +328,6 @@ impl oio::Stream for ChunkedBytes {
             None => Poll::Ready(None),
         }
     }
-
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "ChunkedBytes does not support reset",
-        )))
-    }
 }
 
 impl Stream for ChunkedBytes {

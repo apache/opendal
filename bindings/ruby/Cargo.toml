@@ -17,15 +17,15 @@
 
 [package]
 name = "opendal-ruby"
-publish = false
 version = "0.1.0"
+publish = false
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.67"
 
 [lib]
 crate-type = ["cdylib"]
@@ -34,7 +34,7 @@ name = "opendal_ruby"
 
 [dependencies]
 magnus = { version = "0.5", features = ["bytes-crate"] }
-opendal.workspace = true
+opendal = "0.43.0"
 rb-sys = { version = "0.9.77", default-features = false }
 
 [build-dependencies]

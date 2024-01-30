@@ -40,6 +40,18 @@ pub enum Scheme {
     Azdls,
     /// [B2][crate::services::B2]: Backblaze B2 Services.
     B2,
+    /// [Seafile][crate::services::Seafile]: Seafile Services.
+    Seafile,
+    /// [Upyun][crate::services::Upyun]: Upyun Services.
+    Upyun,
+    /// [YandexDisk][crate::services::YandexDisk]: YandexDisk Services.
+    YandexDisk,
+    /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
+    Pcloud,
+    /// [Koofr][crate::services::Koofr]: Koofr Services.
+    Koofr,
+    /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
+    Chainsafe,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -68,6 +80,8 @@ pub enum Scheme {
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
+    /// [huggingface][crate::services::Huggingface]: Huggingface services.
+    Huggingface,
     /// [alluxio][created::services::Alluxio]: Alluxio services.
     Alluxio,
 
@@ -76,6 +90,8 @@ pub enum Scheme {
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
     /// [memcached][crate::services::Memcached]: Memcached service support.
+    Icloud,
+    /// [icloud][crate::services::Icloud]: APPLE icloud services.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
     Memory,
@@ -133,6 +149,8 @@ pub enum Scheme {
     Mongodb,
     /// [gridfs](crate::services::gridfs): MongoDB Gridfs Services
     Gridfs,
+    /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
+    HdfsNative,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -201,10 +219,14 @@ impl Scheme {
             Scheme::Hdfs,
             #[cfg(feature = "services-http")]
             Scheme::Http,
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface,
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs,
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs,
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud,
             #[cfg(feature = "services-libsql")]
             Scheme::Libsql,
             #[cfg(feature = "services-memcached")]
@@ -235,6 +257,14 @@ impl Scheme {
             Scheme::Rocksdb,
             #[cfg(feature = "services-s3")]
             Scheme::S3,
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile,
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun,
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk,
+            #[cfg(feature = "services-pcloud")]
+            Scheme::Pcloud,
             #[cfg(feature = "services-sftp")]
             Scheme::Sftp,
             #[cfg(feature = "services-sled")]
@@ -257,6 +287,8 @@ impl Scheme {
             Scheme::Redb,
             #[cfg(feature = "services-mongodb")]
             Scheme::Mongodb,
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative,
         ])
     }
 }
@@ -288,6 +320,7 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "b2" => Ok(Scheme::B2),
+            "chainsafe" => Ok(Scheme::Chainsafe),
             "cacache" => Ok(Scheme::Cacache),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
@@ -303,9 +336,12 @@ impl FromStr for Scheme {
             "gridfs" => Ok(Scheme::Gridfs),
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
+            "huggingface" | "hf" => Ok(Scheme::Huggingface),
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+            "icloud" => Ok(Scheme::Icloud),
+            "koofr" => Ok(Scheme::Koofr),
             "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
@@ -321,6 +357,10 @@ impl FromStr for Scheme {
             "redis" => Ok(Scheme::Redis),
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
+            "seafile" => Ok(Scheme::Seafile),
+            "upyun" => Ok(Scheme::Upyun),
+            "yandex_disk" => Ok(Scheme::YandexDisk),
+            "pcloud" => Ok(Scheme::Pcloud),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
@@ -332,6 +372,7 @@ impl FromStr for Scheme {
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
             "mongodb" => Ok(Scheme::Mongodb),
+            "hdfs_native" => Ok(Scheme::HdfsNative),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -344,6 +385,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::B2 => "b2",
+            Scheme::Chainsafe => "chainsafe",
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
@@ -357,10 +399,13 @@ impl From<Scheme> for &'static str {
             Scheme::Gridfs => "gridfs",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
+            Scheme::Huggingface => "huggingface",
             Scheme::Foundationdb => "foundationdb",
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
+            Scheme::Icloud => "icloud",
+            Scheme::Koofr => "koofr",
             Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
@@ -376,6 +421,7 @@ impl From<Scheme> for &'static str {
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
+            Scheme::Seafile => "seafile",
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",
@@ -390,6 +436,10 @@ impl From<Scheme> for &'static str {
             Scheme::Sqlite => "sqlite",
             Scheme::Mongodb => "mongodb",
             Scheme::Alluxio => "alluxio",
+            Scheme::Upyun => "upyun",
+            Scheme::YandexDisk => "yandex_disk",
+            Scheme::Pcloud => "pcloud",
+            Scheme::HdfsNative => "hdfs_native",
             Scheme::Custom(v) => v,
         }
     }

@@ -53,3 +53,12 @@ pub fn parse_datetime_from_from_timestamp_millis(s: i64) -> Result<DateTime<Utc>
 
     Ok(st.into())
 }
+
+/// parse datetime from given timestamp
+pub fn parse_datetime_from_from_timestamp(s: i64) -> Result<DateTime<Utc>> {
+    let st = UNIX_EPOCH
+        .checked_add(Duration::from_secs(s as u64))
+        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "input timestamp overflow"))?;
+
+    Ok(st.into())
+}

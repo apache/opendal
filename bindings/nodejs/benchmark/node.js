@@ -32,6 +32,7 @@ const opendalClient = new Operator('s3', {
   root: '/',
   bucket,
   endpoint,
+  region,
 })
 
 const s3Client = new S3Client({

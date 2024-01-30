@@ -21,8 +21,14 @@ on:
   push:
     tags:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
-      # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
+      # https://opendal.apache.org/community/committers/release/#release-maven-artifacts
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release_java.yml"
+      - "bindings/java/tools/build.py"
   workflow_dispatch:
 
 jobs:
@@ -33,6 +39,8 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
+          - os: ubuntu-latest
+            classifier: linux-aarch_64
           - os: windows-latest
             classifier: windows-x86_64
           - os: macos-latest
@@ -42,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 8
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '8'
@@ -52,7 +60,7 @@ jobs:
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Install Protoc
@@ -60,6 +68,19 @@ jobs:
         with:
           version: "23.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup linux for zigbuild
+        if: "contains(matrix.os, 'ubuntu-latest')"
+        run: pip install cargo-zigbuild
+
+      - name: Setup linux-aarch_64
+        if: "contains(matrix.classifier, 'linux-aarch_64')"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          # Setup for cargo
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
       - name: Local staging
         working-directory: bindings/java
         shell: bash
@@ -69,6 +90,7 @@ jobs:
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
+            -Dcargo-build.enableZigbuild=true \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \
@@ -90,10 +112,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: apache/incubator-opendal
+          repository: apache/opendal
           ref: ${{ inputs.ref }}
       - name: Set up JDK 8
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '8'
@@ -112,11 +134,16 @@ jobs:
         with:
           name: windows-x86_64-local-staging
           path: ~/windows-x86_64-local-staging
-      - name: Download linux staging directory
+      - name: Download linux x86_64 staging directory
         uses: actions/download-artifact@v3
         with:
           name: linux-x86_64-local-staging
           path: ~/linux-x86_64-local-staging
+      - name: Download linux aarch_64 staging directory
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-aarch_64-local-staging
+          path: ~/linux-aarch_64-local-staging
       - name: Download darwin staging directory
         uses: actions/download-artifact@v3
         with:
@@ -134,9 +161,10 @@ jobs:
       - name: Merge staging repositories
         working-directory: ci-opendal
         run: |
-          bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging \
+          python ./scripts/merge_local_staging.py $LOCAL_STAGING_DIR/staging \
             ~/windows-x86_64-local-staging/staging \
             ~/linux-x86_64-local-staging/staging \
+            ~/linux-aarch_64-local-staging/staging \
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 

@@ -18,7 +18,6 @@
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use opendal::raw::oio;
 use rand::prelude::ThreadRng;
@@ -27,7 +26,6 @@ use rand::RngCore;
 /// BlackHoleWriter will discard all data written to it so we can measure the buffer's cost.
 pub struct BlackHoleWriter;
 
-#[async_trait]
 impl oio::Write for BlackHoleWriter {
     fn poll_write(
         &mut self,

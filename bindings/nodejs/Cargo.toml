@@ -28,7 +28,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-# Enable all opendal default feature by default.
 default = [
   "services-azblob",
   "services-azdls",
@@ -49,8 +48,11 @@ default = [
 services-all = [
   "default",
 
+  "services-alluxio",
   "services-azfile",
+  "services-b2",
   "services-cacache",
+  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
   "services-etcd",
@@ -59,12 +61,17 @@ services-all = [
   # FIXME waiting for this issue close https://github.com/async-rs/async-tls/issues/55
   #  "services-ftp",
   "services-gdrive",
+  "services-gridfs",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
+  "services-huggingface",
   "services-ipfs",
+  "services-koofr",
+  "services-libsql",
   "services-memcached",
   "services-mini-moka",
   "services-moka",
+  "services-mongodb",
   "services-onedrive",
   "services-persy",
   "services-postgresql",
@@ -72,23 +79,22 @@ services-all = [
   "services-redb",
   "services-redis",
   "services-rocksdb",
+  "services-seafile",
   "services-sled",
+  "services-sqlite",
   "services-supabase",
   "services-swift",
   "services-tikv",
+  "services-upyun",
   "services-vercel-artifacts",
   "services-wasabi",
-  "services-mongodb",
-  "services-gridfs",
-  "services-sqlite",
-  "services-libsql",
-  "services-alluxio",
 ]
 
 # Default services provided by opendal.
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-cos = ["opendal/services-cos"]
+services-chainsafe = ["opendal/services-chainsafe"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]
 services-ghac = ["opendal/services-ghac"]
@@ -104,6 +110,7 @@ services-webhdfs = ["opendal/services-webhdfs"]
 # Optional services provided by opendal.
 services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
+services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]
@@ -113,7 +120,9 @@ services-ftp = ["opendal/services-ftp"]
 services-gdrive = ["opendal/services-gdrive"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
+services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
 services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -126,12 +135,14 @@ services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]
+services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
+services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 
@@ -145,8 +156,8 @@ napi = { version = "2.11.3", default-features = false, features = [
   "napi6",
   "async",
 ] }
-napi-derive = "2.12.2"
-opendal.workspace = true
+napi-derive = "2.14.6"
+opendal = { workspace = true, features = ["layers-blocking"] }
 tokio = "1"
 
 [build-dependencies]

@@ -21,23 +21,21 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_blocking_copy_tests(op: &Operator) -> Vec<Trial> {
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.copy && cap.blocking) {
-        return vec![];
+    if cap.read && cap.write && cap.copy && cap.blocking {
+        tests.extend(blocking_trials!(
+            op,
+            test_blocking_copy_file,
+            test_blocking_copy_non_existing_source,
+            test_blocking_copy_source_dir,
+            test_blocking_copy_target_dir,
+            test_blocking_copy_self,
+            test_blocking_copy_nested,
+            test_blocking_copy_overwrite
+        ))
     }
-
-    blocking_trials!(
-        op,
-        test_blocking_copy_file,
-        test_blocking_copy_non_existing_source,
-        test_blocking_copy_source_dir,
-        test_blocking_copy_target_dir,
-        test_blocking_copy_self,
-        test_blocking_copy_nested,
-        test_blocking_copy_overwrite
-    )
 }
 
 /// Copy a file and test with stat.

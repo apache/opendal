@@ -1,4 +1,5 @@
 target
 generated.js
-index.d.ts
+generated.d.ts
 .yarn
+pnpm-lock.yaml

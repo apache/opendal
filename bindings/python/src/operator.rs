@@ -494,35 +494,35 @@ pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpW
         return Ok(op);
     };
 
-    if let Some(append) = dict.get_item("append") {
+    if let Some(append) = dict.get_item("append")? {
         let v = append
             .extract::<bool>()
             .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
         op = op.with_append(v);
     }
 
-    if let Some(buffer) = dict.get_item("buffer") {
+    if let Some(buffer) = dict.get_item("buffer")? {
         let v = buffer
             .extract::<usize>()
             .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
         op = op.with_buffer(v);
     }
 
-    if let Some(content_type) = dict.get_item("content_type") {
+    if let Some(content_type) = dict.get_item("content_type")? {
         let v = content_type.extract::<String>().map_err(|err| {
             PyValueError::new_err(format!("content_type must be str, got {}", err))
         })?;
         op = op.with_content_type(v.as_str());
     }
 
-    if let Some(content_disposition) = dict.get_item("content_disposition") {
+    if let Some(content_disposition) = dict.get_item("content_disposition")? {
         let v = content_disposition.extract::<String>().map_err(|err| {
             PyValueError::new_err(format!("content_disposition must be str, got {}", err))
         })?;
         op = op.with_content_disposition(v.as_str());
     }
 
-    if let Some(cache_control) = dict.get_item("cache_control") {
+    if let Some(cache_control) = dict.get_item("cache_control")? {
         let v = cache_control.extract::<String>().map_err(|err| {
             PyValueError::new_err(format!("cache_control must be str, got {}", err))
         })?;

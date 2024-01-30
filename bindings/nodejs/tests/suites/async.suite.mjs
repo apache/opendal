@@ -19,15 +19,67 @@
 
 import { randomUUID } from 'node:crypto'
 import { test } from 'vitest'
+import { generateBytes, generateFixedBytes } from '../utils.mjs'
+import { Readable, Writable } from 'node:stream'
+import { finished, pipeline } from 'node:stream/promises'
 
-export function run(operator) {
-  test('async stat not exist files', async () => {
-    const filename = `random_file_${randomUUID()}`
+export function run(op) {
+  describe('async tests', () => {
+    test('async stat not exist files', async () => {
+      const filename = `random_file_${randomUUID()}`
 
-    try {
-      await operator.stat(filename)
-    } catch (error) {
-      assert.include(error.message, 'NotFound')
-    }
+      try {
+        await op.stat(filename)
+      } catch (error) {
+        assert.include(error.message, 'NotFound')
+      }
+    })
+
+    test.runIf(op.capability().write && op.capability().writeCanMulti)('reader/writer stream pipeline', async () => {
+      const filename = `random_file_${randomUUID()}`
+      const buf = generateFixedBytes(5 * 1024 * 1024)
+      const rs = Readable.from(buf, {
+        highWaterMark: 5 * 1024 * 1024, // to buffer 5MB data to read
+      })
+      const w = await op.writer(filename)
+      const ws = w.createWriteStream()
+      await pipeline(rs, ws)
+
+      await finished(ws)
+
+      const t = await op.stat(filename)
+      assert.equal(t.contentLength, buf.length)
+
+      const content = await op.read(filename)
+      assert.equal(Buffer.compare(content, buf), 0) // 0 means equal
+
+      await op.delete(filename)
+    })
+
+    test.runIf(op.capability().write)('read stream', async () => {
+      let c = generateFixedBytes(3 * 1024 * 1024)
+      const filename = `random_file_${randomUUID()}`
+
+      await op.write(filename, c)
+
+      const r = await op.reader(filename)
+      const rs = r.createReadStream()
+      let chunks = []
+      await pipeline(
+        rs,
+        new Writable({
+          write(chunk, encoding, callback) {
+            chunks.push(chunk)
+            callback()
+          },
+        }),
+      )
+
+      await finished(rs)
+      const buf = Buffer.concat(chunks)
+      assert.equal(Buffer.compare(buf, c), 0)
+
+      op.deleteSync(filename)
+    })
   })
 }

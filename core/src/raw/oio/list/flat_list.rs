@@ -19,16 +19,15 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
 
 /// ListFuture is the future returned while calling async list.
-type ListFuture<A, L> = BoxFuture<'static, (A, oio::Entry, Result<(RpList, L)>)>;
+type ListFuture<A, L> = BoxedFuture<(A, oio::Entry, Result<(RpList, L)>)>;
 
-/// ToFlatLister will walk dir in bottom up way:
+/// FlatLister will walk dir in bottom up way:
 ///
 /// - List nested dir first
 /// - Go back into parent dirs one by one
@@ -75,6 +74,10 @@ pub struct FlatLister<A: Accessor, L> {
 
 /// # Safety
 ///
+/// wasm32 is a special target that we only have one event-loop for this FlatLister.
+unsafe impl<A: Accessor, L> Send for FlatLister<A, L> {}
+/// # Safety
+///
 /// We will only take `&mut Self` reference for FsLister.
 unsafe impl<A: Accessor, L> Sync for FlatLister<A, L> {}
 
@@ -84,15 +87,6 @@ where
 {
     /// Create a new flat lister
     pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
-        #[cfg(debug_assertions)]
-        {
-            let meta = acc.info();
-            debug_assert!(
-                meta.full_capability().list_without_recursive,
-                "service doesn't support list hierarchy, it must be a bug"
-            );
-        }
-
         FlatLister {
             acc: Some(acc),
             root: path.to_string(),
@@ -254,7 +248,6 @@ mod tests {
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
             am.full_capability_mut().list = true;
-            am.full_capability_mut().list_without_recursive = true;
 
             am
         }

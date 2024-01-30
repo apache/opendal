@@ -1,4 +1,4 @@
-# OpenDAL Go Binding (WIP)
+# Apache OpenDAL™ Go Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
@@ -41,7 +41,7 @@ go build -tags dynamic .
 To running the go binding tests, we need to tell the linker where to find the `libopendal_c.so` file.
 
 ```shell
-expose LD_LIBRARY_PATH=/path/to/opendal/target/debug/
+expose LD_LIBRARY_PATH=/path/to/opendal/bindings/c/target/debug/
 ```
 
 Then, we can run the tests.
@@ -55,3 +55,9 @@ For benchmark
 ```shell
 go test -bench=. -tags dynamic .
 ```
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

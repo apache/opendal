@@ -15,23 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::io::SeekFrom;
+use std::mem;
+use std::sync::Mutex;
 use std::usize;
 
-use bytes::Bytes;
 use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
-use log::debug;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
-use sha2::Digest;
-use sha2::Sha256;
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
@@ -110,255 +104,89 @@ macro_rules! blocking_trials {
     };
 }
 
-/// ObjectReaderFuzzer is the fuzzer for object readers.
-///
-/// We will generate random read/seek/next operations to operate on object
-/// reader to check if the output is expected.
-///
-/// # TODO
-///
-/// This fuzzer only generate valid operations.
-///
-/// In the future, we need to generate invalid operations to check if we
-/// handled correctly.
-pub struct ObjectReaderFuzzer {
-    name: String,
-    bs: Vec<u8>,
-
-    offset: usize,
-    size: usize,
-    cur: usize,
-    rng: ThreadRng,
-    actions: Vec<ObjectReaderAction>,
+pub struct Fixture {
+    pub paths: Mutex<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ObjectReaderAction {
-    Read(usize),
-    Seek(SeekFrom),
-    Next,
-}
-
-impl ObjectReaderFuzzer {
-    /// Create a new fuzzer.
-    pub fn new(name: &str, bs: Vec<u8>, offset: usize, size: usize) -> Self {
+impl Fixture {
+    /// Create a new fixture
+    pub const fn new() -> Self {
         Self {
-            name: name.to_string(),
-            bs,
-
-            offset,
-            size,
-            cur: 0,
-
-            rng: thread_rng(),
-            actions: vec![],
+            paths: Mutex::new(vec![]),
         }
     }
 
-    /// Generate a new action.
-    pub fn fuzz(&mut self) -> ObjectReaderAction {
-        let action = match self.rng.gen_range(0..3) {
-            // Generate a read action.
-            0 => {
-                if self.cur >= self.size {
-                    ObjectReaderAction::Read(0)
-                } else {
-                    let size = self.rng.gen_range(0..self.size - self.cur);
-                    ObjectReaderAction::Read(size)
-                }
-            }
-            // Generate a seek action.
-            1 => match self.rng.gen_range(0..3) {
-                // Generate a SeekFrom::Start action.
-                0 => {
-                    let offset = self.rng.gen_range(0..self.size as u64);
-                    ObjectReaderAction::Seek(SeekFrom::Start(offset))
-                }
-                // Generate a SeekFrom::End action.
-                1 => {
-                    let offset = self.rng.gen_range(-(self.size as i64)..0);
-                    ObjectReaderAction::Seek(SeekFrom::End(offset))
-                }
-                // Generate a SeekFrom::Current action.
-                2 => {
-                    let offset = self
-                        .rng
-                        .gen_range(-(self.cur as i64)..(self.size - self.cur) as i64);
-                    ObjectReaderAction::Seek(SeekFrom::Current(offset))
-                }
-                _ => unreachable!(),
-            },
-            // Generate a next action.
-            2 => ObjectReaderAction::Next,
-            _ => unreachable!(),
-        };
+    /// Create a new dir path
+    pub fn new_dir_path(&self) -> String {
+        let path = format!("{}/", uuid::Uuid::new_v4());
+        self.paths.lock().unwrap().push(path.clone());
 
-        debug!("{} perform fuzz action: {:?}", self.name, action);
-        self.actions.push(action);
-
-        action
+        path
     }
 
-    /// Check if read operation is expected.
-    pub fn check_read(&mut self, output_n: usize, output_bs: &[u8]) {
-        assert!(
-            self.cur + output_n <= self.size,
-            "check read failed: output bs is larger than remaining bs: actions: {:?}",
-            self.actions
-        );
+    /// Create a new file path
+    pub fn new_file_path(&self) -> String {
+        let path = format!("{}", uuid::Uuid::new_v4());
+        self.paths.lock().unwrap().push(path.clone());
 
-        let current_size = self.offset + self.cur;
-        let expected_bs = &self.bs[current_size..current_size + output_n];
-
-        assert_eq!(
-            format!("{:x}", Sha256::digest(output_bs)),
-            format!("{:x}", Sha256::digest(expected_bs)),
-            "check read failed: output bs is different with expected bs, actions: {:?}",
-            self.actions,
-        );
-
-        // Update current pos.
-        self.cur += output_n;
+        path
     }
 
-    /// Check if seek operation is expected.
-    pub fn check_seek(&mut self, input_pos: SeekFrom, output_pos: u64) {
-        let expected_pos = match input_pos {
-            SeekFrom::Start(offset) => offset as i64,
-            SeekFrom::End(offset) => self.size as i64 + offset,
-            SeekFrom::Current(offset) => self.cur as i64 + offset,
-        };
+    /// Create a new file with random content
+    pub fn new_file(&self, op: impl Into<Operator>) -> (String, Vec<u8>, usize) {
+        let max_size = op
+            .into()
+            .info()
+            .full_capability()
+            .write_total_max_size
+            .unwrap_or(4 * 1024 * 1024);
 
-        assert_eq!(
-            output_pos, expected_pos as u64,
-            "check seek failed: output pos is different with expected pos, actions: {:?}",
-            self.actions
-        );
-
-        // Update current pos.
-        self.cur = expected_pos as usize;
+        self.new_file_with_range(uuid::Uuid::new_v4().to_string(), 1..max_size)
     }
 
-    /// Check if next operation is expected.
-    pub fn check_next(&mut self, output_bs: Option<Bytes>) {
-        if let Some(output_bs) = output_bs {
-            assert!(
-                self.cur + output_bs.len() <= self.size,
-                "check next failed: output bs is larger than remaining bs, actions: {:?}",
-                self.actions
-            );
+    pub fn new_file_with_path(
+        &self,
+        op: impl Into<Operator>,
+        path: &str,
+    ) -> (String, Vec<u8>, usize) {
+        let max_size = op
+            .into()
+            .info()
+            .full_capability()
+            .write_total_max_size
+            .unwrap_or(4 * 1024 * 1024);
 
-            let current_size = self.offset + self.cur;
-            let expected_bs = &self.bs[current_size..current_size + output_bs.len()];
+        self.new_file_with_range(path, 1..max_size)
+    }
 
-            assert_eq!(
-                format!("{:x}", Sha256::digest(&output_bs)),
-                format!("{:x}", Sha256::digest(expected_bs)),
-                "check next failed: output bs is different with expected bs, actions: {:?}",
-                self.actions
-            );
+    /// Create a new file with random content in range.
+    fn new_file_with_range(
+        &self,
+        path: impl Into<String>,
+        range: impl SampleRange<usize>,
+    ) -> (String, Vec<u8>, usize) {
+        let path = path.into();
+        self.paths.lock().unwrap().push(path.clone());
 
-            // Update current pos.
-            self.cur += output_bs.len();
-        } else {
-            assert!(
-                self.cur >= self.size,
-                "check next failed: output bs is None, we still have bytes to read, actions: {:?}",
-                self.actions
-            )
+        let mut rng = thread_rng();
+
+        let size = rng.gen_range(range);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        (path, content, size)
+    }
+
+    /// Perform cleanup
+    pub async fn cleanup(&self, op: impl Into<Operator>) {
+        let op = op.into();
+        let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
+        for path in paths.iter() {
+            // We try our best to cleanup fixtures, but won't panic if failed.
+            let _ = op.delete(path).await.map_err(|err| {
+                log::error!("fixture cleanup path {path} failed: {:?}", err);
+            });
+            log::info!("fixture cleanup path {path} succeeded")
         }
-    }
-}
-
-/// ObjectWriterFuzzer is the fuzzer for object writer.
-///
-/// We will generate random write operations to operate on object
-/// write to check if the output is expected.
-///
-/// # TODO
-///
-/// This fuzzer only generate valid operations.
-///
-/// In the future, we need to generate invalid operations to check if we
-/// handled correctly.
-pub struct ObjectWriterFuzzer {
-    name: String,
-    bs: Vec<u8>,
-
-    size: Option<usize>,
-    cur: usize,
-    rng: ThreadRng,
-    actions: Vec<ObjectWriterAction>,
-}
-
-#[derive(Clone)]
-pub enum ObjectWriterAction {
-    Write(Bytes),
-}
-
-impl Debug for ObjectWriterAction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            ObjectWriterAction::Write(bs) => write!(f, "Write({})", bs.len()),
-        }
-    }
-}
-
-impl ObjectWriterFuzzer {
-    /// Create a new fuzzer.
-    pub fn new(name: &str, size: Option<usize>) -> Self {
-        Self {
-            name: name.to_string(),
-            bs: Vec::new(),
-
-            size,
-            cur: 0,
-
-            rng: thread_rng(),
-            actions: vec![],
-        }
-    }
-
-    /// Generate a new action.
-    pub fn fuzz(&mut self) -> ObjectWriterAction {
-        let max = if let Some(size) = self.size {
-            size - self.cur
-        } else {
-            // Set max to 1MiB
-            1024 * 1024
-        };
-
-        let size = self.rng.gen_range(0..max);
-
-        let mut bs = vec![0; size];
-        self.rng.fill_bytes(&mut bs);
-
-        let bs = Bytes::from(bs);
-        self.bs.extend_from_slice(&bs);
-        self.cur += bs.len();
-
-        let action = ObjectWriterAction::Write(bs);
-        debug!("{} perform fuzz action: {:?}", self.name, action);
-
-        self.actions.push(action.clone());
-
-        action
-    }
-
-    /// Check if read operation is expected.
-    pub fn check(&mut self, actual_bs: &[u8]) {
-        assert_eq!(
-            self.bs.len(),
-            actual_bs.len(),
-            "check failed: expected len is different with actual len, actions: {:?}",
-            self.actions
-        );
-
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&self.bs)),
-            format!("{:x}", Sha256::digest(actual_bs)),
-            "check failed: expected bs is different with actual bs, actions: {:?}",
-            self.actions,
-        );
     }
 }

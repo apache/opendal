@@ -22,19 +22,19 @@
 
 const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
-const repoAddress = 'https://github.com/apache/incubator-opendal';
+const repoAddress = 'https://github.com/apache/opendal';
+
+const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL ? process.env.OPENDAL_WEBSITE_BASE_URL : '/';
+const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST ? process.env.OPENDAL_WEBSITE_NOT_LATEST : false;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Apache OpenDAL',
+  title: 'Apache OpenDAL™',
   tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
   favicon: 'img/favicon.ico',
 
   url: 'https://opendal.apache.org/',
   baseUrl: '/',
-
-  organizationName: 'Apache',
-  projectName: 'OpenDAL',
 
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
@@ -52,14 +52,14 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./docs/sidebars.js'),
           editUrl:
-            'https://github.com/apache/incubator-opendal/tree/main/website/',
+            'https://github.com/apache/opendal/tree/main/website/',
           showLastUpdateAuthor: true,
           showLastUpdateTime: true
         },
         blog: {
           showReadingTime: true,
           editUrl:
-            'https://github.com/apache/incubator-opendal/tree/main/website/',
+            'https://github.com/apache/opendal/tree/main/website/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -82,7 +82,7 @@ const config = {
             path: 'community',
             routeBasePath: 'community',
             sidebarPath: require.resolve('./community/sidebars.js'),
-            editUrl: 'https://github.com/apache/incubator-opendal/tree/main/website/',
+            editUrl: 'https://github.com/apache/opendal/tree/main/website/',
         },
     ],
     [require.resolve("docusaurus-plugin-image-zoom"), {}],
@@ -99,7 +99,7 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL (incubating)',
+          alt: 'Apache OpenDAL',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
           href: '/',
@@ -133,22 +133,6 @@ const config = {
                 label: 'Java Binding',
                 to: 'pathname:///docs/java/'
               },
-              {
-                label: 'C Binding',
-                to: 'pathname:///docs/c/'
-              },
-              {
-                label: 'Lua Binding',
-                to: 'pathname:///docs/lua/'
-              },
-              {
-                label: 'Haskell Binding',
-                to: 'pathname:///docs/haskell/'
-              },
-              {
-                label: 'C++ Binding',
-                to: 'pathname:///docs/cpp/'
-              }
             ]
           },
           {
@@ -225,18 +209,36 @@ const config = {
         style: 'light',
         logo: {
           alt: 'Apache Software Foundation',
-          src: './img/incubator.svg',
+          src: './img/asf_logo_wide.svg',
           href: 'https://www.apache.org/',
-          width: 200,
+          width: 300,
         },
-        copyright: `Apache OpenDAL (incubating) is an effort undergoing incubation at The Apache Software Foundation (ASF), sponsored by the Apache Incubator. Incubation is required of all newly accepted projects until a further review indicates that the infrastructure, communications, and decision making process have stabilized in a manner consistent with other successful ASF projects. While incubation status is not necessarily a reflection of the completeness or stability of the code, it does indicate that the project has yet to be fully endorsed by the ASF. <br/><br/> Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator, the Apache feather, the Apache Incubator logo and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
+        copyright: `Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation<br/>Apache OpenDAL, OpenDAL, Apache, the Apache feather and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
       },
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
         additionalLanguages: ['rust', 'java', 'groovy'],
       },
+      zoom: {
+        selector: '.markdown img',
+        background: 'rgba(255, 255, 255, 0.8)',
+        config: {}
+      }
     }),
 };
 
-module.exports = config;
+function generateConfig() {
+  config.baseUrl = baseUrl
+
+  if (websiteNotLatest) {
+    config.themeConfig.announcementBar = {
+      id: 'announcementBar-0', // Increment on change
+      content: 'You are viewing the documentation of a <strong>historical release</strong>. <a href="https://nightlies.apache.org/opendal/opendal-docs-stable/">View the latest stable release</a>.',
+    }
+  }
+
+  return config
+}
+
+module.exports = generateConfig();

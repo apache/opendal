@@ -118,7 +118,7 @@ impl AzfileBuilder {
     /// Set file share name of this backend.
     ///
     /// # Notes
-    /// You can find more about from: https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service
+    /// You can find more about from: <https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service>
     pub fn share_name(&mut self, share_name: &str) -> &mut Self {
         if !share_name.is_empty() {
             self.share_name = share_name.to_string();
@@ -247,10 +247,10 @@ pub struct AzfileBackend {
 #[async_trait]
 impl Accessor for AzfileBackend {
     type Reader = IncomingAsyncBody;
-    type BlockingReader = ();
     type Writer = AzfileWriters;
-    type BlockingWriter = ();
     type Lister = oio::PageLister<AzfileLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -270,7 +270,6 @@ impl Accessor for AzfileBackend {
                 rename: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -309,32 +308,6 @@ impl Accessor for AzfileBackend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azfile_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                Ok((RpRead::new().with_size(size), resp.into_body()))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(), IncomingAsyncBody::empty())),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.core.ensure_parent_dir_exists(path).await?;
-        let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzfileWriters::Two(oio::AppendObjectWriter::new(w))
-        } else {
-            AzfileWriters::One(oio::OneShotWriter::new(w))
-        };
-        return Ok((RpWrite::default(), w));
-    }
-
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let resp = if path.ends_with('/') {
             self.core.azfile_get_directory_properties(path).await?
@@ -352,17 +325,37 @@ impl Accessor for AzfileBackend {
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        self.core.ensure_parent_dir_exists(to).await?;
-        let resp = self.core.azfile_rename(from, to).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.azfile_read(path, args.range()).await?;
+
         let status = resp.status();
+
         match status {
-            StatusCode::OK => {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let size = parse_content_length(resp.headers())?;
+                let range = parse_content_range(resp.headers())?;
+                Ok((
+                    RpRead::new().with_size(size).with_range(range),
+                    resp.into_body(),
+                ))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
                 resp.into_body().consume().await?;
-                Ok(RpRename::default())
+                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.core.ensure_parent_dir_exists(path).await?;
+        let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzfileWriters::Two(oio::AppendWriter::new(w))
+        } else {
+            AzfileWriters::One(oio::OneShotWriter::new(w))
+        };
+        return Ok((RpWrite::default(), w));
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
@@ -386,6 +379,19 @@ impl Accessor for AzfileBackend {
         let l = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        self.core.ensure_parent_dir_exists(to).await?;
+        let resp = self.core.azfile_rename(from, to).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

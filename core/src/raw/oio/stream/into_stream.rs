@@ -15,39 +15,80 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::Context;
-use std::task::Poll;
+#[cfg(not(target_arch = "wasm32"))]
+pub use non_wasm32_impl::*;
 
-use bytes::Bytes;
-use futures::TryStreamExt;
+#[cfg(not(target_arch = "wasm32"))]
+mod non_wasm32_impl {
+    use std::task::Context;
+    use std::task::Poll;
 
-use crate::raw::*;
-use crate::*;
+    use bytes::Bytes;
+    use futures::TryStreamExt;
 
-/// Convert given futures stream into [`oio::Stream`].
-pub fn into_stream<S>(stream: S) -> IntoStream<S>
-where
-    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
-{
-    IntoStream { inner: stream }
-}
+    use crate::raw::oio;
 
-pub struct IntoStream<S> {
-    inner: S,
-}
-
-impl<S> oio::Stream for IntoStream<S>
-where
-    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
-{
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.try_poll_next_unpin(cx)
+    /// Convert given futures stream into [`oio::Stream`].
+    pub fn into_stream<S>(stream: S) -> IntoStream<S>
+    where
+        S: futures::Stream<Item = crate::Result<Bytes>> + Send + Sync + Unpin,
+    {
+        IntoStream { inner: stream }
     }
 
-    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "IntoStream doesn't support reset",
-        )))
+    pub struct IntoStream<S> {
+        inner: S,
+    }
+
+    impl<S> oio::Stream for IntoStream<S>
+    where
+        S: futures::Stream<Item = crate::Result<Bytes>> + Send + Sync + Unpin,
+    {
+        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+            self.inner.try_poll_next_unpin(cx)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm32_impl::*;
+#[cfg(target_arch = "wasm32")]
+mod wasm32_impl {
+    use std::task::Context;
+    use std::task::Poll;
+
+    use bytes::Bytes;
+    use futures::TryStreamExt;
+
+    use crate::raw::oio;
+
+    /// Convert given futures stream into [`oio::Stream`].
+    pub fn into_stream<S>(stream: S) -> IntoStream<S>
+    where
+        S: futures::Stream<Item = crate::Result<Bytes>> + Unpin,
+    {
+        IntoStream { inner: stream }
+    }
+
+    pub struct IntoStream<S> {
+        inner: S,
+    }
+
+    /// # Safety
+    ///
+    /// wasm32 is a special target that we only have one event-loop for this stream.
+    unsafe impl<S> Send for IntoStream<S> {}
+    /// # Safety
+    ///
+    /// IntoStream only has mutable references.
+    unsafe impl<S> Sync for IntoStream<S> {}
+
+    impl<S> oio::Stream for IntoStream<S>
+    where
+        S: futures::Stream<Item = crate::Result<Bytes>> + Unpin,
+    {
+        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+            self.inner.try_poll_next_unpin(cx)
+        }
     }
 }

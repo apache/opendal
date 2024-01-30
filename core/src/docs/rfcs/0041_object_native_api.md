@@ -1,7 +1,7 @@
 - Proposal Name: `object_native_api`
 - Start Date: 2022-02-18
-- RFC PR: [apache/incubator-opendal#41](https://github.com/apache/incubator-opendal/pull/41)
-- Tracking Issue: [apache/incubator-opendal#35](https://github.com/apache/incubator-opendal/pull/35)
+- RFC PR: [apache/opendal#41](https://github.com/apache/opendal/pull/41)
+- Tracking Issue: [apache/opendal#35](https://github.com/apache/opendal/pull/35)
 
 # Summary
 

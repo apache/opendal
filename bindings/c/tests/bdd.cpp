@@ -75,26 +75,6 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_metadata* meta = s.meta;
     EXPECT_TRUE(opendal_metadata_is_file(meta));
 
-    // The blocking file "test" should be renamed to "test-copy"
-    error = opendal_operator_rename(this->p, this->path.c_str(), "test-copy");
-    EXPECT_EQ(error, nullptr);
-    e = opendal_operator_is_exist(this->p, "test-copy");
-    EXPECT_EQ(e.error, nullptr);
-    EXPECT_TRUE(e.is_exist);
-    e = opendal_operator_is_exist(this->p, this->path.c_str());
-    EXPECT_EQ(e.error, nullptr);
-    EXPECT_FALSE(e.is_exist);
-
-    // The blocking file "test-copy" should be copied to "test"
-    error = opendal_operator_copy(this->p, "test-copy", this->path.c_str());
-    EXPECT_EQ(error, nullptr);
-    e = opendal_operator_is_exist(this->p, this->path.c_str());
-    EXPECT_EQ(e.error, nullptr);
-    EXPECT_TRUE(e.is_exist);
-    e = opendal_operator_is_exist(this->p, "test-copy");
-    EXPECT_EQ(e.error, nullptr);
-    EXPECT_TRUE(e.is_exist);
-
     // The blocking file "test" content length must be 13
     EXPECT_EQ(opendal_metadata_content_length(meta), 13);
 

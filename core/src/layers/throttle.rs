@@ -29,7 +29,6 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
-use governor::NegativeMultiDecision;
 use governor::Quota;
 use governor::RateLimiter;
 
@@ -113,7 +112,8 @@ pub struct ThrottleAccessor<A: Accessor> {
     rate_limiter: SharedRateLimiter,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
@@ -214,31 +214,28 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let buf_length = NonZeroU32::new(bs.remaining() as u32).unwrap();
 
         loop {
             match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.poll_write(cx, bs),
-                Err(negative) => match negative {
+                Ok(res) => match res {
+                    Ok(_) => return self.inner.poll_write(cx, bs),
                     // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
+                    Err(not_until) => {
                         let _ = not_until.wait_time_from(DefaultClock::default().now());
                         // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
 
                         // FIXME: we should sleep here.
                         // tokio::time::sleep(wait_time).await;
                     }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::RateLimited,
-                            "InsufficientCapacity due to burst size being smaller than the request size",
-                        )))
-                    }
                 },
+                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
+                Err(_) => return Poll::Ready(Err(Error::new(
+                    ErrorKind::RateLimited,
+                    "InsufficientCapacity due to burst size being smaller than the request size",
+                ))),
             }
         }
     }
@@ -258,21 +255,19 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
 
         loop {
             match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.write(bs),
-                Err(negative) => match negative {
+                Ok(res) => match res {
+                    Ok(_) => return self.inner.write(bs),
                     // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
+                    Err(not_until) => {
                         let wait_time = not_until.wait_time_from(DefaultClock::default().now());
                         thread::sleep(wait_time);
                     }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Err(Error::new(
-                            ErrorKind::RateLimited,
-                            "InsufficientCapacity due to burst size being smaller than the request size",
-                        ))
-                    }
                 },
+                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
+                Err(_) => return Err(Error::new(
+                    ErrorKind::RateLimited,
+                    "InsufficientCapacity due to burst size being smaller than the request size",
+                )),
             }
         }
     }

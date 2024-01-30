@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
+use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -29,17 +30,17 @@ use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
 use serde::Deserialize;
-use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
-use suppaftp::AsyncNativeTlsConnector;
-use suppaftp::AsyncNativeTlsFtpStream;
+use suppaftp::AsyncRustlsConnector;
+use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 
+use super::err::parse_error;
 use super::lister::FtpLister;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
@@ -214,7 +215,7 @@ pub struct Manager {
 
 #[async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = AsyncNativeTlsFtpStream;
+    type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
@@ -223,7 +224,7 @@ impl bb8::ManageConnection for Manager {
         let mut ftp_stream = if self.enable_secure {
             stream
                 .into_secure(
-                    AsyncNativeTlsConnector::from(TlsConnector::new()),
+                    AsyncRustlsConnector::from(TlsConnector::default()),
                     &self.endpoint,
                 )
                 .await?
@@ -258,9 +259,11 @@ impl bb8::ManageConnection for Manager {
         conn.noop().await
     }
 
-    /// Always allow reuse conn.
+    /// Don't allow reuse conn.
+    ///
+    /// We need to investigate why reuse conn will cause error.
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+        true
     }
 }
 
@@ -284,10 +287,10 @@ impl Debug for FtpBackend {
 #[async_trait]
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
-    type BlockingReader = ();
     type Writer = FtpWriters;
-    type BlockingWriter = ();
     type Lister = FtpLister;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -306,7 +309,6 @@ impl Accessor for FtpBackend {
                 create_dir: true,
 
                 list: true,
-                list_without_recursive: true,
 
                 ..Default::default()
             });
@@ -331,75 +333,12 @@ impl Accessor for FtpBackend {
                 }))
                 | Ok(()) => (),
                 Err(e) => {
-                    return Err(e.into());
+                    return Err(parse_error(e));
                 }
             }
         }
 
         return Ok(RpCreateDir::default());
-    }
-
-    /// TODO: migrate to FileReader maybe?
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
-
-        let meta = self.ftp_stat(path).await?;
-
-        let br = args.range();
-        let r: Box<dyn AsyncRead + Send + Unpin> = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?.take(size);
-                Box::new(ds)
-            }
-            (Some(offset), None) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                Box::new(ds)
-            }
-            (None, Some(size)) => {
-                ftp_stream
-                    .resume_transfer((meta.size() as u64 - size) as usize)
-                    .await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                Box::new(ds)
-            }
-            (None, None) => {
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                Box::new(ds)
-            }
-        };
-
-        Ok((RpRead::new(), FtpReader::new(r, ftp_stream)))
-    }
-
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // Ensure the parent dir exists.
-        let parent = get_parent(path);
-        let paths: Vec<&str> = parent.split('/').collect();
-
-        // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
-        let mut curr_path = String::new();
-        for path in paths {
-            curr_path.push_str(path);
-            match ftp_stream.mkdir(&curr_path).await {
-                // Do nothing if status is FileUnavailable or OK(()) is return.
-                Err(FtpError::UnexpectedResponse(Response {
-                    status: Status::FileUnavailable,
-                    ..
-                }))
-                | Ok(()) => (),
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-
-        let w = FtpWriter::new(self.clone(), path.to_string());
-        let w = oio::OneShotWriter::new(w);
-
-        Ok((RpWrite::new(), w))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -420,6 +359,81 @@ impl Accessor for FtpBackend {
         Ok(RpStat::new(meta))
     }
 
+    /// TODO: migrate to FileReader maybe?
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
+
+        let meta = self.ftp_stat(path).await?;
+
+        let br = args.range();
+        let r: Box<dyn AsyncRead + Send + Unpin> = match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                ftp_stream
+                    .resume_transfer(offset as usize)
+                    .await
+                    .map_err(parse_error)?;
+                let ds = ftp_stream
+                    .retr_as_stream(path)
+                    .await
+                    .map_err(parse_error)?
+                    .take(size);
+                Box::new(ds)
+            }
+            (Some(offset), None) => {
+                ftp_stream
+                    .resume_transfer(offset as usize)
+                    .await
+                    .map_err(parse_error)?;
+                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
+                Box::new(ds)
+            }
+            (None, Some(size)) => {
+                ftp_stream
+                    .resume_transfer((meta.size() as u64 - size) as usize)
+                    .await
+                    .map_err(parse_error)?;
+                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
+                Box::new(ds)
+            }
+            (None, None) => {
+                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
+                Box::new(ds)
+            }
+        };
+
+        Ok((RpRead::new(), FtpReader::new(r, ftp_stream)))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        // Ensure the parent dir exists.
+        let parent = get_parent(path);
+        let paths: Vec<&str> = parent.split('/').collect();
+
+        // TODO: we can optimize this by checking dir existence first.
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut curr_path = String::new();
+
+        for path in paths {
+            curr_path.push_str(path);
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(parse_error(e));
+                }
+            }
+        }
+
+        let w = FtpWriter::new(self.clone(), path.to_string());
+        let w = oio::OneShotWriter::new(w);
+
+        Ok((RpWrite::new(), w))
+    }
+
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
 
@@ -436,7 +450,7 @@ impl Accessor for FtpBackend {
             }))
             | Ok(_) => (),
             Err(e) => {
-                return Err(e.into());
+                return Err(parse_error(e));
             }
         }
 
@@ -447,7 +461,7 @@ impl Accessor for FtpBackend {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await?;
+        let files = ftp_stream.list(pathname).await.map_err(parse_error)?;
 
         Ok((
             RpList::default(),
@@ -472,10 +486,11 @@ impl FtpBackend {
                     })
                     .await
             })
-            .await?;
+            .await
+            .map_err(parse_error)?;
 
         pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => err.into(),
+            RunError::User(err) => parse_error(err),
             RunError::TimedOut => {
                 Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
             }
@@ -489,7 +504,7 @@ impl FtpBackend {
 
         let pathname = if parent == "/" { None } else { Some(parent) };
 
-        let resp = ftp_stream.list(pathname).await?;
+        let resp = ftp_stream.list(pathname).await.map_err(parse_error)?;
 
         // Get stat of file.
         let mut files = resp

@@ -1,4 +1,4 @@
-# OpenDAL PHP Binding (WIP)
+# Apache OpenDAL™ PHP Binding (WIP)
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
@@ -25,13 +25,13 @@ We use [ext-php-rs](https://github.com/davidcole1340/ext-php-rs) to build PHP ex
 1. Clone the repository
 
 ```bash
-git clone git@github.com:apache/incubator-opendal.git
+git clone git@github.com:apache/opendal.git
 ```
 
 2. Build the opendal-php extension
 
 ```bash
-cd incubator-opendal/bindings/php
+cd opendal/bindings/php
 cargo build
 ```
 
@@ -40,7 +40,7 @@ cargo build
 3. Enable extension for PHP Manually
 
 ```bash
-cd incubator-opendal
+cd opendal
 
 # Linux
 cp target/debug/libopendal_php.so $(php -r "echo ini_get('extension_dir');")/libopendal_php.so
@@ -61,7 +61,7 @@ You can also use cargo-php directly to install the extension, see [cargo-php](ht
 
 ```bash
 cargo install cargo-php
-cd incubator-opendal/bindings/php
+cd opendal/bindings/php
 cargo php install
 ```
 This command will automatically build the extension and copy it to the extension directory of the current PHP version.
@@ -77,8 +77,14 @@ php -m | grep opendal-php
 Composer test:
 
 ```bash
-cd incubator-opendal/bindings/php
+cd opendal/bindings/php
 
 composer install
 composer test
 ```
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

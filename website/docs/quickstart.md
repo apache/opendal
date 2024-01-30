@@ -3,7 +3,7 @@ title: Quickstart
 sidebar_position: 3
 ---
 
-OpenDAL can be easily integrated into different software with its Rust core and multilingual bindings.
+Apache OpenDAL™ can be easily integrated into different software with its Rust core and multilingual bindings.
 
 ## Rust core
 
@@ -124,7 +124,7 @@ dependencies {
 
 #### Classified library
 
-For details in specifying classified library, read the [dedicated explanation](https://github.com/apache/incubator-opendal/tree/main/bindings/java).
+For details in specifying classified library, read the [dedicated explanation](https://github.com/apache/opendal/tree/main/bindings/java).
 
 ### Demo
 

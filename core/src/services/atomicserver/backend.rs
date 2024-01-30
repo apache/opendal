@@ -38,6 +38,7 @@ use crate::raw::normalize_path;
 use crate::raw::normalize_root;
 use crate::raw::percent_encode_path;
 use crate::raw::AsyncBody;
+use crate::raw::ConfigDeserializer;
 use crate::raw::FormDataPart;
 use crate::raw::HttpClient;
 use crate::raw::Multipart;
@@ -46,32 +47,65 @@ use crate::Scheme;
 use crate::*;
 
 /// Atomicserver service support.
+
+/// Config for Atomicserver services support
+#[derive(Default, Deserialize, Clone)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct AtomicserverConfig {
+    /// work dir of this backend
+    pub root: Option<String>,
+    /// endpoint of this backend
+    pub endpoint: Option<String>,
+    /// private_key of this backend
+    pub private_key: Option<String>,
+    /// public_key of this backend
+    pub public_key: Option<String>,
+    /// parent_resource_id of this backend
+    pub parent_resource_id: Option<String>,
+}
+
+impl Debug for AtomicserverConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AtomicserverConfig")
+            .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
+            .field("public_key", &self.public_key)
+            .field("parent_resource_id", &self.parent_resource_id)
+            .finish_non_exhaustive()
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AtomicserverBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
-    private_key: Option<String>,
-    public_key: Option<String>,
-    parent_resource_id: Option<String>,
+    config: AtomicserverConfig,
+}
+
+impl Debug for AtomicserverBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AtomicserverBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl AtomicserverBuilder {
     /// Set the root for Atomicserver.
     pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+        self.config.root = Some(path.into());
         self
     }
 
     /// Set the server address for Atomicserver.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = Some(endpoint.into());
+        self.config.endpoint = Some(endpoint.into());
         self
     }
 
     /// Set the private key for agent used for Atomicserver.
     pub fn private_key(&mut self, private_key: &str) -> &mut Self {
-        self.private_key = Some(private_key.into());
+        self.config.private_key = Some(private_key.into());
         self
     }
 
@@ -80,13 +114,13 @@ impl AtomicserverBuilder {
     /// is ${endpoint}/agents/lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=
     /// Then the required public key is `lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=`
     pub fn public_key(&mut self, public_key: &str) -> &mut Self {
-        self.public_key = Some(public_key.into());
+        self.config.public_key = Some(public_key.into());
         self
     }
 
     /// Set the parent resource id (url) that Atomicserver uses to store resources under.
     pub fn parent_resource_id(&mut self, parent_resource_id: &str) -> &mut Self {
-        self.parent_resource_id = Some(parent_resource_id.into());
+        self.config.parent_resource_id = Some(parent_resource_id.into());
         self
     }
 }
@@ -96,33 +130,34 @@ impl Builder for AtomicserverBuilder {
     type Accessor = AtomicserverBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = AtomicserverBuilder::default();
+        // Deserialize the configuration from the HashMap.
+        let config = AtomicserverConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("private_key").map(|v| builder.private_key(v));
-        map.get("public_key").map(|v| builder.public_key(v));
-        map.get("parent_resource_id")
-            .map(|v| builder.parent_resource_id(v));
-
-        builder
+        // Create an AtomicserverBuilder instance with the deserialized config.
+        AtomicserverBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
 
-        let endpoint = self.endpoint.clone().unwrap();
-        let parent_resource_id = self.parent_resource_id.clone().unwrap();
+        let endpoint = self.config.endpoint.clone().unwrap();
+        let parent_resource_id = self.config.parent_resource_id.clone().unwrap();
 
         let agent = Agent {
-            private_key: self.private_key.clone(),
-            public_key: self.public_key.clone().unwrap(),
-            subject: format!("{}/agents/{}", endpoint, self.public_key.clone().unwrap()),
+            private_key: self.config.private_key.clone(),
+            public_key: self.config.public_key.clone().unwrap(),
+            subject: format!(
+                "{}/agents/{}",
+                endpoint,
+                self.config.public_key.clone().unwrap()
+            ),
             created_at: 1,
             name: Some("agent".to_string()),
         };

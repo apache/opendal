@@ -1,10 +1,10 @@
 ---
-title: Create a OpenDAL Release
-sidebar_position: 1
+title: Create a release
+sidebar_position: 3
 ---
 
-This document mainly introduces
-how the release manager releases a new version in accordance with the Apache requirements.
+This document mainly introduces how the release manager
+releases a new version of Apache OpenDAL™ in accordance with the Apache requirements.
 
 ## Introduction
 
@@ -46,19 +46,19 @@ Start a discussion about the next release via sending email to: <dev@opendal.apa
 Title:
 
 ```
-[DISCUSS] Release Apache OpenDAL(incubating) ${release_version}
+[DISCUSS] Release Apache OpenDAL ${release_version}
 ```
 
 Content:
 
 ```
-Hello, Apache OpenDAL(incubating) Community,
+Hello, Apache OpenDAL Community,
 
-This is a call for a discussion to release Apache OpenDAL(incubating) version ${opendal_version}.
+This is a call for a discussion to release Apache OpenDAL version ${opendal_version}.
 
 The change lists about this release:
 
-https://github.com/apache/incubator-opendal/compare/v${opendal_last_version}...main
+https://github.com/apache/opendal/compare/v${opendal_last_version}...main
 
 Please leave your comments here about this release plan. We will bump the version in the repo and start the release process after the discussion.
 
@@ -99,6 +99,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
   - [ ] java
   - [ ] nodejs
 - [ ] Update docs
+- [ ] Generate dependencies list
 - [ ] Push release candidate tag to GitHub
 
 #### ASF Side
@@ -110,7 +111,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 ### Voting
 
 - [ ] Start VOTE at opendal community
-- [ ] Start VOTE at incubator community
 
 ### Official Release
 
@@ -120,7 +120,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Release Maven artifacts
 - [ ] Send the announcement
 
-For details of each step, please refer to: https://opendal.apache.org/docs/contributing/release
+For details of each step, please refer to: https://opendal.apache.org/community/committers/release
 ```
 
 ## GitHub Side
@@ -145,21 +145,35 @@ Please note that this version is the exact version of the release, not the relea
     - node.js: `bindings/nodejs/upgrade.md`
     - python: `bindings/python/upgrade.md`
 
+### Generate dependencies list
+
+Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html). 
+
+Running `python3 ./scripts/dependencies.py generate` to update the dependencies list of every package.
+
 ### Push release candidate tag
 
 After bump version PR gets merged, we can create a GitHub release for the release candidate:
 
 - Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
-- Create Release on the newly created tag
-    - If there are breaking changes, please add the content from `upgrade.md` before.
+
 
 :::note
 
 Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that creates a staging Maven release on https://repository.apache.org which can be verified on voting.
-And
 
 :::
+
+### Check the GitHub action status
+
+After pushing the tag, we need to check the GitHub action status to make sure the release candidate is created successfully.
+
+- Python: [Bindings Python CI](https://github.com/apache/opendal/actions/workflows/bindings_python.yml)
+- Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
+- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/bindings_nodejs.yml)
+
+In the most cases, it would be great to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
 
 ## ASF Side
 
@@ -178,9 +192,9 @@ After GitHub Release has been created, we can start to create ASF Release.
     - This script will do the following things:
         - Create a new branch named by `release-${release_version}` from the tag
         - Generate the release candidate artifacts under `dist`, including:
-            - `apache-opendal-incubating-${release_version}-src.tar.gz`
-            - `apache-opendal-incubating-${release_version}-src.tar.gz.asc`
-            - `apache-opendal-incubating-${release_version}-src.tar.gz.sha512`
+            - `apache-opendal-${release_version}-src.tar.gz`
+            - `apache-opendal-${release_version}-src.tar.gz.asc`
+            - `apache-opendal-${release_version}-src.tar.gz.sha512`
         - Check the header of the source code. This step needs docker to run.
 - Push the newly created branch to GitHub
 
@@ -191,9 +205,9 @@ For example:
 ```shell
 > tree dist
 dist
-├── apache-opendal-incubating-0.36.0-src.tar.gz
-├── apache-opendal-incubating-0.36.0-src.tar.gz.asc
-└── apache-opendal-incubating-0.36.0-src.tar.gz.sha512
+├── apache-opendal-0.36.0-src.tar.gz
+├── apache-opendal-0.36.0-src.tar.gz.asc
+└── apache-opendal-0.36.0-src.tar.gz.sha512
 ```
 
 ### Upload artifacts to the SVN dist repo
@@ -204,13 +218,13 @@ SVN is required for this step.
 
 :::
 
-The svn repository of the dev branch is: <https://dist.apache.org/repos/dist/dev/incubator/opendal>
+The svn repository of the dev branch is: <https://dist.apache.org/repos/dist/dev/opendal>
 
 First, checkout OpenDAL to local directory:
 
 ```shell
 # As this step will copy all the versions, it will take some time. If the network is broken, please use svn cleanup to delete the lock before re-execute it.
-svn co https://dist.apache.org/repos/dist/dev/incubator/opendal opendal-dist-dev
+svn co https://dist.apache.org/repos/dist/dev/opendal opendal-dist-dev
 ```
 
 Then, upload the artifacts:
@@ -233,7 +247,7 @@ svn status
 svn commit -m "Prepare for ${release_version}"
 ```
 
-Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure the artifacts are uploaded correctly.
+Visit <https://dist.apache.org/repos/dist/dev/opendal/> to make sure the artifacts are uploaded correctly.
 
 ### Close the Nexus staging repo
 
@@ -260,42 +274,44 @@ Additionally, you should also drop the staging Maven artifacts on https://reposi
 
 ## Voting
 
-As an incubating project, OpenDAL requires votes from both the OpenDAL Community and Incubator Community.
+OpenDAL requires votes from both the OpenDAL Community.
 
-### OpenDAL Community Vote
-
-OpenDAL Community Vote should send email to: <dev@opendal.apache.org>:
+Vote should send email to: <dev@opendal.apache.org>:
 
 Title:
 
 ```
-[VOTE] Release Apache OpenDAL(incubating) ${release_version} - OpenDAL Vote Round 1
+[VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1
 ```
 
 Content:
 
 ```
-Hello, Apache OpenDAL(incubating) Community,
+Hello, Apache OpenDAL Community,
 
-This is a call for a vote to release Apache OpenDAL(incubating) version ${opendal_version}.
+This is a call for a vote to release Apache OpenDAL version ${opendal_version}.
 
 The tag to be voted on is ${opendal_version}.
 
 The release candidate:
 
-https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}/
+https://dist.apache.org/repos/dist/dev/opendal/${release_version}/
 
 Keys to verify the release candidate:
 
-https://downloads.apache.org/incubator/opendal/KEYS
+https://downloads.apache.org/opendal/KEYS
 
 Git tag for the release:
 
-https://github.com/apache/incubator-opendal/releases/tag/${release_version}
+https://github.com/apache/opendal/releases/tag/${release_version}
 
 Maven staging repo:
 
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
+
+Pypi testing repo:
+
+https://test.pypi.org/project/opendal/
 
 Please download, verify, and test.
 
@@ -318,10 +334,10 @@ Checklist for reference:
 [ ] Can compile from source
 
 More detailed checklist please refer to:
-https://github.com/apache/incubator-opendal/tree/main/scripts
+https://github.com/apache/opendal/tree/main/scripts
 
 To compile from source, please refer to:
-https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
+https://github.com/apache/opendal/blob/main/CONTRIBUTING.md
 
 Here is a Python script in release to help you verify the release candidate:
 
@@ -334,138 +350,34 @@ ${name}
 
 Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 
-After at least 3 `+1` binding vote (from OpenDAL Podling PMC member and committers) and no veto, claim the vote result:
+The vote should be open for **at least 72 hours** except the following cases:
+
+1. Security issues
+2. The wild user effected bug fixs
+3. Any other emergency cases
+
+The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.
+
+> Tips: The 72 hours is the minimum time for voting, so we can ensure that community members from various time zones can participate in the verification process.
+
+After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://opendal.apache.org/community/#committers)) and no veto, claim the vote result:
 
 Title:
 
 ```
-[RESULT][VOTE] Release Apache OpenDAL(incubating) ${release_version} - OpenDAL Vote Round 1
+[RESULT][VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1
 ```
 
 Content:
 
 ```
-Hello, Apache OpenDAL(incubating) Community,
+Hello, Apache OpenDAL Community,
 
-The vote to release Apache OpenDAL(Incubating) ${release_version} has passed.
+The vote to release Apache OpenDAL ${release_version} has passed.
 
-The vote PASSED with 3 binding +1 and 0 -1 vote:
+The vote PASSED with 3 +1 binding and 1 +1 non-binding votes, no +0 or -1 votes:
 
 Binding votes:
-
-- xxx
-- yyy
-- zzz
-
-Vote thread: ${vote_thread_url}
-
-Thanks
-
-${name}
-```
-
-Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
-
-### Incubator Community Vote
-
-Incubator Community Vote should send email to: <general@incubator.apache.org>:
-
-Title:
-
-```
-[VOTE] Release Apache OpenDAL(incubating) ${release_version} - Incubator Vote Round 1
-```
-
-Content:
-
-```
-Hello Incubator PMC,
-
-The Apache OpenDAL community has voted and approved the release of Apache
-OpenDAL(incubating) ${release_version}. We now kindly request the IPMC members
-review and vote for this release.
-
-OpenDAL is a data access layer that allows users to easily and efficiently
-retrieve data from various storage services in a unified way.
-
-OpenDAL community vote thread:
-
-${community_vote_thread_url}
-
-Vote result thread:
-
-${community_vote_result_thread_url}
-
-The release candidate:
-
-https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}/
-
-This release has been signed with a PGP available here:
-
-https://downloads.apache.org/incubator/opendal/KEYS
-
-Git tag for the release:
-
-https://github.com/apache/incubator-opendal/releases/tag/${release_version}
-
-Maven staging repo:
-
-https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
-
-Please download, verify, and test.
-
-The VOTE will be open for at least 72 hours and until the necessary
-number of votes are reached.
-
-[ ] +1 approve
-[ ] +0 no opinion
-[ ] -1 disapprove with the reason
-
-To learn more about apache opendal, please see https://opendal.apache.org/
-
-Checklist for reference:
-
-[ ] Download links are valid.
-[ ] Checksums and signatures.
-[ ] LICENSE/NOTICE files exist
-[ ] No unexpected binary files
-[ ] All source files have ASF headers
-[ ] Can compile from source
-
-More detailed checklist please refer to:
-https://github.com/apache/incubator-opendal/tree/main/scripts
-
-To compile from source, please refer to:
-https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
-
-Here is python script in release to help you verify the release candidate:
-
-./scripts/verify.py
-
-Thanks
-
-${name}
-```
-
-Example: <https://lists.apache.org/thread/sjdzs89p2x4tlb813ow7lhdhdfcvhysx>
-
-After at least 72 hours with at least 3 +1 binding vote (from Incubator PMC member) and no veto, claim the vote result:
-
-Title:
-
-```
-[RESULT][VOTE] Release Apache OpenDAL(incubating) ${release_version} - Incubator Vote Round 1
-```
-
-Content:
-
-```
-Hi Incubator PMC,
-
-The vote to release Apache OpenDAL(incubating) ${release_version} has passed with
-4 +1 binding and 3 +1 non-binding votes, no +0 or -1 votes.
-
-Binding votes：
 
 - xxx
 - yyy
@@ -475,14 +387,14 @@ Non-Binding votes:
 
 - aaa
 
-Vote thread: ${incubator_vote_thread_url}
+Vote thread: ${vote_thread_url}
 
-Thanks for reviewing and voting for our release candidate.
+Thanks
 
-We will proceed with publishing the approved artifacts and sending out the announcement soon.
+${name}
 ```
 
-Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
+Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 
 ## Official Release
 
@@ -500,14 +412,16 @@ git push origin ${opendal_version}
 ### Publish artifacts to SVN RELEASE branch
 
 ```shell
-svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"
+svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_version} https://dist.apache.org/repos/dist/release/opendal/${opendal_version} -m "Release ${opendal_version}"
 ```
 
 ### Change OpenDAL Website download link
 
-Change the [download](https://github.com/apache/incubator-opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
+Change the [download](https://github.com/apache/opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
 
-Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubator-opendal/pull/2882) as an example.
+Update the latest release link and add the new release link to the version list.
+
+Take [Add 0.39.0 release link to download.md](https://github.com/apache/opendal/pull/2882) as an example.
 
 ### Release Maven artifacts
 
@@ -522,9 +436,21 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 :::
 
+### Check the language binding artifacts
+
+We need to check the language binding artifacts in the language package repo to make sure they are released successfully.
+
+- Python: <https://pypi.org/project/opendal/>
+- Java: <https://repository.apache.org/#nexus-search;quick~opendal>
+- Node.js: <https://www.npmjs.com/package/opendal>
+
+For Java binding, if we can not find the latest version of artifacts in the repo, we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo. 
+
+For non-Java bindings, if we can not find the latest version of artifacts in the repo, we need to check the GitHub action status.
+
 ### Create a GitHub Release
 
-- Click [here](https://github.com/apache/incubator-opendal/releases/new) to create a new release.
+- Click [here](https://github.com/apache/opendal/releases/new) to create a new release.
 - Pick the git tag of this release version from the dropdown menu.
 - Make sure the branch target is `main`.
 - Generate the release note by clicking the `Generate release notes` button.
@@ -535,12 +461,14 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 Send the release announcement to `dev@opendal.apache.org` and CC `announce@apache.org`.
 
+> Tips: Please following the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announce mailing list.
+
 Instead of adding breaking changes, let's include the new features as "notable changes" in the announcement.
 
 Title:
 
 ```
-[ANNOUNCE] Release Apache OpenDAL(incubating) ${opendal_version}
+[ANNOUNCE] Release Apache OpenDAL ${opendal_version}
 ```
 
 Content:
@@ -548,8 +476,8 @@ Content:
 ```
 Hi all,
 
-The Apache OpenDAL(incubating) community is pleased to announce
-that Apache OpenDAL(incubating) ${opendal_version} has been released!
+The Apache OpenDAL community is pleased to announce
+that Apache OpenDAL ${opendal_version} has been released!
 
 OpenDAL is a data access layer that allows users to easily and efficiently
 retrieve data from various storage services in a unified way.
@@ -560,30 +488,35 @@ The notable changes since ${opendal_version} include:
 3. zzzzzz
 
 Please refer to the change log for the complete list of changes:
-https://github.com/apache/incubator-opendal/releases/tag/v${opendal_version}
+https://github.com/apache/opendal/releases/tag/v${opendal_version}
 
 Apache OpenDAL website: https://opendal.apache.org/
 
 Download Links: https://opendal.apache.org/download
 
 OpenDAL Resources:
-- Issue: https://github.com/apache/incubator-opendal/issues
+- Issue: https://github.com/apache/opendal/issues
 - Mailing list: dev@opendal.apache.org
 
 Thanks
 On behalf of Apache OpenDAL community
-
----
-Apache OpenDAL (incubating) is an effort undergoing incubation at the Apache
-Software Foundation (ASF), sponsored by the Apache Incubator PMC.
-
-Incubation is required of all newly accepted projects until a further review
-indicates that the infrastructure, communications, and decision making process
-have stabilized in a manner consistent with other successful ASF projects.
-
-While incubation status is not necessarily a reflection of the completeness
-or stability of the code, it does indicate that the project has yet to be
-fully endorsed by the ASF.
 ```
 
 Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>
+
+## Post release
+
+After the official release out, you may perform a few post actions.
+
+### Remove the old releases
+
+Remove the old releases if any. You only need the latest release there, and older releases are available through the Apache archive.
+
+To clean up old releases, run:
+
+```shell
+# 1. Get the list of releases
+svn ls https://dist.apache.org/repos/dist/release/opendal
+# 2. Delete each release (except for the last one)
+svn del -m "Archiving OpenDAL release X.Y.Z" https://dist.apache.org/repos/dist/release/opendal/X.Y.Z
+```

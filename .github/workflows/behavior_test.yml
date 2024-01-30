@@ -52,7 +52,7 @@ jobs:
 
           # Handle event-specific logic
           if [ "$event_name" == "push" ]; then
-            if [ "$repository" == "apache/incubator-opendal" ]; then
+            if [ "$repository" == "apache/opendal" ]; then
               is_push="true"
               has_secrets="true"
             fi

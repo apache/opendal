@@ -25,14 +25,17 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::Stream;
 use futures::StreamExt;
+use futures::TryStreamExt;
 use object_store::path::Path;
 use object_store::GetOptions;
 use object_store::GetResult;
+use object_store::GetResultPayload;
 use object_store::ListResult;
 use object_store::MultipartId;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::Result;
+use opendal::Entry;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
@@ -88,24 +91,39 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn get_opts(&self, location: &Path, _: GetOptions) -> Result<GetResult> {
-        let r = self
-            .inner
-            .reader(location.as_ref())
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        Ok(GetResult::Stream(Box::pin(OpendalReader { inner: r })))
+    async fn get_opts(&self, _location: &Path, _options: GetOptions) -> Result<GetResult> {
+        Err(object_store::Error::NotSupported {
+            source: Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unsupported,
+                "get_opts is not implemented so far",
+            )),
+        })
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
+        let meta = self
+            .inner
+            .stat(location.as_ref())
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        let meta = ObjectMeta {
+            location: location.clone(),
+            last_modified: meta.last_modified().unwrap_or_default(),
+            size: meta.content_length() as usize,
+            e_tag: meta.etag().map(|x| x.to_string()),
+        };
         let r = self
             .inner
             .reader(location.as_ref())
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        Ok(GetResult::Stream(Box::pin(OpendalReader { inner: r })))
+        Ok(GetResult {
+            payload: GetResultPayload::Stream(Box::pin(OpendalReader { inner: r })),
+            range: (0..meta.size),
+            meta,
+        })
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
@@ -163,6 +181,37 @@ impl ObjectStore for OpendalStore {
         });
 
         Ok(stream.boxed())
+    }
+
+    async fn list_with_offset(
+        &self,
+        prefix: Option<&Path>,
+        offset: &Path,
+    ) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
+        let path = prefix.map_or("".into(), |x| format!("{}/", x));
+        let offset = offset.clone();
+        let stream = if self.inner.info().full_capability().list_with_start_after {
+            self.inner
+                .lister_with(&path)
+                .start_after(offset.as_ref())
+                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .recursive(true)
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .then(try_format_object_meta)
+                .boxed()
+        } else {
+            self.inner
+                .lister_with(&path)
+                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .recursive(true)
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
+                .then(try_format_object_meta)
+                .boxed()
+        };
+        Ok(stream)
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
@@ -252,6 +301,13 @@ fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
     }
 }
 
+async fn try_format_object_meta(res: Result<Entry, opendal::Error>) -> Result<ObjectMeta> {
+    let entry = res.map_err(|err| format_object_store_error(err, ""))?;
+    let meta = entry.metadata();
+
+    Ok(format_object_meta(entry.path(), meta))
+}
+
 struct OpendalReader {
     inner: Reader,
 }
@@ -285,11 +341,11 @@ mod tests {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let object_store = Arc::new(OpendalStore::new(op));
 
-        let path: Path = "data/test.txt".try_into().unwrap();
+        let path: Path = "data/test.txt".into();
         let bytes = Bytes::from_static(b"hello, world!");
         object_store.put(&path, bytes).await.unwrap();
 
-        let path: Path = "data/nested/test.txt".try_into().unwrap();
+        let path: Path = "data/nested/test.txt".into();
         let bytes = Bytes::from_static(b"hello, world! I am nested.");
         object_store.put(&path, bytes).await.unwrap();
 
@@ -302,7 +358,7 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         // Retrieve a specific file
-        let path: Path = "data/test.txt".try_into().unwrap();
+        let path: Path = "data/test.txt".into();
 
         let bytes = Bytes::from_static(b"hello, world!");
         object_store.put(&path, bytes.clone()).await.unwrap();
@@ -326,7 +382,7 @@ mod tests {
     #[tokio::test]
     async fn test_list() {
         let object_store = create_test_object_store().await;
-        let path: Path = "data/".try_into().unwrap();
+        let path: Path = "data/".into();
         let results = object_store
             .list(Some(&path))
             .await
@@ -353,7 +409,7 @@ mod tests {
         assert_eq!(locations, expected_locations);
 
         for (location, bytes) in expected_files {
-            let path: Path = location.try_into().unwrap();
+            let path: Path = location.into();
             assert_eq!(
                 object_store
                     .get(&path)
@@ -370,11 +426,29 @@ mod tests {
     #[tokio::test]
     async fn test_list_with_delimiter() {
         let object_store = create_test_object_store().await;
-        let path: Path = "data/".try_into().unwrap();
+        let path: Path = "data/".into();
         let result = object_store.list_with_delimiter(Some(&path)).await.unwrap();
         assert_eq!(result.objects.len(), 1);
         assert_eq!(result.common_prefixes.len(), 1);
         assert_eq!(result.objects[0].location.as_ref(), "data/test.txt");
         assert_eq!(result.common_prefixes[0].as_ref(), "data/nested");
+    }
+
+    #[tokio::test]
+    async fn test_list_with_offset() {
+        let object_store = create_test_object_store().await;
+        let path: Path = "data/".into();
+        let offset: Path = "data/nested/test.txt".into();
+        let result = object_store
+            .list_with_offset(Some(&path), &offset)
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].as_ref().unwrap().location.as_ref(),
+            "data/test.txt"
+        );
     }
 }

@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Remove this allow after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
+#![allow(clippy::unnecessary_fallible_conversions)]
+
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;

@@ -61,6 +61,12 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
+    /// if operator supports read with override cache control.
+    pub stat_with_override_cache_control: bool,
+    /// if operator supports read with override content disposition.
+    pub stat_with_override_content_disposition: bool,
+    /// if operator supports read with override content type.
+    pub stat_with_override_content_type: bool,
 
     /// If operator supports read.
     pub read: bool,
@@ -132,8 +138,6 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list with recursive.
     pub list_with_recursive: bool,
-    /// If backend supports list without recursive.
-    pub list_without_recursive: bool,
 
     /// If operator supports presign.
     pub presign: bool,

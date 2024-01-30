@@ -19,14 +19,10 @@ version: '3.8'
 
 services:
   minio:
-    image: wktk/minio-server
+    image: quay.io/minio/minio:RELEASE.2024-01-18T22-51-28Z
     ports:
       - 9000:9000
+    command: server /data
     environment:
-      MINIO_ACCESS_KEY: "minioadmin"
-      MINIO_SECRET_KEY: "minioadmin"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"

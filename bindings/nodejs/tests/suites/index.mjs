@@ -34,7 +34,11 @@ export function runner(testName, scheme) {
   const config = loadConfigFromEnv(scheme)
 
   if (checkRandomRootEnabled()) {
-    config.root = generateRandomRoot(config.root)
+    if (config.root) {
+      config.root = generateRandomRoot(config.root)
+    } else {
+      console.warn("The root is not set. Won't generate random root.")
+    }
   }
 
   let operator = scheme ? new Operator(scheme, config) : null

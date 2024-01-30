@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::MokaBuilder as Moka;
+pub use backend::MokaConfig;

@@ -54,7 +54,8 @@ use crate::*;
 ///     inner: A,
 /// }
 ///
-/// #[async_trait]
+/// #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+/// #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 /// impl<A: Accessor> LayeredAccessor for TraceAccessor<A> {
 ///     type Inner = A;
 ///     type Reader = A::Reader;
@@ -129,7 +130,8 @@ pub trait Layer<A: Accessor> {
 /// LayeredAccessor is layered accessor that forward all not implemented
 /// method to inner.
 #[allow(missing_docs)]
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: oio::Read;
@@ -206,7 +208,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)>;
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
@@ -319,7 +322,8 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl<A: Accessor> Accessor for Test<A> {
         type Reader = ();
         type BlockingReader = ();

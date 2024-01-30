@@ -22,55 +22,23 @@ use openssh_sftp_client::Error as SftpClientError;
 use crate::Error;
 use crate::ErrorKind;
 
-#[derive(Debug)]
-pub enum SftpError {
-    SftpClientError(SftpClientError),
-    SshError(SshError),
-}
-
-impl From<SftpClientError> for Error {
-    fn from(e: SftpClientError) -> Self {
-        let kind = match &e {
-            SftpClientError::UnsupportedSftpProtocol { version: _ } => ErrorKind::Unsupported,
-            SftpClientError::SftpError(kind, _msg) => match kind {
-                SftpErrorKind::NoSuchFile => ErrorKind::NotFound,
-                SftpErrorKind::PermDenied => ErrorKind::PermissionDenied,
-                SftpErrorKind::OpUnsupported => ErrorKind::Unsupported,
-                _ => ErrorKind::Unexpected,
-            },
+pub fn parse_sftp_error(e: SftpClientError) -> Error {
+    let kind = match &e {
+        SftpClientError::UnsupportedSftpProtocol { version: _ } => ErrorKind::Unsupported,
+        SftpClientError::SftpError(kind, _msg) => match kind {
+            SftpErrorKind::NoSuchFile => ErrorKind::NotFound,
+            SftpErrorKind::PermDenied => ErrorKind::PermissionDenied,
+            SftpErrorKind::OpUnsupported => ErrorKind::Unsupported,
             _ => ErrorKind::Unexpected,
-        };
+        },
+        _ => ErrorKind::Unexpected,
+    };
 
-        Error::new(kind, "sftp error").set_source(e)
-    }
+    Error::new(kind, "sftp error").set_source(e)
 }
 
-/// REMOVE ME: it's not allowed to impl <T> for Error.
-impl From<SshError> for Error {
-    fn from(e: SshError) -> Self {
-        Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
-    }
-}
-
-impl From<SftpClientError> for SftpError {
-    fn from(e: SftpClientError) -> Self {
-        SftpError::SftpClientError(e)
-    }
-}
-
-impl From<SshError> for SftpError {
-    fn from(e: SshError) -> Self {
-        SftpError::SshError(e)
-    }
-}
-
-impl From<SftpError> for Error {
-    fn from(e: SftpError) -> Self {
-        match e {
-            SftpError::SftpClientError(e) => e.into(),
-            SftpError::SshError(e) => e.into(),
-        }
-    }
+pub fn parse_ssh_error(e: SshError) -> Error {
+    Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
 }
 
 pub(super) fn is_not_found(e: &SftpClientError) -> bool {

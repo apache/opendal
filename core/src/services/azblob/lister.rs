@@ -48,7 +48,8 @@ impl AzblobLister {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::PageList for AzblobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
@@ -88,7 +89,7 @@ impl oio::PageList for AzblobLister {
             let path = build_rel_path(&self.core.root, &object.name);
 
             // azblob could return the dir itself in contents.
-            if path == self.path {
+            if path == self.path || path.is_empty() {
                 continue;
             }
 

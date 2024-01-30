@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::EntryMode;
+use crate::*;
 
 /// build_abs_path will build an absolute path with root.
 ///

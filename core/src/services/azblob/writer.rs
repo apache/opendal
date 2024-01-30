@@ -27,8 +27,7 @@ use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
-pub type AzblobWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
+pub type AzblobWriters = TwoWays<oio::OneShotWriter<AzblobWriter>, oio::AppendWriter<AzblobWriter>>;
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
@@ -43,7 +42,8 @@ impl AzblobWriter {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::OneShotWrite for AzblobWriter {
     async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
@@ -70,8 +70,9 @@ impl oio::OneShotWrite for AzblobWriter {
     }
 }
 
-#[async_trait]
-impl oio::AppendObjectWrite for AzblobWriter {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl oio::AppendWrite for AzblobWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core

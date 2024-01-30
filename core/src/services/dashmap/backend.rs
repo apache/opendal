@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -62,9 +63,17 @@ impl Builder for DashmapBuilder {
 /// Backend is used to serve `Accessor` support in dashmap.
 pub type DashmapBackend = typed_kv::Backend<Adapter>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Adapter {
     inner: DashMap<String, typed_kv::Value>,
+}
+
+impl Debug for Adapter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashmapAdapter")
+            .field("size", &self.inner.len())
+            .finish_non_exhaustive()
+    }
 }
 
 #[async_trait]

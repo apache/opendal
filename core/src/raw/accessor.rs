@@ -53,22 +53,21 @@ use crate::*;
 /// - Operations with capability requirement like `presign` are optional operations.
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`ErrorKind::Unsupported`].
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-    /// Reader is the associated reader the could return in `read` operation.
+    /// Reader is the associated reader returned in `read` operation.
     type Reader: oio::Read;
-    /// BlockingReader is the associated reader that could return in
-    /// `blocking_read` operation.
-    type BlockingReader: oio::BlockingRead;
-    /// Writer is the associated writer the could return in `write` operation.
+    /// Writer is the associated writer returned in `write` operation.
     type Writer: oio::Write;
-    /// BlockingWriter is the associated writer the could return in
-    /// `blocking_write` operation.
-    type BlockingWriter: oio::BlockingWrite;
-    /// Lister is the associated lister that return in `list` operation.
+    /// Lister is the associated lister returned in `list` operation.
     type Lister: oio::List;
-    /// BlockingLister is the associated lister that could return in
-    /// `blocking_list` operation.
+
+    /// BlockingReader is the associated reader returned `blocking_read` operation.
+    type BlockingReader: oio::BlockingRead;
+    /// BlockingWriter is the associated writer returned `blocking_write` operation.
+    type BlockingWriter: oio::BlockingWrite;
+    /// BlockingLister is the associated lister returned `blocking_list` operation.
     type BlockingLister: oio::BlockingList;
 
     /// Invoke the `info` operation to get metadata of accessor.
@@ -93,6 +92,24 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `stat` operation on the specified path.
+    ///
+    /// Require [`Capability::stat`]
+    ///
+    /// # Behavior
+    ///
+    /// - `stat` empty path means stat backend's root path.
+    /// - `stat` a path endswith "/" means stating a dir.
+    /// - `mode` and `content_length` must be set.
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -136,54 +153,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
-    /// Invoke the `copy` operation on the specified `from` path and `to` path.
-    ///
-    /// Require [Capability::copy]
-    ///
-    /// # Behaviour
-    ///
-    /// - `from` and `to` MUST be file path, DON'T NEED to check mode.
-    /// - Copy on existing file SHOULD succeed.
-    /// - Copy on existing file SHOULD overwrite and truncate.
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `rename` operation on the specified `from` path and `to` path.
-    ///
-    /// Require [Capability::rename]
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `stat` operation on the specified path.
-    ///
-    /// Require [`Capability::stat`]
-    ///
-    /// # Behavior
-    ///
-    /// - `stat` empty path means stat backend's root path.
-    /// - `stat` a path endswith "/" means stating a dir.
-    /// - `mode` and `content_length` must be set.
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
     /// Invoke the `delete` operation on the specified path.
     ///
     /// Require [`Capability::delete`]
@@ -211,6 +180,36 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - List non-exist dir should return Empty.
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `copy` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [Capability::copy]
+    ///
+    /// # Behaviour
+    ///
+    /// - `from` and `to` MUST be file path, DON'T NEED to check mode.
+    /// - Copy on existing file SHOULD succeed.
+    /// - Copy on existing file SHOULD overwrite and truncate.
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `rename` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [Capability::rename]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let (_, _, _) = (from, to, args);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -260,6 +259,20 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `blocking_stat` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::stat`]
+    ///
+    /// Require [`Capability::stat`] and [`Capability::blocking`]
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `blocking_read` operation on the specified path.
     ///
     /// This operation is the blocking version of [`Accessor::read`]
@@ -280,48 +293,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// Require [`Capability::write`] and [`Capability::blocking`]
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_copy` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::copy`]
-    ///
-    /// Require [`Capability::copy`] and [`Capability::blocking`]
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_rename` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::rename`]
-    ///
-    /// Require [`Capability::rename`] and [`Capability::blocking`]
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_stat` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::stat`]
-    ///
-    /// Require [`Capability::stat`] and [`Capability::blocking`]
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -361,16 +332,45 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         ))
     }
+
+    /// Invoke the `blocking_copy` operation on the specified `from` path and `to` path.
+    ///
+    /// This operation is the blocking version of [`Accessor::copy`]
+    ///
+    /// Require [`Capability::copy`] and [`Capability::blocking`]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `blocking_rename` operation on the specified `from` path and `to` path.
+    ///
+    /// This operation is the blocking version of [`Accessor::rename`]
+    ///
+    /// Require [`Capability::rename`] and [`Capability::blocking`]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
 }
 
 /// Dummy implementation of accessor.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for () {
     type Reader = ();
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -386,13 +386,14 @@ impl Accessor for () {
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
-    type BlockingReader = T::BlockingReader;
     type Writer = T::Writer;
-    type BlockingWriter = T::BlockingWriter;
     type Lister = T::Lister;
+    type BlockingReader = T::BlockingReader;
+    type BlockingWriter = T::BlockingWriter;
     type BlockingLister = T::BlockingLister;
 
     fn info(&self) -> AccessorInfo {
@@ -403,65 +404,65 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().create_dir(path, args).await
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.as_ref().stat(path, args).await
+    }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.as_ref().read(path, args).await
     }
+
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.as_ref().write(path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.as_ref().copy(from, to, args).await
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.as_ref().rename(from, to, args).await
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().stat(path, args).await
-    }
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.as_ref().list(path, args).await
     }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.as_ref().batch(args).await
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.as_ref().copy(from, to, args).await
+    }
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.as_ref().rename(from, to, args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.as_ref().presign(path, args).await
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.as_ref().batch(args).await
+    }
+
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().blocking_create_dir(path, args)
+    }
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.as_ref().blocking_stat(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.as_ref().blocking_read(path, args)
     }
+
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.as_ref().blocking_write(path, args)
     }
 
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.as_ref().blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.as_ref().blocking_rename(from, to, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().blocking_stat(path, args)
-    }
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
+
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.as_ref().blocking_list(path, args)
+    }
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.as_ref().blocking_copy(from, to, args)
+    }
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.as_ref().blocking_rename(from, to, args)
     }
 }
 

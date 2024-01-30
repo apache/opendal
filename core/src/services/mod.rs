@@ -17,7 +17,7 @@
 
 //! Services will provide builders to build underlying backends.
 //!
-//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/incubator-opendal/issues/5). Please feel free to submit issues if there are services not covered.
+//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
 #[cfg(feature = "services-azblob")]
 mod azblob;
@@ -69,6 +69,8 @@ pub use ftp::FtpConfig;
 mod gcs;
 #[cfg(feature = "services-gcs")]
 pub use gcs::Gcs;
+#[cfg(feature = "services-gcs")]
+pub use gcs::GcsConfig;
 
 #[cfg(feature = "services-ghac")]
 mod ghac;
@@ -84,6 +86,8 @@ pub use gridfs::Gridfs;
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use hdfs::Hdfs;
+#[cfg(feature = "services-hdfs")]
+pub use hdfs::HdfsConfig;
 
 #[cfg(feature = "services-http")]
 mod http;
@@ -91,6 +95,13 @@ mod http;
 pub use self::http::Http;
 #[cfg(feature = "services-http")]
 pub use self::http::HttpConfig;
+
+#[cfg(feature = "services-huggingface")]
+mod huggingface;
+#[cfg(feature = "services-huggingface")]
+pub use huggingface::Huggingface;
+#[cfg(feature = "services-huggingface")]
+pub use huggingface::HuggingfaceConfig;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
@@ -101,6 +112,11 @@ pub use self::ipfs::Ipfs;
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::Ipmfs;
+
+#[cfg(feature = "services-icloud")]
+mod icloud;
+#[cfg(feature = "services-icloud")]
+pub use icloud::Icloud;
 
 #[cfg(feature = "services-libsql")]
 mod libsql;
@@ -113,6 +129,8 @@ pub use libsql::LibsqlConfig;
 mod memcached;
 #[cfg(feature = "services-memcached")]
 pub use memcached::Memcached;
+#[cfg(feature = "services-memcached")]
+pub use memcached::MemcachedConfig;
 
 #[cfg(feature = "services-memory")]
 mod memory;
@@ -128,6 +146,8 @@ pub use self::mini_moka::MiniMoka;
 mod moka;
 #[cfg(feature = "services-moka")]
 pub use self::moka::Moka;
+#[cfg(feature = "services-moka")]
+pub use self::moka::MokaConfig;
 
 #[cfg(feature = "services-obs")]
 mod obs;
@@ -152,14 +172,16 @@ pub use self::persy::Persy;
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use redis::Redis;
+pub use self::redis::Redis;
 #[cfg(feature = "services-redis")]
-pub use redis::RedisConfig;
+pub use self::redis::RedisConfig;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::Rocksdb;
+#[cfg(feature = "services-rocksdb")]
+pub use self::rocksdb::RocksdbConfig;
 
 #[cfg(feature = "services-s3")]
 mod s3;
@@ -189,6 +211,8 @@ pub use supabase::Supabase;
 mod webdav;
 #[cfg(feature = "services-webdav")]
 pub use webdav::Webdav;
+#[cfg(feature = "services-webdav")]
+pub use webdav::WebdavConfig;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
@@ -197,6 +221,8 @@ mod webhdfs;
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::Onedrive;
+#[cfg(feature = "services-onedrive")]
+pub use onedrive::OnedriveConfig;
 
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
@@ -207,6 +233,9 @@ pub use gdrive::Gdrive;
 mod dropbox;
 #[cfg(feature = "services-dropbox")]
 pub use dropbox::Dropbox;
+#[cfg(feature = "services-dropbox")]
+pub use dropbox::DropboxConfig;
+
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
 
@@ -243,6 +272,8 @@ pub use self::postgresql::PostgresqlConfig;
 mod atomicserver;
 #[cfg(feature = "services-atomicserver")]
 pub use self::atomicserver::Atomicserver;
+#[cfg(feature = "services-atomicserver")]
+pub use self::atomicserver::AtomicserverConfig;
 
 #[cfg(feature = "services-mysql")]
 mod mysql;
@@ -272,6 +303,8 @@ pub use self::azfile::Azfile;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::Mongodb;
+#[cfg(feature = "services-mongodb")]
+pub use self::mongodb::MongodbConfig;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
@@ -296,3 +329,52 @@ mod b2;
 pub use b2::B2Config;
 #[cfg(feature = "services-b2")]
 pub use b2::B2;
+
+#[cfg(feature = "services-seafile")]
+mod seafile;
+#[cfg(feature = "services-seafile")]
+pub use seafile::Seafile;
+#[cfg(feature = "services-seafile")]
+pub use seafile::SeafileConfig;
+
+#[cfg(feature = "services-upyun")]
+mod upyun;
+#[cfg(feature = "services-upyun")]
+pub use upyun::Upyun;
+#[cfg(feature = "services-upyun")]
+pub use upyun::UpyunConfig;
+
+#[cfg(feature = "services-chainsafe")]
+mod chainsafe;
+#[cfg(feature = "services-chainsafe")]
+pub use chainsafe::Chainsafe;
+#[cfg(feature = "services-chainsafe")]
+pub use chainsafe::ChainsafeConfig;
+
+#[cfg(feature = "services-pcloud")]
+mod pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::Pcloud;
+#[cfg(feature = "services-pcloud")]
+pub use pcloud::PcloudConfig;
+
+#[cfg(feature = "services-hdfs-native")]
+mod hdfs_native;
+#[cfg(feature = "services-hdfs-native")]
+pub use hdfs_native::HdfsNative;
+#[cfg(feature = "services-hdfs-native")]
+pub use hdfs_native::HdfsNativeConfig;
+
+#[cfg(feature = "services-yandex-disk")]
+mod yandex_disk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDisk;
+#[cfg(feature = "services-yandex-disk")]
+pub use yandex_disk::YandexDiskConfig;
+
+#[cfg(feature = "services-koofr")]
+mod koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::Koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::KoofrConfig;

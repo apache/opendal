@@ -693,7 +693,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn writer_with(&self, path: &str) -> FutureWrite<impl Future<Output = Result<Writer>>> {
+    pub fn writer_with(&self, path: &str) -> FutureWriter<impl Future<Output = Result<Writer>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -744,13 +744,13 @@ impl Operator {
         bs: impl Into<Bytes>,
     ) -> FutureWrite<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
-        let mut bs = bs.into();
+        let bs = bs.into();
 
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpWrite::default(),
-            |inner, path, args| async move {
+            (OpWrite::default(), bs),
+            |inner, path, (args, mut bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -767,6 +767,7 @@ impl Operator {
                 }
 
                 w.close().await?;
+
                 Ok(())
             },
         )

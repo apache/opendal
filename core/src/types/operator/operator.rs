@@ -281,20 +281,18 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn stat_with(&self, path: &str) -> FutureStatX<impl Future<Output = Result<Metadata>>> {
+    pub fn stat_with(&self, path: &str) -> FutureStat<impl Future<Output = Result<Metadata>>> {
         let path = normalize_path(path);
 
-        let fut = FutureStatX(OperatorFutureX {
-            acc: self.inner().clone(),
+        OperatorFuture::new(
+            self.inner().clone(),
             path,
-            args: OpStat::default(),
-            f: |inner, path, args| async move {
+            OpStat::default(),
+            |inner, path, args| async move {
                 let rp = inner.stat(&path, args).await?;
                 Ok(rp.into_metadata())
             },
-        });
-
-        fut
+        )
     }
 
     /// Check if this path exists or not.
@@ -406,50 +404,43 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FutureRead {
+    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Vec<u8>>>> {
         let path = normalize_path(path);
 
-        let fut = FutureRead(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpRead::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "read path is a directory",
-                        )
-                        .with_operation("read")
-                        .with_context("service", inner.info().scheme())
-                        .with_context("path", &path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("read")
+                            .with_context("service", inner.info().scheme())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    let range = args.range();
-                    let (size_hint, range) = if let Some(size) = range.size() {
-                        (size, range)
-                    } else {
-                        let size = inner
-                            .stat(&path, OpStat::default())
-                            .await?
-                            .into_metadata()
-                            .content_length();
-                        let range = range.complete(size);
-                        (range.size().unwrap(), range)
-                    };
-
-                    let (_, mut s) = inner.read(&path, args.with_range(range)).await?;
-                    let mut buf = Vec::with_capacity(size_hint as usize);
-                    s.read_to_end(&mut buf).await?;
-
-                    Ok(buf)
+                let range = args.range();
+                let (size_hint, range) = if let Some(size) = range.size() {
+                    (size, range)
+                } else {
+                    let size = inner
+                        .stat(&path, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length();
+                    let range = range.complete(size);
+                    (range.size().unwrap(), range)
                 };
 
-                Box::pin(fut)
-            },
-        ));
+                let (_, mut s) = inner.read(&path, args.with_range(range)).await?;
+                let mut buf = Vec::with_capacity(size_hint as usize);
+                s.read_to_end(&mut buf).await?;
 
-        fut
+                Ok(buf)
+            },
+        )
     }
 
     /// Create a new reader which can read the whole path.
@@ -486,32 +477,26 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(&self, path: &str) -> FutureReader {
+    pub fn reader_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Reader>>> {
         let path = normalize_path(path);
 
-        let fut = FutureReader(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpRead::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "read path is a directory",
-                        )
-                        .with_operation("Operator::reader")
-                        .with_context("service", inner.info().scheme())
-                        .with_context("path", path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("Operator::reader")
+                            .with_context("service", inner.info().scheme())
+                            .with_context("path", path),
+                    );
+                }
 
-                    Reader::create(inner.clone(), &path, args).await
-                };
-
-                Box::pin(fut)
+                Reader::create(inner.clone(), &path, args).await
             },
-        ));
-        fut
+        )
     }
 
     /// Write bytes into path.
@@ -708,32 +693,26 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn writer_with(&self, path: &str) -> FutureWriter {
+    pub fn writer_with(&self, path: &str) -> FutureWrite<impl Future<Output = Result<Writer>>> {
         let path = normalize_path(path);
 
-        let fut = FutureWriter(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpWrite::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "write path is a directory",
-                        )
-                        .with_operation("Operator::writer")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("Operator::writer")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    Writer::create(inner, &path, args).await
-                };
-                Box::pin(fut)
+                Writer::create(inner, &path, args).await
             },
-        ));
-
-        fut
+        )
     }
 
     /// Write data with extra options.
@@ -759,40 +738,38 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureWrite {
+    pub fn write_with(
+        &self,
+        path: &str,
+        bs: impl Into<Bytes>,
+    ) -> FutureWrite<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
-        let bs = bs.into();
+        let mut bs = bs.into();
 
-        let fut = FutureWrite(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpWrite::default(), bs),
-            |inner, path, (args, mut bs)| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "write path is a directory",
-                        )
-                        .with_operation("Operator::write_with")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
+            OpWrite::default(),
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("Operator::write_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    let (_, mut w) = inner.write(&path, args).await?;
-                    while bs.remaining() > 0 {
-                        let n = w.write(&bs).await?;
-                        bs.advance(n);
-                    }
+                let (_, mut w) = inner.write(&path, args).await?;
+                while bs.remaining() > 0 {
+                    let n = w.write(&bs).await?;
+                    bs.advance(n);
+                }
 
-                    w.close().await?;
-
-                    Ok(())
-                };
-                Box::pin(fut)
+                w.close().await?;
+                Ok(())
             },
-        ));
-        fut
+        )
     }
 
     /// Delete the given path.
@@ -836,24 +813,18 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn delete_with(&self, path: &str) -> FutureDelete {
+    pub fn delete_with(&self, path: &str) -> FutureDelete<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
 
-        let fut = FutureDelete(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpDelete::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let _ = inner.delete(&path, args).await?;
-                    Ok(())
-                };
-
-                Box::pin(fut)
+            |inner, path, args| async move {
+                let _ = inner.delete(&path, args).await?;
+                Ok(())
             },
-        ));
-
-        fut
+        )
     }
 
     ///
@@ -1250,23 +1221,19 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn list_with(&self, path: &str) -> FutureList {
+    pub fn list_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Vec<Entry>>>> {
         let path = normalize_path(path);
 
-        let fut = FutureList(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let lister = Lister::create(inner, &path, args).await?;
+            |inner, path, args| async move {
+                let lister = Lister::create(inner, &path, args).await?;
 
-                    lister.try_collect().await
-                };
-                Box::pin(fut)
+                lister.try_collect().await
             },
-        ));
-        fut
+        )
     }
 
     /// List entries that starts with given `path` in parent dir.
@@ -1471,19 +1438,15 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureLister {
+    pub fn lister_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Lister>>> {
         let path = normalize_path(path);
 
-        let fut = FutureLister(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                let fut = async move { Lister::create(inner, &path, args).await };
-                Box::pin(fut)
-            },
-        ));
-        fut
+            |inner, path, args| async move { Lister::create(inner, &path, args).await },
+        )
     }
 }
 
@@ -1535,23 +1498,23 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_stat_with(&self, path: &str, expire: Duration) -> FuturePresignStat {
+    pub fn presign_stat_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignStat<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignStat(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpStat::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 
     /// Presign an operation for read.
@@ -1610,23 +1573,23 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_read_with(&self, path: &str, expire: Duration) -> FuturePresignRead {
+    pub fn presign_read_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignRead<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignRead(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpRead::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 
     /// Presign an operation for write.
@@ -1683,22 +1646,22 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_write_with(&self, path: &str, expire: Duration) -> FuturePresignWrite {
+    pub fn presign_write_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignWrite<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignWrite(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpWrite::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 }

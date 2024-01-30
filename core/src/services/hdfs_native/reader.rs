@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::Read;
-use crate::*;
+use std::io::SeekFrom;
+use std::task::Context;
+use std::task::Poll;
+
 use bytes::Bytes;
 use hdfs_native::file::FileReader;
-use std::io::SeekFrom;
-use std::task::{Context, Poll};
+
+use crate::raw::oio::Read;
+use crate::*;
 
 pub struct HdfsNativeReader {
     _f: FileReader,

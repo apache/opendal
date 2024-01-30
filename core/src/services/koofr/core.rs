@@ -31,10 +31,9 @@ use serde_json::json;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 #[derive(Clone)]
 pub struct KoofrCore {

@@ -16,15 +16,16 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use hdfs_native::WriteOptions;
 use log::debug;
 use serde::Deserialize;
-// use uuid::Uuid;
 
+// use uuid::Uuid;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;

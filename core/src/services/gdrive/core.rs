@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use bytes;
 use bytes::Bytes;
 use chrono::DateTime;

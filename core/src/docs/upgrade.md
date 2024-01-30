@@ -1,3 +1,19 @@
+# Upgrade to v0.45
+
+## Public API
+
+### BlockingLayer is not enabled by default
+
+To further enhance the optionality of `tokio`, we have introduced a new feature called `layers-blocking`. The default usage of the blocking layer has been disabled. To utilize the `BlockingLayer`, please enable the `layers-blocking` feature.
+
+### TimeoutLayer deprecated `with_speed`
+
+The `with_speed` API has been deprecated. Please use `with_io_timeout` instead.
+
+## Raw API
+
+No raw API changes.
+
 # Upgrade to v0.44
 
 ## Public API

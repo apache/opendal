@@ -15,23 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "opendal-hs"
-publish = false
+name: chainsafe
+description: 'Behavior test for Chainsafe.'
 
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.67"
-version = "0.44.2"
-
-[lib]
-crate-type = ["cdylib"]
-doc = false
-
-[dependencies]
-chrono = "0.4"
-log = { version = "0.4", features = ["std"] }
-opendal = { version = "0.44.2", path = "../../core" }
+runs:
+  using: "composite"
+  steps:
+    - name: Setup
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_CHAINSAFE_BUCKET_ID: op://services/chainsafe/bucket_id
+        OPENDAL_CHAINSAFE_API_KEY: op://services/chainsafe/api_key

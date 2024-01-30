@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::time::Duration;
 
 use bytes::Buf;
@@ -36,12 +37,13 @@ use crate::*;
 /// Developer should manipulate the data from storage service through Operator only by right.
 ///
 /// We will usually do some general checks and data transformations in this layer,
-/// like normalizing path from input, checking whether the path refers to one file or one directory, and so on.
-/// Read [`concepts`][docs::concepts] for more about [`Operator`].
+/// like normalizing path from input, checking whether the path refers to one file or one directory,
+/// and so on.
+/// Read [`Operator::concepts`][docs::concepts] for more about [`Operator::Operator`].
 ///
 /// # Examples
 ///
-/// Read more backend init examples in [`services`]
+/// Read more backend init examples in [`Operator::services`]
 ///
 /// ```
 /// # use anyhow::Result;
@@ -132,7 +134,7 @@ impl Operator {
     }
 }
 
-/// Operator async API.
+/// # Operator async API.
 impl Operator {
     /// Check if this operator can work correctly.
     ///
@@ -162,35 +164,16 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
-    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
-    /// so that we can avoid extra stat requests.
+    /// ## Extra Options
     ///
-    /// # Behavior
+    /// [`Operator::stat`] is a wrapper of [`Operator::stat_with`] without any options. To use extra
+    /// options like `if_match` and `if_none_match`, please use [`Operator::stat_with`] instead.
     ///
-    /// ## Services that support `create_dir`
+    /// ## Reuse Metadata
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
-    ///
-    /// Here are the behavior list:
-    ///
-    /// | Case                   | Path            | Result                                     |
-    /// |------------------------|-----------------|--------------------------------------------|
-    /// | stat existing dir      | `abc/`          | Metadata with dir mode                     |
-    /// | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
-    /// | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
-    /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
-    /// | stat not existing path | `xyz`           | Error `NotFound`                           |
-    ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
-    ///
-    /// ## Services that not support `create_dir`
-    ///
-    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
-    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
-    /// we can do about this.
+    /// For fetch metadata of entries returned by [`Operator::Lister`], it's better to use
+    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
+    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra stat requests.
     ///
     /// # Examples
     ///
@@ -220,35 +203,51 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
-    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
-    /// so that we can avoid extra requests.
+    /// ## Reuse Metadata
     ///
-    /// # Behavior
+    /// For fetch metadata of entries returned by [`Operator::Lister`], it's better to use
+    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
+    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra requests.
     ///
-    /// ## Services that support `create_dir`
+    /// # Options
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    /// ## `if_match`
     ///
-    /// Here are the behavior list:
+    /// Set `if_match` for this `stat` request.
     ///
-    /// | Case                   | Path            | Result                                     |
-    /// |------------------------|-----------------|--------------------------------------------|
-    /// | stat existing dir      | `abc/`          | Metadata with dir mode                     |
-    /// | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
-    /// | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
-    /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
-    /// | stat not existing path | `xyz`           | Error `NotFound`                           |
+    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
     ///
-    /// ## Services that not support `create_dir`
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").if_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
-    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
-    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
-    /// we can do about this.
+    /// ## `if_none_match`
+    ///
+    /// Set `if_none_match` for this `stat` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
+    ///
+    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Examples
     ///
@@ -280,24 +279,46 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn stat_with(&self, path: &str) -> FutureStat {
+    ///
+    /// ---
+    ///
+    /// # Behavior
+    ///
+    /// ## Services that support `create_dir`
+    ///
+    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
+    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
+    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    ///
+    /// Here are the behavior list:
+    ///
+    /// | Case                   | Path            | Result                                     |
+    /// |------------------------|-----------------|--------------------------------------------|
+    /// | stat existing dir      | `abc/`          | Metadata with dir mode                     |
+    /// | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
+    /// | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
+    /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
+    /// | stat not existing path | `xyz`           | Error `NotFound`                           |
+    ///
+    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    ///
+    /// ## Services that not support `create_dir`
+    ///
+    /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
+    /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
+    /// we can do about this.
+    pub fn stat_with(&self, path: &str) -> FutureStat<impl Future<Output = Result<Metadata>>> {
         let path = normalize_path(path);
 
-        let fut = FutureStat(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpStat::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let rp = inner.stat(&path, args).await?;
-                    Ok(rp.into_metadata())
-                };
-
-                Box::pin(fut)
+            |inner, path, args| async move {
+                let rp = inner.stat(&path, args).await?;
+                Ok(rp.into_metadata())
             },
-        ));
-
-        fut
+        )
     }
 
     /// Check if this path exists or not.
@@ -372,6 +393,15 @@ impl Operator {
 
     /// Read the whole path into a bytes.
     ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// [`Operator::read`] is a wrapper of [`Operator::read_with`] without any options. To use
+    /// extra options like `range` and `if_match`, please use [`Operator::read_with`] instead.
+    ///
+    /// ## Streaming Read
+    ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Operator::reader`]
     ///
@@ -396,7 +426,78 @@ impl Operator {
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Operator::reader`]
     ///
+    /// # Notes
+    ///
+    /// ## Streaming Read
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Operator::reader`]
+    ///
+    /// # Options
+    ///
+    /// ## `range`
+    ///
+    /// Set `range` for this `read` request.
+    ///
+    /// If we have a file with size `n`.
+    ///
+    /// - `..` means read bytes in range `[0, n)` of file.
+    /// - `0..1024` means read bytes in range `[0, 1024)` of file
+    /// - `1024..` means read bytes in range `[1024, n)` of file
+    /// - `..1024` means read bytes in range `(n - 1024, n)` of file
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.read_with("path/to/file").range(0..1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_match`
+    ///
+    /// Set `if_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_none_match`
+    ///
+    /// Set `if_none_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
+    ///
+    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
+    ///
+    /// Read the whole path into a bytes.
     ///
     /// ```
     /// # use std::io::Result;
@@ -409,53 +510,53 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FutureRead {
+    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Vec<u8>>>> {
         let path = normalize_path(path);
 
-        let fut = FutureRead(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpRead::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "read path is a directory",
-                        )
-                        .with_operation("read")
-                        .with_context("service", inner.info().scheme())
-                        .with_context("path", &path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("read")
+                            .with_context("service", inner.info().scheme())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    let range = args.range();
-                    let (size_hint, range) = if let Some(size) = range.size() {
-                        (size, range)
-                    } else {
-                        let size = inner
-                            .stat(&path, OpStat::default())
-                            .await?
-                            .into_metadata()
-                            .content_length();
-                        let range = range.complete(size);
-                        (range.size().unwrap(), range)
-                    };
-
-                    let (_, mut s) = inner.read(&path, args.with_range(range)).await?;
-                    let mut buf = Vec::with_capacity(size_hint as usize);
-                    s.read_to_end(&mut buf).await?;
-
-                    Ok(buf)
+                let range = args.range();
+                let (size_hint, range) = if let Some(size) = range.size() {
+                    (size, range)
+                } else {
+                    let size = inner
+                        .stat(&path, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length();
+                    let range = range.complete(size);
+                    (range.size().unwrap(), range)
                 };
 
-                Box::pin(fut)
-            },
-        ));
+                let (_, mut s) = inner.read(&path, args.with_range(range)).await?;
+                let mut buf = Vec::with_capacity(size_hint as usize);
+                s.read_to_end(&mut buf).await?;
 
-        fut
+                Ok(buf)
+            },
+        )
     }
 
     /// Create a new reader which can read the whole path.
+    ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// [`Operator::reader`] is a wrapper of [`Operator::reader_with`] without any options. To use
+    /// extra options like `range` and `if_match`, please use [`Operator::reader_with`] instead.
     ///
     /// # Examples
     ///
@@ -476,6 +577,99 @@ impl Operator {
 
     /// Create a new reader with extra options
     ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// [`Operator::reader`] is a wrapper of [`Operator::reader_with`] without any options. To use
+    /// extra options like `range` and `if_match`, please use [`Operator::reader_with`] instead.
+    ///
+    /// # Options
+    ///
+    /// ## `range`
+    ///
+    /// Set `range` for this `read` request.
+    ///
+    /// If we have a file with size `n`.
+    ///
+    /// - `..` means read bytes in range `[0, n)` of file.
+    /// - `0..1024` means read bytes in range `[0, 1024)` of file
+    /// - `1024..` means read bytes in range `[1024, n)` of file
+    /// - `..1024` means read bytes in range `(n - 1024, n)` of file
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.reader_with("path/to/file").range(0..1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `buffer`
+    ///
+    /// Set `buffer` for the reader.
+    ///
+    /// OpenDAL by default to read file without buffer. This is not efficient for cases like `seek`
+    /// after read or reading file with small chunks. To improve performance, we can set a buffer.
+    ///
+    /// The following example will create a reader with 4 MiB buffer internally. All seek operations
+    /// happened in buffered data will be zero cost.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op
+    ///     .reader_with("path/to/file")
+    ///     .buffer(4 * 1024 * 1024)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_match`
+    ///
+    /// Set `if_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.reader_with("path/to/file").if_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_none_match`
+    ///
+    /// Set `if_none_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
+    ///
+    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.reader_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -485,43 +679,46 @@ impl Operator {
     /// # use opendal::Scheme;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").range((0..10)).await?;
+    /// let r = op.reader_with("path/to/file").range(0..10).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(&self, path: &str) -> FutureReader {
+    pub fn reader_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Reader>>> {
         let path = normalize_path(path);
 
-        let fut = FutureReader(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpRead::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "read path is a directory",
-                        )
-                        .with_operation("Operator::reader")
-                        .with_context("service", inner.info().scheme())
-                        .with_context("path", path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("Operator::reader")
+                            .with_context("service", inner.info().scheme())
+                            .with_context("path", path),
+                    );
+                }
 
-                    Reader::create(inner.clone(), &path, args).await
-                };
-
-                Box::pin(fut)
+                Reader::create(inner.clone(), &path, args).await
             },
-        ));
-        fut
+        )
     }
 
     /// Write bytes into path.
     ///
     /// # Notes
     ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// ## Extra Options
+    ///
+    /// [`Operator::write`] is a wrapper of [`Operator::write_with`] without any options. To use
+    /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
+    /// instead.
+    ///
+    /// ## Streaming Write
+    ///
+    /// This function will write all bytes at once. For more precise memory control or
+    /// writing data lazily, please use [`Operator::writer`].
     ///
     /// # Examples
     ///
@@ -662,7 +859,13 @@ impl Operator {
 
     /// Write multiple bytes into path.
     ///
-    /// Refer to [`Writer`] for more details.
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// [`Operator::write`] is a wrapper of [`Operator::write_with`] without any options. To use
+    /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
+    /// instead.
     ///
     /// # Examples
     ///
@@ -688,7 +891,176 @@ impl Operator {
 
     /// Write multiple bytes into path with extra options.
     ///
-    /// Refer to [`Writer`] for more details.
+    /// # Options
+    ///
+    /// ## `append`
+    ///
+    /// Set `append` for this `write` request.
+    ///
+    /// `write` by default to overwrite existing files. To append to the end of file instead,
+    /// please set `append` to true.
+    ///
+    /// The following example will append data to existing file instead.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file").append(true).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `buffer`
+    ///
+    /// Set `buffer` for the writer.
+    ///
+    /// OpenDAL by default to write file without buffer. This is not efficient for cases when users
+    /// write small chunks of data. Some storage services like `s3` could even return hard errors
+    /// like `EntityTooSmall`. To improve performance, we can set a buffer.
+    ///
+    /// Besides, cloud storage services will cost more money if we write data in small chunks. Set
+    /// a good buffer size might reduce the API calls and save money.
+    ///
+    /// The following example will set the writer buffer to 8MiB. Only one API call will be sent at
+    /// `close` instead.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .buffer(8 * 1024 * 1024)
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `concurrent`
+    ///
+    /// Set `concurrent` for the writer.
+    ///
+    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
+    /// write large chunks of data. By setting `concurrent`, opendal will writing files concurrently
+    /// on support storage services.
+    ///
+    /// The following example will set the writer concurrent to 8.
+    ///
+    /// - The first write will start and return immediately.
+    /// - The second write will start and return immediately.
+    /// - The close will make sure all writes are done in order and return result.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file").concurrent(8).await?;
+    /// w.write(vec![0; 4096]).await?; // Start the first write
+    /// w.write(vec![1; 4096]).await?; // Second write will be concurrent without wait
+    /// w.close().await?; // Close will make sure all writes are done and success
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `cache_control`
+    ///
+    /// Set the `cache_control` for this `write` request.
+    ///
+    /// Some storage services support setting `cache_control` as system metadata.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .cache_control("max-age=604800")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `content_type`
+    ///
+    /// Set the `content_type` for this `write` request.
+    ///
+    /// Some storage services support setting `content_type` as system metadata.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_type("text/plain")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `content_disposition`
+    ///
+    /// Set the `content_disposition` for this `write` request.
+    ///
+    /// Some storage services support setting `content_disposition` as system metadata.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_disposition("attachment; filename=\"filename.jpg\"")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Examples
     ///
@@ -711,43 +1083,90 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn writer_with(&self, path: &str) -> FutureWriter {
+    pub fn writer_with(&self, path: &str) -> FutureWriter<impl Future<Output = Result<Writer>>> {
         let path = normalize_path(path);
 
-        let fut = FutureWriter(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpWrite::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "write path is a directory",
-                        )
-                        .with_operation("Operator::writer")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
+            |inner, path, args| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("Operator::writer")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    Writer::create(inner, &path, args).await
-                };
-                Box::pin(fut)
+                Writer::create(inner, &path, args).await
             },
-        ));
-
-        fut
+        )
     }
 
     /// Write data with extra options.
     ///
     /// # Notes
     ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// ## Streaming Write
     ///
-    /// # Examples
+    /// This function will write all bytes at once. For more precise memory control or
+    /// writing data lazily, please use [`Operator::writer_with`].
     ///
-    /// ```no_run
+    /// # Options
+    ///
+    /// ## `append`
+    ///
+    /// Set `append` for this `write` request.
+    ///
+    /// `write` by default to overwrite existing files. To append to the end of file instead,
+    /// please set `append` to true.
+    ///
+    /// The following example will append data to existing file instead.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op.write_with("path/to/file", bs).append(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `cache_control`
+    ///
+    /// Set the `cache_control` for this `write` request.
+    ///
+    /// Some storage services support setting `cache_control` as system metadata.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .cache_control("max-age=604800")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `content_type`
+    ///
+    /// Set the `content_type` for this `write` request.
+    ///
+    /// Some storage services support setting `content_type` as system metadata.
+    ///
+    /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
@@ -762,40 +1181,79 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureWrite {
+    ///
+    /// ## `content_disposition`
+    ///
+    /// Set the `content_disposition` for this `write` request.
+    ///
+    /// Some storage services support setting `content_disposition` as system metadata.
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_disposition("attachment; filename=\"filename.jpg\"")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_type("text/plain")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn write_with(
+        &self,
+        path: &str,
+        bs: impl Into<Bytes>,
+    ) -> FutureWrite<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
         let bs = bs.into();
 
-        let fut = FutureWrite(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpWrite::default(), bs),
-            |inner, path, (args, mut bs)| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "write path is a directory",
-                        )
-                        .with_operation("Operator::write_with")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
+            |inner, path, (args, mut bs)| async move {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("Operator::write_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-                    let (_, mut w) = inner.write(&path, args).await?;
-                    while bs.remaining() > 0 {
-                        let n = w.write(&bs).await?;
-                        bs.advance(n);
-                    }
+                let (_, mut w) = inner.write(&path, args).await?;
+                while bs.remaining() > 0 {
+                    let n = w.write(&bs).await?;
+                    bs.advance(n);
+                }
 
-                    w.close().await?;
+                w.close().await?;
 
-                    Ok(())
-                };
-                Box::pin(fut)
+                Ok(())
             },
-        ));
-        fut
+        )
     }
 
     /// Delete the given path.
@@ -839,24 +1297,18 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn delete_with(&self, path: &str) -> FutureDelete {
+    pub fn delete_with(&self, path: &str) -> FutureDelete<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
 
-        let fut = FutureDelete(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpDelete::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let _ = inner.delete(&path, args).await?;
-                    Ok(())
-                };
-
-                Box::pin(fut)
+            |inner, path, args| async move {
+                let _ = inner.delete(&path, args).await?;
+                Ok(())
             },
-        ));
-
-        fut
+        )
     }
 
     ///
@@ -1016,13 +1468,13 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// ## Recursively list
+    /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use `Operator::list_with("path").recursive(true)`
     /// instead.
     ///
-    /// ## Streaming list
+    /// ## Streaming List
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -1253,29 +1705,25 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn list_with(&self, path: &str) -> FutureList {
+    pub fn list_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Vec<Entry>>>> {
         let path = normalize_path(path);
 
-        let fut = FutureList(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    let lister = Lister::create(inner, &path, args).await?;
+            |inner, path, args| async move {
+                let lister = Lister::create(inner, &path, args).await?;
 
-                    lister.try_collect().await
-                };
-                Box::pin(fut)
+                lister.try_collect().await
             },
-        ));
-        fut
+        )
     }
 
     /// List entries that starts with given `path` in parent dir.
     ///
-    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
-    /// dropping this [`Lister`].
+    /// This function will create a new [`Operator::Lister`] to list entries. Users can stop
+    /// listing via dropping this [`Operator::Lister`].
     ///
     /// # Notes
     ///
@@ -1322,8 +1770,8 @@ impl Operator {
 
     /// List entries that starts with given `path` in parent dir with options.
     ///
-    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
-    /// dropping this [`Lister`].
+    /// This function will create a new [`Operator::Lister`] to list entries. Users can stop listing via
+    /// dropping this [`Operator::Lister`].
     ///
     /// # Options
     ///
@@ -1474,19 +1922,15 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureLister {
+    pub fn lister_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Lister>>> {
         let path = normalize_path(path);
 
-        let fut = FutureLister(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             OpList::default(),
-            |inner, path, args| {
-                let fut = async move { Lister::create(inner, &path, args).await };
-                Box::pin(fut)
-            },
-        ));
-        fut
+            |inner, path, args| async move { Lister::create(inner, &path, args).await },
+        )
     }
 }
 
@@ -1538,23 +1982,23 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_stat_with(&self, path: &str, expire: Duration) -> FuturePresignStat {
+    pub fn presign_stat_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignStat<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignStat(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpStat::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 
     /// Presign an operation for read.
@@ -1613,23 +2057,23 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_read_with(&self, path: &str, expire: Duration) -> FuturePresignRead {
+    pub fn presign_read_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignRead<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignRead(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpRead::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 
     /// Presign an operation for write.
@@ -1686,22 +2130,22 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_write_with(&self, path: &str, expire: Duration) -> FuturePresignWrite {
+    pub fn presign_write_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignWrite<impl Future<Output = Result<PresignedRequest>>> {
         let path = normalize_path(path);
 
-        let fut = FuturePresignWrite(OperatorFuture::new(
+        OperatorFuture::new(
             self.inner().clone(),
             path,
             (OpWrite::default(), expire),
-            |inner, path, (args, dur)| {
-                let fut = async move {
-                    let op = OpPresign::new(args, dur);
-                    let rp = inner.presign(&path, op).await?;
-                    Ok(rp.into_presigned_request())
-                };
-                Box::pin(fut)
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
             },
-        ));
-        fut
+        )
     }
 }

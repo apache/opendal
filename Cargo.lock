@@ -376,15 +376,14 @@ checksum = "b4eb2cdb97421e01129ccb49169d8279ed21e829929144f4a22a6e54ac549ca1"
 
 [[package]]
 name = "async-tls"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfeefd0ca297cbbb3bd34fd6b228401c2a5177038257afd751bc29f0a2da4795"
+checksum = "b2ae3c9eba89d472a0e4fe1dea433df78fbbe63d2b764addaf2ba3a6bde89a5e"
 dependencies = [
  "futures-core",
  "futures-io",
- "rustls 0.20.9",
+ "rustls",
  "rustls-pemfile",
- "webpki",
  "webpki-roots 0.22.6",
 ]
 
@@ -773,7 +772,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "pin-utils",
- "rustls 0.21.9",
+ "rustls",
  "tokio",
  "tracing",
 ]
@@ -3153,7 +3152,7 @@ dependencies = [
  "http",
  "hyper",
  "log",
- "rustls 0.21.9",
+ "rustls",
  "rustls-native-certs",
  "tokio",
  "tokio-rustls",
@@ -4037,7 +4036,7 @@ dependencies = [
  "percent-encoding",
  "rand 0.8.5",
  "rustc_version_runtime",
- "rustls 0.21.9",
+ "rustls",
  "rustls-pemfile",
  "serde",
  "serde_bytes",
@@ -4104,7 +4103,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "priority-queue",
- "rustls 0.21.9",
+ "rustls",
  "rustls-pemfile",
  "serde",
  "serde_json",
@@ -5765,7 +5764,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand 0.8.5",
- "rustls 0.21.9",
+ "rustls",
  "rustls-native-certs",
  "ryu",
  "sha1_smol",
@@ -5928,7 +5927,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.21.9",
+ "rustls",
  "rustls-native-certs",
  "rustls-pemfile",
  "serde",
@@ -6200,18 +6199,6 @@ dependencies = [
  "libc",
  "linux-raw-sys 0.4.11",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "rustls"
-version = "0.20.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b80e3dec595989ea8510028f30c408a4630db12c9cbb8de34203b89d6577e99"
-dependencies = [
- "log",
- "ring 0.16.20",
- "sct",
- "webpki",
 ]
 
 [[package]]
@@ -6832,9 +6819,9 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
 name = "suppaftp"
-version = "5.2.2"
+version = "5.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "653aa9a6ebc0446a2d5c2be5b698b48a3192c7a098d0ed9a7c232e3a6340f091"
+checksum = "d9290ef2d57a47ebc32442cbc74ce039e5483e59b6e099a3361346d894b89196"
 dependencies = [
  "async-std",
  "async-tls",
@@ -6843,7 +6830,7 @@ dependencies = [
  "lazy-regex",
  "log",
  "pin-project",
- "rustls 0.21.9",
+ "rustls",
  "thiserror",
 ]
 
@@ -7208,7 +7195,7 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
- "rustls 0.21.9",
+ "rustls",
  "tokio",
 ]
 
@@ -7327,7 +7314,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost 0.12.3",
- "rustls 0.21.9",
+ "rustls",
  "rustls-pemfile",
  "tokio",
  "tokio-rustls",
@@ -7682,7 +7669,7 @@ dependencies = [
  "flate2",
  "log",
  "once_cell",
- "rustls 0.21.9",
+ "rustls",
  "rustls-webpki 0.101.7",
  "url",
  "webpki-roots 0.25.2",

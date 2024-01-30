@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
+use hdfs_native::file::FileWriter;
+
 use crate::raw::oio;
 use crate::raw::oio::WriteBuf;
 use crate::*;
-use hdfs_native::file::FileWriter;
-use std::task::{Context, Poll};
 
 pub struct HdfsNativeWriter {
     _f: FileWriter,

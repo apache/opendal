@@ -50,6 +50,7 @@ services-all = [
 
   "services-azfile",
   "services-cacache",
+  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
   # FIXME this service need protoc
@@ -94,6 +95,7 @@ services-all = [
 # Default services provided by opendal.
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
+services-chainsafe = ["opendal/services-chainsafe"]
 services-cos = ["opendal/services-cos"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]

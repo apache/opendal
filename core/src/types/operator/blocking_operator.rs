@@ -58,7 +58,6 @@ use crate::*;
 ///
 /// Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
 /// to wrap the async operator to make it blocking.
-///
 #[cfg_attr(feature = "layers-blocking", doc = "```rust")]
 #[cfg_attr(not(feature = "layers-blocking"), doc = "```ignore")]
 /// # use anyhow::Result;

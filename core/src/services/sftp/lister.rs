@@ -25,10 +25,9 @@ use futures::StreamExt;
 use openssh_sftp_client::fs::DirEntry;
 use openssh_sftp_client::fs::ReadDir;
 
+use super::error::parse_sftp_error;
 use crate::raw::oio;
 use crate::Result;
-
-use super::error::parse_sftp_error;
 
 pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,

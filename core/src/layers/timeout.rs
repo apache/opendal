@@ -18,8 +18,9 @@
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -57,18 +58,21 @@ use crate::*;
 /// operations, 3 seconds timeout for all io operations.
 ///
 /// ```
+/// use std::time::Duration;
+///
 /// use anyhow::Result;
 /// use opendal::layers::TimeoutLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Scheme;
-/// use std::time::Duration;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(TimeoutLayer::default()
-///         .with_timeout(Duration::from_secs(10))
-///         .with_io_timeout(Duration::from_secs(3)))
+///     .layer(
+///         TimeoutLayer::default()
+///             .with_timeout(Duration::from_secs(10))
+///             .with_io_timeout(Duration::from_secs(3)),
+///     )
 ///     .finish();
 /// ```
 ///
@@ -368,17 +372,22 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::layers::{TimeoutLayer, TypeEraseLayer};
+    use std::io::SeekFrom;
+    use std::sync::Arc;
+    use std::task::Context;
+    use std::task::Poll;
+    use std::time::Duration;
+
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use tokio::time::sleep;
+    use tokio::time::timeout;
+
+    use crate::layers::TimeoutLayer;
+    use crate::layers::TypeEraseLayer;
     use crate::raw::oio::ReadExt;
     use crate::raw::*;
     use crate::*;
-    use async_trait::async_trait;
-    use bytes::Bytes;
-    use std::io::SeekFrom;
-    use std::sync::Arc;
-    use std::task::{Context, Poll};
-    use std::time::Duration;
-    use tokio::time::{sleep, timeout};
 
     #[derive(Debug, Clone, Default)]
     struct MockService;

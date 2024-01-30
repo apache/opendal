@@ -58,7 +58,7 @@ rust-version = "1.67"
 version = "0.45.0"
 
 [workspace.dependencies]
-opendal = { version = "0.44", path = "core" }
+opendal = { version = "0.45", path = "core" }
 
 [profile.bench]
 debug = true

@@ -15,18 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::Accessor;
-use crate::raw::*;
-use crate::*;
-use async_trait::async_trait;
-use bytes::Bytes;
-use probe::probe_lazy;
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::task::Context;
 use std::task::Poll;
+
+use async_trait::async_trait;
+use bytes::Bytes;
+use probe::probe_lazy;
+
+use crate::raw::Accessor;
+use crate::raw::*;
+use crate::*;
 
 /// Support User Statically-Defined Tracing(aka USDT) on Linux
 ///
@@ -113,11 +115,10 @@ use std::task::Poll;
 ///
 /// Example:
 /// ```
-///
 /// use anyhow::Result;
+/// use opendal::layers::DTraceLayer;
 /// use opendal::services::Fs;
 /// use opendal::Operator;
-/// use opendal::layers::DTraceLayer;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -126,10 +127,12 @@ use std::task::Poll;
 ///     builder.root("/tmp");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::new(builder)?.layer(DtraceLayer::default()).finish();
-///     
-///     let path="/tmp/test.txt";
-///     for _ in 1..100000{
+///     let op: Operator = Operator::new(builder)?
+///         .layer(DtraceLayer::default())
+///         .finish();
+///
+///     let path = "/tmp/test.txt";
+///     for _ in 1..100000 {
 ///         let bs = vec![0; 64 * 1024 * 1024];
 ///         op.write(path, bs).await?;
 ///         op.read(path).await?;

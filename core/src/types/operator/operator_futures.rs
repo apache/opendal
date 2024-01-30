@@ -213,6 +213,21 @@ impl<F> FutureRead<F> {
         self.map(|args| args.with_range(range.into()))
     }
 
+    /// Set the buffer capability to enable buffer for reader.
+    pub fn buffer(self, v: usize) -> Self {
+        self.map(|args| args.with_buffer(v))
+    }
+
+    /// Set the If-Match for this operation.
+    pub fn if_match(self, v: &str) -> Self {
+        self.map(|args| args.with_if_match(v))
+    }
+
+    /// Set the If-None-Match for this operation.
+    pub fn if_none_match(self, v: &str) -> Self {
+        self.map(|args| args.with_if_none_match(v))
+    }
+
     /// Sets the content-disposition header that should be send back by the remote read operation.
     pub fn override_content_disposition(self, v: &str) -> Self {
         self.map(|args| args.with_override_content_disposition(v))
@@ -228,24 +243,9 @@ impl<F> FutureRead<F> {
         self.map(|args| args.with_override_content_type(v))
     }
 
-    /// Set the If-Match for this operation.
-    pub fn if_match(self, v: &str) -> Self {
-        self.map(|args| args.with_if_match(v))
-    }
-
-    /// Set the If-None-Match for this operation.
-    pub fn if_none_match(self, v: &str) -> Self {
-        self.map(|args| args.with_if_none_match(v))
-    }
-
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|args| args.with_version(v))
-    }
-
-    /// Set the buffer capability to enable buffer for reader.
-    pub fn buffer(self, v: usize) -> Self {
-        self.map(|args| args.with_buffer(v))
     }
 }
 
@@ -278,6 +278,16 @@ impl<F> FutureWrite<F> {
         self.map(|(args, bs)| (args.with_buffer(v), bs))
     }
 
+    /// Set the maximum concurrent write task amount.
+    pub fn concurrent(self, v: usize) -> Self {
+        self.map(|(args, bs)| (args.with_buffer(v), bs))
+    }
+
+    /// Set the content type of option
+    pub fn cache_control(self, v: &str) -> Self {
+        self.map(|(args, bs)| (args.with_cache_control(v), bs))
+    }
+
     /// Set the content type of option
     pub fn content_type(self, v: &str) -> Self {
         self.map(|(args, bs)| (args.with_content_type(v), bs))
@@ -286,16 +296,6 @@ impl<F> FutureWrite<F> {
     /// Set the content disposition of option
     pub fn content_disposition(self, v: &str) -> Self {
         self.map(|(args, bs)| (args.with_content_disposition(v), bs))
-    }
-
-    /// Set the content type of option
-    pub fn cache_control(self, v: &str) -> Self {
-        self.map(|(args, bs)| (args.with_cache_control(v), bs))
-    }
-
-    /// Set the maximum concurrent write task amount.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|(args, bs)| (args.with_buffer(v), bs))
     }
 }
 
@@ -335,6 +335,16 @@ impl<F> FutureWriter<F> {
         self.map(|args| args.with_buffer(v))
     }
 
+    /// Set the maximum concurrent write task amount.
+    pub fn concurrent(self, v: usize) -> Self {
+        self.map(|args| args.with_concurrent(v))
+    }
+
+    /// Set the content type of option
+    pub fn cache_control(self, v: &str) -> Self {
+        self.map(|args| args.with_cache_control(v))
+    }
+
     /// Set the content type of option
     pub fn content_type(self, v: &str) -> Self {
         self.map(|args| args.with_content_type(v))
@@ -343,16 +353,6 @@ impl<F> FutureWriter<F> {
     /// Set the content disposition of option
     pub fn content_disposition(self, v: &str) -> Self {
         self.map(|args| args.with_content_disposition(v))
-    }
-
-    /// Set the content type of option
-    pub fn cache_control(self, v: &str) -> Self {
-        self.map(|args| args.with_cache_control(v))
-    }
-
-    /// Set the maximum concurrent write task amount.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|args| args.with_concurrent(v))
     }
 }
 

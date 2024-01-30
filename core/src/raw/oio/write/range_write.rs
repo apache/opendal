@@ -354,12 +354,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::raw::oio::WriteExt;
-    use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
     use std::collections::HashSet;
     use std::sync::Mutex;
+
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+
+    use super::*;
+    use crate::raw::oio::WriteExt;
 
     struct TestWrite {
         length: u64,

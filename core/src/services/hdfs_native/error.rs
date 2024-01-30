@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
 use hdfs_native::HdfsError;
+
+use crate::*;
 
 /// Parse hdfs-native error into opendal::Error.
 pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {

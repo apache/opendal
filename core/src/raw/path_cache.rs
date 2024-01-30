@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
+use std::collections::VecDeque;
+
 use async_trait::async_trait;
 use moka::sync::Cache;
-use std::collections::VecDeque;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::Mutex;
+use tokio::sync::MutexGuard;
+
+use crate::raw::*;
+use crate::*;
 
 /// The trait required for path cacher.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
@@ -191,9 +194,11 @@ impl<Q: PathQuery> PathCacher<Q> {
 
 #[cfg(test)]
 mod tests {
-    use crate::raw::{PathCacher, PathQuery};
-    use crate::*;
     use async_trait::async_trait;
+
+    use crate::raw::PathCacher;
+    use crate::raw::PathQuery;
+    use crate::*;
 
     struct TestQuery {}
 

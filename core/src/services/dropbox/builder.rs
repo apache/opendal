@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -23,6 +22,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
+use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use super::backend::DropboxBackend;

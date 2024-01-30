@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::core::*;

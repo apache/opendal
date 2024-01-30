@@ -27,10 +27,13 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
-use crate::raw::{normalize_root, PathCacher};
-use crate::raw::{ConfigDeserializer, HttpClient};
+use crate::raw::normalize_root;
+use crate::raw::ConfigDeserializer;
+use crate::raw::HttpClient;
+use crate::raw::PathCacher;
+use crate::services::gdrive::core::GdriveCore;
+use crate::services::gdrive::core::GdrivePathQuery;
 use crate::services::gdrive::core::GdriveSigner;
-use crate::services::gdrive::core::{GdriveCore, GdrivePathQuery};
 use crate::Scheme;
 use crate::*;
 

@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
 use crate::raw::oio;
 use crate::raw::oio::Entry;
 use crate::*;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 
 pub struct HdfsNativeLister {
     _path: String,

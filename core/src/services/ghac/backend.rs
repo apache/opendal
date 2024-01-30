@@ -20,15 +20,16 @@ use std::env;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use http::header;
 use http::header::ACCEPT;
 use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::USER_AGENT;
+use http::Request;
 use http::Response;
 use http::StatusCode;
-use http::{header, Request};
 use log::debug;
 use serde::Deserialize;
 use serde::Serialize;

@@ -377,3 +377,10 @@ mod koofr;
 pub use koofr::Koofr;
 #[cfg(feature = "services-koofr")]
 pub use koofr::KoofrConfig;
+
+#[cfg(feature = "services-vercel-blob")]
+mod vercel_blob;
+#[cfg(feature = "services-vercel-blob")]
+pub use vercel_blob::VercelBlob;
+#[cfg(feature = "services-vercel-blob")]
+pub use vercel_blob::VercelBlobConfig;

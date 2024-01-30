@@ -3377,6 +3377,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.45.0]: https://github.com/apache/opendal/compare/v0.44.2...v0.45.0
 [v0.44.2]: https://github.com/apache/opendal/compare/v0.44.1...v0.44.2
 [v0.44.1]: https://github.com/apache/opendal/compare/v0.44.0...v0.44.1
 [v0.44.0]: https://github.com/apache/opendal/compare/v0.43.0...v0.44.0

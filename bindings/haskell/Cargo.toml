@@ -34,4 +34,4 @@ doc = false
 [dependencies]
 chrono = "0.4"
 log = { version = "0.4", features = ["std"] }
-opendal = { path = "../../core" }
+opendal = { version = "0.44.2", path = "../../core" }

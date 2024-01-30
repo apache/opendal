@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{Error, ErrorKind};
+use crate::Error;
+use crate::ErrorKind;
 
 /// Parse tokio error into opendal::Error.
 pub fn new_task_join_error(e: tokio::task::JoinError) -> Error {

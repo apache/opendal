@@ -404,11 +404,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+
     use super::*;
     use crate::raw::oio::WriteExt;
-    use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
-    use std::sync::Mutex;
 
     struct TestWrite {
         upload_id: String,

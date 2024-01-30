@@ -326,13 +326,19 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::raw::oio::{StreamExt, WriteBuf, WriteExt};
-    use bytes::Bytes;
-    use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
     use std::collections::HashMap;
     use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+
+    use super::*;
+    use crate::raw::oio::StreamExt;
+    use crate::raw::oio::WriteBuf;
+    use crate::raw::oio::WriteExt;
 
     struct TestWrite {
         length: u64,

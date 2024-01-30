@@ -120,7 +120,6 @@ typedef struct BlockingLister BlockingLister;
  *
  * Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
  * to wrap the async operator to make it blocking.
- *
  * # use anyhow::Result;
  * use opendal::layers::BlockingLayer;
  * use opendal::services::S3;

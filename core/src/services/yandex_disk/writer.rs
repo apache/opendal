@@ -18,13 +18,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::{Request, StatusCode};
-
-use crate::raw::*;
-use crate::*;
+use http::Request;
+use http::StatusCode;
 
 use super::core::YandexDiskCore;
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 pub type YandexDiskWriters = oio::OneShotWriter<YandexDiskWriter>;
 

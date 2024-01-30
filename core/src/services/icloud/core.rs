@@ -15,18 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::{Buf, Bytes};
 use std::collections::BTreeMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use bytes::Buf;
+use bytes::Bytes;
 use http::header;
-use http::header::{IF_MATCH, IF_NONE_MATCH};
+use http::header::IF_MATCH;
+use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 use tokio::sync::Mutex;
 
@@ -706,7 +710,8 @@ pub struct IcloudCreateFolder {
 
 #[cfg(test)]
 mod tests {
-    use super::{IcloudRoot, IcloudWebservicesResponse};
+    use super::IcloudRoot;
+    use super::IcloudWebservicesResponse;
 
     #[test]
     fn test_parse_icloud_drive_root_json() {

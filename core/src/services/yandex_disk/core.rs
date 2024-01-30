@@ -15,15 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
-use http::{header, request, Request, Response, StatusCode};
+use http::header;
+use http::request;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use serde::Deserialize;
 
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {

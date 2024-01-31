@@ -1915,7 +1915,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -4381,7 +4381,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -4438,7 +4438,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_opendal"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4468,7 +4468,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4500,7 +4500,7 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "opendal"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -4620,7 +4620,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-java"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "jni",
@@ -4632,7 +4632,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-nodejs"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "futures",
  "napi",
@@ -4644,7 +4644,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-python"
-version = "0.44.2"
+version = "0.45.0"
 dependencies = [
  "futures",
  "opendal",

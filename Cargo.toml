@@ -55,10 +55,10 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.44.2"
+version = "0.45.0"
 
 [workspace.dependencies]
-opendal = { version = "0.44", path = "core" }
+opendal = { version = "0.45", path = "core" }
 
 [profile.bench]
 debug = true

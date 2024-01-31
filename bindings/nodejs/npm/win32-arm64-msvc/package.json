@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-win32-arm64-msvc",
-  "version": "0.44.2",
+  "version": "0.45.0",
   "repository": "git@github.com/apache/opendal.git",
   "os": [
     "win32"

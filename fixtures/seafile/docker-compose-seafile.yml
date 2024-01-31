@@ -32,9 +32,10 @@ services:
     entrypoint: memcached -m 256
     networks:
       - seafile-net
-          
+
   seafile:
-    image: seafileltd/seafile-mc:latest
+    # Revert to latest after https://github.com/apache/opendal/issues/4106 addressed
+    image: seafileltd/seafile-mc:11.0.4
     container_name: seafile
     ports:
       - "80:80"

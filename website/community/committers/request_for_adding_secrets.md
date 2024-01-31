@@ -1,15 +1,18 @@
 ---
-name: Request for adding secrets
+title: Request for adding secrets
 ---
 
+# Request for adding secrets
 
 OpenDAL's behavior tests depend on the secrets stored in 1password.
 
-If you want to sponsor any service, please email private@o.a.o with the subject line Request to Add Secrets for <service>.
+If you want to sponsor any service,
+please email private@opendal.apache.org with the subject line `Request to Add Secrets for <service>`.
 Our PMC will review the request and reply to you.
 
 After the request is approved,
-you can use the secrets in the behavior tests when they are running on the GitHub Actions.
+you can use the secrets in the behavior tests when they are running on the GitHub Actions
+(You need to be a committer of OpenDAL).
 
 The email should also include the following information:
 

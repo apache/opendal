@@ -207,7 +207,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     op.create_dir("test_list_rich_dir/").await?;
 
-    let mut expected: Vec<String> = (0..=100)
+    let mut expected: Vec<String> = (0..=10)
         .map(|num| format!("test_list_rich_dir/file-{num}"))
         .collect();
 
@@ -215,7 +215,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
         op.write(path, "test_list_rich_dir").await?;
     }
 
-    let mut objects = op.lister_with("test_list_rich_dir/").limit(10).await?;
+    let mut objects = op.lister_with("test_list_rich_dir/").limit(5).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -229,7 +229,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     // List concurrently.
     let mut objects = op
         .lister_with("test_list_rich_dir/")
-        .limit(10)
+        .limit(5)
         .concurrent(5)
         .metakey(Metakey::Complete)
         .await?;

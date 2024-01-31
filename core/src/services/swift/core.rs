@@ -73,6 +73,7 @@ impl SwiftCore {
         path: &str,
         delimiter: &str,
         limit: Option<usize>,
+        marker: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -89,6 +90,9 @@ impl SwiftCore {
 
         if let Some(limit) = limit {
             url += &format!("&limit={}", limit);
+        }
+        if !marker.is_empty() {
+            url += &format!("&marker={}", marker);
         }
 
         let mut req = Request::get(&url);

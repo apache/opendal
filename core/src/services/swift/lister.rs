@@ -48,7 +48,7 @@ impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self
             .core
-            .swift_list(&self.path, self.delimiter, self.limit)
+            .swift_list(&self.path, self.delimiter, self.limit, &ctx.token)
             .await?;
 
         let status_code = response.status();
@@ -58,11 +58,20 @@ impl oio::PageList for SwiftLister {
             return Err(error);
         }
 
-        ctx.done = true;
-
         let bytes = response.into_body().bytes().await?;
         let decoded_response: Vec<ListOpResponse> =
             serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+
+        // Update token and done based on resp.
+        if let Some(entry) = decoded_response.last() {
+            let path = match entry {
+                ListOpResponse::Subdir { subdir } => subdir,
+                ListOpResponse::FileInfo { name, .. } => name,
+            };
+            ctx.token = path.clone();
+        } else {
+            ctx.done = true;
+        }
 
         for status in decoded_response {
             let entry: oio::Entry = match status {

@@ -215,7 +215,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
         op.write(path, "test_list_rich_dir").await?;
     }
 
-    let mut objects = op.with_limit(10).lister("test_list_rich_dir/").await?;
+    let mut objects = op.lister_with("test_list_rich_dir/").limit(10).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -228,8 +228,8 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     // List concurrently.
     let mut objects = op
-        .with_limit(10)
         .lister_with("test_list_rich_dir/")
+        .limit(10)
         .concurrent(5)
         .metakey(Metakey::Complete)
         .await?;

@@ -214,7 +214,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Restore haskell cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |

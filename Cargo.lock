@@ -1884,9 +1884,9 @@ checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 
 [[package]]
 name = "dav-server"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c1b3c57ea8b45dc1303de4653b12e3a2742ff023a469083716feea98abfdbe"
+checksum = "d0b91592a7b705ba0a9487b7475fca78bce97473e220f8cc3948381b1c81b793"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1898,7 +1898,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "lru 0.11.1",
+ "lru 0.12.2",
  "mime_guess",
  "parking_lot 0.12.1",
  "percent-encoding",
@@ -3707,9 +3707,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.11.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a83fb7698b3643a0e34f9ae6f2e8f0178c0fd42f8b59d493aa271ff3a5bf21"
+checksum = "db2c024b41519440580066ba82aab04092b333e09066a5eb86c7c4890df31f22"
 dependencies = [
  "hashbrown 0.14.2",
 ]

@@ -31,7 +31,7 @@ version.workspace = true
 anyhow = "1"
 bytes = { version = "1.4.0" }
 chrono = "0.4.28"
-dav-server = { version = "0.5.5" }
+dav-server = { version = "0.5.8" }
 dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16" }

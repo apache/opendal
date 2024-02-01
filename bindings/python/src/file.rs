@@ -370,7 +370,9 @@ impl AsyncFile {
             let mut state = state.lock().await;
             match &mut *state {
                 AsyncFileState::Writer(w) => {
-                    w.close().await.map_err(|err| PyIOError::new_err(err.to_string()))?;
+                    w.close()
+                        .await
+                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 }
                 _ => {}
             }
@@ -396,7 +398,9 @@ impl AsyncFile {
             let mut state = state.lock().await;
             match &mut *state {
                 AsyncFileState::Writer(w) => {
-                    w.close().await.map_err(|err| PyIOError::new_err(err.to_string()))?;
+                    w.close()
+                        .await
+                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 }
                 _ => {}
             }

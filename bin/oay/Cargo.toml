@@ -60,7 +60,7 @@ tokio = { version = "1.34", features = [
   "rt-multi-thread",
   "io-std",
 ] }
-toml = "0.8.8"
+toml = "0.8.9"
 tower = "0.4"
 tower-http = { version = "0.4", features = ["trace"] }
 tracing = "0.1"

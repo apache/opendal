@@ -54,7 +54,7 @@ def setup_config(service_name):
         True if os.environ.get("OPENDAL_DISABLE_RANDOM_ROOT") == "true" else False
     )
     if not disable_random_root:
-        config["root"] = f"{config.get('root', '/')}{str(uuid4())}/"
+        config["root"] = f"{config.get('root', '/')}/{str(uuid4())}/"
     return config
 
 

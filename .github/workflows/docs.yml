@@ -321,55 +321,55 @@ jobs:
         run: corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download java docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml

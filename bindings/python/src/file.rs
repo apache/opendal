@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Remove this allow after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
+// Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
 use std::io::Read;
@@ -118,7 +118,7 @@ impl File {
     }
 
     /// Change the stream position to the given byte offset.
-    /// offset is interpreted relative to the position indicated by `whence`.
+    /// Offset is interpreted relative to the position indicated by `whence`.
     /// The default value for whence is `SEEK_SET`. Values for `whence` are:
     ///
     /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
@@ -188,8 +188,13 @@ impl File {
         slf
     }
 
-    pub fn __exit__(&mut self, _exc_type: PyObject, _exc_value: PyObject, _traceback: PyObject) {
-        let _ = self.close();
+    pub fn __exit__(
+        &mut self,
+        _exc_type: PyObject,
+        _exc_value: PyObject,
+        _traceback: PyObject,
+    ) -> PyResult<()> {
+        self.close()
     }
 }
 

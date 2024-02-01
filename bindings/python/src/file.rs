@@ -176,12 +176,9 @@ impl File {
     }
 
     fn close(&mut self) -> PyResult<()> {
-        match &mut self.0 {
-            FileState::Writer(w) => {
-                w.close()
-                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            }
-            _ => {}
+        if let FileState::Writer(w) = &mut self.0 {
+            w.close()
+                .map_err(|err| PyIOError::new_err(err.to_string()))?;
         };
         self.0 = FileState::Closed;
         Ok(())
@@ -368,13 +365,10 @@ impl AsyncFile {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
-            match &mut *state {
-                AsyncFileState::Writer(w) => {
-                    w.close()
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                }
-                _ => {}
+            if let AsyncFileState::Writer(w) = &mut *state {
+                w.close()
+                    .await
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
             }
             *state = AsyncFileState::Closed;
             Ok(())
@@ -396,13 +390,10 @@ impl AsyncFile {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
-            match &mut *state {
-                AsyncFileState::Writer(w) => {
-                    w.close()
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                }
-                _ => {}
+            if let AsyncFileState::Writer(w) = &mut *state {
+                w.close()
+                    .await
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
             }
             *state = AsyncFileState::Closed;
             Ok(())

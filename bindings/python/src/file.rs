@@ -176,6 +176,13 @@ impl File {
     }
 
     fn close(&mut self) -> PyResult<()> {
+        match &mut self.0 {
+            FileState::Writer(w) => {
+                w.close()
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+            }
+            _ => {}
+        };
         self.0 = FileState::Closed;
         Ok(())
     }
@@ -185,7 +192,7 @@ impl File {
     }
 
     pub fn __exit__(&mut self, _exc_type: PyObject, _exc_value: PyObject, _traceback: PyObject) {
-        self.0 = FileState::Closed;
+        let _ = self.close();
     }
 }
 
@@ -361,6 +368,12 @@ impl AsyncFile {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
+            match &mut *state {
+                AsyncFileState::Writer(w) => {
+                    w.close().await.map_err(|err| PyIOError::new_err(err.to_string()))?;
+                }
+                _ => {}
+            }
             *state = AsyncFileState::Closed;
             Ok(())
         })
@@ -381,6 +394,12 @@ impl AsyncFile {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
+            match &mut *state {
+                AsyncFileState::Writer(w) => {
+                    w.close().await.map_err(|err| PyIOError::new_err(err.to_string()))?;
+                }
+                _ => {}
+            }
             *state = AsyncFileState::Closed;
             Ok(())
         })

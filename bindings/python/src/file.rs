@@ -386,22 +386,12 @@ impl AsyncFile {
     }
 
     fn __aexit__<'a>(
-        &self,
+        &'a mut self,
         py: Python<'a>,
         _exc_type: &'a PyAny,
         _exc_value: &'a PyAny,
         _traceback: &'a PyAny,
     ) -> PyResult<&'a PyAny> {
-        let state = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = state.lock().await;
-            if let AsyncFileState::Writer(w) = &mut *state {
-                w.close()
-                    .await
-                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            }
-            *state = AsyncFileState::Closed;
-            Ok(())
-        })
+        self.close(py)
     }
 }

@@ -18,4 +18,6 @@
 mod backend;
 mod error;
 mod model;
+
 pub use backend::D1Builder as D1;
+pub use backend::D1Config;

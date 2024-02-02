@@ -160,9 +160,11 @@ impl Builder for D1Builder {
     type Accessor = D1Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = D1Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        Builder { config }
+        Self {
+            config: D1Config::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+            ..Default::default()
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

@@ -21,13 +21,13 @@ description = "OpenDAL Command Line Interface"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "oli"
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.67"
+version = "0.41.0"
 
 [features]
 # Enable services dashmap support
@@ -60,7 +60,7 @@ dirs = "5.0.1"
 env_logger = "0.10"
 futures = "0.3"
 log = "0.4"
-opendal.workspace = true
+opendal = {path="../../core"}
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.34", features = [
   "fs",

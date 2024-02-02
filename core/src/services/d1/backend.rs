@@ -33,6 +33,7 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
+/// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]

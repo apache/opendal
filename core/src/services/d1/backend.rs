@@ -199,7 +199,10 @@ impl Builder for D1Builder {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
         };
 
-        let key_field = config.key_field.clone().unwrap_or_else(|| "key".to_string());
+        let key_field = config
+            .key_field
+            .clone()
+            .unwrap_or_else(|| "key".to_string());
 
         let value_field = config
             .value_field
@@ -207,7 +210,8 @@ impl Builder for D1Builder {
             .unwrap_or_else(|| "value".to_string());
 
         let root = normalize_root(
-            config.root
+            config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -221,7 +225,7 @@ impl Builder for D1Builder {
             key_field,
             value_field,
         })
-            .with_root(&root))
+        .with_root(&root))
     }
 }
 

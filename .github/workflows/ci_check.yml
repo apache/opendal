@@ -33,7 +33,7 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  typos-check:
+  typos:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -45,7 +45,7 @@ jobs:
       - name: do typos check with typos-cli
         run: typos
 
-  licenses-check:
+  licenses:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -56,7 +56,7 @@ jobs:
         uses: korandoru/hawkeye@v4.0.5
 
   # Add python format check later.
-  code-fmt-check:
+  code-format:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -67,7 +67,7 @@ jobs:
       - name: Rust Code Format
         run: ./scripts/workspace.py cargo fmt -- --check
 
-  dependencies-check:
+  dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -83,7 +83,7 @@ jobs:
       - name: Check dependencies
         run: python3 ./scripts/dependencies.py check
 
-  website-dependencies-check:
+  website-dependencies:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

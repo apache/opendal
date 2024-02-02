@@ -292,6 +292,8 @@ pub use sqlite::SqliteConfig;
 mod d1;
 #[cfg(feature = "services-d1")]
 pub use self::d1::D1;
+#[cfg(feature = "services-d1")]
+pub use self::d1::D1Config;
 
 #[cfg(feature = "services-azfile")]
 mod azfile;

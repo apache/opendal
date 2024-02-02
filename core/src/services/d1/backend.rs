@@ -54,14 +54,6 @@ pub struct D1Config {
     pub value_field: Option<String>,
 }
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct D1Builder {
-    config: D1Config,
-
-    http_client: Option<HttpClient>,
-}
-
 impl Debug for D1Config {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("D1Config");
@@ -71,6 +63,14 @@ impl Debug for D1Config {
         ds.field("value_field", &self.value_field);
         ds.finish_non_exhaustive()
     }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct D1Builder {
+    config: D1Config,
+
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for D1Builder {

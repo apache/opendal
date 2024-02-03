@@ -154,24 +154,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD:core/Cargo.lock
-=======
-name = "assert_cmd"
-version = "2.0.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00ad3f3a942eee60335ab4342358c161ee296829e0d16ff42fc1d6cb07815467"
-dependencies = [
- "anstyle",
- "bstr",
- "doc-comment",
- "predicates",
- "predicates-core",
- "predicates-tree",
- "wait-timeout",
-]
-
-[[package]]
->>>>>>> origin/main:Cargo.lock
 name = "async-backtrace"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -736,11 +718,7 @@ dependencies = [
  "base64 0.13.1",
  "bitvec",
  "hex",
-<<<<<<< HEAD:core/Cargo.lock
  "indexmap 2.2.2",
-=======
- "indexmap 2.1.0",
->>>>>>> origin/main:Cargo.lock
  "js-sys",
  "once_cell",
  "rand 0.8.5",

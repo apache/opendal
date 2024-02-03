@@ -1140,15 +1140,12 @@ impl Accessor for S3Backend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.s3_move_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpRename::default()),
-            StatusCode::NOT_FOUND => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+        self.copy(from, to, OpCopy::default()).await?;
+        let result = self.delete(from, OpDelete::default()).await;
+        if result.is_err() {
+            self.delete(to, OpDelete::default()).await?;
         }
+        Ok(RpRename::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

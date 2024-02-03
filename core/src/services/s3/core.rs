@@ -501,21 +501,6 @@ impl S3Core {
         self.send(req).await
     }
 
-    // S3 don't have native rename OP, so need copy the file and delete old file.
-    pub async fn s3_move_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        self.s3_copy_object(from, to).await?;
-        let result = self.s3_delete_object(from).await;
-        // If old file delete failed, we need to rollback new file
-        if let Err(_) = &result {
-            self.s3_delete_object(to).await?;
-        }
-        result
-    }
-
     pub async fn s3_list_objects(
         &self,
         path: &str,

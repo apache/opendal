@@ -36,7 +36,7 @@ dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16" }
 opendal = { path = "../../core"}
-quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.27", features = [
   "fs",

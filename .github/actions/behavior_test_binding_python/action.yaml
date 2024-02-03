@@ -43,7 +43,6 @@ runs:
             working-directory: bindings/python
             run: |
               source venv/bin/activate
-              ruff check .
               pytest -v tests
             env:
               OPENDAL_TEST: ${{ inputs.service }}

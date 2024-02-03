@@ -52,7 +52,7 @@ dirs = "5.0.1"
 futures = "0.3"
 futures-util = { version = "0.3.29", optional = true }
 opendal.workspace = true
-quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.34", features = [
   "fs",

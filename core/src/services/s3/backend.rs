@@ -1139,7 +1139,7 @@ impl Accessor for S3Backend {
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
         self.copy(from, to, OpCopy::default()).await?;
         let result = self.delete(from, OpDelete::default()).await;
         if result.is_err() {

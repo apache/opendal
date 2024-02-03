@@ -53,3 +53,6 @@ Repository = "https://github.com/apache/opendal"
 features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
+
+[tool.ruff.lint]
+ignore = ["F403", "F405"]

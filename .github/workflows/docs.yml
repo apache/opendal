@@ -68,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: rust-docs
-          path: ./target/doc
+          path: ./core/target/doc
 
   build-java-doc:
     runs-on: ubuntu-latest

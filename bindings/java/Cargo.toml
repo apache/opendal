@@ -164,8 +164,6 @@ tokio = { version = "1.28.1", features = ["full"] }
 [target.'cfg(unix)'.dependencies.opendal]
 path = "../../core"
 features = [
-  "layers-blocking",
-
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]

@@ -40,6 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Lint
+        with:
+          command: ruff
+          args: check "bindings/python"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
@@ -60,10 +64,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Ruff Check
-        uses: jpetrucciani/ruff-check@0.1.0
-        with:
-          path: "bindings/python"
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -86,10 +86,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Ruff Check
-        uses: jpetrucciani/ruff-check@0.1.0
-        with:
-          path: "bindings/python"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
@@ -107,10 +103,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Ruff Check
-        uses: jpetrucciani/ruff-check@0.1.0
-        with:
-          path: "bindings/python"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"

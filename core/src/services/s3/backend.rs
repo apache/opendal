@@ -1033,6 +1033,7 @@ impl Accessor for S3Backend {
 
                 delete: true,
                 copy: true,
+                rename: true,
 
                 list: true,
                 list_with_limit: true,
@@ -1134,6 +1135,18 @@ impl Accessor for S3Backend {
 
                 Ok(RpCopy::default())
             }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.s3_move_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT => Ok(RpRename::default()),
+            StatusCode::NOT_FOUND => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

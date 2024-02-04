@@ -17,11 +17,11 @@
 
 [package]
 edition = "2021"
+license = "Apache-2.0"
 name = "opendal-fuzz"
 publish = false
+rust-version = "1.67"
 version = "0.0.0"
-
-license.workspace = true
 
 [package.metadata]
 cargo-fuzz = true

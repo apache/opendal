@@ -31,8 +31,8 @@ async fn main() -> Result<()> {
     let mut builder = Fs::default();
     builder.root(&env::var("OPENDAL_FS_ROOT").expect("root must be set for this test"));
     let op = Operator::new(builder)?
-        .layer(RetryLayer::new().with_max_times(3))
         .layer(LoggingLayer::default())
+        .layer(RetryLayer::new().with_max_times(3))
         .finish();
 
     let size = thread_rng().gen_range(512 * 1024 + 1..4 * 1024 * 1024);

@@ -19,41 +19,17 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
 import subprocess
 import os
-
-
-DIRS = [
-    "core",
-
-    "bin/oli",
-    "bin/oay",
-    "bin/ofs",
-
-    "bindings/c",
-    "bindings/cpp",
-    "bindings/dotnet",
-    "bindings/haskell",
-    "bindings/java",
-    "bindings/lua",
-    "bindings/nodejs",
-    "bindings/ocaml",
-    "bindings/php",
-    "bindings/python",
-    "bindings/ruby",
-
-    "integrations/dav-server",
-    "integrations/object_store",
-]
-
+from constants import PACKAGES
 
 def check_deps():
-    cargo_dirs = DIRS
+    cargo_dirs = PACKAGES
     for root in cargo_dirs:
         print(f"Checking dependencies of {root}")
         subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
 
 
 def generate_deps():
-    cargo_dirs = DIRS
+    cargo_dirs = PACKAGES
     for root in cargo_dirs:
         print(f"Generating dependencies {root}")
         result = subprocess.run(

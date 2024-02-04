@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: CI
+name: Core CI
 
 on:
   push:
@@ -24,77 +24,15 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - "docs/**"
-      - "website/**"
-      - "*.md"
-      - ".github/**"
-      - "!.github/workflows/ci.yml"
+    paths:
+      - "core/**"
+      - ".github/workflows/core.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Check license headers
-        uses: korandoru/hawkeye@v4.0.5
-
-      - name: Cargo format
-        run: cargo fmt --all -- --check
-
-      - name: Check diff
-        run: git diff --exit-code
-
-  check_dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-deny: true
-
-      - name: Check dependencies
-        run: python3 ./scripts/dependencies.py check
-
-  check_website_dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: pnpm
-          cache-dependency-path: "website/pnpm-lock.yaml"
-
-      - name: Corepack
-        working-directory: website
-        run: corepack enable
-
-      - name: Install Dependencies
-        working-directory: website
-        run: pnpm install --frozen-lockfile
-
-      - name: Check dependencies
-        working-directory: website
-        run: |
-          npx license-checker --producation --excludePrivatePackages --csv > DEPENDENCIES.node.csv
-          git diff --exit-code
-
   check_docs:
     runs-on: ubuntu-latest
     steps:
@@ -107,22 +45,15 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout python env
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.8"
-
       - name: Checkout java env
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
 
-      - name: Setup OCaml toolchain
-        uses: ./.github/actions/setup-ocaml
-
       - name: Cargo doc
-        run: cargo doc --lib --no-deps --all-features -p opendal
+        working-directory: core
+        run: cargo doc --lib --no-deps --all-features
 
   check_clippy:
     runs-on: ubuntu-latest
@@ -136,27 +67,15 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout python env
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.8"
-
       - name: Checkout java env
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "11"
 
-      - name: Setup OCaml toolchain
-        uses: ./.github/actions/setup-ocaml
-
       - name: Cargo clippy
-        # FIXME
-        # remove `-exclude opendal-php` after https://github.com/apache/opendal/issues/3055 addressed
-        run: cargo clippy --all-targets --all-features --workspace --exclude opendal-php -- -D warnings
-
-      - name: Check diff
-        run: git diff --exit-code
+        working-directory: core
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   check_msrv:
     runs-on: ubuntu-latest
@@ -170,7 +89,8 @@ jobs:
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Check
-        run: cargo +${OPENDAL_MSRV} clippy -p opendal --no-deps -- -D warnings
+        working-directory: core
+        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}
@@ -187,7 +107,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
-        run: cargo build -p opendal -p oli -p object_store_opendal
+        working-directory: core
+        run: cargo build
 
   build_all_features:
     runs-on: ubuntu-latest
@@ -211,6 +132,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
+        working-directory: core
         run: cargo build --all-features
 
   build_all_platforms:
@@ -242,6 +164,7 @@ jobs:
 
       - name: Build
         shell: bash
+        working-directory: core
         run: |
           FEATURES=(
             services-alluxio
@@ -303,6 +226,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
+        working-directory: core
         run: |
           FEATURES=(
             services-azblob
@@ -325,8 +249,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup OCaml toolchain
-        uses: ./.github/actions/setup-ocaml
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -334,6 +256,7 @@ jobs:
           need-nextest: true
 
       - name: Test
+        working-directory: core
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

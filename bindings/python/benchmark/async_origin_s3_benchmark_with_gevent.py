@@ -17,19 +17,17 @@
 
 import greenify
 
-greenify.greenify()
-
 from gevent import monkey
 
-monkey.patch_all()
-
 import timeit
-
 import gevent
 from boto3 import client as boto3_client
 from mypy_boto3_s3 import S3Client
 from pydantic import BaseSettings
 
+greenify.greenify()
+
+monkey.patch_all()
 
 class Config(BaseSettings):
     aws_region: str

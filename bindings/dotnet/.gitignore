@@ -395,3 +395,4 @@ FodyWeavers.xsd
 
 # Rust targets
 target
+Cargo.lock

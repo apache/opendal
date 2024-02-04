@@ -50,9 +50,10 @@ jobs:
           make
 
       - name: Build and Start WebDAV service
+        working-directory: bin/oay
         run: |
-          cargo build --package oay --bin webdav --release
-          cargo run --package oay --bin webdav --release &
+          cargo build --bin webdav --release
+          cargo run --bin webdav --release &
 
       - name: Run litmus tests
         run: |

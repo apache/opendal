@@ -1,0 +1,113 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  typos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_COLOR: 1
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -LsSf https://github.com/crate-ci/typos/releases/download/v1.14.8/typos-v1.14.8-x86_64-unknown-linux-musl.tar.gz | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: do typos check with typos-cli
+        run: typos
+
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_COLOR: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check license headers
+        uses: korandoru/hawkeye@v4.0.5
+
+  # Add python format check later.
+  code-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_COLOR: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust Code Format
+        run: ./scripts/workspace.py cargo fmt -- --check
+
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_COLOR: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-deny: true
+
+      - name: Check dependencies
+        run: python3 ./scripts/dependencies.py check
+
+  website-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
+      - name: Install Dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Check dependencies
+        working-directory: website
+        run: |
+          npx license-checker --production --excludePrivatePackages --csv > DEPENDENCIES.node.csv
+          git diff --exit-code

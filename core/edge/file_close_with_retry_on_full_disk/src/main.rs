@@ -23,9 +23,11 @@ use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Result;
 use rand::prelude::*;
+use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
     let mut builder = Fs::default();
     builder.root(&env::var("OPENDAL_FS_ROOT").expect("root must be set for this test"));
     let op = Operator::new(builder)?

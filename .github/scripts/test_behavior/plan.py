@@ -96,18 +96,18 @@ def calculate_hint(changed_files: list[str]) -> Hint:
 
     for p in changed_files:
         # workflow behavior tests affected
-        if p == ".github/workflows/behavior_test.yml":
+        if p == ".github/workflows/test_behavior.yml":
             hint.core = True
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
             hint.all_service = True
 
-        if p == ".github/workflows/behavior_test_core.yml":
+        if p == ".github/workflows/test_behavior_core.yml":
             hint.core = True
             hint.all_service = True
 
         for language in LANGUAGE_BINDING:
-            if p == f".github/workflows/behavior_test_binding_{language}.yml":
+            if p == f".github/workflows/test_behavior_binding_{language}.yml":
                 setattr(hint, f"binding_{language}", True)
                 hint.all_service = True
         # core affected

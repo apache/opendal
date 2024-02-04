@@ -72,7 +72,7 @@ jobs:
           export GITHUB_IS_PUSH=$is_push
 
           # Run the workflow planner script
-          PLAN=$(./.github/scripts/behavior_test/plan.py $files_changed)
+          PLAN=$(./.github/scripts/test_behavior/plan.py $files_changed)
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
@@ -85,7 +85,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).core }}
-    uses: ./.github/workflows/behavior_test_core.yml
+    uses: ./.github/workflows/test_behavior_core.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
@@ -98,7 +98,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_java }}
-    uses: ./.github/workflows/behavior_test_binding_java.yml
+    uses: ./.github/workflows/test_behavior_binding_java.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
@@ -111,7 +111,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_python }}
-    uses: ./.github/workflows/behavior_test_binding_python.yml
+    uses: ./.github/workflows/test_behavior_binding_python.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
@@ -124,7 +124,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_nodejs }}
-    uses: ./.github/workflows/behavior_test_binding_nodejs.yml
+    uses: ./.github/workflows/test_behavior_binding_nodejs.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}

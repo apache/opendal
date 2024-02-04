@@ -30,10 +30,11 @@ runs:
       shell: bash
       run: |
         curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
-        cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${{ env.HADOOP_HOME }}/etc/hadoop/hdfs-site.xml
 
         export HADOOP_HOME="/home/runner/hadoop-3.3.5"
         export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+
+        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 
         cat << EOF >> $GITHUB_ENV
         HADOOP_HOME=${HADOOP_HOME}

@@ -17,6 +17,7 @@
 
 use std::env;
 
+use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::services::Fs;
 use opendal::Operator;
@@ -29,6 +30,7 @@ async fn main() -> Result<()> {
     builder.root(&env::var("OPENDAL_FS_ROOT").expect("root must be set for this test"));
     let op = Operator::new(builder)?
         .layer(RetryLayer::new().with_max_times(3))
+        .layer(LoggingLayer::default())
         .finish();
 
     let size = thread_rng().gen_range(512 * 1024 + 1..4 * 1024 * 1024);

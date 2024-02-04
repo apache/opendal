@@ -164,3 +164,4 @@ jobs:
         env:
           OPENDAL_FS_ROOT: /tmp/test_dir
           RUST_BACKTRACE: 1
+          RUST_LOG: debug

@@ -2004,6 +2004,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_file_close_with_retry_on_full_disk"
+version = "0.0.0"
+dependencies = [
+ "futures",
+ "opendal",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "edge_test_aws_s3_assume_role_with_web_identity"
 version = "0.0.0"
 dependencies = [

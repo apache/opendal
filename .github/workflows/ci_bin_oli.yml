@@ -41,6 +41,10 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-rocksdb: true
+          need-protoc: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cargo clippy
         working-directory: bin/oli

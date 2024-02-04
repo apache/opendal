@@ -33,31 +33,6 @@ on:
       - ".github/workflows/edge_test.yml"
 
 jobs:
-  test_file_close_with_retry_on_full_disk:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create disk image
-        run: |
-          fallocate -l 512K disk.img
-          mkfs disk.img
-
-      - name: Mount disk image
-        run: |
-          mkdir /tmp/test_dir
-          sudo mount -o loop disk.img /tmp/test_dir
-
-      - name: Set permissions
-        run: sudo chmod a+wr /tmp/test_dir
-
-      - name: Test
-        working-directory: core/edge/file_close_with_retry_on_full_disk
-        run: cargo run
-        env:
-          OPENDAL_FS_ROOT: /tmp/test_dir
   test_file_write_on_full_disk:
     runs-on: ubuntu-latest
 
@@ -162,3 +137,30 @@ jobs:
           OPENDAL_S3_BUCKET: opendal-testing
           OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
           OPENDAL_S3_REGION: ap-northeast-1
+
+  test_file_close_with_retry_on_full_disk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create disk image
+        run: |
+          fallocate -l 512K disk.img
+          mkfs disk.img
+
+      - name: Mount disk image
+        run: |
+          mkdir /tmp/test_dir
+          sudo mount -o loop disk.img /tmp/test_dir
+
+      - name: Set permissions
+        run: sudo chmod a+wr /tmp/test_dir
+
+      - name: Test
+        working-directory: core/edge/file_close_with_retry_on_full_disk
+        run: cargo run
+        env:
+          OPENDAL_FS_ROOT: /tmp/test_dir
+          RUST_BACKTRACE: 1

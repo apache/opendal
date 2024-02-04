@@ -57,7 +57,8 @@ jobs:
           java-version: '17'
 
       - name: Build OpenDAL doc
-        run: cargo +nightly doc --lib --no-deps --all-features -p opendal
+        working-directory: core
+        run: cargo +nightly doc --lib --no-deps --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           # Enable cfg docs to make sure docs are built.
@@ -67,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: rust-docs
-          path: ./target/doc
+          path: ./core/target/doc
 
   build-java-doc:
     runs-on: ubuntu-latest

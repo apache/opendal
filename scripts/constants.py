@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,33 +16,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Typos Check
+PACKAGES = [
+    "core",
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    "bin/oli",
+    "bin/oay",
+    "bin/ofs",
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+    "bindings/c",
+    "bindings/cpp",
+    "bindings/dotnet",
+    "bindings/haskell",
+    "bindings/java",
+    "bindings/lua",
+    "bindings/nodejs",
+    "bindings/ocaml",
+    "bindings/php",
+    "bindings/python",
+    "bindings/ruby",
 
-env:
-  RUST_BACKTRACE: 1
-
-jobs:
-  typos-check:
-    name: typos check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      FORCE_COLOR: 1
-    steps:
-      - uses: actions/checkout@v4
-      - run: curl -LsSf https://github.com/crate-ci/typos/releases/download/v1.14.8/typos-v1.14.8-x86_64-unknown-linux-musl.tar.gz | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: do typos check with typos-cli
-        run: typos
+    "integrations/dav-server",
+    "integrations/object_store",
+]

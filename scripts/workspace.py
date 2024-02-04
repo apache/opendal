@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +16,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "OpenDAL's object_store Integration"
-name = "object_store_opendal"
+import subprocess
+import sys
+from constants import PACKAGES
 
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.67"
-version = "0.42.0"
 
-[dependencies]
-async-trait = "0.1"
-bytes = "1"
-futures = "0.3"
-object_store = "0.7"
-opendal = {path = "../../core"}
-tokio = "1"
+if __name__ == "__main__":
+    command_line_args = sys.argv[1:]
+    command = " ".join(command_line_args)
 
-[dev-dependencies]
-tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+    for directory in PACKAGES:
+        print(f"Executing '{command}' in {directory}")
+
+        subprocess.run(
+            command,
+            shell=True,
+            cwd=directory,
+            check=True,
+        )

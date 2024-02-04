@@ -10,3 +10,4 @@
 *.so
 .rspec_status
 Gemfile.lock
+Cargo.lock

@@ -17,13 +17,13 @@
 
 [package]
 edition = "2021"
+license = "Apache-2.0"
 name = "edge_test_aws_s3_assume_role_with_web_identity"
 publish = false
+rust-version = "1.67"
 version = "0.0.0"
 
-license.workspace = true
-
 [dependencies]
-opendal = { workspace = true, features = ["tests"] }
+opendal = { path = "../../", features = ["tests"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["serde", "v4"] }

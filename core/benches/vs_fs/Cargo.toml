@@ -17,16 +17,12 @@
 
 [package]
 description = "OpenDAL Benchmark vs fs"
+edition = "2021"
+license = "Apache-2.0"
 name = "opendal-benchmark-vs-fs"
 publish = false
+rust-version = "1.67"
 version = "0.0.0"
-
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }

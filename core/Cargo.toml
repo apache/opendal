@@ -34,6 +34,10 @@ version = "0.45.0"
 all-features = true
 rustdoc-args = ["--cfg", "docs"]
 
+[workspace]
+default-members = ["."]
+members = [".", "fuzz", "edge/*", "benches/vs_*"]
+
 [features]
 default = [
   "rustls",

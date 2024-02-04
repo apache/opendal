@@ -1142,6 +1142,7 @@ impl Accessor for S3Backend {
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
         self.copy(from, to, OpCopy::default()).await?;
         let result = self.delete(from, OpDelete::default()).await;
+        // Rollback when the old file delete failed.
         if result.is_err() {
             self.delete(to, OpDelete::default()).await?;
         }

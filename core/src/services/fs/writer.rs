@@ -35,7 +35,7 @@ pub struct FsWriter<F> {
     tmp_path: Option<PathBuf>,
 
     f: Option<F>,
-    fut: Option<BoxFuture<'static, Result<()>>>,
+    fut: Option<BoxFuture<'static, (F, Result<()>)>>,
 }
 
 impl<F> FsWriter<F> {
@@ -69,23 +69,35 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             if let Some(fut) = self.fut.as_mut() {
                 let res = ready!(fut.poll_unpin(cx));
                 self.fut = None;
-                return Poll::Ready(res);
+                if let Err(e) = res.1 {
+                    self.f = Some(res.0);
+                    return Poll::Ready(Err(e));
+                }
+                return Poll::Ready(Ok(()));
             }
 
             let mut f = self.f.take().expect("FsWriter must be initialized");
             let tmp_path = self.tmp_path.clone();
             let target_path = self.target_path.clone();
             self.fut = Some(Box::pin(async move {
-                f.flush().await.map_err(new_std_io_error)?;
-                f.sync_all().await.map_err(new_std_io_error)?;
-
-                if let Some(tmp_path) = &tmp_path {
-                    tokio::fs::rename(tmp_path, &target_path)
-                        .await
-                        .map_err(new_std_io_error)?;
+                if let Err(e) = f.flush().await.map_err(new_std_io_error) {
+                    // Reserve the original error for retry.
+                    return (f, Err(e));
+                }
+                if let Err(e) = f.sync_all().await.map_err(new_std_io_error) {
+                    return (f, Err(e));
                 }
 
-                Ok(())
+                if let Some(tmp_path) = &tmp_path {
+                    if let Err(e) = tokio::fs::rename(tmp_path, &target_path)
+                        .await
+                        .map_err(new_std_io_error)
+                    {
+                        return (f, Err(e));
+                    }
+                }
+
+                (f, Ok(()))
             }));
         }
     }
@@ -95,21 +107,32 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             if let Some(fut) = self.fut.as_mut() {
                 let res = ready!(fut.poll_unpin(cx));
                 self.fut = None;
-                return Poll::Ready(res);
+                if let Err(e) = res.1 {
+                    self.f = Some(res.0);
+                    return Poll::Ready(Err(e));
+                }
+                return Poll::Ready(Ok(()));
             }
 
-            let _ = self.f.take().expect("FsWriter must be initialized");
+            let f = self.f.take().expect("FsWriter must be initialized");
             let tmp_path = self.tmp_path.clone();
             self.fut = Some(Box::pin(async move {
                 if let Some(tmp_path) = &tmp_path {
-                    tokio::fs::remove_file(tmp_path)
+                    if let Err(e) = tokio::fs::remove_file(tmp_path)
                         .await
                         .map_err(new_std_io_error)
+                    {
+                        return (f, Err(e));
+                    }
+                    (f, Ok(()))
                 } else {
-                    Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "Fs doesn't support abort if atomic_write_dir is not set",
-                    ))
+                    (
+                        f,
+                        Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "Fs doesn't support abort if atomic_write_dir is not set",
+                        )),
+                    )
                 }
             }));
         }

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Oay WebDAV Test
+name: Integration Dav Server CI
 
 on:
   push:
@@ -25,41 +25,23 @@ on:
     branches:
       - main
     paths:
-      - "bin/oay/**"
-      - ".github/workflows/oay_test_webdav.yml"
-  workflow_dispatch:
+      - "integrations/dav-server/**"
+      - "core/**"
+      - ".github/workflows/ci_integration_dav_server.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  backend-fs:
+  check_clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Install litmus
-        run: |
-          curl -O http://www.webdav.org/neon/litmus/litmus-0.13.tar.gz
-          tar xf litmus-0.13.tar.gz
-          cd litmus-0.13
-          ./configure
-          make
-
-      - name: Build and Start WebDAV service
-        working-directory: bin/oay
-        run: |
-          cargo build --bin webdav --release
-          cargo run --bin webdav --release &
-
-      - name: Run litmus tests
-        run: |
-          cd litmus-0.13
-          TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000 | tee litmus.log
-          if grep -E "FATAL|FAIL" litmus.log; then
-            echo "Tests failed"
-            exit 1
-          fi
+      - name: Cargo clippy
+        working-directory: integrations/dav-server
+        run: cargo clippy --all-targets --all-features -- -D warnings

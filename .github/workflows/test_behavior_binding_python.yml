@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Behavior Test Binding NodeJS
+name: Behavior Test Binding Python
 
 on:
   workflow_call:
@@ -54,26 +54,20 @@ jobs:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
-      - uses: pnpm/action-setup@v2
+      - uses: actions/setup-python@v5
         with:
-          version: 8
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: pnpm
-          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: corepack enable
-
-      - name: Install dependencies
-        working-directory: bindings/nodejs
-        run: pnpm install --frozen-lockfile
+          python-version: '3.11'
+      - name: Build with maturin
+        shell: bash
+        working-directory: "bindings/python"
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install maturin[patchelf]
+          maturin develop -E test -F ${{ matrix.cases.feature }}
 
       - name: Test Core
-        uses: ./.github/actions/behavior_test_binding_nodejs
+        uses: ./.github/actions/test_behavior_binding_python
         with:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}

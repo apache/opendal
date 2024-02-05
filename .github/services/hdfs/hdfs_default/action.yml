@@ -32,7 +32,7 @@ runs:
         curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
 
         export HADOOP_HOME="/home/runner/hadoop-3.3.5"
-        export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
+        export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
 
         cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 

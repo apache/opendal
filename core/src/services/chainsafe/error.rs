@@ -46,6 +46,10 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        // https://github.com/apache/opendal/issues/4146
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
+        // We should retry it when we get 423 error.
+        423 => (ErrorKind::RateLimited, true),
         // Service like Upyun could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),

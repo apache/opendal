@@ -15,42 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Dotnet CI
+name: Integration Dav Server CI
 
 on:
   push:
     branches:
       - main
-    tags:
-      - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/dotnet/**"
-      - ".github/workflows/bindings_dotnet.yml"
-  workflow_dispatch:
+      - "integrations/dav-server/**"
+      - "core/**"
+      - ".github/workflows/ci_integration_dav_server.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  test:
+  check_clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup dotnet toolchain
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '7.0.x'
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Build & Test
-        working-directory: "bindings/dotnet"
-        run: |
-          cargo build
-          dotnet test
+
+      - name: Cargo clippy
+        working-directory: integrations/dav-server
+        run: cargo clippy --all-targets --all-features -- -D warnings

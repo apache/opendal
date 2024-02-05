@@ -291,6 +291,8 @@ pub use sqlite::SqliteConfig;
 #[cfg(feature = "services-d1")]
 mod d1;
 #[cfg(feature = "services-d1")]
+pub use self::d1::D1Config;
+#[cfg(feature = "services-d1")]
 pub use self::d1::D1;
 
 #[cfg(feature = "services-azfile")]
@@ -377,3 +379,10 @@ mod koofr;
 pub use koofr::Koofr;
 #[cfg(feature = "services-koofr")]
 pub use koofr::KoofrConfig;
+
+#[cfg(feature = "services-vercel-blob")]
+mod vercel_blob;
+#[cfg(feature = "services-vercel-blob")]
+pub use vercel_blob::VercelBlob;
+#[cfg(feature = "services-vercel-blob")]
+pub use vercel_blob::VercelBlobConfig;

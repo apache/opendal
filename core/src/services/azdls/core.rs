@@ -294,10 +294,11 @@ impl AzdlsCore {
                 .expect("write into string must succeed");
         }
         if let Some(limit) = limit {
-            write!(url, "&maxresults={limit}").expect("write into string must succeed");
+            write!(url, "&maxResults={limit}").expect("write into string must succeed");
         }
         if !continuation.is_empty() {
-            write!(url, "&continuation={continuation}").expect("write into string must succeed");
+            write!(url, "&continuation={}", percent_encode_path(continuation))
+                .expect("write into string must succeed");
         }
 
         let mut req = Request::get(&url)

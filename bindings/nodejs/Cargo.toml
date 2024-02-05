@@ -19,13 +19,13 @@
 name = "opendal-nodejs"
 publish = false
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.67"
+version = "0.45.0"
 
 [features]
 default = [
@@ -157,7 +157,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.14.6"
-opendal = { workspace = true, features = ["layers-blocking"] }
+opendal = { path = "../../core", features = ["layers-blocking"] }
 tokio = "1"
 
 [build-dependencies]

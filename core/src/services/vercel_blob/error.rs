@@ -17,6 +17,7 @@
 
 use bytes::Buf;
 use http::Response;
+use quick_xml::de;
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -24,17 +25,18 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
+/// VercelBlobError is the error returned by VercelBlob service.
 #[derive(Default, Debug, Deserialize)]
-#[allow(dead_code)]
-struct ChainsafeError {
-    error: ChainsafeSubError,
+#[serde(default, rename_all = "PascalCase")]
+struct VercelBlobError {
+    error: VercelBlobErrorDetail,
 }
 
 #[derive(Default, Debug, Deserialize)]
-#[allow(dead_code)]
-struct ChainsafeSubError {
-    code: i64,
-    message: String,
+#[serde(default, rename_all = "PascalCase")]
+struct VercelBlobErrorDetail {
+    code: String,
+    message: Option<String>,
 }
 
 /// Parse error response into Error.
@@ -43,24 +45,15 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let bs = body.bytes().await?;
 
     let (kind, retryable) = match parts.status.as_u16() {
-        401 | 403 => (ErrorKind::PermissionDenied, false),
+        403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
-        304 | 412 => (ErrorKind::ConditionNotMatch, false),
-        // https://github.com/apache/opendal/issues/4146
-        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
-        // We should retry it when we get 423 error.
-        423 => (ErrorKind::RateLimited, true),
-        // Service like Upyun could return 499 error with a message like:
-        // Client Disconnect, we should retry it.
-        499 => (ErrorKind::Unexpected, true),
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, _chainsafe_err) =
-        serde_json::from_reader::<_, ChainsafeError>(bs.clone().reader())
-            .map(|chainsafe_err| (format!("{chainsafe_err:?}"), Some(chainsafe_err)))
-            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+    let (message, _vercel_blob_err) = de::from_reader::<_, VercelBlobError>(bs.clone().reader())
+        .map(|vercel_blob_err| (format!("{vercel_blob_err:?}"), Some(vercel_blob_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     let mut err = Error::new(kind, &message);
 
@@ -85,12 +78,12 @@ mod test {
         let err_res = vec![(
             r#"{
                     "error": {
-                        "code": 404,
-                        "message": "path:test4, file doesn't exist"
+                        "code": "forbidden",
+                        "message": "Invalid token"
                     }
                 }"#,
-            ErrorKind::NotFound,
-            StatusCode::NOT_FOUND,
+            ErrorKind::PermissionDenied,
+            StatusCode::FORBIDDEN,
         )];
 
         for res in err_res {
@@ -106,5 +99,20 @@ mod test {
             assert!(err.is_ok());
             assert_eq!(err.unwrap().kind(), res.1);
         }
+
+        let bs = bytes::Bytes::from(
+            r#"{
+                "error": {
+                    "code": "forbidden",
+                    "message": "Invalid token"
+                }
+            }"#,
+        );
+
+        let out: VercelBlobError = serde_json::from_reader(bs.reader()).expect("must success");
+        println!("{out:?}");
+
+        assert_eq!(out.error.code, "forbidden");
+        assert_eq!(out.error.message, Some("Invalid token".to_string()));
     }
 }

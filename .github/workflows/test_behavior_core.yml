@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Behavior Test Binding Java
+name: Behavior Test Core
 
 on:
   workflow_call:
@@ -39,7 +39,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          need-nextest: true
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +54,7 @@ jobs:
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
       - name: Test Core
-        uses: ./.github/actions/behavior_test_binding_java
+        uses: ./.github/actions/test_behavior_core
         with:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}

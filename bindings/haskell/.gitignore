@@ -1,2 +1,3 @@
 dist-newstyle
 .envrc
+Cargo.lock

@@ -16,8 +16,10 @@
 // under the License.
 
 mod backend;
-mod error;
-mod model;
+pub use backend::VercelBlobBuilder as VercelBlob;
+pub use backend::VercelBlobConfig;
 
-pub use backend::D1Builder as D1;
-pub use backend::D1Config;
+mod core;
+mod error;
+mod lister;
+mod writer;

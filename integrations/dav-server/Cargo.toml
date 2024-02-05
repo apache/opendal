@@ -18,25 +18,25 @@
 [package]
 description = "Use OpenDAL as a backend to access data in various service with WebDAV protocol"
 name = "dav-server-opendalfs"
+version = "0.0.0"
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.67"
 
 [dependencies]
 anyhow = "1"
 bytes = { version = "1.4.0" }
 chrono = "0.4.28"
-dav-server = { version = "0.5.5" }
+dav-server = { version = "0.5.8" }
 dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16" }
-opendal.workspace = true
-quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
+opendal = { path = "../../core"}
+quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.27", features = [
   "fs",

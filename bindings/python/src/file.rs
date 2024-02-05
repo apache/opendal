@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Remove this allow after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
+// Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
 use std::io::Read;
@@ -118,7 +118,7 @@ impl File {
     }
 
     /// Change the stream position to the given byte offset.
-    /// offset is interpreted relative to the position indicated by `whence`.
+    /// Offset is interpreted relative to the position indicated by `whence`.
     /// The default value for whence is `SEEK_SET`. Values for `whence` are:
     ///
     /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
@@ -176,6 +176,10 @@ impl File {
     }
 
     fn close(&mut self) -> PyResult<()> {
+        if let FileState::Writer(w) = &mut self.0 {
+            w.close()
+                .map_err(|err| PyIOError::new_err(err.to_string()))?;
+        };
         self.0 = FileState::Closed;
         Ok(())
     }
@@ -184,8 +188,13 @@ impl File {
         slf
     }
 
-    pub fn __exit__(&mut self, _exc_type: PyObject, _exc_value: PyObject, _traceback: PyObject) {
-        self.0 = FileState::Closed;
+    pub fn __exit__(
+        &mut self,
+        _exc_type: PyObject,
+        _exc_value: PyObject,
+        _traceback: PyObject,
+    ) -> PyResult<()> {
+        self.close()
     }
 }
 
@@ -361,6 +370,11 @@ impl AsyncFile {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
+            if let AsyncFileState::Writer(w) = &mut *state {
+                w.close()
+                    .await
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+            }
             *state = AsyncFileState::Closed;
             Ok(())
         })
@@ -372,17 +386,12 @@ impl AsyncFile {
     }
 
     fn __aexit__<'a>(
-        &self,
+        &'a mut self,
         py: Python<'a>,
         _exc_type: &'a PyAny,
         _exc_value: &'a PyAny,
         _traceback: &'a PyAny,
     ) -> PyResult<&'a PyAny> {
-        let state = self.0.clone();
-        future_into_py(py, async move {
-            let mut state = state.lock().await;
-            *state = AsyncFileState::Closed;
-            Ok(())
-        })
+        self.close(py)
     }
 }

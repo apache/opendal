@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Behavior Test Binding Python
+name: Behavior Test Binding Java
 
 on:
   workflow_call:
@@ -54,20 +54,8 @@ jobs:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Build with maturin
-        shell: bash
-        working-directory: "bindings/python"
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install maturin[patchelf]
-          maturin develop -E test -F ${{ matrix.cases.feature }}
-
       - name: Test Core
-        uses: ./.github/actions/behavior_test_binding_python
+        uses: ./.github/actions/test_behavior_binding_java
         with:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}

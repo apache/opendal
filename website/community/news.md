@@ -4,6 +4,7 @@ title: News
 sidebar_position: 2
 ---
 
+- 2024-02-05: Apache OpenDAL [0.45.0](https://github.com/apache/opendal/releases/tag/v0.45.0) released. RM=[Morris Tai](https://github.com/morristai)
 - 2024-01-23: New Committer, Yang Shuai [@hoslo](https://github.com/hoslo)
 - 2024-01-22: New PMC Member, Liuqing Yue [@dqhl76](https://github.com/dqhl76)
 - 2024-01-21: Apache OpenDAL [0.44.2](https://github.com/apache/opendal/releases/tag/v0.44.2) released. RM=[Zheao Li](https://github.com/Zheaoli)

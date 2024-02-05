@@ -1,0 +1,64 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: hdfs_default_gcs
+description: 'Behavior test for hdfs default over gcs'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup java env
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "11"
+    - name: Load secrets
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_GCS_ROOT: op://services/gcs/root
+        OPENDAL_GCS_BUCKET: op://services/gcs/bucket
+        OPENDAL_GCS_CREDENTIAL: op://services/gcs/credential
+    - name: Setup
+      shell: bash
+      run: |
+        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+
+        export HADOOP_HOME="/home/runner/hadoop-3.3.5"
+        export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+
+        curl -LsSf -o ${HADOOP_HOME}/share/hadoop/common/lib/gcs-connector-hadoop3-2.2.19-shaded.jar https://github.com/GoogleCloudDataproc/hadoop-connectors/releases/download/v2.2.19/gcs-connector-hadoop3-2.2.19-shaded.jar
+
+        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
+        cp ./fixtures/hdfs/gcs-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
+
+        cat << EOF >> $GITHUB_ENV
+        HADOOP_HOME=${HADOOP_HOME}
+        CLASSPATH=${CLASSPATH}
+        LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
+        OPENDAL_HDFS_ROOT=${OPENDAL_GCS_ROOT}
+        OPENDAL_HDFS_NAME_NODE=gs://${OPENDAL_GCS_BUCKET}
+        OPENDAL_HDFS_ENABLE_APPEND=false
+        EOF
+
+        mkdir -p /tmp/hdfs
+
+        cat << EOF > /tmp/hdfs/gcs-credentials.json
+        `echo ${OPENDAL_GCS_CREDENTIAL} | base64 -d`
+        EOF
+

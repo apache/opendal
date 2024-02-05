@@ -1,0 +1,55 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<!-- Put site-specific property overrides in this file. -->
+
+<configuration>
+<property>
+  <name>fs.AbstractFileSystem.gs.impl</name>
+  <value>com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS</value>
+  <description>The AbstractFileSystem for 'gs:' URIs.</description>
+</property>
+<property>
+  <name>fs.gs.project.id</name>
+  <value></value>
+  <description>
+    Optional. Google Cloud Project ID with access to GCS buckets.
+    Required only for list buckets and create bucket operations.
+  </description>
+</property>
+<property>
+  <name>google.cloud.auth.type</name>
+  <value>SERVICE_ACCOUNT_JSON_KEYFILE</value>
+  <description>
+    Authentication type to use for GCS access.
+  </description>
+</property>
+<property>
+  <name>google.cloud.auth.service.account.json.keyfile</name>
+  <value>/tmp/hdfs/gcs-credentials.json</value>
+  <description>
+    The JSON keyfile of the service account used for GCS
+    access when google.cloud.auth.type is SERVICE_ACCOUNT_JSON_KEYFILE.
+  </description>
+</property>
+</configuration>

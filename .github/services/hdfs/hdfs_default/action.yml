@@ -33,12 +33,15 @@ runs:
 
         export HADOOP_HOME="/home/runner/hadoop-3.3.5"
         export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+        # Trick for mvn to make sure CLASSPATH from hadoop is set
+        export MAVEN_OPTS="-cp $CLASSPATH"
 
         cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 
         cat << EOF >> $GITHUB_ENV
         HADOOP_HOME=${HADOOP_HOME}
         CLASSPATH=${CLASSPATH}
+        MAVEN_OPTS=${MAVEN_OPTS}
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_ROOT=/tmp/opendal/
         OPENDAL_HDFS_NAME_NODE=default

@@ -34,24 +34,6 @@ runs:
         export HADOOP_HOME="/home/runner/hadoop-3.3.5"
         export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
 
-
-        # Inject local hdfs dependencies into pom.xml
-        POM_FILE="bindings/java/pom.xml"
-        IFS=':' read -ra ADDR <<< "$CLASSPATH"
-        for i in "${ADDR[@]}"; do
-            if [[ $i == *.jar ]]; then
-                JAR_NAME=$(basename "$i")
-                DEPENDENCY="<dependency>\n\
-                    \t<groupId>local.dependency</groupId>\n\
-                    \t<artifactId>${JAR_NAME%.*}</artifactId>\n\
-                    \t<version>1.0</version>\n\
-                    \t<scope>system</scope>\n\
-                    \t<systemPath>\${project.basedir}/${i}</systemPath>\n\
-                </dependency>"
-                sed -i "/<\/dependencies>/i $DEPENDENCY" "$POM_FILE"
-            fi
-        done
-
         cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 
         cat << EOF >> $GITHUB_ENV

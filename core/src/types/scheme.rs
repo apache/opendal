@@ -44,6 +44,8 @@ pub enum Scheme {
     Seafile,
     /// [Upyun][crate::services::Upyun]: Upyun Services.
     Upyun,
+    /// [VercelBlob][crate::services::VercelBlob]: VercelBlob Services.
+    VercelBlob,
     /// [YandexDisk][crate::services::YandexDisk]: YandexDisk Services.
     YandexDisk,
     /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
@@ -279,6 +281,8 @@ impl Scheme {
             Scheme::Tikv,
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts,
+            #[cfg(feature = "services-vercel-blob")]
+            Scheme::VercelBlob,
             #[cfg(feature = "services-webdav")]
             Scheme::Webdav,
             #[cfg(feature = "services-webhdfs")]
@@ -367,6 +371,7 @@ impl FromStr for Scheme {
             "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
+            "vercel_blob" => Ok(Scheme::VercelBlob),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
@@ -427,6 +432,7 @@ impl From<Scheme> for &'static str {
             Scheme::Supabase => "supabase",
             Scheme::Swift => "swift",
             Scheme::VercelArtifacts => "vercel_artifacts",
+            Scheme::VercelBlob => "vercel_blob",
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",

@@ -15,18 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "OpenDAL Benchmark vs fs"
-edition = "2021"
-license = "Apache-2.0"
-name = "opendal-benchmark-vs-fs"
-publish = false
-rust-version = "1.67"
-version = "0.0.0"
+name: Integration Object Store CI
 
-[dependencies]
-criterion = { version = "0.5", features = ["async", "async_tokio"] }
-opendal = { path = "../..", features = ["tests"] }
-rand = "0.8"
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4"] }
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "integrations/object_store/**"
+      - "core/**"
+      - ".github/workflows/ci_integration_object_store.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  check_clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Cargo clippy
+        working-directory: integrations/object_store
+        run: cargo clippy --all-targets --all-features -- -D warnings

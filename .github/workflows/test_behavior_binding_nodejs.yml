@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Behavior Test Core
+name: Behavior Test Binding NodeJS
 
 on:
   workflow_call:
@@ -39,6 +39,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
+          need-nextest: true
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,8 +54,26 @@ jobs:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: pnpm
+          cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
+
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: pnpm install --frozen-lockfile
+
       - name: Test Core
-        uses: ./.github/actions/behavior_test_core
+        uses: ./.github/actions/test_behavior_binding_nodejs
         with:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}

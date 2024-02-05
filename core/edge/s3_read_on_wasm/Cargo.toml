@@ -17,11 +17,11 @@
 
 [package]
 edition = "2021"
+license = "Apache-2.0"
 name = "edge_test_s3_read_on_wasm"
 publish = false
+rust-version = "1.67"
 version = "0.0.0"
-
-license.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

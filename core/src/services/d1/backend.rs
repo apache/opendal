@@ -23,6 +23,7 @@ use async_trait::async_trait;
 use http::header;
 use http::Request;
 use http::StatusCode;
+use serde::Deserialize;
 use serde_json::Value;
 
 use super::error::parse_error;
@@ -32,29 +33,52 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct D1Builder {
-    token: Option<String>,
-    account_id: Option<String>,
-    database_id: Option<String>,
+/// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct D1Config {
+    /// Set the token of cloudflare api.
+    pub token: Option<String>,
+    /// Set the account id of cloudflare api.
+    pub account_id: Option<String>,
+    /// Set the database id of cloudflare api.
+    pub database_id: Option<String>,
 
-    http_client: Option<HttpClient>,
-    root: Option<String>,
-
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
+    /// Set the working directory of OpenDAL.
+    pub root: Option<String>,
+    /// Set the table of D1 Database.
+    pub table: Option<String>,
+    /// Set the key field of D1 Database.
+    pub key_field: Option<String>,
+    /// Set the value field of D1 Database.
+    pub value_field: Option<String>,
 }
 
-impl Debug for D1Builder {
+impl Debug for D1Config {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("D1Builder");
+        let mut ds = f.debug_struct("D1Config");
         ds.field("root", &self.root);
         ds.field("table", &self.table);
         ds.field("key_field", &self.key_field);
         ds.field("value_field", &self.value_field);
-        ds.finish()
+        ds.finish_non_exhaustive()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct D1Builder {
+    config: D1Config,
+
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for D1Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("D1Builder")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
@@ -64,7 +88,7 @@ impl D1Builder {
     /// create a api token from [here](https://dash.cloudflare.com/profile/api-tokens)
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -75,7 +99,7 @@ impl D1Builder {
     /// If not specified, it will return an error when building.
     pub fn account_id(&mut self, account_id: &str) -> &mut Self {
         if !account_id.is_empty() {
-            self.account_id = Some(account_id.to_string());
+            self.config.account_id = Some(account_id.to_string());
         }
         self
     }
@@ -86,7 +110,7 @@ impl D1Builder {
     /// If not specified, it will return an error when building.
     pub fn database_id(&mut self, database_id: &str) -> &mut Self {
         if !database_id.is_empty() {
-            self.database_id = Some(database_id.to_string());
+            self.config.database_id = Some(database_id.to_string());
         }
         self
     }
@@ -96,7 +120,7 @@ impl D1Builder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -106,7 +130,7 @@ impl D1Builder {
     /// If not specified, it will return an error when building.
     pub fn table(&mut self, table: &str) -> &mut Self {
         if !table.is_empty() {
-            self.table = Some(table.to_owned());
+            self.config.table = Some(table.to_owned());
         }
         self
     }
@@ -116,7 +140,7 @@ impl D1Builder {
     /// Default to `key` if not specified.
     pub fn key_field(&mut self, key_field: &str) -> &mut Self {
         if !key_field.is_empty() {
-            self.key_field = Some(key_field.to_string());
+            self.config.key_field = Some(key_field.to_string());
         }
         self
     }
@@ -126,7 +150,7 @@ impl D1Builder {
     /// Default to `value` if not specified.
     pub fn value_field(&mut self, value_field: &str) -> &mut Self {
         if !value_field.is_empty() {
-            self.value_field = Some(value_field.to_string());
+            self.config.value_field = Some(value_field.to_string());
         }
         self
     }
@@ -137,32 +161,28 @@ impl Builder for D1Builder {
     type Accessor = D1Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = D1Builder::default();
-        map.get("token").map(|v| builder.token(v));
-        map.get("account_id").map(|v| builder.account_id(v));
-        map.get("database_id").map(|v| builder.database_id(v));
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("table").map(|v| builder.table(v));
-        map.get("key_field").map(|v| builder.key_field(v));
-        map.get("value_field").map(|v| builder.value_field(v));
-        builder
+        Self {
+            config: D1Config::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+            ..Default::default()
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let mut authorization = None;
-        if let Some(token) = &self.token {
+        let config = &self.config;
+        if let Some(token) = &config.token {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
-        let Some(account_id) = self.account_id.clone() else {
+        let Some(account_id) = config.account_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "account_id is required",
             ));
         };
 
-        let Some(database_id) = self.database_id.clone() else {
+        let Some(database_id) = config.database_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "database_id is required",
@@ -178,19 +198,23 @@ impl Builder for D1Builder {
             })?
         };
 
-        let Some(table) = self.table.clone() else {
+        let Some(table) = config.table.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
         };
 
-        let key_field = self.key_field.clone().unwrap_or_else(|| "key".to_string());
+        let key_field = config
+            .key_field
+            .clone()
+            .unwrap_or_else(|| "key".to_string());
 
-        let value_field = self
+        let value_field = config
             .value_field
             .clone()
             .unwrap_or_else(|| "value".to_string());
 
         let root = normalize_root(
-            self.root
+            config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),

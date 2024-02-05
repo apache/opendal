@@ -113,6 +113,11 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
+    // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
+    if op.info().scheme() == opendal::Scheme::VercelBlob {
+        warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
+        return Ok(());
+    }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);

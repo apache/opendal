@@ -15,33 +15,42 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Typos Check
+name: Bindings Dotnet CI
 
 on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   pull_request:
     branches:
       - main
+    paths:
+      - "bindings/dotnet/**"
+      - ".github/workflows/bindings_dotnet.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-env:
-  RUST_BACKTRACE: 1
+permissions:
+  contents: read
 
 jobs:
-  typos-check:
-    name: typos check
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v4
-      - run: curl -LsSf https://github.com/crate-ci/typos/releases/download/v1.14.8/typos-v1.14.8-x86_64-unknown-linux-musl.tar.gz | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: do typos check with typos-cli
-        run: typos
+      - name: Setup dotnet toolchain
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Build & Test
+        working-directory: "bindings/dotnet"
+        run: |
+          cargo build
+          dotnet test

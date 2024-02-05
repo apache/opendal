@@ -42,6 +42,7 @@ benchmark = [
 ]
 docs = ["pdoc"]
 test = ["pytest", "python-dotenv", "pytest-asyncio"]
+lint = ["ruff"]
 
 [project.urls]
 Documentation = "https://opendal.apache.org/docs/python/opendal.html"
@@ -52,3 +53,6 @@ Repository = "https://github.com/apache/opendal"
 features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
+
+[tool.ruff.lint]
+ignore = ["F403", "F405"]

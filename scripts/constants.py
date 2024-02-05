@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,18 +16,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "OpenDAL Benchmark vs fs"
-edition = "2021"
-license = "Apache-2.0"
-name = "opendal-benchmark-vs-fs"
-publish = false
-rust-version = "1.67"
-version = "0.0.0"
+PACKAGES = [
+    "core",
 
-[dependencies]
-criterion = { version = "0.5", features = ["async", "async_tokio"] }
-opendal = { path = "../..", features = ["tests"] }
-rand = "0.8"
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4"] }
+    "bin/oli",
+    "bin/oay",
+    "bin/ofs",
+
+    "bindings/c",
+    "bindings/cpp",
+    "bindings/dotnet",
+    "bindings/haskell",
+    "bindings/java",
+    "bindings/lua",
+    "bindings/nodejs",
+    "bindings/ocaml",
+    "bindings/php",
+    "bindings/python",
+    "bindings/ruby",
+
+    "integrations/dav-server",
+    "integrations/object_store",
+]

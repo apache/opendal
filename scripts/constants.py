@@ -16,25 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-PACKAGES = [
-    "core",
+from pathlib import Path
 
-    "bin/oli",
-    "bin/oay",
-    "bin/ofs",
 
-    "bindings/c",
-    "bindings/cpp",
-    "bindings/dotnet",
-    "bindings/haskell",
-    "bindings/java",
-    "bindings/lua",
-    "bindings/nodejs",
-    "bindings/ocaml",
-    "bindings/php",
-    "bindings/python",
-    "bindings/ruby",
+ROOT_DIR = Path(__file__).parent.parent
 
-    "integrations/dav-server",
-    "integrations/object_store",
-]
+
+def list_packages():
+    packages = ["core"]
+
+    for dir in ["bin", "bindings", "integrations"]:
+        for path in (ROOT_DIR / dir).iterdir():
+            if path.is_dir():
+                packages.append(path.relative_to(ROOT_DIR))
+    return packages
+
+
+PACKAGES = list_packages()
+
+if __name__ == "__main__":
+    for project in PACKAGES:
+        print(project)

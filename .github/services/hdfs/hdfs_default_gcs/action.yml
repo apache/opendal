@@ -58,7 +58,5 @@ runs:
 
         mkdir -p /tmp/hdfs
 
-        cat << EOF > /tmp/hdfs/gcs-credentials.json
-        `echo ${OPENDAL_GCS_CREDENTIAL} | base64 -d`
-        EOF
+        echo ${OPENDAL_GCS_CREDENTIAL} | base64 -d > /tmp/hdfs/gcs-credentials.json
 

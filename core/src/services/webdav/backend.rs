@@ -33,6 +33,7 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
+use super::lister::MultistatusOptional;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -303,10 +304,20 @@ impl Accessor for WebdavBackend {
         }
 
         let bs = resp.into_body().bytes().await?;
-        let result: Multistatus =
+        let result: MultistatusOptional =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-        let item = result
-            .response
+
+        let response = match result.response {
+            Some(v) => v,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "Failed getting item stat: response field was not found",
+                ))
+            }
+        };
+
+        let item = response
             .first()
             .ok_or_else(|| {
                 Error::new(

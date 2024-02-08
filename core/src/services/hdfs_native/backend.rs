@@ -131,7 +131,7 @@ impl Builder for HdfsNativeBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "url is empty")
-                    .with_context("service", Scheme::HdfsNative))
+                    .with_context("service", Scheme::HdfsNative));
             }
         };
 
@@ -181,7 +181,30 @@ impl Accessor for HdfsNativeBackend {
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
-        todo!()
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::HdfsNative)
+            .set_root(&self.root)
+            .set_native_capability(Capability {
+                stat: true,
+
+                read: true,
+                read_can_seek: true,
+
+                write: true,
+                write_can_append: self._enable_append,
+
+                create_dir: true,
+                delete: true,
+
+                list: true,
+
+                rename: true,
+                blocking: true,
+
+                ..Default::default()
+            });
+
+        am
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -218,20 +241,37 @@ impl Accessor for HdfsNativeBackend {
         Ok((RpWrite::new(), w))
     }
 
-    async fn copy(&self, _from: &str, _to: &str, _args: OpCopy) -> Result<RpCopy> {
-        todo!()
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        let to_path = build_rooted_abs_path(&self.root, to);
+
+        self.client
+            .rename(&from_path, &to_path, false)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(RpRename::default())
     }
 
-    async fn rename(&self, _from: &str, _to: &str, _args: OpRename) -> Result<RpRename> {
-        todo!()
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        self.client
+            .get_file_info(&p)
+            .await
+            .map_err(parse_hdfs_error)?;
+        Ok(RpStat::default())
     }
 
-    async fn stat(&self, _path: &str, _args: OpStat) -> Result<RpStat> {
-        todo!()
-    }
+    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-    async fn delete(&self, _path: &str, _args: OpDelete) -> Result<RpDelete> {
-        todo!()
+        self.client
+            .delete(&p, true)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(RpDelete::new())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

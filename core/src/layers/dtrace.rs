@@ -194,10 +194,10 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
     type Inner = A;
-    type Reader = DtraceLayerWarpper<A::Reader>;
-    type BlockingReader = DtraceLayerWarpper<A::BlockingReader>;
-    type Writer = DtraceLayerWarpper<A::Writer>;
-    type BlockingWriter = DtraceLayerWarpper<A::BlockingWriter>;
+    type Reader = DtraceLayerWrapper<A::Reader>;
+    type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;
+    type Writer = DtraceLayerWrapper<A::Writer>;
+    type BlockingWriter = DtraceLayerWrapper<A::BlockingWriter>;
     type Lister = A::Lister;
     type BlockingLister = A::BlockingLister;
 
@@ -220,7 +220,7 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
             .inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
         probe_lazy!(opendal, read_end, c_path.as_ptr());
         result
     }
@@ -232,7 +232,7 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
             .inner
             .write(path, args)
             .await
-            .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
 
         probe_lazy!(opendal, write_end, c_path.as_ptr());
         result
@@ -288,7 +288,7 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
         let result = self
             .inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
         probe_lazy!(opendal, blocking_read_end, c_path.as_ptr());
         result
     }
@@ -299,7 +299,7 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
         let result = self
             .inner
             .blocking_write(path, args)
-            .map(|(rp, r)| (rp, DtraceLayerWarpper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
         probe_lazy!(opendal, blocking_write_end, c_path.as_ptr());
         result
     }
@@ -329,12 +329,12 @@ impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
     }
 }
 
-pub struct DtraceLayerWarpper<R> {
+pub struct DtraceLayerWrapper<R> {
     inner: R,
     path: String,
 }
 
-impl<R> DtraceLayerWarpper<R> {
+impl<R> DtraceLayerWrapper<R> {
     pub fn new(inner: R, path: &String) -> Self {
         Self {
             inner,
@@ -343,7 +343,7 @@ impl<R> DtraceLayerWarpper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for DtraceLayerWarpper<R> {
+impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
@@ -393,7 +393,7 @@ impl<R: oio::Read> oio::Read for DtraceLayerWarpper<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
@@ -445,7 +445,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWarpper<R> {
     }
 }
 
-impl<R: oio::Write> oio::Write for DtraceLayerWarpper<R> {
+impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
@@ -490,7 +490,7 @@ impl<R: oio::Write> oio::Write for DtraceLayerWarpper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWarpper<R> {
+impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWrapper<R> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_writer_write_start, c_path.as_ptr());

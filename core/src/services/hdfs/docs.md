@@ -121,6 +121,7 @@ async fn main() -> Result<()> {
     // Create fs backend builder.
     let mut builder = Hdfs::default();
     // Set the name node for hdfs.
+    // If the string starts with a protocol type such as file://, hdfs://, or gs://, this protocol type will be used.
     builder.name_node("hdfs://127.0.0.1:9000");
     // Set the root for hdfs, all operations will happen under this root.
     //

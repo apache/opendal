@@ -256,11 +256,26 @@ impl Accessor for HdfsNativeBackend {
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        self.client
+        let status: hdfs_native::client::FileStatus = self
+            .client
             .get_file_info(&p)
             .await
             .map_err(parse_hdfs_error)?;
-        Ok(RpStat::default())
+
+        let mode = if status.isdir {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+
+        let mut metadata = Metadata::new(mode);
+        metadata
+            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+                status.modification_time as i64,
+            )?)
+            .set_content_length(status.length as u64);
+
+        Ok(RpStat::new(metadata))
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
@@ -271,7 +286,7 @@ impl Accessor for HdfsNativeBackend {
             .await
             .map_err(parse_hdfs_error)?;
 
-        Ok(RpDelete::new())
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use http::StatusCode;
+use uuid::Uuid;
 
 use super::core::AzblobCore;
 use super::error::parse_error;
@@ -27,7 +28,7 @@ use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
-pub type AzblobWriters = TwoWays<oio::OneShotWriter<AzblobWriter>, oio::AppendWriter<AzblobWriter>>;
+pub type AzblobWriters = TwoWays<oio::BlockWriter<AzblobWriter>, oio::AppendWriter<AzblobWriter>>;
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
@@ -135,5 +136,81 @@ impl oio::AppendWrite for AzblobWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+}
+
+#[async_trait]
+impl oio::BlockWrite for AzblobWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req: http::Request<AsyncBody> =
+            self.core
+                .azblob_put_blob_request(&self.path, Some(size), &self.op, body)?;
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write_block(&self, _block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+        let resp = self
+            .core
+            .azblob_put_block_list(&self.path, Some(size), &self.op, body)
+            .await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        if block_ids.len() < 2 {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "block list length is less than 2",
+            ));
+        }
+        let resp = self
+            .core
+            .azblob_complete_put_block_list(&self.path, block_ids)
+            .await?;
+
+        let status = resp.status();
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        // Azure blob storage will gc uncommitted blocks after 7 days.
+        for block_id in block_ids {
+            let resp = self.core.azblob_delete_blob(&block_id.to_string()).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        }
+        Ok(())
     }
 }

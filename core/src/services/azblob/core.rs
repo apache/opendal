@@ -15,13 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-use std::time::Duration;
-
-use http::header::HeaderName;
+use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -29,13 +23,23 @@ use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{header::HeaderName, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
+use serde::Serialize;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+use std::time::Duration;
+use uuid::Uuid;
 
 use crate::raw::*;
 use crate::*;
+
+use super::error::parse_error;
 
 mod constants {
     pub const X_MS_VERSION: &str = "x-ms-version";
@@ -370,6 +374,113 @@ impl AzblobCore {
         Ok(req)
     }
 
+    pub fn azblob_put_block_list_request(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        args: &OpWrite,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?comp=blocklist",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+        let mut req = Request::put(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
+        }
+        if let Some(content_type) = args.content_type() {
+            req = req.header(CONTENT_TYPE, content_type);
+        };
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_put_block_list(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        args: &OpWrite,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.azblob_put_block_list_request(path, size, args, body)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub async fn azblob_complete_put_block_list_request(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let first_block_id = format!("{}{}", p, block_ids[0].clone());
+
+        let sources: Vec<String> = block_ids[1..]
+            .iter()
+            .map(|s| format!("{}{}", p, s))
+            .collect();
+        // concat blocks
+        let req = self.concat_block_list_request(&first_block_id, sources)?;
+        Ok(req)
+        // self.sign(&mut req).await?;
+
+        // let resp = self.send(req).await?;
+        // let status = resp.status();
+    }
+
+    /// CONCAT will concat sources to the path
+    pub fn concat_block_list_request(
+        &self,
+        path: &str,
+        sources: Vec<String>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let sources = sources
+            .iter()
+            .map(|p| build_rooted_abs_path(&self.root, p))
+            .collect::<Vec<String>>()
+            .join(",");
+
+        let url = format!(
+            "{}/{}/{}?comp=blocklist",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let req = Request::post(url);
+
+        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+    }
+
+    pub async fn azblob_complete_put_block_list(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self
+            .azblob_complete_put_block_list_request(path, block_ids)
+            .await?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
@@ -546,6 +657,22 @@ pub struct ListBlobsOutput {
 pub struct Blobs {
     pub blob: Vec<Blob>,
     pub blob_prefix: Vec<BlobPrefix>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[derive(Default, Debug, Deserialize)]

@@ -263,6 +263,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 blocking: true,
+                list: true,
                 ..Default::default()
             },
         )
@@ -334,6 +335,39 @@ impl kv::Adapter for Adapter {
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         statement.execute([path]).map_err(parse_rusqlite_error)?;
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        let this = self.clone();
+        let path = path.to_string();
+
+        task::spawn_blocking(move || this.blocking_scan(&path))
+            .await
+            .map_err(new_task_join_error)?
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let conn = self.pool.get().map_err(parse_r2d2_error)?;
+        let query = format!(
+            "SELECT {} FROM {} WHERE `{}` LIKE $1 and `{}` <> $2",
+            self.key_field, self.table, self.key_field, self.key_field
+        );
+        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
+        let like_param = format!("{}%", path);
+        let result = statement.query(params![like_param, path]);
+
+        match result {
+            Ok(mut rows) => {
+                let mut keys: Vec<String> = Vec::new();
+                while let Some(row) = rows.next().map_err(parse_rusqlite_error)? {
+                    let item = row.get(0).map_err(parse_rusqlite_error)?;
+                    keys.push(item);
+                }
+                Ok(keys)
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(vec![]),
+            Err(err) => Err(parse_rusqlite_error(err)),
+        }
     }
 }
 

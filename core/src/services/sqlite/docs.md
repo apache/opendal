@@ -9,9 +9,7 @@ This service can be used to:
 - [x] delete
 - [ ] copy
 - [ ] rename
-- [ ] ~~list~~
-- [ ] scan
-- [ ] ~~presign~~
+- [x] list
 - [ ] blocking
 
 ## Configuration

@@ -16,6 +16,7 @@
 // under the License.
 
 use bytes::Bytes;
+use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -23,7 +24,6 @@ use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
-use http::{header::HeaderName, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -38,8 +38,6 @@ use uuid::Uuid;
 
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 mod constants {
     pub const X_MS_VERSION: &str = "x-ms-version";
@@ -381,6 +379,7 @@ impl AzblobCore {
         args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
+        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -439,16 +438,16 @@ impl AzblobCore {
         let req = self.insert_sse_headers(req);
 
         // Set body
-        let mut req_body = "".to_string();
-        req_body.push_str("<BlockList>\n");
+        let req_body = {
+            let block_list = block_ids
+                .iter()
+                .map(|block_id| format!("  <Uncommitted>{}</Uncommitted>", block_id))
+                .collect::<Vec<String>>()
+                .join("\n");
 
-        for block_id in block_ids {
-            req_body.push_str("<Uncommitted>");
-            req_body.push_str(&block_id.to_string());
-            req_body.push_str("</Uncommitted>\n");
-        }
+            format!("<BlockList>\n{}\n</BlockList>", block_list)
+        };
 
-        req_body.push_str("</BlockList>");
         let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)

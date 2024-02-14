@@ -28,7 +28,6 @@ use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
-use serde::Serialize;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -644,22 +643,6 @@ pub struct ListBlobsOutput {
 pub struct Blobs {
     pub blob: Vec<Blob>,
     pub blob_prefix: Vec<BlobPrefix>,
-}
-
-#[derive(Clone, Default, Debug, Serialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadRequestPart {
-    #[serde(rename = "PartNumber")]
-    pub part_number: usize,
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-/// Request of CompleteMultipartUploadRequest
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadRequest {
-    pub part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[derive(Default, Debug, Deserialize)]

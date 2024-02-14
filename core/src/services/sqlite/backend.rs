@@ -337,7 +337,6 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    /// Scan a key prefix to get all keys that start with this key.
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
         let this = self.clone();
         let path = path.to_string();
@@ -347,8 +346,6 @@ impl kv::Adapter for Adapter {
             .map_err(new_task_join_error)?
     }
 
-    /// Scan a key prefix to get all keys that start with this key
-    /// in blocking way.
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let conn = self.pool.get().map_err(parse_r2d2_error)?;
 

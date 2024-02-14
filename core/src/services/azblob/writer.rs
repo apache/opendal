@@ -111,6 +111,8 @@ impl oio::AppendWrite for AzblobWriter {
     }
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[async_trait]
 impl oio::BlockWrite for AzblobWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {

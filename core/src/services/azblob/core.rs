@@ -438,6 +438,7 @@ impl AzblobCore {
         let req = self.insert_sse_headers(req);
 
         // Set body
+        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
         let req_body = {
             let block_list = block_ids
                 .iter()

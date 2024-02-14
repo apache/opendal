@@ -348,15 +348,13 @@ impl kv::Adapter for Adapter {
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let conn = self.pool.get().map_err(parse_r2d2_error)?;
-
         let query = format!(
-            "SELECT {} FROM {} WHERE `{}` like $1",
-            self.key_field, self.table, self.key_field
+            "SELECT {} FROM {} WHERE `{}` LIKE $1 and `{}` <> $2",
+            self.key_field, self.table, self.key_field, self.key_field
         );
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        let param = format!("{}%", path);
-
-        let result = statement.query([param]);
+        let like_param = format!("{}%", path);
+        let result = statement.query(params![like_param,path]);
 
         match result {
             Ok(mut rows) => {

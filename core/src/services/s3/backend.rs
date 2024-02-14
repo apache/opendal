@@ -897,6 +897,9 @@ impl Builder for S3Builder {
         if let Some(v) = self.config.security_token.take() {
             cfg.session_token = Some(v)
         }
+        if let Some(v) = self.config.role_arn.take() {
+            cfg.role_arn = Some(v)
+        }
 
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
         // If customed_credential_load is set, we will use it.
@@ -905,7 +908,7 @@ impl Builder for S3Builder {
         }
 
         // If role_arn is set, we must use AssumeRoleLoad.
-        if let Some(role_arn) = self.config.role_arn.take() {
+        if let Some(role_arn) = cfg.role_arn.take() {
             // use current env as source credential loader.
             let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
 

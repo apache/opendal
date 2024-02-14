@@ -354,7 +354,7 @@ impl kv::Adapter for Adapter {
         );
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         let like_param = format!("{}%", path);
-        let result = statement.query(params![like_param,path]);
+        let result = statement.query(params![like_param, path]);
 
         match result {
             Ok(mut rows) => {

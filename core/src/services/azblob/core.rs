@@ -426,35 +426,6 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let first_block_id = format!("{}{}", p, block_ids[0].clone());
-
-        let sources: Vec<String> = block_ids[1..]
-            .iter()
-            .map(|s| format!("{}{}", p, s))
-            .collect();
-        // concat blocks
-        let req = self.concat_block_list_request(&first_block_id, sources)?;
-        Ok(req)
-        // self.sign(&mut req).await?;
-
-        // let resp = self.send(req).await?;
-        // let status = resp.status();
-    }
-
-    /// CONCAT will concat sources to the path
-    pub fn concat_block_list_request(
-        &self,
-        path: &str,
-        sources: Vec<String>,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let sources = sources
-            .iter()
-            .map(|p| build_rooted_abs_path(&self.root, p))
-            .collect::<Vec<String>>()
-            .join(",");
-
         let url = format!(
             "{}/{}/{}?comp=blocklist",
             self.endpoint,
@@ -462,9 +433,25 @@ impl AzblobCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let req = Request::post(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        // Set SSE headers.
+        let req = self.insert_sse_headers(req);
+
+        // Set body
+        let mut req_body = "".to_string();
+        req_body.push_str("<BlockList>\n");
+
+        for block_id in block_ids {
+            req_body.push_str("<Uncommitted>");
+            req_body.push_str(&block_id.to_string());
+            req_body.push_str("</Uncommitted>\n");
+        }
+
+        req_body.push_str("</BlockList>");
+        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let req = req.body(body).map_err(new_request_build_error)?;
+        Ok(req)
     }
 
     pub async fn azblob_complete_put_block_list(

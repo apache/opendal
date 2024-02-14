@@ -177,22 +177,14 @@ impl oio::BlockWrite for AzblobWriter {
     }
 
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
-        if block_ids.len() < 2 {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "block list length is less than 2",
-            ));
-        }
         let resp = self
             .core
             .azblob_complete_put_block_list(&self.path, block_ids)
             .await?;
 
         let status = resp.status();
-
-        let status = resp.status();
         match status {
-            StatusCode::OK => {
+            StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

@@ -34,9 +34,6 @@ runs:
         # Need a environment variable with this name to securely encrypt them - otherwise there will be warning
         # See https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/CredentialProviderAPI.html#Keystore_Passwords
         HADOOP_CREDSTORE_PASSWORD: op://services/hdfs/credstore_password
-        # TODO1: Do we have this as a secret
-        # TODO2: Does this start with / and ends with /
-        OPENDAL_AZBLOB_ROOT: op://services/azblob/root
         OPENDAL_AZBLOB_CONTAINER: op://services/azblob/container
         OPENDAL_AZBLOB_ACCOUNT_NAME: op://services/azblob/account_name
         OPENDAL_AZBLOB_ACCOUNT_KEY: op://services/azblob/account_key
@@ -65,7 +62,6 @@ runs:
         HADOOP_HOME=${HADOOP_HOME}
         CLASSPATH=${CLASSPATH}
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
-        OPENDAL_HDFS_ROOT=${OPENDAL_AZBLOB_ROOT}
         OPENDAL_HDFS_NAME_NODE=wasbs://${OPENDAL_AZBLOB_CONTAINER}
         OPENDAL_HDFS_ENABLE_APPEND=false
         EOF

@@ -388,16 +388,24 @@ impl AzblobCore {
             percent_encode_path(&p)
         );
         let mut req = Request::put(&url);
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
-        if let Some(content_type) = args.content_type() {
-            req = req.header(CONTENT_TYPE, content_type);
-        };
 
-        // Set SSE headers.
-        req = self.insert_sse_headers(req);
+        if let Some(ty) = args.content_type() {
+            req = req.header(CONTENT_TYPE, ty)
+        }
+
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "BlockBlob",
+        );
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -434,7 +442,12 @@ impl AzblobCore {
         let req = Request::post(&url);
 
         // Set SSE headers.
-        let req = self.insert_sse_headers(req);
+        let mut req = self.insert_sse_headers(req);
+
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "BlockBlob",
+        );
 
         // Set body
         // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
@@ -448,7 +461,7 @@ impl AzblobCore {
             format!("<BlockList>\n{}\n</BlockList>", block_list)
         };
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = AsyncBody::Bytes(Bytes::from(req_body));
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }

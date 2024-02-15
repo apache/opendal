@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Bytes;
 use http::header::HeaderName;
+
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -27,7 +30,7 @@ use http::Response;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -449,20 +452,17 @@ impl AzblobCore {
             "BlockBlob",
         );
 
-        // Set body
-        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
-        let req_body = {
-            let block_list = block_ids
-                .iter()
-                .map(|block_id| format!("  <Uncommitted>{}</Uncommitted>", block_id))
-                .collect::<Vec<String>>()
-                .join("\n");
+        let content = quick_xml::se::to_string(&PutBlockListRequest {
+            uncommitted: block_ids
+                .into_iter()
+                .map(|block_id| BASE64_STANDARD.encode(block_id))
+                .collect(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+        let req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
 
-            format!("<BlockList>\n{}\n</BlockList>", block_list)
-        };
-
-        let body = AsyncBody::Bytes(Bytes::from(req_body));
-        let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
 
@@ -641,6 +641,13 @@ impl AzblobCore {
         self.sign(&mut req).await?;
         self.send(req).await
     }
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "<BlockList>", rename_all = "PascalCase")]
+pub struct PutBlockListRequest {
+    pub uncommitted: Vec<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -870,5 +877,28 @@ mod tests {
         let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?><EnumerationResults ServiceEndpoint=\"https://test.blob.core.windows.net/\" ContainerName=\"test\"><Prefix>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Prefix><Delimiter>/</Delimiter><Blobs><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:49 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:49 GMT</Last-Modified><Etag>0x8DA8BEB55D0EA35</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob><BlobPrefix><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/x/</Name></BlobPrefix><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/y</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:50 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:50 GMT</Last-Modified><Etag>0x8DA8BEB55D99C08</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob></Blobs><NextMarker /></EnumerationResults>";
 
         de::from_reader(Bytes::from(bs).reader()).expect("must success")
+    }
+
+    /// This example is from https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?tabs=microsoft-entra-id
+    #[test]
+    fn test_serialize_put_block_list_request() {
+        let req = PutBlockListRequest {
+            uncommitted: vec!["1".to_string(), "2".to_string(), "3".to_string()],
+        };
+
+        let actual = quick_xml::se::to_string(&req).expect("must succeed");
+
+        pretty_assertions::assert_eq!(
+            actual,
+            r#"<BlockList>
+               <Uncommitted>1</Uncommitted>
+               <Uncommitted>2</Uncommitted>
+               <Uncommitted>3</Uncommitted>
+            </BlockList>"#
+                // Cleanup space and new line
+                .replace([' ', '\n'], "")
+                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+                .replace('"', "&quot;")
+        )
     }
 }

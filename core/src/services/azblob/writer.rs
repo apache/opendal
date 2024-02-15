@@ -166,17 +166,10 @@ impl oio::BlockWrite for AzblobWriter {
         }
     }
 
-    async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
-        // Azure blob storage will gc uncommitted blocks after 7 days.
-        for block_id in block_ids {
-            let resp = self.core.azblob_delete_blob(&block_id.to_string()).await?;
-            match resp.status() {
-                StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        }
+    async fn abort_block(&self, _block_ids: Vec<Uuid>) -> Result<()> {
+        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?tabs=microsoft-entra-id
+        // Any uncommitted blocks are garbage collected if there are no successful calls to Put Block or Put Block List on the blob within a week.
+        // If Put Blob is called on the blob, any uncommitted blocks are garbage collected.
         Ok(())
     }
 }

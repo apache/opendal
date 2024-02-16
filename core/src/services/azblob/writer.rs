@@ -134,10 +134,10 @@ impl oio::BlockWrite for AzblobWriter {
         }
     }
 
-    async fn write_block(&self, _block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self
             .core
-            .azblob_put_block_list(&self.path, Some(size), &self.op, body)
+            .azblob_put_block_list(&self.path, block_id, Some(size), &self.op, body)
             .await?;
 
         let status = resp.status();

@@ -377,6 +377,7 @@ impl AzblobCore {
     pub fn azblob_put_block_list_request(
         &self,
         path: &str,
+        block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
@@ -385,10 +386,11 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}?comp=blocklist",
+            "{}/{}/{}?comp=block&block_id={}",
             self.endpoint,
             self.container,
-            percent_encode_path(&p)
+            percent_encode_path(&p),
+            BASE64_STANDARD.encode(block_id),
         );
         let mut req = Request::put(&url);
         // Set SSE headers.
@@ -419,11 +421,12 @@ impl AzblobCore {
     pub async fn azblob_put_block_list(
         &self,
         path: &str,
+        block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_put_block_list_request(path, size, args, body)?;
+        let mut req = self.azblob_put_block_list_request(path, block_id, size, args, body)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -439,7 +442,7 @@ impl AzblobCore {
             "{}/{}/{}?comp=blocklist",
             self.endpoint,
             self.container,
-            percent_encode_path(&p)
+            percent_encode_path(&p),
         );
 
         let req = Request::post(&url);

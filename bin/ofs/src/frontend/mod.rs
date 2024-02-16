@@ -39,11 +39,14 @@ impl Frontend {
         use fuse3::path::Session;
         use fuse3::MountOptions;
 
-        let mut mount_option = MountOptions::default();
-        mount_option.uid(nix::unistd::getuid().into());
-        mount_option.gid(nix::unistd::getgid().into());
+        let uid = nix::unistd::getuid();
+        let gid = nix::unistd::getgid();
 
-        let ofs = fuse::Ofs::new(args.backend);
+        let mut mount_option = MountOptions::default();
+        mount_option.uid(uid.into());
+        mount_option.gid(gid.into());
+
+        let ofs = fuse::Ofs::new(args.backend, uid.into(), gid.into());
 
         let mount_handle = Session::new(mount_option)
             .mount_with_unprivileged(ofs, args.mount_path)

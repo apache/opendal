@@ -643,9 +643,9 @@ impl AzblobCore {
     }
 }
 
-/// Request of CompleteMultipartUploadRequest
+/// Request of PutBlockListRequest
 #[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "<BlockList>", rename_all = "PascalCase")]
+#[serde(default, rename = "BlockList", rename_all = "PascalCase")]
 pub struct PutBlockListRequest {
     pub uncommitted: Vec<String>,
 }
@@ -890,7 +890,8 @@ mod tests {
 
         pretty_assertions::assert_eq!(
             actual,
-            r#"<BlockList>
+            r#"
+            <BlockList>
                <Uncommitted>1</Uncommitted>
                <Uncommitted>2</Uncommitted>
                <Uncommitted>3</Uncommitted>

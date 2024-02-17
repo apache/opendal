@@ -391,7 +391,7 @@ impl AzblobCore {
             self.endpoint,
             self.container,
             percent_encode_path(&p),
-            BASE64_STANDARD.encode(block_id),
+            BASE64_STANDARD.encode(block_id.as_bytes()),
         );
         let mut req = Request::put(&url);
         // Set SSE headers.
@@ -459,7 +459,7 @@ impl AzblobCore {
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             uncommitted: block_ids
                 .into_iter()
-                .map(|block_id| BASE64_STANDARD.encode(block_id))
+                .map(|block_id| BASE64_STANDARD.encode(block_id.as_bytes()))
                 .collect(),
         })
         .map_err(new_xml_deserialize_error)?;

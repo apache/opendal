@@ -408,12 +408,6 @@ impl AzblobCore {
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
-
-        req = req.header(
-            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
-            "BlockBlob",
-        );
-
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -438,6 +432,7 @@ impl AzblobCore {
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
+        args: &OpWrite,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
@@ -451,11 +446,9 @@ impl AzblobCore {
 
         // Set SSE headers.
         let mut req = self.insert_sse_headers(req);
-
-        req = req.header(
-            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
-            "BlockBlob",
-        );
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             latest: block_ids
@@ -469,6 +462,9 @@ impl AzblobCore {
                 .collect(),
         })
         .map_err(new_xml_deserialize_error)?;
+
+        req = req.header(CONTENT_LENGTH, content.len());
+
         let req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -480,9 +476,10 @@ impl AzblobCore {
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
+        args: &OpWrite,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self
-            .azblob_complete_put_block_list_request(path, block_ids)
+            .azblob_complete_put_block_list_request(path, block_ids, args)
             .await?;
 
         self.sign(&mut req).await?;

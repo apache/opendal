@@ -153,7 +153,7 @@ impl oio::BlockWrite for AzblobWriter {
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
         let resp = self
             .core
-            .azblob_complete_put_block_list(&self.path, block_ids)
+            .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
             .await?;
 
         let status = resp.status();

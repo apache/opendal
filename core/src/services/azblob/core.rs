@@ -386,7 +386,7 @@ impl AzblobCore {
         // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
         let p = build_abs_path(&self.root, path);
         let encoded_block_id: String =
-            byte_serialize(BASE64_STANDARD.encode(block_id.to_string()).as_bytes()).collect();
+            byte_serialize(BASE64_STANDARD.encode(block_id).as_bytes()).collect();
         let url = format!(
             "{}/{}/{}?comp=block&blockid={}",
             self.endpoint,
@@ -455,8 +455,7 @@ impl AzblobCore {
                 .into_iter()
                 .map(|block_id| {
                     let encoded_block_id: String =
-                        byte_serialize(BASE64_STANDARD.encode(block_id.to_string()).as_bytes())
-                            .collect();
+                        byte_serialize(BASE64_STANDARD.encode(block_id).as_bytes()).collect();
                     encoded_block_id
                 })
                 .collect(),

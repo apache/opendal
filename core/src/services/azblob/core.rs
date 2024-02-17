@@ -654,7 +654,7 @@ impl AzblobCore {
 }
 
 /// Request of PutBlockListRequest
-#[derive(Default, Debug, Serialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(default, rename = "BlockList", rename_all = "PascalCase")]
 pub struct PutBlockListRequest {
     pub latest: Vec<String>,
@@ -910,6 +910,20 @@ mod tests {
                 .replace([' ', '\n'], "")
                 // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
                 .replace('"', "&quot;")
-        )
+        );
+
+        let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+            <BlockList>
+               <Latest>1</Latest>
+               <Latest>2</Latest>
+               <Latest>3</Latest>
+            </BlockList>";
+
+        let out: PutBlockListRequest =
+            de::from_reader(Bytes::from(bs).reader()).expect("must success");
+        assert_eq!(
+            out.latest,
+            vec!["1".to_string(), "2".to_string(), "3".to_string()]
+        );
     }
 }

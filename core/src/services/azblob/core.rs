@@ -447,7 +447,7 @@ impl AzblobCore {
             percent_encode_path(&p),
         );
 
-        let req = Request::post(&url);
+        let req = Request::put(&url);
 
         // Set SSE headers.
         let mut req = self.insert_sse_headers(req);

@@ -19,7 +19,6 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
 use http::header::HeaderName;
-
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -36,6 +35,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
+use url::form_urlencoded::byte_serialize;
 use uuid::Uuid;
 
 use crate::raw::*;
@@ -385,13 +385,14 @@ impl AzblobCore {
         // To be written as part of a blob, a block must have been successfully written to the server in an earlier Put Block operation.
         // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
         let p = build_abs_path(&self.root, path);
-
+        let encoded_block_id: String =
+            byte_serialize(BASE64_STANDARD.encode(block_id.to_string()).as_bytes()).collect();
         let url = format!(
             "{}/{}/{}?comp=block&blockid={}",
             self.endpoint,
             self.container,
             percent_encode_path(&p),
-            BASE64_STANDARD.encode(block_id.as_bytes()),
+            encoded_block_id,
         );
         let mut req = Request::put(&url);
         // Set SSE headers.
@@ -459,7 +460,12 @@ impl AzblobCore {
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             uncommitted: block_ids
                 .into_iter()
-                .map(|block_id| BASE64_STANDARD.encode(block_id.as_bytes()))
+                .map(|block_id| {
+                    let encoded_block_id: String =
+                        byte_serialize(BASE64_STANDARD.encode(block_id.to_string()).as_bytes())
+                            .collect();
+                    encoded_block_id
+                })
                 .collect(),
         })
         .map_err(new_xml_deserialize_error)?;

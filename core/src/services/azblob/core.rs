@@ -458,7 +458,7 @@ impl AzblobCore {
         );
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
-            uncommitted: block_ids
+            latest: block_ids
                 .into_iter()
                 .map(|block_id| {
                     let encoded_block_id: String =
@@ -657,7 +657,7 @@ impl AzblobCore {
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "BlockList", rename_all = "PascalCase")]
 pub struct PutBlockListRequest {
-    pub uncommitted: Vec<String>,
+    pub latest: Vec<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -893,7 +893,7 @@ mod tests {
     #[test]
     fn test_serialize_put_block_list_request() {
         let req = PutBlockListRequest {
-            uncommitted: vec!["1".to_string(), "2".to_string(), "3".to_string()],
+            latest: vec!["1".to_string(), "2".to_string(), "3".to_string()],
         };
 
         let actual = quick_xml::se::to_string(&req).expect("must succeed");
@@ -902,9 +902,9 @@ mod tests {
             actual,
             r#"
             <BlockList>
-               <Uncommitted>1</Uncommitted>
-               <Uncommitted>2</Uncommitted>
-               <Uncommitted>3</Uncommitted>
+               <Latest>1</Latest>
+               <Latest>2</Latest>
+               <Latest>3</Latest>
             </BlockList>"#
                 // Cleanup space and new line
                 .replace([' ', '\n'], "")

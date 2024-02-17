@@ -374,7 +374,7 @@ impl AzblobCore {
         Ok(req)
     }
 
-    pub fn azblob_put_block_list_request(
+    pub fn azblob_put_block_request(
         &self,
         path: &str,
         block_id: Uuid,
@@ -382,11 +382,12 @@ impl AzblobCore {
         args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?
+        // To be written as part of a blob, a block must have been successfully written to the server in an earlier Put Block operation.
+        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}?comp=block&block_id={}",
+            "{}/{}/{}?comp=block&blockid={}",
             self.endpoint,
             self.container,
             percent_encode_path(&p),
@@ -418,7 +419,7 @@ impl AzblobCore {
         Ok(req)
     }
 
-    pub async fn azblob_put_block_list(
+    pub async fn azblob_put_block(
         &self,
         path: &str,
         block_id: Uuid,
@@ -426,7 +427,7 @@ impl AzblobCore {
         args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_put_block_list_request(path, block_id, size, args, body)?;
+        let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

@@ -50,16 +50,11 @@ runs:
         
         # Enable
         echo "Enabling..."
-        docker-compose exec -T mon1 ceph config set mgr mgr/dashboard/server_addr mgr
-        docker-compose exec -T mon1 ceph config set mgr mgr/dashboard/server_port 8443
         docker-compose exec -T mon1 ceph mgr services
-        docker-compose exec -T mon1 ceph dashboard set-login-credentials admin admin
         
         # Create RGW user and set credentials
         echo "Creating RGW user and setting credentials..."
-        docker-compose exec mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
-        docker-compose exec mon1 ceph dashboard set-rgw-api-access-key ceph_rados_s3_admin
-        docker-compose exec mon1 ceph dashboard set-rgw-api-secret-key ceph_rados_s3_admin
+        docker-compose exec -T mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
     - name: Set up AWS CLI
       shell: bash
       run: |

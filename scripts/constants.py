@@ -44,7 +44,7 @@ PACKAGE_DEPENDENCIES = {
 }
 
 
-# fetch the package dependence, return `core` if not listed in `PACAKGE_DEPENDENCIES`.
+# fetch the package dependence, return `core` if not listed in `PACKAGE_DEPENDENCIES`.
 def get_package_dependence(package: Path) -> str:
     return PACKAGE_DEPENDENCIES.get(package, "core")
 

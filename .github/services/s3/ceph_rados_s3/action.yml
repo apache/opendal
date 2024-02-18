@@ -26,21 +26,33 @@ runs:
       working-directory: fixtures/s3
       run: |
         docker network create --driver bridge ceph-cluster-net
-        docker compose -f docker-compose-ceph-rados.yml up -d
+        docker-compose up -d mon1 mgr
+        echo "\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd pool default min size = 2\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "max open files = 655350\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx cluster require signatures = false\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx service require signatures = false\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object name len = 256\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object namespace len = 64\n" >> ~/volumes_data/ceph/ceph/ceph.conf
+        docker-compose restart mon1 mgr
+        docker-compose up -d osd1 osd2 osd3
+        docker-compose up -d rgw1
+        docker-compose up -d mds1
+        docker-compose exec mon1 ceph mgr module enable dashboard
+        docker-compose exec mon1 ceph dashboard create-self-signed-cert
+        docker-compose exec mon1 ceph mgr module disable dashboard
+        docker-compose exec mon1 ceph mgr module enable dashboard
+        docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_addr mgr
+        docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_port 8443
+        docker-compose exec mon1 ceph mgr services
+        docker-compose exec mon1 ceph dashboard set-login-credentials admin admin
+        docker-compose exec mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
+        docker-compose exec mon1 ceph dashboard set-rgw-api-access-key ceph_rados_s3_admin
+        docker-compose exec mon1 ceph dashboard set-rgw-api-secret-key ceph_rados_s3_admin
     - name: Set up AWS CLI
       shell: bash
       run: |
         echo "AWS_ACCESS_KEY_ID=ceph_rados_s3_admin" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=ceph_rados_s3_admin" >> $GITHUB_ENV
         echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
-    - name: Setup
-      uses: 1password/load-secrets-action@v1
-      with:
-        export-env: true
-      env:
-        OPENDAL_S3_ROOT: op://services/s3/root
-        OPENDAL_S3_BUCKET: op://services/s3/bucket
-        OPENDAL_S3_ENDPOINT: op://services/s3/endpoint
-        OPENDAL_S3_ACCESS_KEY_ID: op://services/s3/access_key_id
-        OPENDAL_S3_SECRET_ACCESS_KEY: op://services/s3/secret_access_key
-        OPENDAL_S3_REGION: op://services/s3/region

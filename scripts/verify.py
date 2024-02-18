@@ -20,8 +20,16 @@
 import subprocess
 import sys
 import os
+from pathlib import Path
 
-BASE_DIR = os.getcwd()
+BASE_DIR = Path(os.getcwd())
+
+
+def extract_packages():
+    print("Start extracting packages")
+
+    for file in BASE_DIR.glob("*.tar.gz"):
+        subprocess.run(["tar", "-xzf", file], check=True)
 
 
 def check_rust():
@@ -44,13 +52,13 @@ def check_java():
         raise Exception("Check java met unexpected error", e)
 
 
-def build_core():
+def build_core(dir):
     print("Start building opendal core")
 
-    subprocess.run(["cargo", "build", "--release"], cwd="core", check=True)
+    subprocess.run(["cargo", "build", "--release"], cwd=dir/"core", check=True)
 
 
-def build_java_binding():
+def build_java_binding(dir):
     print("Start building opendal java binding")
 
     subprocess.run(
@@ -62,25 +70,26 @@ def build_java_binding():
             "-Dcargo-build.profile=release",
         ],
         check=True,
-        cwd="bindings/java",
+        cwd=dir/"bindings/java",
     )
 
 
-def main():
-    if not check_rust():
-        print(
-            "Cargo is not found, please check if rust development has been setup correctly"
-        )
-        print("Visit https://www.rust-lang.org/tools/install for more information")
-        sys.exit(1)
-
-    build_core()
-
-    if check_java():
-        build_java_binding()
-    else:
-        print("Java is not found, skipped building java binding")
-
-
 if __name__ == "__main__":
-    main()
+    extract_packages()
+
+    for dir in BASE_DIR.glob("apache-opendal-*-src/"):
+        if check_rust():
+            build_core(dir)
+        else:
+            print(
+                "Cargo is not found, please check if rust development has been setup correctly"
+            )
+            print("Visit https://www.rust-lang.org/tools/install for more information")
+            sys.exit(1)
+
+        build_core(dir)
+
+        if check_java():
+            build_java_binding(dir)
+        else:
+            print("Java is not found, skipped building java binding")

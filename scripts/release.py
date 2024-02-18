@@ -22,26 +22,24 @@ from constants import get_package_version, get_package_dependence, PACKAGES
 
 ROOT_DIR = Path(__file__).parent.parent
 
-# If this package depends on `core`, we need to update it's core version in `Cargo.toml` file.
-def update_package(path):
-    # skip core package.
-    if path == "core":
-        return
-    if get_package_dependence(path) != "core":
-        return
-
-    core_version = get_package_version("core")
-
 
 def archive_package(path):
     print(f"Archive package {path} started")
 
+    core_version = get_package_version("core")
     version = get_package_version(path)
     name = f"apache-opendal-{str(path).replace('/', '-')}-{version}-src"
 
-    ls_command = ["git", "ls-files", "."]
+    # `git ls-files` handles duplicated path correctly, so we don't need to worry about it
+    ls_command = [
+        "git",
+        "ls-files",
+        "core",
+        f"{path}",
+        f"{get_package_dependence(path)}",
+    ]
     ls_result = subprocess.run(
-        ls_command, cwd=ROOT_DIR / path, capture_output=True, check=True, text=True
+        ls_command, cwd=ROOT_DIR, capture_output=True, check=True, text=True
     )
 
     tar_command = [
@@ -49,18 +47,19 @@ def archive_package(path):
         "-zcf",
         f"{ROOT_DIR}/dist/{name}.tar.gz",
         "--transform",
-        f"s,^,{name}/,",
+        f"s,^,apache-opendal-{core_version}-src/,",
         "-T",
         "-",
     ]
     subprocess.run(
         tar_command,
-        cwd=ROOT_DIR / path,
+        cwd=ROOT_DIR,
         input=ls_result.stdout.encode("utf-8"),
         check=True,
     )
 
     print(f"Archive package {path} to dist/{name}.tar.gz")
+
 
 def generate_signature():
     for i in Path(ROOT_DIR / "dist").glob("*.tar.gz"):

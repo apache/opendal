@@ -21,7 +21,6 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::SystemTime;
-use std::vec::IntoIter;
 
 use bytes::Bytes;
 use fuse3::async_trait;
@@ -29,9 +28,10 @@ use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
 use futures_util::stream;
-use futures_util::stream::Iter;
+use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
+use opendal::Entry;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
@@ -109,8 +109,8 @@ impl Ofs {
 
 #[async_trait]
 impl PathFilesystem for Ofs {
-    type DirEntryStream = Iter<IntoIter<Result<DirectoryEntry>>>;
-    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
+    type DirEntryStream = BoxStream<'static, Result<DirectoryEntry>>;
+    type DirEntryPlusStream = BoxStream<'static, Result<DirectoryEntryPlus>>;
 
     // Init a fuse filesystem
     async fn init(&self, _req: Request) -> Result<()> {
@@ -517,17 +517,23 @@ impl PathFilesystem for Ofs {
 
         let mut current_dir = PathBuf::from(path);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
-        let entries = self
+        let children = self
             .op
-            .list(&current_dir.to_string_lossy())
+            .lister(&current_dir.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::NotFound => Errno::new_not_exist(),
-                ErrorKind::NotADirectory => Errno::new_is_not_dir(),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?
+            .enumerate()
+            .map(|(i, entry)| {
+                entry
+                    .map(|e| DirectoryEntry {
+                        kind: entry_mode2file_type(e.metadata().mode()),
+                        name: e.name().trim_matches('/').into(),
+                        offset: (i + 3) as i64,
+                    })
+                    .map_err(opendal_error2errno)
+            });
 
-        let relative_paths = [
+        let relative_paths = stream::iter([
             Result::Ok(DirectoryEntry {
                 kind: FileType::Directory,
                 name: ".".into(),
@@ -538,22 +544,10 @@ impl PathFilesystem for Ofs {
                 name: "..".into(),
                 offset: 2,
             }),
-        ];
-
-        let res = relative_paths
-            .into_iter()
-            .chain(entries.iter().enumerate().map(|(i, entry)| {
-                Result::Ok(DirectoryEntry {
-                    kind: entry_mode2file_type(entry.metadata().mode()),
-                    name: entry.name().trim_matches('/').into(),
-                    offset: (i + 3) as i64,
-                })
-            }))
-            .skip(offset as usize)
-            .collect::<Vec<_>>();
+        ]);
 
         Ok(ReplyDirectory {
-            entries: stream::iter(res),
+            entries: relative_paths.chain(children).skip(offset as usize).boxed(),
         })
     }
 
@@ -584,19 +578,39 @@ impl PathFilesystem for Ofs {
             offset
         );
 
-        let mut current_dir = PathBuf::from(parent);
-        current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
-        let entries = self
-            .op
-            .list(&current_dir.to_string_lossy())
-            .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::NotFound => Errno::new_not_exist(),
-                ErrorKind::NotADirectory => Errno::new_is_not_dir(),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+        let make_entry = |op: Operator, i: usize, entry: opendal::Result<Entry>, uid, gid, now| async move {
+            let e = entry.map_err(opendal_error2errno)?;
+            let metadata = op
+                .stat(&e.name())
+                .await
+                .unwrap_or_else(|_| e.metadata().clone());
+            let mut attr = metadata2file_attr(&metadata, now);
+            attr.uid = uid;
+            attr.gid = gid;
+            Result::Ok(DirectoryEntryPlus {
+                kind: entry_mode2file_type(metadata.mode()),
+                name: e.name().trim_matches('/').into(),
+                offset: (i + 3) as i64,
+                attr,
+                entry_ttl: TTL,
+                attr_ttl: TTL,
+            })
+        };
 
         let now = SystemTime::now();
+        let mut current_dir = PathBuf::from(parent);
+        current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
+        let op = self.op.clone();
+        let uid = self.uid;
+        let gid = self.gid;
+        let children = self
+            .op
+            .lister(&current_dir.to_string_lossy())
+            .await
+            .map_err(opendal_error2errno)?
+            .enumerate()
+            .then(move |(i, entry)| make_entry(op.clone(), i, entry, uid, gid, now));
+
         let relative_path_metadata = Metadata::new(EntryMode::DIR);
         let relative_path_attr = metadata2file_attr(&relative_path_metadata, now);
         let relative_paths = stream::iter([
@@ -618,35 +632,8 @@ impl PathFilesystem for Ofs {
             }),
         ]);
 
-        let children = stream::iter(entries)
-            .enumerate()
-            .then(|(i, entry)| async move {
-                let metadata = self
-                    .op
-                    .stat(&entry.name())
-                    .await
-                    .unwrap_or_else(|_| entry.metadata().clone());
-                let mut attr = metadata2file_attr(&metadata, now);
-                attr.uid = self.uid;
-                attr.gid = self.gid;
-                Result::Ok(DirectoryEntryPlus {
-                    kind: entry_mode2file_type(entry.metadata().mode()),
-                    name: entry.name().trim_matches('/').into(),
-                    offset: (i + 3) as i64,
-                    attr,
-                    entry_ttl: TTL,
-                    attr_ttl: TTL,
-                })
-            });
-
-        let res = relative_paths
-            .chain(children)
-            .skip(offset as usize)
-            .collect::<Vec<_>>()
-            .await;
-
         Ok(ReplyDirectoryPlus {
-            entries: stream::iter(res),
+            entries: relative_paths.chain(children).skip(offset as usize).boxed(),
         })
     }
 }

@@ -54,7 +54,7 @@ runs:
         
         # Enable and configure Ceph Dashboard
         echo "Enabling and configuring Ceph Dashboard..."
-        docker-compose exec -T mon1 ceph mgr module enable dashboard
+        docker-compose exec -T mon1 ceph mgr module enable dashboard --force
         echo "1"
         docker-compose exec -T mon1 ceph dashboard create-self-signed-cert
         echo "2"

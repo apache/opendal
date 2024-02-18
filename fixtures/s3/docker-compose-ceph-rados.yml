@@ -139,5 +139,3 @@ services:
       - osd3
     networks:
       - cluster-net
-
-

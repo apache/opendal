@@ -62,29 +62,26 @@ def get_rust_package_version(path):
 # For examples:
 # core: `0.45.0`
 # packages depends on core: `0.1.0+core.0.45.0`
-# packages depends on bindings/c: `0.1.0+bindings_c.0.1.0`
 def get_package_version(package):
     if package == "core":
         return get_rust_package_version("core")
 
     # NOTE: for now, all dependence package must be rust package.
-    dependence = get_package_dependence(package)
-    dependence_version = get_rust_package_version(dependence)
+    core_version = get_rust_package_version("core")
 
     cargo_toml = ROOT_DIR / package / "Cargo.toml"
     # cargo_toml exists, we can get the version from Cargo.toml.
     if cargo_toml.exists():
-        package_version = get_rust_package_version(package)
-        return f"{package_version}+{dependence.replace('/', '_')}.{dependence_version}"
+        return get_rust_package_version(package)
 
     # cargo_toml not exists, we should handle case by case ideally.
     #
     # However, those packages are not mature enough, it's much easier for us to always return `0.0.0` instead.
-    return f"0.0.0+{dependence.replace('/', '_')}.{dependence_version}"
+    return f"0.0.0+core.{core_version}"
 
 
 if __name__ == "__main__":
     for v in PACKAGES:
         print(
-            f"{v}: depends={get_package_dependence(v)}, version={get_package_version(v)}"
+            f"{v}: version={get_package_version(v)}"
         )

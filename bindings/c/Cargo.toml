@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.44.2"
+version = "0.44.2+core.0.45.0"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -37,5 +37,7 @@ cbindgen = "0.26.0"
 [dependencies]
 bytes = "1.4.0"
 once_cell = "1.17.1"
-opendal = { path = "../../core", features = ["layers-blocking"] }
+opendal = { version = "0.45", path = "../../core", features = [
+  "layers-blocking",
+] }
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }

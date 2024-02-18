@@ -118,3 +118,9 @@ To connect to r2, we need to set:
 - `endpoint`: The endpoint of Google Cloud Storage XML API, for example: `https://storage.googleapis.com`
 - `bucket`: The bucket name.
 - To access GCS via S3 API, please enable `features = ["native-tls"]` in your `Cargo.toml` to avoid connection being reset when using `rustls`. Tracking in https://github.com/seanmonstar/reqwest/issues/1809
+
+### Ceph Rados Gateway
+Ceph supports a RESTful API that is compatible with the basic data access model of the Amazon S3 API.
+
+For more information, refer: https://docs.ceph.com/en/latest/radosgw/s3/
+

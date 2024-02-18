@@ -47,9 +47,10 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly
+          rustup toolchain install nightly-2024-01-01
 
       - uses: actions/setup-java@v4
         with:
@@ -58,7 +59,7 @@ jobs:
 
       - name: Build OpenDAL doc
         working-directory: core
-        run: cargo +nightly doc --lib --no-deps --all-features
+        run: cargo +nightly-2024-01-01 doc --lib --no-deps --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           # Enable cfg docs to make sure docs are built.

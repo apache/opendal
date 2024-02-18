@@ -79,6 +79,11 @@ pub struct Multistatus {
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct MultistatusOptional {
+    pub response: Option<Vec<ListOpResponse>>,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ListOpResponse {
     pub href: String,
     pub propstat: Propstat,

@@ -33,6 +33,7 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
+use super::lister::MultistatusOptional;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -303,10 +304,20 @@ impl Accessor for WebdavBackend {
         }
 
         let bs = resp.into_body().bytes().await?;
-        let result: Multistatus =
+        let result: MultistatusOptional =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-        let item = result
-            .response
+
+        let response = match result.response {
+            Some(v) => v,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "Failed getting item stat: response field was not found",
+                ))
+            }
+        };
+
+        let item = response
             .first()
             .ok_or_else(|| {
                 Error::new(
@@ -484,10 +495,9 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn webdav_mkcol(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+    async fn webdav_mkcol_absolute_path(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        debug_assert!(path.starts_with('/'), "path must be absolute path");
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
         if let Some(auth) = &self.authorization {
@@ -506,9 +516,19 @@ impl WebdavBackend {
         path: &str,
         headers: Option<HeaderMap>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        self.webdav_propfind_absolute_path(&p, headers).await
+    }
+
+    async fn webdav_propfind_absolute_path(
+        &self,
+        path: &str,
+        headers: Option<HeaderMap>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        debug_assert!(path.starts_with('/'), "path must be absolute path");
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
         let mut req = Request::builder().method("PROPFIND").uri(&url);
 
         if let Some(auth) = &self.authorization {
@@ -609,7 +629,14 @@ impl WebdavBackend {
     }
 
     async fn create_dir_internal(&self, path: &str) -> Result<()> {
-        let resp = self.webdav_mkcol(path).await?;
+        let p = build_rooted_abs_path(&self.root, path);
+        self.create_dir_internal_absolute_path(&p).await
+    }
+
+    async fn create_dir_internal_absolute_path(&self, path: &str) -> Result<()> {
+        debug_assert!(path.starts_with('/'), "path must be absolute path");
+
+        let resp = self.webdav_mkcol_absolute_path(path).await?;
 
         let status = resp.status();
 
@@ -627,7 +654,10 @@ impl WebdavBackend {
         }
     }
 
-    async fn ensure_parent_path(&self, mut path: &str) -> Result<()> {
+    async fn ensure_parent_path(&self, path: &str) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let mut path = path.as_str();
+
         let mut dirs = VecDeque::default();
 
         while path != "/" {
@@ -639,7 +669,9 @@ impl WebdavBackend {
             header_map.insert("Depth", "0".parse().unwrap());
             header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
 
-            let resp = self.webdav_propfind(parent, Some(header_map)).await?;
+            let resp = self
+                .webdav_propfind_absolute_path(parent, Some(header_map))
+                .await?;
             match resp.status() {
                 StatusCode::OK | StatusCode::MULTI_STATUS => break,
                 StatusCode::NOT_FOUND => {
@@ -651,7 +683,7 @@ impl WebdavBackend {
         }
 
         for dir in dirs {
-            self.create_dir_internal(dir).await?;
+            self.create_dir_internal_absolute_path(dir).await?;
         }
         Ok(())
     }

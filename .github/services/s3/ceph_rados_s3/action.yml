@@ -23,17 +23,14 @@ runs:
   steps:
     - name: Setup Ceph Rados Server
       shell: bash
-      working-directory: fixtures/s3
+      working-directory: fixtures/s3/ceph-rados
       run: |
-        # Set environment variables for file paths
-        DOCKER_COMPOSE_FILE="docker-compose-ceph-rados.yml"
-        
         # Create Docker network
         echo "Creating Docker network..."
         docker network create --driver bridge ceph-cluster-net
         
         # Start Ceph monitors and manager
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mon1 mgr
+        docker-compose up -d mon1 mgr
         
         # Update Ceph configuration
         echo "Updating Ceph configuration..."
@@ -51,9 +48,9 @@ runs:
         
         # Start OSDs, RGW, and MDS
         echo "Starting OSDs, RGW, and MDS..."
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d osd1 osd2 osd3
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d rgw1
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mds1
+        docker-compose up -d osd1 osd2 osd3
+        docker-compose up -d rgw1
+        docker-compose up -d mds1
         
         # Enable and configure Ceph Dashboard
         echo "Enabling and configuring Ceph Dashboard..."

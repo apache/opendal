@@ -8,7 +8,7 @@ NOTES: all scripts must be running at root folder of OpenDAL project.
 ## Release
 
 ```shell
-OPENDAL_VERSION=0.30.2 OPENDAL_VERSION_RC=rc1 ./scripts/release.sh
+./scripts/release.py
 ```
 
 > Before running release, please make sure you have bump all versions.

@@ -47,7 +47,7 @@ def check_java():
 def build_core():
     print("Start building opendal core")
 
-    subprocess.run(["cargo", "build", "--release"], check=True)
+    subprocess.run(["cargo", "build", "--release"], cwd="core", check=True)
 
 
 def build_java_binding():
@@ -62,7 +62,7 @@ def build_java_binding():
             "-Dcargo-build.profile=release",
         ],
         check=True,
-        cwd="bindings/java"
+        cwd="bindings/java",
     )
 
 

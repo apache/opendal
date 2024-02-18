@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-use std::time::Duration;
-
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
+use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -32,7 +29,13 @@ use http::Response;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+use std::time::Duration;
+use uuid::Uuid;
 
 use crate::raw::*;
 use crate::*;
@@ -370,6 +373,118 @@ impl AzblobCore {
         Ok(req)
     }
 
+    pub fn azblob_put_block_request(
+        &self,
+        path: &str,
+        block_id: Uuid,
+        size: Option<u64>,
+        args: &OpWrite,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        // To be written as part of a blob, a block must have been successfully written to the server in an earlier Put Block operation.
+        // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
+        let p = build_abs_path(&self.root, path);
+
+        let encoded_block_id: String =
+            percent_encode_path(&BASE64_STANDARD.encode(block_id.as_bytes()));
+        let url = format!(
+            "{}/{}/{}?comp=block&blockid={}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p),
+            encoded_block_id,
+        );
+        let mut req = Request::put(&url);
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
+        }
+
+        if let Some(ty) = args.content_type() {
+            req = req.header(CONTENT_TYPE, ty)
+        }
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_put_block(
+        &self,
+        path: &str,
+        block_id: Uuid,
+        size: Option<u64>,
+        args: &OpWrite,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub async fn azblob_complete_put_block_list_request(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+        args: &OpWrite,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}?comp=blocklist",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p),
+        );
+
+        let req = Request::put(&url);
+
+        // Set SSE headers.
+        let mut req = self.insert_sse_headers(req);
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        let content = quick_xml::se::to_string(&PutBlockListRequest {
+            latest: block_ids
+                .into_iter()
+                .map(|block_id| {
+                    let encoded_block_id: String = BASE64_STANDARD.encode(block_id.as_bytes());
+                    encoded_block_id
+                })
+                .collect(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+
+        req = req.header(CONTENT_LENGTH, content.len());
+
+        let req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_complete_put_block_list(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+        args: &OpWrite,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self
+            .azblob_complete_put_block_list_request(path, block_ids, args)
+            .await?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
@@ -531,6 +646,13 @@ impl AzblobCore {
         self.sign(&mut req).await?;
         self.send(req).await
     }
+}
+
+/// Request of PutBlockListRequest
+#[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(default, rename = "BlockList", rename_all = "PascalCase")]
+pub struct PutBlockListRequest {
+    pub latest: Vec<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -760,5 +882,43 @@ mod tests {
         let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?><EnumerationResults ServiceEndpoint=\"https://test.blob.core.windows.net/\" ContainerName=\"test\"><Prefix>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Prefix><Delimiter>/</Delimiter><Blobs><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:49 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:49 GMT</Last-Modified><Etag>0x8DA8BEB55D0EA35</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob><BlobPrefix><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/x/</Name></BlobPrefix><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/y</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:50 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:50 GMT</Last-Modified><Etag>0x8DA8BEB55D99C08</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob></Blobs><NextMarker /></EnumerationResults>";
 
         de::from_reader(Bytes::from(bs).reader()).expect("must success")
+    }
+
+    /// This example is from https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?tabs=microsoft-entra-id
+    #[test]
+    fn test_serialize_put_block_list_request() {
+        let req = PutBlockListRequest {
+            latest: vec!["1".to_string(), "2".to_string(), "3".to_string()],
+        };
+
+        let actual = quick_xml::se::to_string(&req).expect("must succeed");
+
+        pretty_assertions::assert_eq!(
+            actual,
+            r#"
+            <BlockList>
+               <Latest>1</Latest>
+               <Latest>2</Latest>
+               <Latest>3</Latest>
+            </BlockList>"#
+                // Cleanup space and new line
+                .replace([' ', '\n'], "")
+                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+                .replace('"', "&quot;")
+        );
+
+        let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+            <BlockList>
+               <Latest>1</Latest>
+               <Latest>2</Latest>
+               <Latest>3</Latest>
+            </BlockList>";
+
+        let out: PutBlockListRequest =
+            de::from_reader(Bytes::from(bs).reader()).expect("must success");
+        assert_eq!(
+            out.latest,
+            vec!["1".to_string(), "2".to_string(), "3".to_string()]
+        );
     }
 }

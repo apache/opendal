@@ -567,8 +567,9 @@ impl Accessor for AzblobBackend {
                 read_with_override_content_disposition: true,
 
                 write: true,
-                write_can_empty: true,
                 write_can_append: true,
+                write_can_empty: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
 
@@ -631,7 +632,7 @@ impl Accessor for AzblobBackend {
         let w = if args.append() {
             AzblobWriters::Two(oio::AppendWriter::new(w))
         } else {
-            AzblobWriters::One(oio::OneShotWriter::new(w))
+            AzblobWriters::One(oio::BlockWriter::new(w, args.concurrent()))
         };
 
         Ok((RpWrite::default(), w))

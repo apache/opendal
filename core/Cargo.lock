@@ -4081,7 +4081,6 @@ dependencies = [
  "tokio-postgres",
  "tracing",
  "tracing-subscriber",
- "url",
  "uuid",
  "wiremock",
 ]

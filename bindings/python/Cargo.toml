@@ -162,6 +162,8 @@ pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
+version = "0.45.0"
+path = "../../core"
 features = [
   "layers-blocking",
 

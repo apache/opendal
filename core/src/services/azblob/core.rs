@@ -386,7 +386,7 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let encoded_block_id: String =
-            percent_encode_path(&BASE64_STANDARD.encode(block_id.simple().to_string()));
+            percent_encode_path(&BASE64_STANDARD.encode(block_id.to_string()));
         let url = format!(
             "{}/{}/{}?comp=block&blockid={}",
             self.endpoint,
@@ -455,7 +455,7 @@ impl AzblobCore {
                 .into_iter()
                 .map(|block_id| {
                     let encoded_block_id: String =
-                        percent_encode_path(&BASE64_STANDARD.encode(block_id.simple().to_string()));
+                        percent_encode_path(&BASE64_STANDARD.encode(block_id.to_string()));
                     encoded_block_id
                 })
                 .collect(),

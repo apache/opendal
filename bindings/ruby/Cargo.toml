@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ruby"
 publish = false
-version = "0.1.0+core.0.43.0"
+version = "0.1.0+core.0.45.0"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -34,7 +34,7 @@ name = "opendal_ruby"
 
 [dependencies]
 magnus = { version = "0.5", features = ["bytes-crate"] }
-opendal = "0.43.0"
+opendal = { version = "0.45.0", path = "../../core" }
 rb-sys = { version = "0.9.77", default-features = false }
 
 [build-dependencies]

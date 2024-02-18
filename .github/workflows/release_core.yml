@@ -37,7 +37,7 @@ jobs:
       - name: Checkout python env
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.11"
       - name: Checkout java env
         uses: actions/setup-java@v4
         with:

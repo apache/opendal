@@ -62,7 +62,7 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:

@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ocaml"
 publish = false
-version = "0.0.0"
+version = "0.0.0+core.0.44.2"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

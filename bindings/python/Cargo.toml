@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.45.0"
+version = "0.45.0+core.0.45.0"
 
 [features]
 default = [
@@ -154,12 +154,15 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-opendal = { path = "../../core", features = ["layers-blocking"] }
+opendal = { version = "0.45.0", path = "../../core", features = [
+  "layers-blocking",
+] }
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
+version = "0.45.0"
 path = "../../core"
 features = [
   "layers-blocking",

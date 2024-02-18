@@ -188,14 +188,11 @@ Additionally, we should also drop the staging Maven artifacts on https://reposit
 After GitHub Release has been created, we can start to create ASF Release.
 
 - Checkout to released tag. (e.g. `git checkout v0.36.0-rc.1`, tag is created in the previous step)
-- Use the release script to create a new release: `OPENDAL_VERSION=<opendal_version> OPENDAL_VERSION_RC=<rc_version> ./scripts/release.sh`(e.g. `OPENDAL_VERSION=0.36.0 OPENDAL_VERSION_RC=rc.1 ./scripts/release.sh`)
-    - This script will do the following things:
-        - Create a new branch named by `release-${release_version}` from the tag
-        - Generate the release candidate artifacts under `dist`, including:
-            - `apache-opendal-${release_version}-src.tar.gz`
-            - `apache-opendal-${release_version}-src.tar.gz.asc`
-            - `apache-opendal-${release_version}-src.tar.gz.sha512`
-        - Check the header of the source code. This step needs docker to run.
+- Use the release script to create a new release: `python ./scripts/release.py`
+  - This script will generate the release candidate artifacts under `dist`, including:
+    - `apache-opendal-{package}-{version}-src.tar.gz`
+    - `apache-opendal-{package}-{version}-src.tar.gz.asc`
+    - `apache-opendal-{package}-{version}-src.tar.gz.sha512`
 - Push the newly created branch to GitHub
 
 This script will create a new release under `dist`.
@@ -203,11 +200,22 @@ This script will create a new release under `dist`.
 For example:
 
 ```shell
-> tree dist
 dist
-├── apache-opendal-0.36.0-src.tar.gz
-├── apache-opendal-0.36.0-src.tar.gz.asc
-└── apache-opendal-0.36.0-src.tar.gz.sha512
+├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz
+├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz.asc
+├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz.sha512
+...
+├── apache-opendal-core-0.45.0-src.tar.gz
+├── apache-opendal-core-0.45.0-src.tar.gz.asc
+├── apache-opendal-core-0.45.0-src.tar.gz.sha512
+├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz
+├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz.asc
+├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz.sha512
+├── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz
+├── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz.asc
+└── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz.sha512
+
+1 directory, 60 files
 ```
 
 ### Upload artifacts to the SVN dist repo

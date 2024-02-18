@@ -63,7 +63,9 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Rust Code Format
         run: ./scripts/workspace.py cargo fmt -- --check
 
@@ -79,6 +81,9 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-deny: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Check dependencies
         run: python3 ./scripts/dependencies.py check

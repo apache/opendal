@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.45.0"
+version = "0.45.0+core.0.45.0"
 
 [lib]
 crate-type = ["cdylib"]
@@ -156,14 +156,16 @@ anyhow = "1.0.71"
 jni = "0.21.1"
 num_cpus = "1.15.0"
 once_cell = "1.19.0"
-opendal = { path = "../../core", features = ["layers-blocking"] }
+opendal = { version = "0.45.0", path = "../../core", features = [
+  "layers-blocking",
+] }
 tokio = { version = "1.28.1", features = ["full"] }
 
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954
 [target.'cfg(unix)'.dependencies.opendal]
-path = "../../core"
 features = [
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]
+path = "../../core"

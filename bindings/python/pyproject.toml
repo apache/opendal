@@ -41,8 +41,8 @@ benchmark = [
   "boto3-stubs[essential]",
 ]
 docs = ["pdoc"]
-test = ["pytest", "python-dotenv", "pytest-asyncio"]
 lint = ["ruff"]
+test = ["pytest", "python-dotenv", "pytest-asyncio"]
 
 [project.urls]
 Documentation = "https://opendal.apache.org/docs/python/opendal.html"

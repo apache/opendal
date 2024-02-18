@@ -18,6 +18,7 @@
 
 import subprocess
 import sys
+from pathlib import Path
 from constants import PACKAGES
 
 
@@ -27,6 +28,14 @@ if __name__ == "__main__":
 
     for directory in PACKAGES:
         print(f"Executing '{command}' in {directory}")
+
+        # Make cargo happy if `Cargo.toml` not exist
+        if (
+            command.startswith("cargo")
+            and not (Path(directory) / "Cargo.toml").exists()
+        ):
+            print(f"Skip {directory} because `Cargo.toml` not exist")
+            continue
 
         subprocess.run(
             command,

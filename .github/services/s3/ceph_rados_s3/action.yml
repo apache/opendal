@@ -27,15 +27,15 @@ runs:
       run: |
         docker network create --driver bridge ceph-cluster-net
         docker-compose -f docker-compose-ceph-rados.yml up -d mon1 mgr
-        sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf <<EOL
-        osd pool default min size = 2
-        max open files = 655350
-        cephx cluster require signatures = false
-        cephx service require signatures = false
         
-        osd max object name len = 256
-        osd max object namespace len = 64
-        EOL
+        echo "osd pool default min size = 2" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "max open files = 655350" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx cluster require signatures = false" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx service require signatures = false" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object name len = 256" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object namespace len = 64" >> ~/volumes_data/ceph/ceph/ceph.conf
+
         docker-compose restart mon1 mgr
         docker-compose up -d osd1 osd2 osd3
         docker-compose up -d rgw1

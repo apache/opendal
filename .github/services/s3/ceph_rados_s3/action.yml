@@ -37,13 +37,13 @@ runs:
         
         # Update Ceph configuration
         echo "Updating Ceph configuration..."
-        sudo sh -c 'echo "osd pool default min size = 2" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "max open files = 655350" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "cephx cluster require signatures = false" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "cephx service require signatures = false" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "osd max object name len = 256" >> ~/volumes_data/ceph/ceph/ceph.conf
-        sudo sh -c 'echo "osd max object namespace len = 64" >> ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd pool default min size = 2" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "max open files = 655350" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx cluster require signatures = false" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "cephx service require signatures = false" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object name len = 256" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
+        echo "osd max object namespace len = 64" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
         
         # Restart monitors and manager
         echo "Restarting monitors and manager..."

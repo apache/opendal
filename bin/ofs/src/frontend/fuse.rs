@@ -16,11 +16,14 @@
 // under the License.
 
 use std::ffi::OsStr;
+use std::ffi::OsString;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::vec::IntoIter;
 
+use bytes::Bytes;
 use fuse3::async_trait;
 use fuse3::path::prelude::*;
 use fuse3::Errno;
@@ -28,22 +31,79 @@ use fuse3::Result;
 use futures_util::stream;
 use futures_util::stream::Iter;
 use futures_util::StreamExt;
+
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
 use opendal::Operator;
+use sharded_slab::Slab;
 
 const TTL: Duration = Duration::from_secs(1); // 1 second
+
+#[derive(Debug, Clone)]
+struct OpenedFile {
+    path: OsString,
+    is_read: bool,
+    is_write: bool,
+    is_append: bool,
+}
 
 pub(super) struct Ofs {
     op: Operator,
     gid: u32,
     uid: u32,
+    opened_files: Slab<OpenedFile>,
 }
 
 impl Ofs {
     pub fn new(op: Operator, uid: u32, gid: u32) -> Self {
-        Self { op, uid, gid }
+        Self {
+            op,
+            uid,
+            gid,
+            opened_files: Slab::new(),
+        }
+    }
+
+    fn check_flags(&self, flags: u32) -> Result<(bool, bool)> {
+        let mode = flags & libc::O_ACCMODE as u32;
+        let is_read = mode == libc::O_RDONLY as u32 || mode == libc::O_RDWR as u32;
+        let is_write = mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32;
+        if !is_read && !is_write {
+            Err(Errno::from(libc::EINVAL))?;
+        }
+
+        let capability = self.op.info().full_capability();
+        if is_read && !capability.read {
+            Err(Errno::from(libc::EACCES))?;
+        }
+        if is_write && !capability.write {
+            Err(Errno::from(libc::EACCES))?;
+        }
+
+        log::trace!("check_flags: is_read={}, is_write={}", is_read, is_write);
+        Ok((is_read, is_write))
+    }
+
+    // Get opened file and check given path
+    fn get_opened_file(&self, key: usize, path: Option<&OsStr>) -> Result<OpenedFile> {
+        let file = self
+            .opened_files
+            .get(key)
+            .as_ref()
+            .ok_or(Errno::from(libc::ENOENT))?
+            .deref()
+            .clone();
+        if matches!(path, Some(path) if path != file.path) {
+            log::trace!(
+                "get_opened_file: path not match: path={:?}, file={:?}",
+                path,
+                file.path
+            );
+            Err(Errno::from(libc::EBADF))?;
+        }
+
+        Ok(file)
     }
 }
 
@@ -61,24 +121,19 @@ impl PathFilesystem for Ofs {
     async fn destroy(&self, _req: Request) {}
 
     async fn lookup(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<ReplyEntry> {
-        log::debug!(
-            "lookup(parent={}, name=\"{}\")",
-            parent.to_string_lossy(),
-            name.to_string_lossy()
-        );
+        log::debug!("lookup(parent={:?}, name={:?})", parent, name);
 
         let path = PathBuf::from(parent).join(name);
         let metadata = self
             .op
             .stat(&path.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         let now = SystemTime::now();
-        let attr = metadata2file_attr(&metadata, now);
+        let mut attr = metadata2file_attr(&metadata, now);
+        attr.uid = self.uid;
+        attr.gid = self.gid;
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -87,19 +142,34 @@ impl PathFilesystem for Ofs {
         &self,
         _req: Request,
         path: Option<&OsStr>,
-        _fh: Option<u64>,
-        _flags: u32,
+        fh: Option<u64>,
+        flags: u32,
     ) -> Result<ReplyAttr> {
-        log::debug!("getattr(path={:?})", path);
+        log::debug!("getattr(path={:?}, fh={:?}, flags={:?})", path, fh, flags);
+
+        let key = fh.unwrap_or_default() - 1;
+        let fh_path = self
+            .opened_files
+            .get(key as usize)
+            .as_ref()
+            .map(|f| &f.path)
+            .cloned();
+
+        let file_path = match (path.map(Into::into), fh_path) {
+            (Some(a), Some(b)) => {
+                if a != b {
+                    Err(Errno::from(libc::EBADF))?;
+                }
+                Some(a)
+            }
+            (a, b) => a.or(b),
+        };
 
         let metadata = self
             .op
-            .stat(&path.unwrap_or_default().to_string_lossy())
+            .stat(&file_path.unwrap_or_default().to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         let now = SystemTime::now();
         let mut attr = metadata2file_attr(&metadata, now);
@@ -113,23 +183,27 @@ impl PathFilesystem for Ofs {
         &self,
         _req: Request,
         path: Option<&OsStr>,
-        _fh: Option<u64>,
-        _set_attr: SetAttr,
+        fh: Option<u64>,
+        set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
-        log::debug!("setattr(path={:?})", path);
+        log::debug!(
+            "setattr(path={:?}, fh={:?}, set_attr={:?})",
+            path,
+            fh,
+            set_attr
+        );
         Err(libc::EOPNOTSUPP.into())
     }
 
     async fn symlink(
         &self,
-        req: Request,
+        _req: Request,
         parent: &OsStr,
         name: &OsStr,
         link_path: &OsStr,
     ) -> Result<ReplyEntry> {
         log::debug!(
-            "symlink(req={:?}, parent={:?}, name={:?}, link_path={:?})",
-            req,
+            "symlink(parent={:?}, name={:?}, link_path={:?})",
             parent,
             name,
             link_path
@@ -169,16 +243,12 @@ impl PathFilesystem for Ofs {
             mode
         );
 
-        let path = PathBuf::from(parent).join(name);
+        let mut path = PathBuf::from(parent).join(name);
+        path.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
         self.op
             .create_dir(&path.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
-                ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         let metadata = Metadata::new(EntryMode::DIR);
         let now = SystemTime::now();
@@ -191,7 +261,14 @@ impl PathFilesystem for Ofs {
 
     async fn unlink(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<()> {
         log::debug!("unlink(parent={:?}, name={:?})", parent, name);
-        Err(libc::EOPNOTSUPP.into())
+
+        let path = PathBuf::from(parent).join(name);
+        self.op
+            .delete(&path.to_string_lossy())
+            .await
+            .map_err(opendal_error2errno)?;
+
+        Ok(())
     }
 
     async fn rmdir(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<()> {
@@ -201,12 +278,7 @@ impl PathFilesystem for Ofs {
         self.op
             .delete(&path.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                ErrorKind::NotFound => Errno::from(libc::ENOENT),
-                ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         Ok(())
     }
@@ -233,13 +305,7 @@ impl PathFilesystem for Ofs {
         self.op
             .rename(&origin_path.to_string_lossy(), &path.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                ErrorKind::NotFound => Errno::from(libc::ENOENT),
-                ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
-                ErrorKind::IsSameFile => Errno::from(libc::EINVAL),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         Ok(())
     }
@@ -260,10 +326,102 @@ impl PathFilesystem for Ofs {
         Err(libc::EOPNOTSUPP.into())
     }
 
+    async fn create(
+        &self,
+        _req: Request,
+        parent: &OsStr,
+        name: &OsStr,
+        mode: u32,
+        flags: u32,
+    ) -> Result<ReplyCreated> {
+        log::debug!(
+            "create(parent={:?}, name={:?}, mode=0o{:o}, flags=0x{:x})",
+            parent,
+            name,
+            mode,
+            flags
+        );
+
+        let (is_read, is_write) = self.check_flags(flags)?;
+
+        let path = PathBuf::from(parent).join(name);
+        self.op
+            .write(&path.to_string_lossy(), Bytes::new())
+            .await
+            .map_err(opendal_error2errno)?;
+
+        let metadata = Metadata::new(EntryMode::FILE);
+        let mut attr = metadata2file_attr(&metadata, SystemTime::now());
+        attr.uid = self.uid;
+        attr.gid = self.gid;
+
+        let fh = self
+            .opened_files
+            .insert(OpenedFile {
+                path: path.into(),
+                is_read,
+                is_write,
+                is_append: flags & libc::O_APPEND as u32 != 0,
+            })
+            .ok_or(Errno::from(libc::EBUSY))? as u64
+            + 1; // ensure fh > 0
+
+        Ok(ReplyCreated {
+            ttl: TTL,
+            attr,
+            generation: 0,
+            fh,
+            flags,
+        })
+    }
+
+    async fn release(
+        &self,
+        _req: Request,
+        path: Option<&OsStr>,
+        fh: u64,
+        flags: u32,
+        lock_owner: u64,
+        flush: bool,
+    ) -> Result<()> {
+        log::debug!(
+            "release(path={:?}, fh={}, flags=0x{:x}, lock_owner={}, flush={})",
+            path,
+            fh,
+            flags,
+            lock_owner,
+            flush
+        );
+
+        let key = fh as usize - 1;
+        let file = self
+            .opened_files
+            .take(key)
+            .ok_or(Errno::from(libc::EBADF))?;
+        if matches!(path, Some(ref p) if p != &file.path) {
+            Err(Errno::from(libc::EBADF))?;
+        }
+
+        Ok(())
+    }
+
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
-        // TODO
         log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
-        Err(libc::ENOSYS.into())
+
+        let (is_read, is_write) = self.check_flags(flags)?;
+
+        let fh = self
+            .opened_files
+            .insert(OpenedFile {
+                path: path.into(),
+                is_read,
+                is_write,
+                is_append: flags & libc::O_APPEND as u32 != 0,
+            })
+            .ok_or(Errno::from(libc::EBUSY))? as u64
+            + 1; // ensure fh > 0
+
+        Ok(ReplyOpen { fh, flags })
     }
 
     async fn read(
@@ -274,7 +432,6 @@ impl PathFilesystem for Ofs {
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
-        // TODO
         log::debug!(
             "read(path={:?}, fh={}, offset={}, size={})",
             path,
@@ -283,7 +440,24 @@ impl PathFilesystem for Ofs {
             size
         );
 
-        Err(libc::ENOSYS.into())
+        if fh == 0 {
+            Err(Errno::from(libc::EBADF))?;
+        }
+        let key = fh - 1;
+        let file = self.get_opened_file(key as _, path)?;
+
+        if !file.is_read {
+            Err(Errno::from(libc::EACCES))?;
+        }
+
+        let data = self
+            .op
+            .read_with(&file.path.to_string_lossy())
+            .range(offset..offset + size as u64)
+            .await
+            .map_err(opendal_error2errno)?;
+
+        Ok(ReplyData { data: data.into() })
     }
 
     async fn write(
@@ -295,9 +469,8 @@ impl PathFilesystem for Ofs {
         data: &[u8],
         flags: u32,
     ) -> Result<ReplyWrite> {
-        // TODO
         log::debug!(
-            "write(path={:?}, fh={}, offset={}, len={}, flags=0x{:x})",
+            "write(path={:?}, fh={}, offset={}, data_len={}, flags=0x{:x})",
             path,
             fh,
             offset,
@@ -305,28 +478,48 @@ impl PathFilesystem for Ofs {
             flags
         );
 
-        Err(libc::ENOSYS.into())
+        if offset != 0 {
+            Err(Errno::from(libc::EINVAL))?;
+        }
+
+        if fh == 0 {
+            Err(Errno::from(libc::EBADF))?;
+        }
+        let key = fh - 1;
+
+        let file = self.get_opened_file(key as _, path)?;
+        if !file.is_write {
+            Err(Errno::from(libc::EACCES))?;
+        }
+
+        self.op
+            .write_with(
+                &file.path.clone().to_string_lossy(),
+                Bytes::copy_from_slice(data),
+            )
+            .append(file.is_append)
+            .await
+            .map_err(opendal_error2errno)?;
+
+        Ok(ReplyWrite {
+            written: data.len() as _,
+        })
     }
 
     async fn readdir(
         &self,
-        req: Request,
+        _req: Request,
         path: &OsStr,
         fh: u64,
         offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
-        log::debug!(
-            "readdir(req={:?}, path={:?}, fh={}, offset={})",
-            req,
-            path,
-            fh,
-            offset
-        );
+        log::debug!("readdir(path={:?}, fh={}, offset={})", path, fh, offset);
 
-        let current_dir = path.to_string_lossy();
+        let mut current_dir = PathBuf::from(path);
+        current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
         let entries = self
             .op
-            .list(&current_dir)
+            .list(&current_dir.to_string_lossy())
             .await
             .map_err(|e| match e.kind() {
                 ErrorKind::NotFound => Errno::new_not_exist(),
@@ -358,7 +551,6 @@ impl PathFilesystem for Ofs {
             }))
             .skip(offset as usize)
             .collect::<Vec<_>>();
-        log::debug!("readdir entries={:#?}", res);
 
         Ok(ReplyDirectory {
             entries: stream::iter(res),
@@ -367,37 +559,36 @@ impl PathFilesystem for Ofs {
 
     async fn access(&self, _req: Request, path: &OsStr, mask: u32) -> Result<()> {
         log::debug!("access(path={:?}, mask=0x{:x})", path, mask);
+
+        self.check_flags(mask)?;
         self.op
             .stat(&path.to_string_lossy())
             .await
-            .map_err(|e| match e.kind() {
-                ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
-                _ => Errno::from(libc::ENOENT),
-            })?;
+            .map_err(opendal_error2errno)?;
 
         Ok(())
     }
 
     async fn readdirplus(
         &self,
-        req: Request,
+        _req: Request,
         parent: &OsStr,
         fh: u64,
         offset: u64,
         _lock_owner: u64,
     ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {
         log::debug!(
-            "readdirplus(req={:?}, parent={:?}, fh={}, offset={})",
-            req,
+            "readdirplus(parent={:?}, fh={}, offset={})",
             parent,
             fh,
             offset
         );
 
-        let current_dir = parent.to_string_lossy();
+        let mut current_dir = PathBuf::from(parent);
+        current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
         let entries = self
             .op
-            .list(&current_dir)
+            .list(&current_dir.to_string_lossy())
             .await
             .map_err(|e| match e.kind() {
                 ErrorKind::NotFound => Errno::new_not_exist(),
@@ -483,5 +674,20 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime) -> FileAttr {
         gid: 1000,
         rdev: 0,
         blksize: 4096,
+    }
+}
+
+fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
+    log::trace!("opendal_error2errno: {:?}", err);
+    match err.kind() {
+        ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
+        ErrorKind::IsADirectory => Errno::from(libc::EISDIR),
+        ErrorKind::NotFound => Errno::from(libc::ENOENT),
+        ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
+        ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
+        ErrorKind::NotADirectory => Errno::from(libc::ENOTDIR),
+        ErrorKind::ContentTruncated => Errno::from(libc::EAGAIN),
+        ErrorKind::ContentIncomplete => Errno::from(libc::EIO),
+        _ => Errno::from(libc::ENOENT),
     }
 }

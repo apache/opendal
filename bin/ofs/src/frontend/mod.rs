@@ -45,6 +45,7 @@ impl Frontend {
         let mut mount_option = MountOptions::default();
         mount_option.uid(uid.into());
         mount_option.gid(gid.into());
+        mount_option.no_open_dir_support(true);
 
         let ofs = fuse::Ofs::new(args.backend, uid.into(), gid.into());
 

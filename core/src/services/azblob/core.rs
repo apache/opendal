@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use base64::prelude::BASE64_STANDARD;
+use base64::prelude::BASE64_URL_SAFE;
 use base64::Engine;
 use bytes::Bytes;
 use http::header::HeaderName;
@@ -386,7 +386,7 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let encoded_block_id: String =
-            percent_encode_path(&BASE64_STANDARD.encode(block_id.to_string()));
+            percent_encode_path(&BASE64_URL_SAFE.encode(block_id.as_bytes()));
         let url = format!(
             "{}/{}/{}?comp=block&blockid={}",
             self.endpoint,
@@ -454,8 +454,7 @@ impl AzblobCore {
             latest: block_ids
                 .into_iter()
                 .map(|block_id| {
-                    let encoded_block_id: String =
-                        percent_encode_path(&BASE64_STANDARD.encode(block_id.to_string()));
+                    let encoded_block_id: String = BASE64_URL_SAFE.encode(block_id.as_bytes());
                     encoded_block_id
                 })
                 .collect(),

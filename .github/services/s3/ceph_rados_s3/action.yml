@@ -26,16 +26,18 @@ runs:
       working-directory: fixtures/s3
       run: |
         # Set environment variables for file paths
-        CEPH_CONF_PATH="/home/runner/volumes_data/ceph/ceph/ceph.conf"
+        CEPH_CONF_PATH="~/volumes_data/ceph/ceph/ceph.conf"
         DOCKER_COMPOSE_FILE="docker-compose-ceph-rados.yml"
         
         # Create Docker network
+        echo "Creating Docker network..."
         docker network create --driver bridge ceph-cluster-net
         
         # Start Ceph monitors and manager
         docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mon1 mgr
         
         # Update Ceph configuration
+        echo "Updating Ceph configuration..."
         sudo sh -c 'echo "osd pool default min size = 2" >> "$CEPH_CONF_PATH"'
         sudo sh -c 'echo "max open files = 655350" >> "$CEPH_CONF_PATH"'
         sudo sh -c 'echo "cephx cluster require signatures = false" >> "$CEPH_CONF_PATH"'
@@ -45,14 +47,17 @@ runs:
         sudo sh -c 'echo "osd max object namespace len = 64" >> "$CEPH_CONF_PATH"'
         
         # Restart monitors and manager
+        echo "Restarting monitors and manager..."
         docker-compose restart mon1 mgr
         
         # Start OSDs, RGW, and MDS
+        echo "Starting OSDs, RGW, and MDS..."
         docker-compose -f "$DOCKER_COMPOSE_FILE" up -d osd1 osd2 osd3
         docker-compose -f "$DOCKER_COMPOSE_FILE" up -d rgw1
         docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mds1
         
         # Enable and configure Ceph Dashboard
+        echo "Enabling and configuring Ceph Dashboard..."
         docker-compose exec mon1 ceph mgr module enable dashboard
         docker-compose exec mon1 ceph dashboard create-self-signed-cert
         docker-compose exec mon1 ceph mgr module disable dashboard
@@ -63,6 +68,7 @@ runs:
         docker-compose exec mon1 ceph dashboard set-login-credentials admin admin
         
         # Create RGW user and set credentials
+        echo "Creating RGW user and setting credentials..."
         docker-compose exec mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
         docker-compose exec mon1 ceph dashboard set-rgw-api-access-key ceph_rados_s3_admin
         docker-compose exec mon1 ceph dashboard set-rgw-api-secret-key ceph_rados_s3_admin

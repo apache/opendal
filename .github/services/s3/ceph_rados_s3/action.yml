@@ -37,9 +37,9 @@ runs:
         sudo sh -c 'echo "osd max object namespace len = 64" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
 
         docker-compose restart mon1 mgr
-        docker-compose up -d osd1 osd2 osd3
-        docker-compose up -d rgw1
-        docker-compose up -d mds1
+        docker-compose -f docker-compose-ceph-rados.yml up -d osd1 osd2 osd3
+        docker-compose -f docker-compose-ceph-rados.yml up -d rgw1
+        docker-compose -f docker-compose-ceph-rados.yml up -d mds1
         docker-compose exec mon1 ceph mgr module enable dashboard
         docker-compose exec mon1 ceph dashboard create-self-signed-cert
         docker-compose exec mon1 ceph mgr module disable dashboard

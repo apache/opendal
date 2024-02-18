@@ -54,9 +54,12 @@ runs:
         
         # Enable and configure Ceph Dashboard
         echo "Enabling and configuring Ceph Dashboard..."
-        docker-compose exec mon1 ceph mgr module enable dashboard
-        docker-compose exec mon1 ceph dashboard create-self-signed-cert
-        docker-compose exec mon1 ceph mgr module disable dashboard
+        docker-compose exec -T mon1 ceph mgr module enable dashboard
+        echo "1"
+        docker-compose exec -T mon1 ceph dashboard create-self-signed-cert
+        echo "2"
+        docker-compose exec -T mon1 ceph mgr module disable dashboard
+        echo "3"
         docker-compose exec mon1 ceph mgr module enable dashboard
         docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_addr mgr
         docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_port 8443

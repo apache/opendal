@@ -162,8 +162,8 @@ tokio = { version = "1.28.1", features = ["full"] }
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954
 [target.'cfg(unix)'.dependencies.opendal]
-path = "../../core"
 features = [
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]
+path = "../../core"

@@ -32,7 +32,7 @@ async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
 object_store = "0.7"
-opendal = {path = "../../core"}
+opendal = { version = "0.45.0", path = "../../core" }
 tokio = "1"
 
 [dev-dependencies]

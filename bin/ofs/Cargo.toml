@@ -39,7 +39,7 @@ futures-util = "0.3.30"
 libc = "0.2.151"
 log = "0.4.20"
 nix = { version = "0.27.1", features = ["user"] }
-opendal = {path="../../core"}
+opendal = { version = "0.45.0", path = "../../core" }
 tokio = { version = "1.34", features = [
   "fs",
   "macros",

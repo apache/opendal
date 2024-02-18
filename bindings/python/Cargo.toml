@@ -160,10 +160,10 @@ pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
-path = "../../core"
 features = [
   "layers-blocking",
 
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]
+path = "../../core"

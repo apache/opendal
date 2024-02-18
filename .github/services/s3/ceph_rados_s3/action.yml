@@ -25,21 +25,34 @@ runs:
       shell: bash
       working-directory: fixtures/s3
       run: |
-        docker network create --driver bridge ceph-cluster-net
-        docker-compose -f docker-compose-ceph-rados.yml up -d mon1 mgr
+        # Set environment variables for file paths
+        CEPH_CONF_PATH="/home/runner/volumes_data/ceph/ceph/ceph.conf"
+        DOCKER_COMPOSE_FILE="docker-compose-ceph-rados.yml"
         
-        sudo sh -c 'echo "osd pool default min size = 2" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "max open files = 655350" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "cephx cluster require signatures = false" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "cephx service require signatures = false" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "osd max object name len = 256" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-        sudo sh -c 'echo "osd max object namespace len = 64" >> /home/runner/volumes_data/ceph/ceph/ceph.conf'
-
+        # Create Docker network
+        docker network create --driver bridge ceph-cluster-net
+        
+        # Start Ceph monitors and manager
+        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mon1 mgr
+        
+        # Update Ceph configuration
+        sudo sh -c 'echo "osd pool default min size = 2" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "max open files = 655350" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "cephx cluster require signatures = false" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "cephx service require signatures = false" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "osd max object name len = 256" >> "$CEPH_CONF_PATH"'
+        sudo sh -c 'echo "osd max object namespace len = 64" >> "$CEPH_CONF_PATH"'
+        
+        # Restart monitors and manager
         docker-compose restart mon1 mgr
-        docker-compose -f docker-compose-ceph-rados.yml up -d osd1 osd2 osd3
-        docker-compose -f docker-compose-ceph-rados.yml up -d rgw1
-        docker-compose -f docker-compose-ceph-rados.yml up -d mds1
+        
+        # Start OSDs, RGW, and MDS
+        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d osd1 osd2 osd3
+        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d rgw1
+        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d mds1
+        
+        # Enable and configure Ceph Dashboard
         docker-compose exec mon1 ceph mgr module enable dashboard
         docker-compose exec mon1 ceph dashboard create-self-signed-cert
         docker-compose exec mon1 ceph mgr module disable dashboard
@@ -48,6 +61,8 @@ runs:
         docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_port 8443
         docker-compose exec mon1 ceph mgr services
         docker-compose exec mon1 ceph dashboard set-login-credentials admin admin
+        
+        # Create RGW user and set credentials
         docker-compose exec mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
         docker-compose exec mon1 ceph dashboard set-rgw-api-access-key ceph_rados_s3_admin
         docker-compose exec mon1 ceph dashboard set-rgw-api-secret-key ceph_rados_s3_admin

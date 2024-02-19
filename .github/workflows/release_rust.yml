@@ -38,6 +38,7 @@ jobs:
       # Publish package one by one instead of flooding the registry
       max-parallel: 1
       matrix:
+        # Order here is sensitive, as it will be used to determine the order of publishing
         package:
           - "core"
           - "bin/oay"

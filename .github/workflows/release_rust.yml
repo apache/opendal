@@ -64,15 +64,13 @@ jobs:
           need-rocksdb: true
           need-protoc: true
 
-      - name: Dryrun opendal
+      - name: Dryrun ${{ matrix.package }}
         working-directory: ${{ matrix.package }}
-        if: "contains(github.ref, '-')"
         run: cargo publish --all-features --dry-run
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish opendal
+      - name: Publish ${{ matrix.package }}
         working-directory: ${{ matrix.package }}
         if: "!contains(github.ref, '-')"
         run: cargo publish --all-features

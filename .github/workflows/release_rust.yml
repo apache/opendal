@@ -40,11 +40,11 @@ jobs:
         # Order here is sensitive, as it will be used to determine the order of publishing
         package:
           - "core"
-          - "bin/oay"
-          - "bin/oli"
-          - "bin/ofs"
           - "integrations/dav-server"
           - "integrations/object_store"
+          - "bin/oay" # depends on integrations/dav-server
+          - "bin/oli"
+          - "bin/ofs"
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env

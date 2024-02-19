@@ -27,7 +27,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/release_core.yml"
+      - ".github/workflows/release_rust.yml"
   workflow_dispatch:
 
 jobs:

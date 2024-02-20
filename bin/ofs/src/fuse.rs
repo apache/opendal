@@ -131,9 +131,7 @@ impl PathFilesystem for Ofs {
             .map_err(opendal_error2errno)?;
 
         let now = SystemTime::now();
-        let mut attr = metadata2file_attr(&metadata, now);
-        attr.uid = self.uid;
-        attr.gid = self.gid;
+        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -172,9 +170,7 @@ impl PathFilesystem for Ofs {
             .map_err(opendal_error2errno)?;
 
         let now = SystemTime::now();
-        let mut attr = metadata2file_attr(&metadata, now);
-        attr.uid = self.uid;
-        attr.gid = self.gid;
+        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
 
         Ok(ReplyAttr { ttl: TTL, attr })
     }
@@ -252,9 +248,7 @@ impl PathFilesystem for Ofs {
 
         let metadata = Metadata::new(EntryMode::DIR);
         let now = SystemTime::now();
-        let mut attr = metadata2file_attr(&metadata, now);
-        attr.uid = self.uid;
-        attr.gid = self.gid;
+        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -351,9 +345,7 @@ impl PathFilesystem for Ofs {
             .map_err(opendal_error2errno)?;
 
         let metadata = Metadata::new(EntryMode::FILE);
-        let mut attr = metadata2file_attr(&metadata, SystemTime::now());
-        attr.uid = self.uid;
-        attr.gid = self.gid;
+        let attr = metadata2file_attr(&metadata, SystemTime::now(), self.uid, self.gid);
 
         let fh = self
             .opened_files
@@ -584,9 +576,7 @@ impl PathFilesystem for Ofs {
                 .stat(&e.name())
                 .await
                 .unwrap_or_else(|_| e.metadata().clone());
-            let mut attr = metadata2file_attr(&metadata, now);
-            attr.uid = uid;
-            attr.gid = gid;
+            let attr = metadata2file_attr(&metadata, now, uid, gid);
             Result::Ok(DirectoryEntryPlus {
                 kind: entry_mode2file_type(metadata.mode()),
                 name: e.name().trim_matches('/').into(),
@@ -612,7 +602,7 @@ impl PathFilesystem for Ofs {
             .then(move |(i, entry)| make_entry(op.clone(), i, entry, uid, gid, now));
 
         let relative_path_metadata = Metadata::new(EntryMode::DIR);
-        let relative_path_attr = metadata2file_attr(&relative_path_metadata, now);
+        let relative_path_attr = metadata2file_attr(&relative_path_metadata, now, uid, gid);
         let relative_paths = stream::iter([
             Result::Ok(DirectoryEntryPlus {
                 kind: FileType::Directory,
@@ -645,7 +635,7 @@ const fn entry_mode2file_type(mode: EntryMode) -> FileType {
     }
 }
 
-fn metadata2file_attr(metadata: &Metadata, atime: SystemTime) -> FileAttr {
+fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32) -> FileAttr {
     let last_modified = metadata.last_modified().map(|t| t.into()).unwrap_or(atime);
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
@@ -657,8 +647,8 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime) -> FileAttr {
         kind,
         perm: fuse3::perm_from_mode_and_kind(kind, 0o775),
         nlink: 0,
-        uid: 1000,
-        gid: 1000,
+        uid,
+        gid,
         rdev: 0,
         blksize: 4096,
     }

@@ -573,7 +573,7 @@ impl PathFilesystem for Ofs {
         let make_entry = |op: Operator, i: usize, entry: opendal::Result<Entry>, uid, gid, now| async move {
             let e = entry.map_err(opendal_error2errno)?;
             let metadata = op
-                .stat(&e.name())
+                .stat(e.name())
                 .await
                 .unwrap_or_else(|_| e.metadata().clone());
             let attr = metadata2file_attr(&metadata, now, uid, gid);

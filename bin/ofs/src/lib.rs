@@ -59,7 +59,7 @@ struct Args {
     backend: Operator,
 }
 
-#[cfg(any(not(target_os = "linux")))]
+#[cfg(not(target_os = "linux"))]
 async fn execute(_: FrontendArgs) -> Result<()> {
     Err(anyhow::anyhow!("platform not supported"))
 }

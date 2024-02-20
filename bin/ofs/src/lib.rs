@@ -20,15 +20,14 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use frontend::Frontend;
-use frontend::FrontendArgs;
 use opendal::Operator;
 use opendal::Scheme;
 
 pub mod config;
 pub use config::Config;
 
-mod frontend;
+#[cfg(target_os = "linux")]
+mod fuse;
 
 pub async fn new_app(cfg: Config) -> Result<()> {
     if cfg.backend.has_host() {
@@ -48,9 +47,43 @@ pub async fn new_app(cfg: Config) -> Result<()> {
     }?;
     let backend = Operator::via_map(scheme, op_args)?;
 
-    let args = FrontendArgs {
+    let args = Args {
         mount_path: cfg.mount_path,
         backend,
     };
-    Frontend::execute(args).await
+    execute(args).await
+}
+
+struct Args {
+    mount_path: String,
+    backend: Operator,
+}
+
+#[cfg(any(not(target_os = "linux")))]
+async fn execute(_: FrontendArgs) -> Result<()> {
+    Err(anyhow::anyhow!("platform not supported"))
+}
+
+#[cfg(target_os = "linux")]
+async fn execute(args: Args) -> Result<()> {
+    use fuse3::path::Session;
+    use fuse3::MountOptions;
+
+    let uid = nix::unistd::getuid();
+    let gid = nix::unistd::getgid();
+
+    let mut mount_option = MountOptions::default();
+    mount_option.uid(uid.into());
+    mount_option.gid(gid.into());
+    mount_option.no_open_dir_support(true);
+
+    let ofs = fuse::Ofs::new(args.backend, uid.into(), gid.into());
+
+    let mount_handle = Session::new(mount_option)
+        .mount_with_unprivileged(ofs, args.mount_path)
+        .await?;
+
+    mount_handle.await?;
+
+    Ok(())
 }

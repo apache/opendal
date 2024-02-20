@@ -100,7 +100,7 @@ jobs:
           tar xf opendal-*.crate --strip-components=1
           cabal sdist
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bindings-haskell-sdist
           path: bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz

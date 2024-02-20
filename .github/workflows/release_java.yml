@@ -100,7 +100,7 @@ jobs:
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
           MAVEN_GPG_PASSPHRASE: ""
       - name: Upload local staging directory
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.classifier }}-local-staging
           path: bindings/java/local-staging

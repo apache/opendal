@@ -87,7 +87,7 @@ impl Debug for SqliteBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("SqliteBuilder");
 
-        ds.field("cofig", &self.config);
+        ds.field("config", &self.config);
         ds.finish()
     }
 }

@@ -361,7 +361,7 @@ Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 The vote should be open for **at least 72 hours** except the following cases:
 
 1. Security issues
-2. The wild user effected bug fixs
+2. The wild user effected bug fixes
 3. Any other emergency cases
 
 The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.

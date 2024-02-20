@@ -94,6 +94,6 @@ None
 
 # Future possibilities
 
-## Change API after fn_traits stablized
+## Change API after fn_traits stabilized
 
-After [fn_traits](https://github.com/rust-lang/rust/issues/29625) get stablized, we will implement `FnOnce` for `FunctionXxx` instead of `call`.
+After [fn_traits](https://github.com/rust-lang/rust/issues/29625) get stabilized, we will implement `FnOnce` for `FunctionXxx` instead of `call`.

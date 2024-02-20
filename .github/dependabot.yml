@@ -19,50 +19,60 @@ version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/core"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bin/oay"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bin/ofs"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bin/oli"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/object_store"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bindings/java"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bindings/nodejs"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
     directory: "/bindings/python"
+    open-pull-requests-limit: 1
     schedule:
       interval: "monthly"

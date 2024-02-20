@@ -4059,7 +4059,7 @@ dependencies = [
  "probe",
  "prometheus",
  "prometheus-client",
- "prost 0.11.9",
+ "prost 0.12.3",
  "quick-xml",
  "r2d2",
  "rand 0.8.5",

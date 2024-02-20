@@ -1026,6 +1026,7 @@ name = "ofs"
 version = "0.0.1+core.0.45.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
  "clap",
  "env_logger",

@@ -32,8 +32,9 @@ Test all available backend.
 cargo bench
 ```
 
-Test specific backend.
+Test specific backend, take s3 for example, first set the corresponding environment variables of s3, then:
 
 ```shell
-cargo bench fs
+OPENDAL_TEST=s3
+cargo bench
 ```

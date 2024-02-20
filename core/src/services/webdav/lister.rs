@@ -21,7 +21,6 @@ use serde::Deserialize;
 use crate::raw::*;
 use crate::*;
 pub struct WebdavLister {
-    base_dir: String,
     root: String,
     path: String,
     multistates: Multistatus,
@@ -29,9 +28,8 @@ pub struct WebdavLister {
 
 impl WebdavLister {
     /// TODO: sending request in `next_page` instead of in `new`.
-    pub fn new(base_dir: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
-            base_dir: base_dir.to_string(),
             root: root.into(),
             path: path.into(),
             multistates,
@@ -46,10 +44,7 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = res
-                .href
-                .strip_prefix(&self.base_dir)
-                .unwrap_or(res.href.as_str());
+            let path = res.href.as_str();
 
             // Ignore the root path itself.
             if self.root == path {

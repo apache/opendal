@@ -702,7 +702,7 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
 ///
 /// assert(error == NULL);
 ///
-/// // now you can renmae!
+/// // now you can rename!
 /// opendal_error *error = opendal_operator_rename(op, "/testpath", "/testpath2");
 ///
 /// // Assert that this succeeds
@@ -765,7 +765,7 @@ pub unsafe extern "C" fn opendal_operator_rename(
 ///
 /// assert(error == NULL);
 ///
-/// // now you can renmae!
+/// // now you can rename!
 /// opendal_error *error = opendal_operator_copy(op, "/testpath", "/testpath2");
 ///
 /// // Assert that this succeeds

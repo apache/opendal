@@ -380,6 +380,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
+    use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
 
@@ -397,7 +398,7 @@ mod tests {
     impl Accessor for MockService {
         type Reader = MockReader;
         type Writer = ();
-        type Lister = ();
+        type Lister = MockLister;
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
@@ -424,6 +425,10 @@ mod tests {
 
             Ok(RpDelete::default())
         }
+
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+            Ok((RpList::default(), MockLister))
+        }
     }
 
     #[derive(Debug, Clone, Default)]
@@ -439,6 +444,15 @@ mod tests {
         }
 
         fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+            Poll::Pending
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockLister;
+
+    impl oio::List for MockLister {
+        fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
             Poll::Pending
         }
     }
@@ -472,6 +486,30 @@ mod tests {
             let mut reader = op.reader("test").await.unwrap();
 
             let res = reader.read(&mut [0; 4]).await;
+            assert!(res.is_err());
+            let err = res.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.to_string().contains("timeout"))
+        };
+
+        timeout(Duration::from_secs(2), fut)
+            .await
+            .expect("this test should not exceed 2 seconds")
+    }
+
+    #[tokio::test]
+    async fn test_list_timeout() {
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let op = Operator::from_inner(acc).layer(
+            TimeoutLayer::new()
+                .with_timeout(Duration::from_secs(1))
+                .with_io_timeout(Duration::from_secs(1)),
+        );
+
+        let fut = async {
+            let mut lister = op.lister("test").await.unwrap();
+
+            let res = lister.next().await.unwrap();
             assert!(res.is_err());
             let err = res.unwrap_err();
             assert_eq!(err.kind(), ErrorKind::Unexpected);

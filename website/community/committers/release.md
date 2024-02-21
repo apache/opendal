@@ -413,7 +413,7 @@ Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 git checkout ${release_version}
 # Tag with the opendal version
 git tag -s ${opendal_version}
-# Push tags to github to trigger releases
+# Push tags to GitHub to trigger releases
 git push origin ${opendal_version}
 ```
 

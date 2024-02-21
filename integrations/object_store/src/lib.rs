@@ -23,6 +23,7 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
+use futures::FutureExt;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
@@ -34,6 +35,8 @@ use object_store::ListResult;
 use object_store::MultipartId;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
+use object_store::PutOptions;
+use object_store::PutResult;
 use object_store::Result;
 use opendal::Entry;
 use opendal::Metadata;
@@ -62,12 +65,34 @@ impl std::fmt::Display for OpendalStore {
 
 #[async_trait]
 impl ObjectStore for OpendalStore {
-    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
-        Ok(self
-            .inner
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<PutResult> {
+        self.inner
             .write(location.as_ref(), bytes)
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?)
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let meta = self
+            .inner
+            .stat(location.as_ref())
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        Ok(PutResult {
+            e_tag: meta.etag().map(|x| x.to_string()),
+            version: meta.version().map(|x| x.to_string()),
+        })
+    }
+
+    async fn put_opts(
+        &self,
+        _location: &Path,
+        _bytes: Bytes,
+        _opts: PutOptions,
+    ) -> Result<PutResult> {
+        Err(object_store::Error::NotSupported {
+            source: Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unsupported,
+                "put_opts is not implemented so far",
+            )),
+        })
     }
 
     async fn put_multipart(
@@ -112,6 +137,7 @@ impl ObjectStore for OpendalStore {
             last_modified: meta.last_modified().unwrap_or_default(),
             size: meta.content_length() as usize,
             e_tag: meta.etag().map(|x| x.to_string()),
+            version: meta.version().map(|x| x.to_string()),
         };
         let r = self
             .inner
@@ -148,7 +174,8 @@ impl ObjectStore for OpendalStore {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
             size: meta.content_length() as usize,
-            e_tag: None,
+            e_tag: meta.etag().map(|x| x.to_string()),
+            version: meta.version().map(|x| x.to_string()),
         })
     }
 
@@ -161,57 +188,66 @@ impl ObjectStore for OpendalStore {
         Ok(())
     }
 
-    async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, Result<ObjectMeta>> {
         // object_store `Path` always removes trailing slash
         // need to add it back
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
-        let stream = self
-            .inner
-            .lister_with(&path)
-            .metakey(Metakey::ContentLength | Metakey::LastModified)
-            .recursive(true)
-            .await
-            .map_err(|err| format_object_store_error(err, &path))?;
 
-        let stream = stream.then(|res| async {
-            let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-            let meta = entry.metadata();
+        let fut = async move {
+            let stream = self
+                .inner
+                .lister_with(&path)
+                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .recursive(true)
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?;
 
-            Ok(format_object_meta(entry.path(), meta))
-        });
+            let stream = stream.then(|res| async {
+                let entry = res.map_err(|err| format_object_store_error(err, ""))?;
+                let meta = entry.metadata();
 
-        Ok(stream.boxed())
+                Ok(format_object_meta(entry.path(), meta))
+            });
+            Ok::<_, object_store::Error>(stream)
+        };
+
+        fut.into_stream().try_flatten().boxed()
     }
 
-    async fn list_with_offset(
+    fn list_with_offset(
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
+    ) -> BoxStream<'_, Result<ObjectMeta>> {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let offset = offset.clone();
-        let stream = if self.inner.info().full_capability().list_with_start_after {
-            self.inner
-                .lister_with(&path)
-                .start_after(offset.as_ref())
-                .metakey(Metakey::ContentLength | Metakey::LastModified)
-                .recursive(true)
-                .await
-                .map_err(|err| format_object_store_error(err, &path))?
-                .then(try_format_object_meta)
-                .boxed()
-        } else {
-            self.inner
-                .lister_with(&path)
-                .metakey(Metakey::ContentLength | Metakey::LastModified)
-                .recursive(true)
-                .await
-                .map_err(|err| format_object_store_error(err, &path))?
-                .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
-                .then(try_format_object_meta)
-                .boxed()
+
+        let fut = async move {
+            let fut = if self.inner.info().full_capability().list_with_start_after {
+                self.inner
+                    .lister_with(&path)
+                    .start_after(offset.as_ref())
+                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .recursive(true)
+                    .await
+                    .map_err(|err| format_object_store_error(err, &path))?
+                    .then(try_format_object_meta)
+                    .boxed()
+            } else {
+                self.inner
+                    .lister_with(&path)
+                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .recursive(true)
+                    .await
+                    .map_err(|err| format_object_store_error(err, &path))?
+                    .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
+                    .then(try_format_object_meta)
+                    .boxed()
+            };
+            Ok::<_, object_store::Error>(fut)
         };
-        Ok(stream)
+
+        fut.into_stream().try_flatten().boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
@@ -297,7 +333,8 @@ fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
-        e_tag: None,
+        e_tag: meta.etag().map(|x| x.to_string()),
+        version: meta.version().map(|x| x.to_string()),
     }
 }
 
@@ -383,12 +420,7 @@ mod tests {
     async fn test_list() {
         let object_store = create_test_object_store().await;
         let path: Path = "data/".into();
-        let results = object_store
-            .list(Some(&path))
-            .await
-            .unwrap()
-            .collect::<Vec<_>>()
-            .await;
+        let results = object_store.list(Some(&path)).collect::<Vec<_>>().await;
         assert_eq!(results.len(), 2);
         let mut locations = results
             .iter()
@@ -441,8 +473,6 @@ mod tests {
         let offset: Path = "data/nested/test.txt".into();
         let result = object_store
             .list_with_offset(Some(&path), &offset)
-            .await
-            .unwrap()
             .collect::<Vec<_>>()
             .await;
         assert_eq!(result.len(), 1);

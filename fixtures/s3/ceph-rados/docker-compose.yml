@@ -19,7 +19,6 @@ version: '3.8'
 
 networks:
   cluster-net:
-    external: true
     name: ceph-cluster-net
     driver: bridge
 

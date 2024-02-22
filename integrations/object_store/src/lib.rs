@@ -70,14 +70,9 @@ impl ObjectStore for OpendalStore {
             .write(location.as_ref(), bytes)
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-        let meta = self
-            .inner
-            .stat(location.as_ref())
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
         Ok(PutResult {
-            e_tag: meta.etag().map(|x| x.to_string()),
-            version: meta.version().map(|x| x.to_string()),
+            e_tag: None,
+            version: None,
         })
     }
 

@@ -1223,7 +1223,7 @@ struct opendal_error *opendal_operator_create_dir(const struct opendal_operator 
  *
  * assert(error == NULL);
  *
- * // now you can renmae!
+ * // now you can rename!
  * opendal_error *error = opendal_operator_rename(op, "/testpath", "/testpath2");
  *
  * // Assert that this succeeds
@@ -1270,7 +1270,7 @@ struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
  *
  * assert(error == NULL);
  *
- * // now you can renmae!
+ * // now you can rename!
  * opendal_error *error = opendal_operator_copy(op, "/testpath", "/testpath2");
  *
  * // Assert that this succeeds

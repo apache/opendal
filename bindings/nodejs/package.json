@@ -94,14 +94,5 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "packageManager": "pnpm@8.11.0",
-  "optionalDependencies": {
-    "@opendal/lib-win32-x64-msvc": "0.45.1+core.0.45.1",
-    "@opendal/lib-darwin-x64": "0.45.1+core.0.45.1",
-    "@opendal/lib-linux-x64-gnu": "0.45.1+core.0.45.1",
-    "@opendal/lib-darwin-arm64": "0.45.1+core.0.45.1",
-    "@opendal/lib-linux-arm64-gnu": "0.45.1+core.0.45.1",
-    "@opendal/lib-linux-arm64-musl": "0.45.1+core.0.45.1",
-    "@opendal/lib-win32-arm64-msvc": "0.45.1+core.0.45.1"
-  }
+  "packageManager": "pnpm@8.11.0"
 }

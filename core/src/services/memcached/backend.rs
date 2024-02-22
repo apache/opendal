@@ -24,7 +24,7 @@ use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
-use super::ascii;
+use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
@@ -42,6 +42,10 @@ pub struct MemcachedConfig {
     ///
     /// default is "/"
     root: Option<String>,
+    /// Memcached username, optional.
+    username: Option<String>,
+    /// Memcached password, optional.
+    password: Option<String>,
     /// The default ttl for put operations.
     default_ttl: Option<Duration>,
 }
@@ -71,6 +75,18 @@ impl MemcachedBuilder {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
+        self
+    }
+
+    /// set the username.
+    pub fn username(&mut self, username: &str) -> &mut Self {
+        self.config.username = Some(username.to_string());
+        self
+    }
+
+    /// set the password.
+    pub fn password(&mut self, password: &str) -> &mut Self {
+        self.config.password = Some(password.to_string());
         self
     }
 
@@ -151,6 +167,8 @@ impl Builder for MemcachedBuilder {
         let conn = OnceCell::new();
         Ok(MemcachedBackend::new(Adapter {
             endpoint,
+            username: self.config.username.clone(),
+            password: self.config.password.clone(),
             conn,
             default_ttl: self.config.default_ttl,
         })
@@ -164,6 +182,8 @@ pub type MemcachedBackend = kv::Backend<Adapter>;
 #[derive(Clone, Debug)]
 pub struct Adapter {
     endpoint: String,
+    username: Option<String>,
+    password: Option<String>,
     default_ttl: Option<Duration>,
     conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
 }
@@ -173,7 +193,11 @@ impl Adapter {
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(&self.endpoint);
+                let mgr = MemcacheConnectionManager::new(
+                    &self.endpoint,
+                    self.username.clone(),
+                    self.password.clone(),
+                );
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
@@ -237,19 +261,23 @@ impl kv::Adapter for Adapter {
 #[derive(Clone, Debug)]
 struct MemcacheConnectionManager {
     address: String,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl MemcacheConnectionManager {
-    fn new(address: &str) -> Self {
+    fn new(address: &str, username: Option<String>, password: Option<String>) -> Self {
         Self {
             address: address.to_string(),
+            username,
+            password,
         }
     }
 }
 
 #[async_trait]
 impl bb8::ManageConnection for MemcacheConnectionManager {
-    type Connection = ascii::Connection;
+    type Connection = binary::Connection;
     type Error = Error;
 
     /// TODO: Implement unix stream support.
@@ -257,7 +285,12 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
         let conn = TcpStream::connect(&self.address)
             .await
             .map_err(new_std_io_error)?;
-        Ok(ascii::Connection::new(conn))
+        let mut conn = binary::Connection::new(conn);
+
+        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
+            conn.auth(username, password).await?;
+        }
+        Ok(conn)
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {

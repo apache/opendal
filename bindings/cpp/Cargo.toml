@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.44.2+core.0.45.0"
+version = "0.44.3+core.0.45.1"
 
 [lib]
 crate-type = ["staticlib"]
@@ -34,7 +34,7 @@ crate-type = ["staticlib"]
 anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }
 
 [build-dependencies]
 cxx-build = "1.0"

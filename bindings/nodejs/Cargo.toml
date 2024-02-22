@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.45.0+core.0.45.0"
+version = "0.45.1+core.0.45.1"
 
 [features]
 default = [
@@ -47,7 +47,6 @@ default = [
 
 services-all = [
   "default",
-
   "services-alluxio",
   "services-azfile",
   "services-b2",
@@ -157,7 +156,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.14.6"
-opendal = { version = "0.45.0", path = "../../core", features = [
+opendal = { version = "0.45.1", path = "../../core", features = [
   "layers-blocking",
 ] }
 tokio = "1"

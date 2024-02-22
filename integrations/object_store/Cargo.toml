@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.67"
-version = "0.42.0+core.0.45.0"
+version = "0.43.0+core.0.45.1"
 
 [dependencies]
 async-trait = "0.1"
@@ -33,7 +33,7 @@ bytes = "1"
 futures = "0.3"
 futures-util = "0.3"
 object_store = "0.9"
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]

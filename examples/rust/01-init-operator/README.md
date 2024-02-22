@@ -59,11 +59,11 @@ fn main() -> Result<()> {
 
 > `use opendal::Result;`
 
-imports opendal's `Result` which will shadows rust built-in result.
+imports opendal's `Result` which will shadows Rust built-in result.
 
 > `fn main() -> Result<()>`
 
-The way that rust to declare returning types of a function. This case means `main` will return a `Result` which holds `()`.
+The way that Rust to declare returning types of a function. This case means `main` will return a `Result` which holds `()`.
 
 > `()`
 
@@ -85,7 +85,7 @@ let op = init_operator_via_builder()?;
 - `xxx()` means call function that named `xxx`.
 - the `?` is a syntax sugar in Rust that checks if the returned `Result` is an `Err`. If it is, then it immediately returns that error. Otherwise, it returns the value of `Ok`.
 
-So this line will call `init_operator_via_builder` function first and set to variable `op` if it's returns `Ok`.
+So this line will call `init_operator_via_builder` function first and set to variable `op` if it returns `Ok`.
 
 ## Initiate Via Builder
 
@@ -157,12 +157,12 @@ Please feel free to try initiating other services or configuring new settings fo
 
 ## Conclusion
 
-In this chapter we learnt a lot basic concepts in rust! Now we have known that:
+In this chapter we learnt a lot of basic concepts in Rust! Now we know:
 
 - How to define a function that returns something.
 - How to declare an immutable variable.
 - How to call functions in Rust.
 - How to define and use enums.
-- How to handling result.
+- How to handle results.
 
-With our newly acquired rust skills, we can initiate the OpenDAL Operator in two main ways. This knowledge will be used to read and write data to storage in the next chapter!
+With our newly acquired Rust skills, we can initiate the OpenDAL Operator in two main ways. This knowledge will be used to read and write data to storage in the next chapter!

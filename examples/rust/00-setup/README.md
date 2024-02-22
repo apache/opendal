@@ -1,12 +1,12 @@
 # Chapter-00: Set up Your First Rust Project
 
-Welcome to our first chapter. In this example we will set up our first rust project with OpenDAL.
+Welcome to our first chapter. In this example we will set up our first Rust project with OpenDAL.
 
 ## Install Rust
 
 First of all, we need to install Rust. Refer [here](../../../CONTRIBUTING.md#bring-your-own-toolbox) to figure it out.
 
-After rust has been installed, we will have the following components:
+After Rust has been installed, we will have the following components:
 
 - `rustup`: [rustup](https://rust-lang.github.io/rustup/) is a command-line toolchain manager for the Rust programming language. It allows you to easily install, manage, and update different versions of the Rust compiler and associated tools on your system.
 - `cargo`: [cargo](https://doc.rust-lang.org/cargo/index.html) is the package manager and build system for the Rust programming language. It is designed to make it easy to develop, build, and manage Rust projects.
@@ -26,7 +26,7 @@ A typical Rust project follows a specific directory structure. The most simple p
 - `Cargo.toml`: The Cargo.toml file is the manifest file for the project. It specifies metadata about the project, including its name, version, dependencies, and build configuration. It is also where you declare the project's dependencies using the Cargo package manager.
 - `src/`: The `src` directory is where the main source code files of the project reside. It typically contains the Rust source files with the code implementation for the project's functionality.
 
-Let's go into more deep by our example code.
+Let's go into more depth by our example code.
 
 ### `Cargo.toml`
 
@@ -86,7 +86,7 @@ We will see output like:
 Hello, s3
 ```
 
-Congrate! Our first rust project is built and running with success!
+Congrats! Our first Rust project is built and running with success!
 
 After built, we will find that there are some new files created:
 
@@ -95,4 +95,4 @@ After built, we will find that there are some new files created:
 
 ## Conclusion
 
-In this chapter we have learnt the rust project structure and run our first rust example. We will use this knowledge to build our first rust application in the next chapter!
+In this chapter we have learnt the Rust project structure and run our first Rust example. We will use this knowledge to build our first Rust application in the next chapter!

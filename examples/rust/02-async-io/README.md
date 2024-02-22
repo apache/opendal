@@ -1,6 +1,6 @@
 # Chapter-02: Async IO
 
-In [Chapter-01](../01-init-operator/README.md), we learnt how to initiate an `Operator`. All operations in OpenDAL is IO bound which means most of our users will use OpenDAL in an async runtime. This chapter will discuss how to call `Operator` in async runtime and how to use OpenDAL to read and write data!
+In [Chapter-01](../01-init-operator/README.md), we learnt how to initiate an `Operator`. All operations in OpenDAL are IO bound which means most of our users will use OpenDAL in an async runtime. This chapter will discuss how to call `Operator` in async runtime and how to use OpenDAL to read and write data!
 
 ## Warmup
 
@@ -115,7 +115,7 @@ impl Operator {
 
 This API means it accepts any types that implements `Into<Bytes>`. `Bytes` is provided by [`bytes::Bytes`](https://docs.rs/bytes/latest/bytes/struct.Bytes.html), we can find all types that implements `Into<Bytes>` here.
 
-So we can also calling `write` on:
+So we can also call `write` on:
 
 - `Vec<u8>`
 - `String`

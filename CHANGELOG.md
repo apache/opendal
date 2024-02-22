@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.45.1] - 2024-02-22
+
+### Added
+* feat(services/vercel_blob): support vercel blob by @hoslo in https://github.com/apache/opendal/pull/4103
+* feat(bindings/python): add ruff as linter by @asukaminato0721 in https://github.com/apache/opendal/pull/4135
+* feat(services/hdfs-native): Add capabilities for hdfs-native service by @jihuayu in https://github.com/apache/opendal/pull/4174
+* feat(services/sqlite): Add list capability supported for sqlite by @jihuayu in https://github.com/apache/opendal/pull/4180
+* feat(services/azblob): support multi write for azblob by @wcy-fdu in https://github.com/apache/opendal/pull/4181
+* feat(release): Implement releasing OpenDAL components seperately by @Xuanwo in https://github.com/apache/opendal/pull/4196
+* feat: object store adapter based on v0.9 by @waynexia in https://github.com/apache/opendal/pull/4233
+* feat(bin/ofs): implement fuse for linux by @ho-229 in https://github.com/apache/opendal/pull/4179
+### Changed
+* refactor(bindings/python): simplify async writer aexit by @suyanhanx in https://github.com/apache/opendal/pull/4128
+* refactor(service/d1): Add D1Config by @jihuayu in https://github.com/apache/opendal/pull/4129
+### Fixed
+* fix: Azdls returns 403 while continuation contains `=` by @Xuanwo in https://github.com/apache/opendal/pull/4105
+* fix(bindings/python): missed to call close for the file internally by @zzl221000 in https://github.com/apache/opendal/pull/4122
+* fix(bindings/python): sync writer exit close raise error by @suyanhanx in https://github.com/apache/opendal/pull/4127
+* fix(services/chainsafe): fix 423 http status by @hoslo in https://github.com/apache/opendal/pull/4148
+* fix(services/webdav): Add possibility to answer without response if file isn't exist by @AJIOB in https://github.com/apache/opendal/pull/4170
+* fix(services/webdav): Recreate root directory if need by @AJIOB in https://github.com/apache/opendal/pull/4173
+* fix(services/webdav): remove base_dir component by @hoslo in https://github.com/apache/opendal/pull/4231
+* fix(core): Poll TimeoutLayer::sleep once to make sure timer registered by @Xuanwo in https://github.com/apache/opendal/pull/4230
+### Docs
+* docs: add request for add secrets of services by @suyanhanx in https://github.com/apache/opendal/pull/4104
+* docs(website): announce release v0.45.0 to news by @morristai in https://github.com/apache/opendal/pull/4152
+* docs(services/gdrive): Update Google Drive capabilities list docs by @jihuayu in https://github.com/apache/opendal/pull/4158
+* docs: Fix docs build by @Xuanwo in https://github.com/apache/opendal/pull/4162
+* docs: add docs for Ceph Rados Gateway S3 by @ZhengLin-Li in https://github.com/apache/opendal/pull/4190
+* docs: Fix typo in `core/src/services/http/docs.md` by @jbampton in https://github.com/apache/opendal/pull/4226
+* docs: Fix spelling in Rust files by @jbampton in https://github.com/apache/opendal/pull/4227
+* docs: fix typo in `website/README.md` by @jbampton in https://github.com/apache/opendal/pull/4228
+* docs: fix spelling by @jbampton in https://github.com/apache/opendal/pull/4229
+* docs: fix spelling; change `github` to `GitHub` by @jbampton in https://github.com/apache/opendal/pull/4232
+* docs: fix typo by @jbampton in https://github.com/apache/opendal/pull/4234
+* docs: fix typo in `bindings/c/CONTRIBUTING.md` by @jbampton in https://github.com/apache/opendal/pull/4235
+* docs: fix spelling in code comments by @jbampton in https://github.com/apache/opendal/pull/4236
+* docs: fix spelling in `CONTRIBUTING` by @jbampton in https://github.com/apache/opendal/pull/4237
+* docs: fix Markdown link in `bindings/README.md` by @jbampton in https://github.com/apache/opendal/pull/4238
+* docs: fix links and spelling in Markdown by @jbampton in https://github.com/apache/opendal/pull/4239
+* docs: fix grammar and spelling in Markdown in `examples/rust` by @jbampton in https://github.com/apache/opendal/pull/4241
+* docs: remove unneeded duplicate words from Rust files by @jbampton in https://github.com/apache/opendal/pull/4243
+### CI
+* ci: Use old version of seafile mc instead by @Xuanwo in https://github.com/apache/opendal/pull/4107
+* ci: Refactor workflows layout by @Xuanwo in https://github.com/apache/opendal/pull/4139
+* ci: Migrate hdfs default setup by @Xuanwo in https://github.com/apache/opendal/pull/4140
+* ci: Refactor check.sh into check.py to get ready for multi components release by @Xuanwo in https://github.com/apache/opendal/pull/4159
+* ci: Add test case for hdfs over gcs bucket by @ArmandoZ in https://github.com/apache/opendal/pull/4145
+* ci: Add hdfs test case for s3 by @ArmandoZ in https://github.com/apache/opendal/pull/4184
+* ci: Add hdfs test case for azurite by @ArmandoZ in https://github.com/apache/opendal/pull/4185
+* ci: Add support for releasing all rust packages by @Xuanwo in https://github.com/apache/opendal/pull/4200
+* ci: Fix dependabot not update by @Xuanwo in https://github.com/apache/opendal/pull/4202
+* ci: reduce the open pull request limits to 1 by @jbampton in https://github.com/apache/opendal/pull/4225
+### Chore
+* chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4118
+* chore(deps): bump toml from 0.8.8 to 0.8.9 by @dependabot in https://github.com/apache/opendal/pull/4109
+* chore(deps): bump dav-server from 0.5.7 to 0.5.8 by @dependabot in https://github.com/apache/opendal/pull/4111
+* chore(deps): bump assert_cmd from 2.0.12 to 2.0.13 by @dependabot in https://github.com/apache/opendal/pull/4112
+* chore(deps): bump actions/setup-dotnet from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4115
+* chore(deps): bump mongodb from 2.7.1 to 2.8.0 by @dependabot in https://github.com/apache/opendal/pull/4110
+* chore(deps): bump quick-xml from 0.30.0 to 0.31.0 by @dependabot in https://github.com/apache/opendal/pull/4113
+* chore: Make every components seperate, remove workspace by @Xuanwo in https://github.com/apache/opendal/pull/4134
+* chore: Fix build of core by @Xuanwo in https://github.com/apache/opendal/pull/4137
+* chore: Fix workflow links for opendal by @Xuanwo in https://github.com/apache/opendal/pull/4147
+* chore(website): Bump download link for 0.45.0 release by @morristai in https://github.com/apache/opendal/pull/4149
+* chore: Fix name DtraceLayerWrapper by @jayvdb in https://github.com/apache/opendal/pull/4165
+* chore: Align core version by @Xuanwo in https://github.com/apache/opendal/pull/4197
+* chore: update benchmark doc by @wcy-fdu in https://github.com/apache/opendal/pull/4201
+* chore(deps): bump clap from 4.4.18 to 4.5.1 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4221
+* chore(deps): bump serde from 1.0.196 to 1.0.197 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4214
+* chore(deps): bump anyhow from 1.0.79 to 1.0.80 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4209
+* chore(deps): bump anyhow from 1.0.79 to 1.0.80 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4216
+
 ## [v0.45.0] - 2024-01-29
 
 ### Added
@@ -3377,6 +3450,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.45.1]: https://github.com/apache/opendal/compare/v0.45.0...v0.45.1
 [v0.45.0]: https://github.com/apache/opendal/compare/v0.44.2...v0.45.0
 [v0.44.2]: https://github.com/apache/opendal/compare/v0.44.1...v0.44.2
 [v0.44.1]: https://github.com/apache/opendal/compare/v0.44.0...v0.44.1

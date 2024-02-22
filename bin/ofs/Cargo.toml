@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.1+core.0.45.0"
+version = "0.0.2+core.0.45.1"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -35,7 +35,8 @@ clap = { version = "4.5.1", features = ["derive", "env"] }
 env_logger = "0.11.2"
 futures-util = "0.3.30"
 log = "0.4.20"
-opendal = { version = "0.45.0", path = "../../core" }
+nix = { version = "0.27.1", features = ["user"] }
+opendal = { version = "0.45.1", path = "../../core" }
 tokio = { version = "1.34", features = [
   "fs",
   "macros",

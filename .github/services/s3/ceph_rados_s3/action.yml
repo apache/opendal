@@ -25,10 +25,6 @@ runs:
       shell: bash
       working-directory: fixtures/s3/ceph-rados
       run: |
-        # Create Docker network
-        echo "Creating Docker network..."
-        docker network create --driver bridge ceph-cluster-net
-        
         # Start Ceph monitors and manager
         docker-compose up -d mon1 mgr
         
@@ -52,15 +48,8 @@ runs:
         docker-compose up -d rgw1
         docker-compose up -d mds1
         
-        # Enable and configure Ceph Dashboard
-        echo "Enabling and configuring Ceph Dashboard..."
-        docker-compose exec -T mon1 ceph mgr module enable dashboard --force
-        echo "1"
-        docker-compose exec -T mon1 ceph dashboard create-self-signed-cert
-        echo "2"
-        docker-compose exec -T mon1 ceph mgr module disable dashboard
-        echo "3"
-        docker-compose exec mon1 ceph mgr module enable dashboard
+        # Enable
+        echo "Enabling..."
         docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_addr mgr
         docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_port 8443
         docker-compose exec mon1 ceph mgr services
@@ -74,6 +63,8 @@ runs:
     - name: Set up AWS CLI
       shell: bash
       run: |
-        echo "AWS_ACCESS_KEY_ID=ceph_rados_s3_admin" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=ceph_rados_s3_admin" >> $GITHUB_ENV
-        echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
+        cat << EOF >> $GITHUB_ENV
+        AWS_ACCESS_KEY_ID=ceph_rados_s3_admin
+        AWS_SECRET_ACCESS_KEY=ceph_rados_s3_admin
+        AWS_DEFAULT_REGION=us-east-1
+        EOF

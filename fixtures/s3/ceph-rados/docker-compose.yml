@@ -21,6 +21,7 @@ networks:
   cluster-net:
     external: true
     name: ceph-cluster-net
+    driver: bridge
 
 services:
   mon1:

@@ -15,13 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::Result;
 use clap::Parser;
+use url::Url;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let cfg = ofs::Config::parse();
+#[derive(Parser, Debug)]
+#[command(version, about)]
+pub struct Config {
+    /// fuse mount path
+    #[arg(env = "OFS_MOUNT_PATH", index = 1)]
+    pub(crate) mount_path: String,
 
-    env_logger::init();
-    ofs::new_app(cfg).await
+    /// location of opendal service
+    /// format: <scheme>://?<key>=<value>&<key>=<value>
+    /// example: fs://?root=/tmp
+    #[arg(env = "OFS_BACKEND", index = 2)]
+    pub(crate) backend: Url,
 }

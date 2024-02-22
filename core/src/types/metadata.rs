@@ -547,7 +547,7 @@ flags! {
         ContentType,
         /// Key for etag.
         Etag,
-        /// Key for last last modified.
+        /// Key for last modified.
         LastModified,
         /// Key for version.
         Version,

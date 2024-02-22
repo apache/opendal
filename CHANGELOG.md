@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/azblob): support multi write for azblob by @wcy-fdu in https://github.com/apache/opendal/pull/4181
 * feat(release): Implement releasing OpenDAL components seperately by @Xuanwo in https://github.com/apache/opendal/pull/4196
 * feat: object store adapter based on v0.9 by @waynexia in https://github.com/apache/opendal/pull/4233
+* feat(bin/ofs): implement fuse for linux by @ho-229 in https://github.com/apache/opendal/pull/4179
 ### Changed
 * refactor(bindings/python): simplify async writer aexit by @suyanhanx in https://github.com/apache/opendal/pull/4128
 * refactor(service/d1): Add D1Config by @jihuayu in https://github.com/apache/opendal/pull/4129

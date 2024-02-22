@@ -50,10 +50,10 @@ runs:
         
         # Enable
         echo "Enabling..."
-        docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_addr mgr
-        docker-compose exec mon1 ceph config set mgr mgr/dashboard/server_port 8443
-        docker-compose exec mon1 ceph mgr services
-        docker-compose exec mon1 ceph dashboard set-login-credentials admin admin
+        docker-compose exec -T mon1 ceph config set mgr mgr/dashboard/server_addr mgr
+        docker-compose exec -T mon1 ceph config set mgr mgr/dashboard/server_port 8443
+        docker-compose exec -T mon1 ceph mgr services
+        docker-compose exec -T mon1 ceph dashboard set-login-credentials admin admin
         
         # Create RGW user and set credentials
         echo "Creating RGW user and setting credentials..."

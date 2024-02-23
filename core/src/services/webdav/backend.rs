@@ -301,7 +301,7 @@ impl Accessor for WebdavBackend {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "Failed getting item stat: response field was not found",
-                ))
+                ));
             }
         };
 
@@ -379,7 +379,7 @@ impl Accessor for WebdavBackend {
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                let l = WebdavLister::new(&self.root, path, result);
+                let l = WebdavLister::new(&self.endpoint, &self.root, path, result);
 
                 Ok((RpList::default(), Some(oio::PageLister::new(l))))
             }

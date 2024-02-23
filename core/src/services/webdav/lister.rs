@@ -17,10 +17,13 @@
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use std::str::FromStr;
 
 use crate::raw::*;
 use crate::*;
+
 pub struct WebdavLister {
+    server_path: String,
     root: String,
     path: String,
     multistates: Multistatus,
@@ -28,8 +31,14 @@ pub struct WebdavLister {
 
 impl WebdavLister {
     /// TODO: sending request in `next_page` instead of in `new`.
-    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(endpoint: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
+        // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
+        let server_path = http::Uri::from_str(endpoint)
+            .expect("must be valid http uri")
+            .path()
+            .to_string();
         Self {
+            server_path,
             root: root.into(),
             path: path.into(),
             multistates,
@@ -44,7 +53,7 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = res.href.as_str();
+            let path = res.href.trim_start_matches(&self.server_path);
 
             // Ignore the root path itself.
             if self.root == path {
@@ -88,18 +97,18 @@ impl ListOpResponse {
     pub fn parse_into_metadata(&self) -> Result<Metadata> {
         let ListOpResponse {
             propstat:
-                Propstat {
-                    prop:
-                        Prop {
-                            getlastmodified,
-                            getcontentlength,
-                            getcontenttype,
-                            getetag,
-                            resourcetype,
-                            ..
-                        },
-                    status,
+            Propstat {
+                prop:
+                Prop {
+                    getlastmodified,
+                    getcontentlength,
+                    getcontenttype,
+                    getetag,
+                    resourcetype,
+                    ..
                 },
+                status,
+            },
             ..
         } = self;
         if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {

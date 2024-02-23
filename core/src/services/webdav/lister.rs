@@ -53,7 +53,11 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = res.href.trim_start_matches(&self.server_path);
+            let path = match res.href.strip_suffix(&self.server_path) {
+                Some(p) => p,
+                None => &res.href,
+            };
+            let path = if path.is_empty() { "" } else { path };
 
             // Ignore the root path itself.
             if self.root == path {

@@ -2,12 +2,14 @@
 
 **OpenDAL**: Access Data Freely.
 
+<p>
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" height="320px" align="right" />
 
 OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services. Our goal is to deliver a comprehensive solution for any languages, methods, integrations, and services.
 
 [![](https://img.shields.io/badge/maillist-dev%40opendal.apache.org-blue)](mailto:dev@opendal.apache.org)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://discord.gg/XQy8yGR2dg)
+</p>
 
 ## For *ANY* languages
 

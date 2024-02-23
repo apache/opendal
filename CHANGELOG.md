@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/hdfs-native): Add capabilities for hdfs-native service by @jihuayu in https://github.com/apache/opendal/pull/4174
 * feat(services/sqlite): Add list capability supported for sqlite by @jihuayu in https://github.com/apache/opendal/pull/4180
 * feat(services/azblob): support multi write for azblob by @wcy-fdu in https://github.com/apache/opendal/pull/4181
-* feat(release): Implement releasing OpenDAL components seperately by @Xuanwo in https://github.com/apache/opendal/pull/4196
+* feat(release): Implement releasing OpenDAL components separately by @Xuanwo in https://github.com/apache/opendal/pull/4196
 * feat: object store adapter based on v0.9 by @waynexia in https://github.com/apache/opendal/pull/4233
 * feat(bin/ofs): implement fuse for linux by @ho-229 in https://github.com/apache/opendal/pull/4179
 ### Changed
@@ -69,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump actions/setup-dotnet from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4115
 * chore(deps): bump mongodb from 2.7.1 to 2.8.0 by @dependabot in https://github.com/apache/opendal/pull/4110
 * chore(deps): bump quick-xml from 0.30.0 to 0.31.0 by @dependabot in https://github.com/apache/opendal/pull/4113
-* chore: Make every components seperate, remove workspace by @Xuanwo in https://github.com/apache/opendal/pull/4134
+* chore: Make every components separate, remove workspace by @Xuanwo in https://github.com/apache/opendal/pull/4134
 * chore: Fix build of core by @Xuanwo in https://github.com/apache/opendal/pull/4137
 * chore: Fix workflow links for opendal by @Xuanwo in https://github.com/apache/opendal/pull/4147
 * chore(website): Bump download link for 0.45.0 release by @morristai in https://github.com/apache/opendal/pull/4149

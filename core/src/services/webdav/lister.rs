@@ -53,7 +53,7 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = match res.href.strip_suffix(&self.server_path) {
+            let path = match res.href.strip_prefix(&self.server_path) {
                 Some(p) => p,
                 None => &res.href,
             };
@@ -101,18 +101,18 @@ impl ListOpResponse {
     pub fn parse_into_metadata(&self) -> Result<Metadata> {
         let ListOpResponse {
             propstat:
-            Propstat {
-                prop:
-                Prop {
-                    getlastmodified,
-                    getcontentlength,
-                    getcontenttype,
-                    getetag,
-                    resourcetype,
-                    ..
+                Propstat {
+                    prop:
+                        Prop {
+                            getlastmodified,
+                            getcontentlength,
+                            getcontenttype,
+                            getetag,
+                            resourcetype,
+                            ..
+                        },
+                    status,
                 },
-                status,
-            },
             ..
         } = self;
         if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {

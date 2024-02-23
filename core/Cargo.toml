@@ -287,7 +287,7 @@ atomic_lib = { version = "0.34.5", optional = true }
 bb8-postgres = { version = "0.8.1", optional = true }
 tokio-postgres = { version = "0.7.8", optional = true }
 # for services-cacache
-cacache = { version = "12.0", default-features = false, features = [
+cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }

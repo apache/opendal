@@ -36,6 +36,7 @@ impl WebdavLister {
         let server_path = http::Uri::from_str(endpoint)
             .expect("must be valid http uri")
             .path()
+            .trim_end_matches('/')
             .to_string();
         Self {
             server_path,
@@ -53,11 +54,10 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = match res.href.strip_prefix(&self.server_path) {
-                Some(p) => p,
-                None => &res.href,
-            };
-            let path = if path.is_empty() { "/" } else { path };
+            let path = res
+                .href
+                .strip_prefix(&self.server_path)
+                .unwrap_or(&res.href);
 
             // Ignore the root path itself.
             if self.root == path {

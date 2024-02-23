@@ -38,10 +38,6 @@ runs:
         echo "osd max object name len = 256" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
         echo "osd max object namespace len = 64" | sudo tee -a ~/volumes_data/ceph/ceph/ceph.conf
         
-        # Restart monitors and manager
-        echo "Restarting monitors and manager..."
-        docker-compose restart mon1 mgr
-        
         # Start OSDs, RGW, and MDS
         echo "Starting OSDs, RGW, and MDS..."
         docker-compose up -d osd1 osd2 osd3
@@ -55,6 +51,8 @@ runs:
         # Create RGW user and set credentials
         echo "Creating RGW user and setting credentials..."
         docker-compose exec -T mon1 radosgw-admin user create --uid=ceph_rados_s3_admin --display-name="Ceph Rados S3 Admin" --system
+        echo "Completed... "
+
     - name: Set up AWS CLI
       shell: bash
       run: |

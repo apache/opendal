@@ -57,7 +57,7 @@ impl oio::PageList for WebdavLister {
                 Some(p) => p,
                 None => &res.href,
             };
-            let path = if path.is_empty() { "" } else { path };
+            let path = if path.is_empty() { "/" } else { path };
 
             // Ignore the root path itself.
             if self.root == path {
@@ -101,18 +101,18 @@ impl ListOpResponse {
     pub fn parse_into_metadata(&self) -> Result<Metadata> {
         let ListOpResponse {
             propstat:
-                Propstat {
-                    prop:
-                        Prop {
-                            getlastmodified,
-                            getcontentlength,
-                            getcontenttype,
-                            getetag,
-                            resourcetype,
-                            ..
-                        },
-                    status,
+            Propstat {
+                prop:
+                Prop {
+                    getlastmodified,
+                    getcontentlength,
+                    getcontenttype,
+                    getetag,
+                    resourcetype,
+                    ..
                 },
+                status,
+            },
             ..
         } = self;
         if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {

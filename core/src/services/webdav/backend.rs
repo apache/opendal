@@ -179,7 +179,7 @@ impl Builder for WebdavBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {

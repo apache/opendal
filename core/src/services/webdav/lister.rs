@@ -17,10 +17,13 @@
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use std::str::FromStr;
 
 use crate::raw::*;
 use crate::*;
+
 pub struct WebdavLister {
+    server_path: String,
     root: String,
     path: String,
     multistates: Multistatus,
@@ -28,8 +31,15 @@ pub struct WebdavLister {
 
 impl WebdavLister {
     /// TODO: sending request in `next_page` instead of in `new`.
-    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(endpoint: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
+        // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
+        let server_path = http::Uri::from_str(endpoint)
+            .expect("must be valid http uri")
+            .path()
+            .trim_end_matches('/')
+            .to_string();
         Self {
+            server_path,
             root: root.into(),
             path: path.into(),
             multistates,
@@ -44,7 +54,10 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = res.href.as_str();
+            let path = res
+                .href
+                .strip_prefix(&self.server_path)
+                .unwrap_or(&res.href);
 
             // Ignore the root path itself.
             if self.root == path {

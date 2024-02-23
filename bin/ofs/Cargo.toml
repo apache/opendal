@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.2+core.0.45.1"
+version = "0.0.2"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

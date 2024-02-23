@@ -42,7 +42,7 @@ cpufeatures@0.2.12		X							X
 crunchy@0.2.2									X					
 crypto-common@0.1.6		X							X					
 dav-server@0.5.8		X												
-dav-server-opendalfs@0.0.0+core.0.45.1		X												
+dav-server-opendalfs@0.0.1		X												
 der@0.7.8		X							X					
 deranged@0.3.11		X							X					
 digest@0.10.7		X							X					
@@ -115,7 +115,7 @@ num-integer@0.1.45		X							X
 num-iter@0.1.43		X							X					
 num-traits@0.2.17		X							X					
 num_cpus@1.16.0		X							X					
-oay@0.41.1+core.0.45.1		X												
+oay@0.41.1		X												
 object@0.32.2		X							X					
 once_cell@1.19.0		X							X					
 opendal@0.45.1		X												

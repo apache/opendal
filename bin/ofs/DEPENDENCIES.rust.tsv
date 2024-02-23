@@ -5,7 +5,7 @@ aho-corasick@1.1.2								X			X
 android-tzdata@0.1.1		X						X				
 android_system_properties@0.1.5		X						X				
 anstream@0.6.11		X						X				
-anstyle@1.0.5		X						X				
+anstyle@1.0.6		X						X				
 anstyle-parse@0.2.3		X						X				
 anstyle-query@1.0.2		X						X				
 anstyle-wincon@3.0.2		X						X				
@@ -25,7 +25,7 @@ byteorder@1.5.0								X			X
 bytes@1.5.0								X				
 cc@1.0.83		X						X				
 cfg-if@1.0.0		X						X				
-chrono@0.4.33		X						X				
+chrono@0.4.34		X						X				
 clap@4.5.1		X						X				
 clap_builder@4.5.1		X						X				
 clap_derive@4.5.0		X						X				
@@ -47,7 +47,7 @@ dlv-list@0.5.2		X						X
 either@1.9.0		X						X				
 encoding_rs@0.8.33		X		X				X				
 env_filter@0.1.0		X						X				
-env_logger@0.11.1		X						X				
+env_logger@0.11.2		X						X				
 equivalent@1.0.1		X						X				
 fastrand@1.9.0		X						X				
 flagset@0.4.4		X										
@@ -109,7 +109,7 @@ num-iter@0.1.43		X						X
 num-traits@0.2.17		X						X				
 num_cpus@1.16.0		X						X				
 object@0.32.2		X						X				
-ofs@0.0.2+core.0.45.1		X										
+ofs@0.0.2		X										
 once_cell@1.19.0		X						X				
 opendal@0.45.1		X										
 openssl-probe@0.1.5		X						X				
@@ -156,6 +156,7 @@ serde_json@1.0.113		X						X
 serde_urlencoded@0.7.1		X						X				
 sha1@0.10.6		X						X				
 sha2@0.10.8		X						X				
+sharded-slab@0.1.7								X				
 signature@2.2.0		X						X				
 simple_asn1@0.6.2							X					
 slab@0.4.9								X				

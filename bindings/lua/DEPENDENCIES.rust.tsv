@@ -92,7 +92,7 @@ num-traits@0.2.17		X						X
 object@0.32.2		X						X				
 once_cell@1.19.0		X						X				
 opendal@0.45.1		X										
-opendal-lua@0.1.1+core.0.45.1		X										
+opendal-lua@0.1.1		X										
 openssl-probe@0.1.5		X						X				
 ordered-multimap@0.7.1								X				
 pem@3.0.3								X				

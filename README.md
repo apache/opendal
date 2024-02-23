@@ -1,5 +1,7 @@
 # Apache OpenDAL™
 
+<div>
+
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" height="320px" align="right" />
 
 **OpenDAL**: Access Data Freely.
@@ -8,6 +10,8 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 [![](https://img.shields.io/badge/maillist-dev%40opendal.apache.org-blue)](mailto:dev@opendal.apache.org)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://discord.gg/XQy8yGR2dg)
+
+</div>
 
 ## For *ANY* languages
 

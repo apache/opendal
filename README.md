@@ -2,7 +2,7 @@
 
 **OpenDAL**: Access Data Freely.
 
-<img src="https://github.com/apache/opendal/assets/5351546/c81013b2-5455-4950-9d31-dbf272b0799" alt="OpenDAL Architectural" height="320px" align="right" />
+<img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" height="320px" align="right" />
 
 OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services. Our goal is to deliver a comprehensive solution for any languages, methods, integrations, and services.
 

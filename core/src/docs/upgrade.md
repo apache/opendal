@@ -89,7 +89,7 @@ OpenDAL bumps it's MSRV to 1.67.0.
 
 ### Ghac Service Configuration
 
-- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it's could result in unexpected behavior when users create a file with content length `1`. So we remove it.
+- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it could result in unexpected behavior when users create a file with content length `1`. So we remove it.
 
 ### Wasabi Service Removed
 
@@ -150,7 +150,7 @@ for entry in entris {
 - `native_capability` returns `true` if the capability is supported natively.
 - `full_capability` returns `true` if the capability is supported, maybe via a layer.
 
-Most of time, you can use `full_capability` to replace `capability` call. But if to check if the capability is supported natively for better performance design, please use `native_capability` instead.
+Most of time, you can use `full_capability` to replace `capability` call. But to check if the capability is supported natively for better performance design, please use `native_capability` instead.
 
 ### Buffered Writer
 
@@ -223,7 +223,7 @@ OpenDAL add the `Write::sink` API to enable streaming writing. This is a breakin
 
 For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`. 
 
-More detailes could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
+More details could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
 
 # Upgrade to v0.37
 
@@ -277,7 +277,7 @@ let bs = bop.read_with("path/to/file")
 
 Along with this change, users don't need to call `OpXxx` anymore so we moved it to `raw` API.
 
-More detailes could be found at [RFC: Chain Based Operator API][crate::docs::rfcs::rfc_2299_chain_based_operator_api].
+More details could be found at [RFC: Chain Based Operator API][crate::docs::rfcs::rfc_2299_chain_based_operator_api].
 
 ## Raw API
 
@@ -299,7 +299,7 @@ Migrated `opendal::ops` to `opendal::raw::ops`.
 
 ## Public API
 
-- OpenDAL raises it's MSRV to 1.65 for dependences changes
+- OpenDAL raises it's MSRV to 1.65 for dependencies changes
 - `OperatorInfo::can_scan` has been removed, to check if underlying services support scan a dir natively, please use `Capability::list_without_delimiter` instead.
 
 ## Raw API
@@ -369,12 +369,12 @@ opendal = {
 
 In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.
 
-More detailes could be found at [RFC: Remove Object Concept][crate::docs::rfcs::rfc_1477_remove_object_concept].
+More details could be found at [RFC: Remove Object Concept][crate::docs::rfcs::rfc_1477_remove_object_concept].
 
 To upgrade to OpenDAL v0.30, users need to make the following changes:
 
 - regex replace `object\((.*)\).reader\(\)` to `reader($1)`
-	- replace the function on your case, it's recomanded to do it one by one
+	- replace the function on your case, it's recommended to do it one by one
 - rename `ObjectMetakey` => `Metakey`
 - rename `ObjectMode` => `EntryMode`
 - replace `ErrorKind::ObjectXxx` to `ErrorKind::Xxx`
@@ -428,7 +428,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
 ## User defined layers
 
-Due to this change, all layers implementation should be changed. If there is not changed over pager, they can by changed like the following:
+Due to this change, all layers implementation should be changed. If there is not changed over pager, they can be changed like the following:
 
 ```diff
 impl<A: Accessor> LayeredAccessor for MyAccessor<A> {
@@ -485,7 +485,7 @@ Due to this change, we have to refactor the logic of `Operator`'s init logic. In
 + let op = Operator::new(builder.build()?).finish();
 ```
 
-By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily to used everywhere as before.
+By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily used everywhere as before.
 
 ## Accessor
 
@@ -500,7 +500,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 }
 ```
 
-If your service doesn't support `read` or `blocking_read`, we can use `()` to represent an dummy reader:
+If your service doesn't support `read` or `blocking_read`, we can use `()` to represent a dummy reader:
 
 ```rust
 impl Accessor for MyDummyAccessor {

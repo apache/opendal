@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ruby"
 publish = false
-version = "0.1.1+core.0.45.1"
+version = "0.1.1"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

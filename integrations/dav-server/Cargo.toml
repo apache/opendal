@@ -18,7 +18,7 @@
 [package]
 description = "Use OpenDAL as a backend to access data in various service with WebDAV protocol"
 name = "dav-server-opendalfs"
-version = "0.0.0+core.0.45.1"
+version = "0.0.1"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

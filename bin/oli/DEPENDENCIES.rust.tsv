@@ -103,7 +103,7 @@ num-iter@0.1.43		X						X
 num-traits@0.2.17		X						X					
 num_cpus@1.16.0		X						X					
 object@0.32.2		X						X					
-oli@0.41.1+core.0.45.1		X											
+oli@0.41.1		X											
 once_cell@1.19.0		X						X					
 opendal@0.45.1		X											
 openssl-probe@0.1.5		X						X					

@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-linux-arm64-musl",
-  "version": "0.45.1+core.0.45.1",
+  "version": "0.45.1",
   "repository": "git@github.com/apache/opendal.git",
   "os": [
     "linux"

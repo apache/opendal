@@ -92,7 +92,7 @@ num_cpus@1.16.0		X						X
 object@0.32.2		X						X				
 once_cell@1.19.0		X						X				
 opendal@0.45.1		X										
-opendal-java@0.45.1+core.0.45.1		X										
+opendal-java@0.45.1		X										
 openssl-probe@0.1.5		X						X				
 ordered-multimap@0.7.1								X				
 parking_lot@0.12.1		X						X				

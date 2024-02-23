@@ -18,4 +18,4 @@
 mod backend;
 pub use backend::MemcachedBuilder as Memcached;
 pub use backend::MemcachedConfig;
-mod ascii;
+mod binary;

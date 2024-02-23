@@ -5,7 +5,7 @@ This service can be used to:
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
+- [ ] create_dir
 - [x] delete
 - [ ] copy
 - [ ] rename
@@ -17,6 +17,8 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the working directory of `OpenDAL`
+- `username`: Set the username for authentication.
+- `password`: Set the password for authentication.
 - `endpoint`: Set the network address of memcached server
 - `default_ttl`: Set the ttl for memcached service.
 
@@ -37,6 +39,9 @@ async fn main() -> Result<()> {
     let mut builder = Memcached::default();
 
     builder.endpoint("tcp://127.0.0.1:11211");
+    // if you enable authentication, set username and password for authentication
+    // builder.username("admin");
+    // builder.password("password");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

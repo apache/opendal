@@ -26,4 +26,4 @@ This command generates static content into the `build` directory and can be serv
 
 ## Dependencies
 
-Generate dependencies by `npx license-checker --producation --excludePrivatePackages --csv > DEPENDENCIES.node.csv`
+Generate dependencies by `npx license-checker --production --excludePrivatePackages --csv > DEPENDENCIES.node.csv`

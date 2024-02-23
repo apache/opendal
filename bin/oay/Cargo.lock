@@ -109,9 +109,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.79"
+version = "1.0.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
+checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
 
 [[package]]
 name = "async-trait"
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.0.0+core.0.45.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.41.0+core.0.45.0"
+version = "0.41.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1195,7 +1195,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "opendal"
-version = "0.45.0"
+version = "0.45.1"
 dependencies = [
  "anyhow",
  "async-trait",

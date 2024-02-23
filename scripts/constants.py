@@ -77,7 +77,7 @@ def get_package_version(package):
     # cargo_toml not exists, we should handle case by case ideally.
     #
     # However, those packages are not mature enough, it's much easier for us to always return `0.0.0` instead.
-    return f"0.0.0+core.{core_version}"
+    return f"0.0.0"
 
 
 if __name__ == "__main__":

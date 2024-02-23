@@ -10,7 +10,7 @@ This document mainly introduces how a PMC member nominates a new PMC member.
 Start a vote about the candidate via sending email to: <private@opendal.apache.org>:
 
 - candidate_name: The full name of the candidate.
-- candidate_github_id: The github id of the candidate.
+- candidate_github_id: The GitHub id of the candidate.
 
 Title:
 
@@ -23,7 +23,7 @@ Content:
 ```
 Hi, All OpenDAL PMC members.
   
-I would like to nominate ${candidate_name} (github id: ${candidate_github_id}) as a candidate for the OpenDAL PMC member. Since becoming an OpenDAL committer, ${candidate_name} has made significant contributions to various modules of the project.
+I would like to nominate ${candidate_name} (GitHub id: ${candidate_github_id}) as a candidate for the OpenDAL PMC member. Since becoming an OpenDAL committer, ${candidate_name} has made significant contributions to various modules of the project.
 
 ${candidate_name}'s great contributions could be found:
 

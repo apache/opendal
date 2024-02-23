@@ -138,4 +138,4 @@ You can check the follows:
 - Signature of JARs match the bundled signature file.
 - JARs is reproducible locally. This means you can build the JARs on your machine and verify the checksum is the same with the bundled one.
 
-The reproduciblility requires the same JDK distribution and the same Maven distribution. You should use [Eclipse Temurin JDK 8](https://adoptium.net/temurin/releases/?version=8) and the bundled Maven Wrapper to make the same artifacts.
+The reproducibility requires the same JDK distribution and the same Maven distribution. You should use [Eclipse Temurin JDK 8](https://adoptium.net/temurin/releases/?version=8) and the bundled Maven Wrapper to make the same artifacts.

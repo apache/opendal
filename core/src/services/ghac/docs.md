@@ -16,7 +16,7 @@ This service can be used to:
 
 ## Notes
 
-This service is mainly provided by github actions.
+This service is mainly provided by GitHub actions.
 
 Refer to [Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) for more information.
 

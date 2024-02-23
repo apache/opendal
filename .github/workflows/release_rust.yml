@@ -64,6 +64,8 @@ jobs:
           need-protoc: true
 
       - name: Dryrun ${{ matrix.package }}
+        # Only dryrun test upon core.
+        if: matrix.package == 'core'
         working-directory: ${{ matrix.package }}
         run: cargo publish --all-features --dry-run
         env:

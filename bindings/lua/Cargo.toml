@@ -18,7 +18,7 @@
 [package]
 name = "opendal-lua"
 publish = false
-version = "0.1.0+core.0.45.0"
+version = "0.1.1"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -39,4 +39,4 @@ mlua = { version = "0.9", features = [
   "module",
   "macros",
 ], default-features = false, optional = true }
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }

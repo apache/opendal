@@ -16,7 +16,7 @@ This service can be used to:
 
 ## Notes
 
-Only `read` ans `stat` are supported. We can use this service to visit any
+Only `read` and `stat` are supported. We can use this service to visit any
 HTTP Server like nginx, caddy.
 
 ## Configuration

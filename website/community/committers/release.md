@@ -361,7 +361,7 @@ Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 The vote should be open for **at least 72 hours** except the following cases:
 
 1. Security issues
-2. The wild user effected bug fixs
+2. The wild user effected bug fixes
 3. Any other emergency cases
 
 The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.
@@ -413,7 +413,7 @@ Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 git checkout ${release_version}
 # Tag with the opendal version
 git tag -s ${opendal_version}
-# Push tags to github to trigger releases
+# Push tags to GitHub to trigger releases
 git push origin ${opendal_version}
 ```
 

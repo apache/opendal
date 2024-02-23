@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use bytes::Buf;
@@ -180,15 +179,6 @@ impl Builder for WebdavBuilder {
             }
         };
 
-        let uri = http::Uri::from_str(endpoint).map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                .set_source(err)
-                .with_context("service", Scheme::Webdav)
-        })?;
-        // Some webdav server may have base dir like `/remote.php/webdav/`
-        // returned in the `href`.
-        let base_dir = uri.path().trim_end_matches('/');
-
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
@@ -215,7 +205,6 @@ impl Builder for WebdavBuilder {
         debug!("backend build finished: {:?}", &self);
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
-            base_dir: base_dir.to_string(),
             authorization: auth,
             root,
             client,
@@ -227,7 +216,6 @@ impl Builder for WebdavBuilder {
 #[derive(Clone)]
 pub struct WebdavBackend {
     endpoint: String,
-    base_dir: String,
     root: String,
     client: HttpClient,
 
@@ -313,7 +301,7 @@ impl Accessor for WebdavBackend {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "Failed getting item stat: response field was not found",
-                ))
+                ));
             }
         };
 
@@ -391,7 +379,7 @@ impl Accessor for WebdavBackend {
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                let l = WebdavLister::new(&self.base_dir, &self.root, path, result);
+                let l = WebdavLister::new(&self.endpoint, &self.root, path, result);
 
                 Ok((RpList::default(), Some(oio::PageLister::new(l))))
             }

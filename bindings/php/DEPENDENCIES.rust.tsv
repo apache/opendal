@@ -27,7 +27,7 @@ cargo_metadata@0.14.2								X
 cc@1.0.83		X						X				
 cexpr@0.6.0		X						X				
 cfg-if@1.0.0		X						X				
-chrono@0.4.32		X						X				
+chrono@0.4.33		X						X				
 cipher@0.4.4		X						X				
 clang-sys@1.7.0		X										
 const-oid@0.9.6		X						X				
@@ -85,11 +85,11 @@ httparse@1.8.0		X						X
 httpdate@1.0.3		X						X				
 hyper@0.14.28								X				
 hyper-rustls@0.24.2		X					X	X				
-iana-time-zone@0.1.59		X						X				
+iana-time-zone@0.1.60		X						X				
 iana-time-zone-haiku@0.1.2		X						X				
 ident_case@1.0.1		X						X				
 idna@0.5.0		X						X				
-indexmap@2.1.0		X						X				
+indexmap@2.2.2		X						X				
 inout@0.1.3		X						X				
 instant@0.1.12				X								
 ipnet@2.9.0		X						X				
@@ -99,7 +99,7 @@ js-sys@0.3.67		X						X
 jsonwebtoken@9.2.0								X				
 lazy_static@1.4.0		X						X				
 lazycell@1.3.0		X						X				
-libc@0.2.152		X						X				
+libc@0.2.153		X						X				
 libloading@0.8.1							X					
 libm@0.2.8		X						X				
 linux-raw-sys@0.4.13		X	X					X				
@@ -109,19 +109,20 @@ md-5@0.10.6		X						X
 memchr@2.7.1								X			X	
 mime@0.3.17		X						X				
 minimal-lexical@0.2.1		X						X				
-miniz_oxide@0.7.1		X						X				X
+miniz_oxide@0.7.2		X						X				X
 mio@0.8.10								X				
 native-tls@0.2.11		X						X				
 nom@7.1.3								X				
 num-bigint@0.4.4		X						X				
 num-bigint-dig@0.8.4		X						X				
+num-conv@0.1.0		X						X				
 num-integer@0.1.45		X						X				
 num-iter@0.1.43		X						X				
 num-traits@0.2.17		X						X				
 object@0.32.2		X						X				
 once_cell@1.19.0		X						X				
-opendal@0.45.0		X										
-opendal-php@0.1.0		X										
+opendal@0.45.1		X										
+opendal-php@0.1.1		X										
 openssl@0.10.63		X										
 openssl-macros@0.1.1		X						X				
 openssl-probe@0.1.5		X						X				
@@ -135,8 +136,8 @@ peeking_take_while@0.1.2		X						X
 pem@3.0.3								X				
 pem-rfc7468@0.7.0		X						X				
 percent-encoding@2.3.1		X						X				
-pin-project@1.1.3		X						X				
-pin-project-internal@1.1.3		X						X				
+pin-project@1.1.4		X						X				
+pin-project-internal@1.1.4		X						X				
 pin-project-lite@0.2.13		X						X				
 pin-utils@0.1.0		X						X				
 pkcs1@0.7.5		X						X				
@@ -146,8 +147,7 @@ powerfmt@0.2.0		X						X
 ppv-lite86@0.2.17		X						X				
 prettyplease@0.2.16		X						X				
 proc-macro2@1.0.78		X						X				
-pulldown-cmark@0.9.3								X				
-quick-xml@0.30.0								X				
+pulldown-cmark@0.9.6								X				
 quick-xml@0.31.0								X				
 quote@1.0.35		X						X				
 rand@0.8.5		X						X				
@@ -155,16 +155,16 @@ rand_chacha@0.3.1		X						X
 rand_core@0.6.4		X						X				
 redox_syscall@0.4.1								X				
 regex@1.10.3		X						X				
-regex-automata@0.4.4		X						X				
+regex-automata@0.4.5		X						X				
 regex-syntax@0.8.2		X						X				
-reqsign@0.14.6		X										
-reqwest@0.11.23		X						X				
+reqsign@0.14.7		X										
+reqwest@0.11.24		X						X				
 ring@0.17.7									X			
 rsa@0.9.6		X						X				
 rust-ini@0.20.0								X				
 rustc-demangle@0.1.23		X						X				
 rustc-hash@1.1.0		X						X				
-rustix@0.38.30		X	X					X				
+rustix@0.38.31		X	X					X				
 rustls@0.21.10		X					X	X				
 rustls-native-certs@0.6.3		X					X	X				
 rustls-pemfile@1.0.4		X					X	X				
@@ -177,9 +177,9 @@ sct@0.7.1		X					X	X
 security-framework@2.9.2		X						X				
 security-framework-sys@2.9.1		X						X				
 semver@1.0.21		X						X				
-serde@1.0.195		X						X				
-serde_derive@1.0.195		X						X				
-serde_json@1.0.111		X						X				
+serde@1.0.196		X						X				
+serde_derive@1.0.196		X						X				
+serde_json@1.0.113		X						X				
 serde_urlencoded@0.7.1		X						X				
 sha1@0.10.6		X						X				
 sha2@0.10.8		X						X				
@@ -197,18 +197,19 @@ strsim@0.10.0								X
 subtle@2.5.0				X								
 syn@1.0.109		X						X				
 syn@2.0.48		X						X				
+sync_wrapper@0.1.2		X										
 system-configuration@0.5.1		X						X				
 system-configuration-sys@0.5.0		X						X				
 tempfile@3.9.0		X						X				
 thiserror@1.0.56		X						X				
 thiserror-impl@1.0.56		X						X				
-time@0.3.31		X						X				
+time@0.3.34		X						X				
 time-core@0.1.2		X						X				
-time-macros@0.2.16		X						X				
+time-macros@0.2.17		X						X				
 tiny-keccak@2.0.2						X						
 tinyvec@1.6.0		X						X				X
 tinyvec_macros@0.1.1		X						X				X
-tokio@1.35.1								X				
+tokio@1.36.0								X				
 tokio-rustls@0.24.1		X						X				
 tokio-util@0.7.10								X				
 tower-service@0.3.2								X				
@@ -235,7 +236,7 @@ wasm-bindgen-futures@0.4.40		X						X
 wasm-bindgen-macro@0.2.90		X						X				
 wasm-bindgen-macro-support@0.2.90		X						X				
 wasm-bindgen-shared@0.2.90		X						X				
-wasm-streams@0.3.0		X						X				
+wasm-streams@0.4.0		X						X				
 web-sys@0.3.67		X						X				
 which@4.4.2								X				
 winapi@0.3.9		X						X				

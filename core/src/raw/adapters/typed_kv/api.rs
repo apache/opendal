@@ -36,7 +36,7 @@ use crate::Scheme;
 /// # Notes
 ///
 /// `typed_kv::Adapter` is the typed version of `kv::Adapter`. It's more
-/// efficient if the uderlying kv service can store data with its type. For
+/// efficient if the underlying kv service can store data with its type. For
 /// example, we can store `Bytes` along with it's metadata so that we don't
 /// need to serialize/deserialize it when we get it from the service.
 ///
@@ -96,7 +96,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 pub struct Value {
     /// Metadata of this value.
     pub metadata: Metadata,
-    /// The correbonding content of this value.
+    /// The corresponding content of this value.
     pub value: Bytes,
 }
 

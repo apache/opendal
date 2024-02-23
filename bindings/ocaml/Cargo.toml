@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ocaml"
 publish = false
-version = "0.0.0+core.0.45.0"
+version = "0.0.0"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -33,7 +33,7 @@ doc = false
 
 [dependencies]
 ocaml = { version = "^1.0.0-beta" }
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }
 
 [build-dependencies]
 ocaml-build = { version = "^1.0.0-beta" }

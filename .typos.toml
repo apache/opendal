@@ -25,6 +25,8 @@
 "thw" = "thw"
 # Showed up in test.
 "hsa" = "hsa"
+# Tech words
+"WRONLY" = "WRONLY"
 
 [files]
 extend-exclude = [

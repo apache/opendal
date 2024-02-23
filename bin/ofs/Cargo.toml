@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.1+core.0.45.0"
+version = "0.0.2"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -31,15 +31,12 @@ rust-version = "1.67"
 
 [dependencies]
 anyhow = "1"
-async-trait = "0.1.75"
 clap = { version = "4.5.1", features = ["derive", "env"] }
-env_logger = "0.10"
-fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime", "unprivileged"] }
+env_logger = "0.11.2"
 futures-util = "0.3.30"
-libc = "0.2.151"
 log = "0.4.20"
 nix = { version = "0.27.1", features = ["user"] }
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }
 tokio = { version = "1.34", features = [
   "fs",
   "macros",
@@ -47,3 +44,11 @@ tokio = { version = "1.34", features = [
   "io-std",
 ] }
 url = "2.5.0"
+chrono = "0.4.34"
+sharded-slab = "0.1.7"
+bytes = "1.5.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.151"
+fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime", "unprivileged"] }
+nix = { version = "0.27.1", features = ["user"] }

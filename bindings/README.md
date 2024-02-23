@@ -38,4 +38,4 @@ Please refer to the bindings listed above or which are already released for more
 
 ## Contributing
 
-We welcome contributions to OpenDAL. Please refer to [CONTRIBUTING.md](../../CONTRIBUTING.md) for the contributing guidelines.
+We welcome contributions to OpenDAL. Please refer to [CONTRIBUTING.md](../CONTRIBUTING.md) for the contributing guidelines.

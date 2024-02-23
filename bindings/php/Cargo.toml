@@ -18,7 +18,7 @@
 [package]
 name = "opendal-php"
 publish = false
-version = "0.1.0+core.0.45.0"
+version = "0.1.1"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -32,4 +32,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ext-php-rs = "0.11.2"
-opendal = { version = "0.45.0", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core" }

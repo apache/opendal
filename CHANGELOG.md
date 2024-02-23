@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/hdfs-native): Add capabilities for hdfs-native service by @jihuayu in https://github.com/apache/opendal/pull/4174
 * feat(services/sqlite): Add list capability supported for sqlite by @jihuayu in https://github.com/apache/opendal/pull/4180
 * feat(services/azblob): support multi write for azblob by @wcy-fdu in https://github.com/apache/opendal/pull/4181
-* feat(release): Implement releasing OpenDAL components separately by @Xuanwo in https://github.com/apache/opendal/pull/4196
+* feat(release): Implement releasing OpenDAL components seperately by @Xuanwo in https://github.com/apache/opendal/pull/4196
 * feat: object store adapter based on v0.9 by @waynexia in https://github.com/apache/opendal/pull/4233
 * feat(bin/ofs): implement fuse for linux by @ho-229 in https://github.com/apache/opendal/pull/4179
 ### Changed
@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(services/webdav): Recreate root directory if need by @AJIOB in https://github.com/apache/opendal/pull/4173
 * fix(services/webdav): remove base_dir component by @hoslo in https://github.com/apache/opendal/pull/4231
 * fix(core): Poll TimeoutLayer::sleep once to make sure timer registered by @Xuanwo in https://github.com/apache/opendal/pull/4230
+* fix(services/webdav): Fix endpoint suffix not handled by @Xuanwo in https://github.com/apache/opendal/pull/4257
 ### Docs
 * docs: add request for add secrets of services by @suyanhanx in https://github.com/apache/opendal/pull/4104
 * docs(website): announce release v0.45.0 to news by @morristai in https://github.com/apache/opendal/pull/4152
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: fix links and spelling in Markdown by @jbampton in https://github.com/apache/opendal/pull/4239
 * docs: fix grammar and spelling in Markdown in `examples/rust` by @jbampton in https://github.com/apache/opendal/pull/4241
 * docs: remove unneeded duplicate words from Rust files by @jbampton in https://github.com/apache/opendal/pull/4243
+* docs: fix grammar and spelling in Markdown by @jbampton in https://github.com/apache/opendal/pull/4245
 ### CI
 * ci: Use old version of seafile mc instead by @Xuanwo in https://github.com/apache/opendal/pull/4107
 * ci: Refactor workflows layout by @Xuanwo in https://github.com/apache/opendal/pull/4139
@@ -58,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: Add support for releasing all rust packages by @Xuanwo in https://github.com/apache/opendal/pull/4200
 * ci: Fix dependabot not update by @Xuanwo in https://github.com/apache/opendal/pull/4202
 * ci: reduce the open pull request limits to 1 by @jbampton in https://github.com/apache/opendal/pull/4225
+* ci: Remove version suffix from package versions by @Xuanwo in https://github.com/apache/opendal/pull/4254
 ### Chore
 * chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4118
 * chore(deps): bump toml from 0.8.8 to 0.8.9 by @dependabot in https://github.com/apache/opendal/pull/4109
@@ -66,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump actions/setup-dotnet from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4115
 * chore(deps): bump mongodb from 2.7.1 to 2.8.0 by @dependabot in https://github.com/apache/opendal/pull/4110
 * chore(deps): bump quick-xml from 0.30.0 to 0.31.0 by @dependabot in https://github.com/apache/opendal/pull/4113
-* chore: Make every components separate, remove workspace by @Xuanwo in https://github.com/apache/opendal/pull/4134
+* chore: Make every components seperate, remove workspace by @Xuanwo in https://github.com/apache/opendal/pull/4134
 * chore: Fix build of core by @Xuanwo in https://github.com/apache/opendal/pull/4137
 * chore: Fix workflow links for opendal by @Xuanwo in https://github.com/apache/opendal/pull/4147
 * chore(website): Bump download link for 0.45.0 release by @morristai in https://github.com/apache/opendal/pull/4149

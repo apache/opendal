@@ -3,6 +3,7 @@
 .idea
 
 **/target
+**/vendor
 dist/
 
 # env files for backends

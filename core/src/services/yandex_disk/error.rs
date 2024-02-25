@@ -43,6 +43,8 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         400 => (ErrorKind::InvalidInput, false),
         410 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
+        // We should retry it when we get 423 error.
+        423 => (ErrorKind::RateLimited, true),
         499 => (ErrorKind::Unexpected, true),
         503 | 507 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),

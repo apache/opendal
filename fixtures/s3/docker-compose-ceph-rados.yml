@@ -24,7 +24,7 @@ services:
     environment:
       - MON_IP=127.0.0.1
       - CEPH_PUBLIC_NETWORK=0.0.0.0/0
-      - CEPH_DAEMON=MON,OSD,MGR,OSD_DEMO
+      - DEMO_DAEMONS=osd,mds,rgw
       - CEPH_DEMO_UID=demo
       - CEPH_DEMO_ACCESS_KEY=demo
       - CEPH_DEMO_SECRET_KEY=demo
@@ -37,6 +37,12 @@ services:
     volumes:
       - ceph-vol:/var/lib/ceph/
     network_mode: "host"
+    # Give ceph enough time to start up, it's really, really slow.
+    # We will wait up to 10 minutes.
+    healthcheck:
+      test: [ "CMD", "s3cmd", "ls" ]
+      interval: 6s
+      retries: 100
 
 volumes:
   ceph-vol:

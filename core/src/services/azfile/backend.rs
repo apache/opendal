@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
+use madsim::net::rpc::Deserialize;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -39,31 +40,51 @@ use crate::*;
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 /// Azure File services support.
-#[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
-pub struct AzfileBuilder {
+#[derive(Default, Deserialize, Clone)]
+pub struct AzfileConfig {
     root: Option<String>,
     endpoint: Option<String>,
-    account_name: Option<String>,
     share_name: String,
+    account_name: Option<String>,
     account_key: Option<String>,
     sas_token: Option<String>,
-    http_client: Option<HttpClient>,
 }
 
-impl Debug for AzfileBuilder {
+impl Debug for AzfileConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("AzfileConfig");
 
         ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
         ds.field("share_name", &self.share_name);
+        ds.field("endpoint", &self.endpoint);
+
         if self.account_name.is_some() {
             ds.field("account_name", &"<redacted>");
         }
         if self.account_key.is_some() {
             ds.field("account_key", &"<redacted>");
         }
+        if self.sas_token.is_some() {
+            ds.field("sas_token", &"<redacted>");
+        }
+
+        ds.finish()
+    }
+}
+
+/// Azure File services support.
+#[doc = include_str!("docs.md")]
+#[derive(Default, Clone)]
+pub struct AzfileBuilder {
+    config: AzfileConfig,
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for AzfileBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("AzfileBuilder");
+
+        ds.field("config", &self.config);
 
         ds.finish()
     }
@@ -75,7 +96,7 @@ impl AzfileBuilder {
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -85,7 +106,7 @@ impl AzfileBuilder {
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -97,7 +118,7 @@ impl AzfileBuilder {
     /// - If not, we will try to load it from environment.
     pub fn account_name(&mut self, account_name: &str) -> &mut Self {
         if !account_name.is_empty() {
-            self.account_name = Some(account_name.to_string());
+            self.config.account_name = Some(account_name.to_string());
         }
 
         self
@@ -109,7 +130,7 @@ impl AzfileBuilder {
     /// - If not, we will try to load it from environment.
     pub fn account_key(&mut self, account_key: &str) -> &mut Self {
         if !account_key.is_empty() {
-            self.account_key = Some(account_key.to_string());
+            self.config.account_key = Some(account_key.to_string());
         }
 
         self
@@ -121,7 +142,7 @@ impl AzfileBuilder {
     /// You can find more about from: <https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service>
     pub fn share_name(&mut self, share_name: &str) -> &mut Self {
         if !share_name.is_empty() {
-            self.share_name = share_name.to_string();
+            self.config.share_name = share_name.to_string();
         }
 
         self
@@ -144,24 +165,22 @@ impl Builder for AzfileBuilder {
     type Accessor = AzfileBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = AzfileBuilder::default();
+        let config = AzfileConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("account_name").map(|v| builder.account_name(v));
-        map.get("account_key").map(|v| builder.account_key(v));
-        map.get("share_name").map(|v| builder.share_name(v));
-
-        builder
+        AzfileBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
@@ -179,6 +198,7 @@ impl Builder for AzfileBuilder {
         };
 
         let account_name_option = self
+            .config
             .account_name
             .clone()
             .or_else(|| infer_account_name_from_endpoint(endpoint.as_str()));
@@ -194,8 +214,8 @@ impl Builder for AzfileBuilder {
 
         let config_loader = AzureStorageConfig {
             account_name: Some(account_name),
-            account_key: self.account_key.clone(),
-            sas_token: self.sas_token.clone(),
+            account_key: self.config.account_key.clone(),
+            sas_token: self.config.sas_token.clone(),
             ..Default::default()
         };
 
@@ -211,7 +231,7 @@ impl Builder for AzfileBuilder {
                 loader: cred_loader,
                 client,
                 signer,
-                share_name: self.share_name.clone(),
+                share_name: self.config.share_name.clone(),
             }),
         })
     }
@@ -435,7 +455,7 @@ mod tests {
         );
 
         assert_eq!(
-            azfile_builder.account_key.unwrap(),
+            azfile_builder.config.account_key.unwrap(),
             "account-key".to_string()
         );
     }

@@ -22,8 +22,10 @@ use std::str;
 
 use async_trait::async_trait;
 use cacache;
+use madsim::net::rpc::Deserialize;
 
 use crate::raw::adapters::kv;
+use crate::raw::ConfigDeserializer;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -31,17 +33,23 @@ use crate::Scheme;
 use crate::*;
 
 /// cacache service support.
+#[derive(Default, Deserialize, Clone)]
+pub struct CacacheConfig {
+    /// That path to the cacache data directory.
+    datadir: Option<String>,
+}
+
+/// cacache service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CacacheBuilder {
-    /// That path to the cacache data directory.
-    datadir: Option<String>,
+    config: CacacheConfig,
 }
 
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
     pub fn datadir(&mut self, path: &str) -> &mut Self {
-        self.datadir = Some(path.into());
+        self.config.datadir = Some(path.into());
         self
     }
 }
@@ -51,15 +59,14 @@ impl Builder for CacacheBuilder {
     type Accessor = CacacheBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CacacheBuilder::default();
+        let config = CacacheConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("datadir").map(|v| builder.datadir(v));
-
-        builder
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.datadir.take().ok_or_else(|| {
+        let datadir_path = self.config.datadir.take().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Cacache)
         })?;

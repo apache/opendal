@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: reduce the open pull request limits to 1 by @jbampton in https://github.com/apache/opendal/pull/4225
 * ci: Remove version suffix from package versions by @Xuanwo in https://github.com/apache/opendal/pull/4254
 * ci: Fix fuzz test for minio s3 name change by @Xuanwo in https://github.com/apache/opendal/pull/4266
+* ci: Mark python 3.13 is not supported by @Xuanwo in https://github.com/apache/opendal/pull/4269
 ### Chore
 * chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4118
 * chore(deps): bump toml from 0.8.8 to 0.8.9 by @dependabot in https://github.com/apache/opendal/pull/4109

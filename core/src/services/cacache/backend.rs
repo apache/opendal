@@ -22,7 +22,7 @@ use std::str;
 
 use async_trait::async_trait;
 use cacache;
-use madsim::net::rpc::Deserialize;
+use serde::Deserialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::ConfigDeserializer;

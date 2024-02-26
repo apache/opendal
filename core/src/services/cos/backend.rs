@@ -38,6 +38,7 @@ use crate::*;
 
 /// Tencent-Cloud COS services support.
 #[derive(Default, Deserialize, Clone)]
+#[serde(default)]
 pub struct CosConfig {
     root: Option<String>,
     endpoint: Option<String>,

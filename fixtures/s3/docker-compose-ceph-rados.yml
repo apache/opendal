@@ -28,7 +28,8 @@ services:
       - CEPH_DEMO_UID=demo
       - CEPH_DEMO_ACCESS_KEY=demo
       - CEPH_DEMO_SECRET_KEY=demo
-      - CEPH_DEMO_BUCKET=demo
+      # ceph/demo failed to create bucket for us, let's create it by hand.
+      # - CEPH_DEMO_BUCKET=demo
     ports:
       - "8080:8080" # Dashboard
       - "5000:5000" # REST API

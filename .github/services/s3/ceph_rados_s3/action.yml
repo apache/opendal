@@ -26,6 +26,12 @@ runs:
       working-directory: fixtures/s3
       run: docker compose -f docker-compose-ceph-rados.yml up -d --wait
 
+    # ceph/demo has support for CEPH_DEMO_BUCKET, but it doesn't work as expected.
+    - name: Create bucket
+      shell: bash
+      working-directory: fixtures/s3
+      run: docker exec ceph-demo s3cmd mb s3://demo
+
     - name: Setup
       shell: bash
       run: |

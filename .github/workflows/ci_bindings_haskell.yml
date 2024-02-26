@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/haskell/**"
-      - ".github/workflows/bindings_haskell.yml"
+      - ".github/workflows/ci_bindings_haskell.yml"
   workflow_dispatch:
 
 concurrency:

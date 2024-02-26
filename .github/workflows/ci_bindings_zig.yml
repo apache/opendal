@@ -30,7 +30,7 @@ on:
       - "core/**"
       - "bindings/c/**"
       - "bindings/zig/**"
-      - ".github/workflows/bindings_zig.yml"
+      - ".github/workflows/ci_bindings_zig.yml"
   workflow_dispatch:
 
 concurrency:

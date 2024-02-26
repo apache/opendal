@@ -29,7 +29,7 @@ on:
     paths:
       - "bindings/swift/**"
       - "bindings/c/**"
-      - ".github/workflows/bindings_swift.yml"
+      - ".github/workflows/ci_bindings_swift.yml"
   workflow_dispatch:
 
 concurrency:
@@ -45,7 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ ubuntu-latest ]
     steps:
       - uses: actions/checkout@v4
 

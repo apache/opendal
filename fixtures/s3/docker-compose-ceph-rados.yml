@@ -15,24 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: ceph_rados_s3
-description: 'Behavior test for CEPH OBJECT GATEWAY S3'
+version: "3.8"
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup Ceph Rados Server
-      shell: bash
-      working-directory: fixtures/s3
-      run: docker compose -f docker-compose-ceph-rados.yml up -d --wait
+services:
+  ceph-demo:
+    image: quay.io/ceph/demo
+    container_name: ceph-demo
+    environment:
+      - MON_IP=127.0.0.1
+      - CEPH_PUBLIC_NETWORK=0.0.0.0/0
+      - CEPH_DAEMON=MON,OSD,MGR,OSD_DEMO
+      - CEPH_DEMO_UID=demo
+      - CEPH_DEMO_ACCESS_KEY=demo
+      - CEPH_DEMO_SECRET_KEY=demo
+      - CEPH_DEMO_BUCKET=demo
+    ports:
+      - "8080:8080" # Dashboard
+      - "5000:5000" # REST API
+      - "6789:6789" # Ceph monitor
+    volumes:
+      - ceph-vol:/var/lib/ceph/
+    network_mode: "host"
 
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_S3_BUCKET=demo
-        OPENDAL_S3_ENDPOINT=http://127.0.0.1:8080
-        OPENDAL_S3_ACCESS_KEY_ID=demo
-        OPENDAL_S3_SECRET_ACCESS_KEY=demo
-        OPENDAL_S3_REGION=us-east-1
-        EOF
+volumes:
+  ceph-vol:

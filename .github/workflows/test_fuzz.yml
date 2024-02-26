@@ -44,7 +44,7 @@ jobs:
         cases:
           - { service: "memory", setup: "memory" }
           - { service: "fs", setup: "local_fs" }
-          - { service: "s3", setup: "minio_s3" }
+          - { service: "s3", setup: "0_minio_s3" }
           - { service: "azblob", setup: "azurite_azblob" }
     steps:
       - uses: actions/checkout@v4

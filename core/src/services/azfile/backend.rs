@@ -23,10 +23,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
-use madsim::net::rpc::Deserialize;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use serde::Deserialize;
 
 use super::core::AzfileCore;
 use super::error::parse_error;

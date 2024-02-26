@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/cpp/**"
-      - ".github/workflows/bindings_cpp.yml"
+      - ".github/workflows/ci_bindings_cpp.yml"
   workflow_dispatch:
 
 concurrency:

@@ -30,7 +30,7 @@ on:
       - "core/**"
       - "bindings/c/**"
       - "bindings/go/**"
-      - ".github/workflows/bindings_go.yml"
+      - ".github/workflows/ci_bindings_go.yml"
   workflow_dispatch:
 
 concurrency:

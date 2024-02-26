@@ -19,13 +19,15 @@ name: Bindings Python CI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
-      - ".github/workflows/bindings_python.yml"
+      - ".github/workflows/ci_bindings_python.yml"
   workflow_dispatch:
 
 concurrency:
@@ -60,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, aarch64, armv7l]
+        target: [ x86_64, aarch64, armv7l ]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
@@ -123,7 +125,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    needs: [macos, linux, windows]
+    needs: [ macos, linux, windows ]
     steps:
       - uses: actions/download-artifact@v3
         with:

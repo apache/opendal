@@ -29,7 +29,7 @@ on:
     paths:
       - "core/**"
       - "bindings/java/**"
-      - ".github/workflows/bindings_java.yml"
+      - ".github/workflows/ci_bindings_java.yml"
   schedule:
     - cron: '30 1 * * 1'
   workflow_dispatch:

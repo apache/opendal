@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/dotnet/**"
-      - ".github/workflows/bindings_dotnet.yml"
+      - ".github/workflows/ci_bindings_dotnet.yml"
   workflow_dispatch:
 
 concurrency:

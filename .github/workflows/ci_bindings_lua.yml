@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/lua/**"
-      - ".github/workflows/bindings_lua.yml"
+      - ".github/workflows/ci_bindings_lua.yml"
   workflow_dispatch:
 
 concurrency:

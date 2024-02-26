@@ -27,7 +27,7 @@ runs:
       run: |
         mkdir -p artifactory/etc/
         touch artifactory/etc/system.yaml
-        chown -R 1030:1030 artifactory
+        sudo chown -R 1030:1030 artifactory
         docker compose -f docker-compose-webdav-jfrog.yml up -d --wait
 
     - name: Setup

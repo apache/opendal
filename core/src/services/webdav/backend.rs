@@ -53,6 +53,8 @@ pub struct WebdavConfig {
     pub token: Option<String>,
     /// root of this backend
     pub root: Option<String>,
+    /// WebDAV Service doesn't support copy.
+    pub disable_copy: bool,
 }
 
 impl Debug for WebdavConfig {
@@ -157,15 +159,13 @@ impl Builder for WebdavBuilder {
     type Accessor = WebdavBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = WebdavBuilder::default();
+        let config = WebdavConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("username").map(|v| builder.username(v));
-        map.get("password").map(|v| builder.password(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+        WebdavBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -206,6 +206,7 @@ impl Builder for WebdavBuilder {
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
             authorization: auth,
+            disable_copy: self.config.disable_copy,
             root,
             client,
         })
@@ -218,6 +219,7 @@ pub struct WebdavBackend {
     endpoint: String,
     root: String,
     client: HttpClient,
+    disable_copy: bool,
 
     authorization: Option<String>,
 }
@@ -258,7 +260,7 @@ impl Accessor for WebdavBackend {
                 create_dir: true,
                 delete: true,
 
-                copy: true,
+                copy: !self.disable_copy,
 
                 rename: true,
 

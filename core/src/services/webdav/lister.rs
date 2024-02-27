@@ -26,12 +26,12 @@ pub struct WebdavLister {
     server_path: String,
     root: String,
     path: String,
-    multistates: Multistatus,
+    response: Vec<ListOpResponse>,
 }
 
 impl WebdavLister {
     /// TODO: sending request in `next_page` instead of in `new`.
-    pub fn new(endpoint: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(endpoint: &str, root: &str, path: &str, response: Vec<ListOpResponse>) -> Self {
         // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
         let server_path = http::Uri::from_str(endpoint)
             .expect("must be valid http uri")
@@ -42,7 +42,7 @@ impl WebdavLister {
             server_path,
             root: root.into(),
             path: path.into(),
-            multistates,
+            response,
         }
     }
 }
@@ -50,10 +50,7 @@ impl WebdavLister {
 #[async_trait]
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        // Build request instead of clone here.
-        let oes = self.multistates.response.clone();
-
-        for res in oes {
+        for res in &self.response {
             let mut path = res
                 .href
                 .strip_prefix(&self.server_path)
@@ -98,11 +95,6 @@ impl oio::PageList for WebdavLister {
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Multistatus {
-    pub response: Vec<ListOpResponse>,
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct MultistatusOptional {
     pub response: Option<Vec<ListOpResponse>>,
 }
 
@@ -348,10 +340,12 @@ mod tests {
         </D:multistatus>"#;
 
         let multistatus = from_str::<Multistatus>(xml).unwrap();
-        assert_eq!(multistatus.response.len(), 2);
-        assert_eq!(multistatus.response[0].href, "/");
+
+        let response = multistatus.response.unwrap();
+        assert_eq!(response.len(), 2);
+        assert_eq!(response[0].href, "/");
         assert_eq!(
-            multistatus.response[0].propstat.prop.getlastmodified,
+            response[0].propstat.prop.getlastmodified,
             "Tue, 01 May 2022 06:39:47 GMT"
         );
     }
@@ -435,22 +429,23 @@ mod tests {
 
         let multistatus = from_str::<Multistatus>(xml).unwrap();
 
-        assert_eq!(multistatus.response.len(), 3);
-        let first_response = &multistatus.response[0];
+        let response = multistatus.response.unwrap();
+        assert_eq!(response.len(), 3);
+        let first_response = &response[0];
         assert_eq!(first_response.href, "/");
         assert_eq!(
             first_response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 06:39:47 GMT"
         );
 
-        let second_response = &multistatus.response[1];
+        let second_response = &response[1];
         assert_eq!(second_response.href, "/testdir/");
         assert_eq!(
             second_response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 06:40:10 GMT"
         );
 
-        let third_response = &multistatus.response[2];
+        let third_response = &response[2];
         assert_eq!(third_response.href, "/test_file");
         assert_eq!(
             third_response.propstat.prop.getlastmodified,
@@ -567,9 +562,10 @@ mod tests {
 
         let multistatus: Multistatus = from_str(xml).unwrap();
 
-        assert_eq!(multistatus.response.len(), 9);
+        let response = multistatus.response.unwrap();
+        assert_eq!(response.len(), 9);
 
-        let first_response = &multistatus.response[0];
+        let first_response = &response[0];
         assert_eq!(first_response.href, "/");
         assert_eq!(
             first_response.propstat.prop.getlastmodified,

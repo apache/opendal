@@ -32,7 +32,6 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
-use super::lister::MultistatusOptional;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -301,8 +300,7 @@ impl Accessor for WebdavBackend {
         //
         // This is a temporary solution, we should find a better way to handle this.
         let s = s.replace("&()_+-=;", "%26%28%29_%2B-%3D%3B");
-        let result: MultistatusOptional =
-            quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
+        let result: Multistatus = quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
 
         let response = match result.response {
             Some(v) => v,
@@ -387,6 +385,13 @@ impl Accessor for WebdavBackend {
                 let bs = resp.into_body().bytes().await?;
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+                let result = match result.response {
+                    Some(v) => v,
+                    None => {
+                        return Ok((RpList::default(), None));
+                    }
+                };
 
                 let l = WebdavLister::new(&self.endpoint, &self.root, path, result);
 
@@ -605,6 +610,9 @@ impl WebdavBackend {
     }
 
     async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        // Check if the source exists first.
+        self.stat(from, OpStat::new()).await?;
+
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
         // Make sure target's dir is exist.
@@ -676,7 +684,22 @@ impl WebdavBackend {
                 .webdav_propfind_absolute_path(parent, Some(header_map))
                 .await?;
             match resp.status() {
-                StatusCode::OK | StatusCode::MULTI_STATUS => break,
+                StatusCode::OK => {
+                    break;
+                }
+                StatusCode::MULTI_STATUS => {
+                    let bs = resp.into_body().bytes().await?;
+                    let s = String::from_utf8_lossy(&bs);
+                    let result: Multistatus =
+                        quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
+
+                    if result.response.is_some() {
+                        break;
+                    }
+
+                    dirs.push_front(parent);
+                    path = parent
+                }
                 StatusCode::NOT_FOUND => {
                     dirs.push_front(parent);
                     path = parent

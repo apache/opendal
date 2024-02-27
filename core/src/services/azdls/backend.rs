@@ -26,13 +26,13 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use serde::Deserialize;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
-use super::writer::AzdlsWriter;
+use super::writer::{AzdlsWriter, AzdlsWriters};
 use crate::raw::*;
-use crate::services::azdls::writer::AzdlsWriters;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -46,20 +46,18 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 /// Azure Data Lake Storage Gen2 Support.
-#[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
-pub struct AzdlsBuilder {
+#[derive(Default, Deserialize, Clone)]
+pub struct AzdlsConfig {
     root: Option<String>,
     filesystem: String,
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
-    http_client: Option<HttpClient>,
 }
 
-impl Debug for AzdlsBuilder {
+impl Debug for AzdlsConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("AzdlsConfig");
 
         ds.field("root", &self.root);
         ds.field("filesystem", &self.filesystem);
@@ -76,13 +74,31 @@ impl Debug for AzdlsBuilder {
     }
 }
 
+/// Azure Data Lake Storage Gen2 Support.
+#[doc = include_str!("docs.md")]
+#[derive(Default, Clone)]
+pub struct AzdlsBuilder {
+    config: AzdlsConfig,
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for AzdlsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("AzdlsBuilder");
+
+        ds.field("config", &self.config);
+
+        ds.finish()
+    }
+}
+
 impl AzdlsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -90,7 +106,7 @@ impl AzdlsBuilder {
 
     /// Set filesystem name of this backend.
     pub fn filesystem(&mut self, filesystem: &str) -> &mut Self {
-        self.filesystem = filesystem.to_string();
+        self.config.filesystem = filesystem.to_string();
 
         self
     }
@@ -104,7 +120,7 @@ impl AzdlsBuilder {
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -116,7 +132,7 @@ impl AzdlsBuilder {
     /// - If not, we will try to load it from environment.
     pub fn account_name(&mut self, account_name: &str) -> &mut Self {
         if !account_name.is_empty() {
-            self.account_name = Some(account_name.to_string());
+            self.config.account_name = Some(account_name.to_string());
         }
 
         self
@@ -128,7 +144,7 @@ impl AzdlsBuilder {
     /// - If not, we will try to load it from environment.
     pub fn account_key(&mut self, account_key: &str) -> &mut Self {
         if !account_key.is_empty() {
-            self.account_key = Some(account_key.to_string());
+            self.config.account_key = Some(account_key.to_string());
         }
 
         self
@@ -153,19 +169,19 @@ impl Builder for AzdlsBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
-        let filesystem = match self.filesystem.is_empty() {
-            false => Ok(&self.filesystem),
+        let filesystem = match self.config.filesystem.is_empty() {
+            false => Ok(&self.config.filesystem),
             true => Err(Error::new(ErrorKind::ConfigInvalid, "filesystem is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azdls)),
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
@@ -184,10 +200,11 @@ impl Builder for AzdlsBuilder {
 
         let config_loader = AzureStorageConfig {
             account_name: self
+                .config
                 .account_name
                 .clone()
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
-            account_key: self.account_key.clone(),
+            account_key: self.config.account_key.clone(),
             sas_token: None,
             ..Default::default()
         };
@@ -198,7 +215,7 @@ impl Builder for AzdlsBuilder {
         debug!("backend build finished: {:?}", &self);
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
-                filesystem: self.filesystem.clone(),
+                filesystem: self.config.filesystem.clone(),
                 root,
                 endpoint,
                 client,
@@ -209,15 +226,13 @@ impl Builder for AzdlsBuilder {
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = AzdlsBuilder::default();
+        let config = AzdlsConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("filesystem").map(|v| builder.filesystem(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("account_name").map(|v| builder.account_name(v));
-        map.get("account_key").map(|v| builder.account_key(v));
-
-        builder
+        AzdlsBuilder {
+            config,
+            http_client: None,
+        }
     }
 }
 
@@ -467,7 +482,7 @@ mod tests {
         assert_eq!(azdls.core.filesystem, "filesystem".to_string());
 
         assert_eq!(
-            azdls_builder.account_key.unwrap(),
+            azdls_builder.config.account_key.unwrap(),
             "account-key".to_string()
         );
     }
@@ -488,6 +503,6 @@ mod tests {
 
         assert_eq!(azdls.core.filesystem, "filesystem".to_string());
 
-        assert_eq!(azdls_builder.account_key, None);
+        assert_eq!(azdls_builder.config.account_key, None);
     }
 }

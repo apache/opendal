@@ -32,7 +32,6 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use super::lister::Multistatus;
-use super::lister::MultistatusOptional;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -53,6 +52,8 @@ pub struct WebdavConfig {
     pub token: Option<String>,
     /// root of this backend
     pub root: Option<String>,
+    /// WebDAV Service doesn't support copy.
+    pub disable_copy: bool,
 }
 
 impl Debug for WebdavConfig {
@@ -157,15 +158,13 @@ impl Builder for WebdavBuilder {
     type Accessor = WebdavBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = WebdavBuilder::default();
+        let config = WebdavConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("username").map(|v| builder.username(v));
-        map.get("password").map(|v| builder.password(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+        WebdavBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -206,6 +205,7 @@ impl Builder for WebdavBuilder {
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
             authorization: auth,
+            disable_copy: self.config.disable_copy,
             root,
             client,
         })
@@ -218,6 +218,7 @@ pub struct WebdavBackend {
     endpoint: String,
     root: String,
     client: HttpClient,
+    disable_copy: bool,
 
     authorization: Option<String>,
 }
@@ -258,7 +259,7 @@ impl Accessor for WebdavBackend {
                 create_dir: true,
                 delete: true,
 
-                copy: true,
+                copy: !self.disable_copy,
 
                 rename: true,
 
@@ -292,8 +293,14 @@ impl Accessor for WebdavBackend {
         }
 
         let bs = resp.into_body().bytes().await?;
-        let result: MultistatusOptional =
-            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let s = String::from_utf8_lossy(&bs);
+
+        // Make sure the string is escaped.
+        // Related to <https://github.com/tafia/quick-xml/issues/719>
+        //
+        // This is a temporary solution, we should find a better way to handle this.
+        let s = s.replace("&()_+-=;", "%26%28%29_%2B-%3D%3B");
+        let result: Multistatus = quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
 
         let response = match result.response {
             Some(v) => v,
@@ -379,6 +386,13 @@ impl Accessor for WebdavBackend {
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
+                let result = match result.response {
+                    Some(v) => v,
+                    None => {
+                        return Ok((RpList::default(), None));
+                    }
+                };
+
                 let l = WebdavLister::new(&self.endpoint, &self.root, path, result);
 
                 Ok((RpList::default(), Some(oio::PageLister::new(l))))
@@ -421,7 +435,9 @@ impl Accessor for WebdavBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
+            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
+                Ok(RpRename::default())
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -569,6 +585,8 @@ impl WebdavBackend {
     async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
+        // Make sure target's dir is exist.
+        self.ensure_parent_path(&target).await?;
 
         let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
@@ -592,8 +610,13 @@ impl WebdavBackend {
     }
 
     async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        // Check if the source exists first.
+        self.stat(from, OpStat::new()).await?;
+
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
+        // Make sure target's dir is exist.
+        self.ensure_parent_path(&target).await?;
 
         let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
@@ -648,7 +671,7 @@ impl WebdavBackend {
 
         let mut dirs = VecDeque::default();
 
-        while path != "/" {
+        loop {
             // check path first.
             let parent = get_parent(path);
 
@@ -661,12 +684,31 @@ impl WebdavBackend {
                 .webdav_propfind_absolute_path(parent, Some(header_map))
                 .await?;
             match resp.status() {
-                StatusCode::OK | StatusCode::MULTI_STATUS => break,
+                StatusCode::OK => {
+                    break;
+                }
+                StatusCode::MULTI_STATUS => {
+                    let bs = resp.into_body().bytes().await?;
+                    let s = String::from_utf8_lossy(&bs);
+                    let result: Multistatus =
+                        quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
+
+                    if result.response.is_some() {
+                        break;
+                    }
+
+                    dirs.push_front(parent);
+                    path = parent
+                }
                 StatusCode::NOT_FOUND => {
                     dirs.push_front(parent);
                     path = parent
                 }
                 _ => return Err(parse_error(resp).await?),
+            }
+
+            if path == "/" {
+                break;
             }
         }
 

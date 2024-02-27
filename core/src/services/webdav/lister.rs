@@ -65,7 +65,7 @@ impl oio::PageList for WebdavLister {
             }
 
             let normalized_path = build_rel_path(&self.root, path);
-            let decoded_path = percent_decode_path(normalized_path.as_str());
+            let mut decoded_path = percent_decode_path(normalized_path.as_str());
 
             if normalized_path == self.path || decoded_path == self.path {
                 // WebDav server may return the current path as an entry.
@@ -73,6 +73,11 @@ impl oio::PageList for WebdavLister {
             }
 
             let meta = res.parse_into_metadata()?;
+
+            if meta.mode().is_dir() && !decoded_path.ends_with('/') {
+                decoded_path.push('/');
+            }
+
             ctx.entries.push_back(oio::Entry::new(&decoded_path, meta))
         }
         ctx.done = true;

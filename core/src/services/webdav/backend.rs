@@ -292,8 +292,15 @@ impl Accessor for WebdavBackend {
         }
 
         let bs = resp.into_body().bytes().await?;
+        let s = String::from_utf8_lossy(&bs);
+
+        // Make sure the string is escaped.
+        // Related to <https://github.com/tafia/quick-xml/issues/719>
+        //
+        // This is a temporary solution, we should find a better way to handle this.
+        let s = s.replace("&()_+-=;", "%26%28%29_%2B-%3D%3B");
         let result: MultistatusOptional =
-            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+            quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
 
         let response = match result.response {
             Some(v) => v,
@@ -421,7 +428,9 @@ impl Accessor for WebdavBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpRename::default()),
+            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
+                Ok(RpRename::default())
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -569,6 +578,8 @@ impl WebdavBackend {
     async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
+        // Make sure target's dir is exist.
+        self.ensure_parent_path(&target).await?;
 
         let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
@@ -594,6 +605,8 @@ impl WebdavBackend {
     async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
+        // Make sure target's dir is exist.
+        self.ensure_parent_path(&target).await?;
 
         let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));

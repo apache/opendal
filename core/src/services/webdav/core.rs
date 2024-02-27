@@ -111,14 +111,8 @@ impl WebdavCore {
         }
 
         let bs = resp.into_body().bytes().await?;
-        let s = String::from_utf8_lossy(&bs);
-        // Make sure the string is escaped.
-        // Related to <https://github.com/tafia/quick-xml/issues/719>
-        //
-        // This is a temporary solution, we should find a better way to handle this.
-        let s = s.replace("&()_+-=;", "%26%28%29_%2B-%3D%3B");
 
-        let result: Multistatus = quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)?;
+        let result: Multistatus = deserialize_multistatus(&bs)?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -164,7 +158,6 @@ impl WebdavCore {
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
-
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::put(&url);
@@ -191,8 +184,7 @@ impl WebdavCore {
     }
 
     pub async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let path = build_abs_path(&self.root, path);
-
+        let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::delete(&url);
@@ -269,7 +261,7 @@ impl WebdavCore {
         path: &str,
         args: &OpList,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPFIND").uri(&url);
@@ -299,25 +291,21 @@ impl WebdavCore {
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
     pub async fn webdav_mkcol(&self, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
 
         loop {
-            let parent = get_parent(path);
-
-            let result = self.webdav_stat_rooted_abs_path(parent).await;
-            // Dir is exist, break the loop.
-            match result {
+            match self.webdav_stat_rooted_abs_path(path).await {
                 // Dir is exist, break the loop.
                 Ok(_) => {
                     break;
                 }
                 // Dir not found, keep going.
                 Err(err) if err.kind() == ErrorKind::NotFound => {
-                    dirs.push_front(parent);
-                    path = parent;
+                    dirs.push_front(path);
+                    path = get_parent(path);
                 }
                 // Unexpected error found, return it.
                 Err(err) => return Err(err),
@@ -369,6 +357,19 @@ impl WebdavCore {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
+
+pub fn deserialize_multistatus(bs: &[u8]) -> Result<Multistatus> {
+    let s = String::from_utf8_lossy(bs);
+    // HACKS! HACKS! HACKS!
+    //
+    // Make sure the string is escaped.
+    // Related to <https://github.com/tafia/quick-xml/issues/719>
+    //
+    // This is a temporary solution, we should find a better way to handle this.
+    let s = s.replace("&()_+-=;", "%26%28%29_%2B-%3D%3B");
+
+    quick_xml::de::from_str(&s).map_err(new_xml_deserialize_error)
 }
 
 pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {

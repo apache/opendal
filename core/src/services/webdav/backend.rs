@@ -266,7 +266,8 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-
+                // We already support recursive list but some details still need to polish.
+                // list_with_recursive: true,
                 ..Default::default()
             });
 

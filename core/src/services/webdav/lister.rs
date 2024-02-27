@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 use std::sync::Arc;
 
@@ -47,6 +46,16 @@ impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.webdav_list(&self.path, &self.args).await?;
 
+        // jfrog artifactory's webdav services have some strange behavior.
+        // We add this flag to check if the server is jfrog artifactory.
+        //
+        // Example: `"x-jfrog-version": "Artifactory/7.77.5 77705900"`
+        let is_jfrog_artifactory = if let Some(v) = resp.headers().get("x-jfrog-version") {
+            v.to_str().unwrap_or_default().starts_with("Artifactory")
+        } else {
+            false
+        };
+
         let bs = if resp.status().is_success() {
             resp.into_body().bytes().await?
         } else if resp.status() == StatusCode::NOT_FOUND && self.path.ends_with('/') {
@@ -56,8 +65,7 @@ impl oio::PageList for WebdavLister {
             return Err(parse_error(resp).await?);
         };
 
-        let result: Multistatus =
-            quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let result: Multistatus = deserialize_multistatus(&bs)?;
 
         for res in result.response {
             let mut path = res
@@ -79,20 +87,19 @@ impl oio::PageList for WebdavLister {
             }
 
             let normalized_path = build_rel_path(&self.core.root, &path);
-            let decoded_path = percent_decode_path(normalized_path.as_str());
+            let decoded_path = percent_decode_path(&normalized_path);
 
             if normalized_path == self.path || decoded_path == self.path {
-                // WebDav server may return the current path as an entry.
+                // WebDAV server may return the current path as an entry.
                 continue;
             }
 
-            // Mark files complete if it's an `application/x-checksum` file.
+            // HACKS! HACKS! HACKS!
             //
-            // AFAIK, this content type is only used by jfrog artifactory. And this file is
-            // a shadow file that can't be stat, so we mark it as complete.
-            if meta.contains_metakey(Metakey::ContentType)
-                && meta.content_type() == Some("application/x-checksum")
-            {
+            // jfrog artifactory will generate a virtual checksum file for each file.
+            // The checksum file can't be stated, but can be listed and read.
+            // We ignore the checksum files to avoid listing unexpected files.
+            if is_jfrog_artifactory && meta.content_type() == Some("application/x-checksum") {
                 continue;
             }
 

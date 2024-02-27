@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "A Schema for opendal service",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "A description of the service"
+    },
+    "config": {
+      "type": "object",
+      "description": "The config entries for the service",
+      "additionalProperties": {
+        "$ref": "#/definitions/Config"
+      }
+    }
+  },
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "title": "Config",
+      "description": "Config Entry for the service",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "A description of the config entry"
+        },
+        "type": {
+          "type": "string",
+          "description": "The value type of the config entry",
+          "enum": [
+            "string",
+            "usize",
+            "bool"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the config entry is required"
+        },
+        "sensitive": {
+          "type": "boolean",
+          "description": "Whether the config entry is sensitive"
+        },
+        "default": {
+          "type": "string",
+          "description": "The default value of the config entry"
+        },
+        "available": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "available values of the config entry"
+        },
+        "example": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "example values of the config entry"
+        }
+      }
+    }
+  }
+}

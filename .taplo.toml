@@ -45,3 +45,8 @@ reorder_keys = true
 allowed_blank_lines = 1
 # Use CRLF for line endings.
 crlf = false
+
+[[rule]]
+include = ["specs/*.toml"]
+[rule.schema]
+path = "specs/schema.json"

@@ -15,12 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::S3Builder as S3;
-pub use generated::S3Config;
+/// A helper function to mask secret string.
+pub fn mask_secret(s: &str) -> String {
+    // Always use 3 stars to mask the secret if length is low.
+    //
+    // # NOTE
+    //
+    // It's by design to use 10 instead of 6. Attackers could brute force the secrets
+    // if the length is too short.
+    if s.len() <= 10 {
+        return "***".to_string();
+    }
 
-mod core;
-mod error;
-mod generated;
-mod lister;
-mod writer;
+    // Keep the first & end three chars visible for easier debugging.
+    format!("{}***{}", &s[..3], &s[s.len() - 3..])
+}

@@ -408,7 +408,7 @@ impl Accessor for WebdavBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -21,7 +21,8 @@ services:
   jfrog:
     image: releases-docker.jfrog.io/jfrog/artifactory-oss:latest
     ports:
-      - 8081:8081
+      - "8081:8081"
+      - "8082:8082"
     volumes:
       - ./artifactory:/var/opt/jfrog/artifactory
     healthcheck:

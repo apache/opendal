@@ -81,7 +81,9 @@ impl oio::PageList for WebdavLister {
             //
             // AFAIK, this content type is only used by jfrog artifactory. And this file is
             // a shadow file that can't be stat, so we mark it as complete.
-            if meta.content_type() == Some("application/x-checksum") {
+            if meta.contains_metakey(Metakey::ContentType)
+                && meta.content_type() == Some("application/x-checksum")
+            {
                 continue;
             }
 

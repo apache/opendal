@@ -17,23 +17,24 @@
 
 use async_trait::async_trait;
 use http::StatusCode;
+use std::sync::Arc;
 
-use super::backend::WebdavBackend;
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
 pub struct WebdavWriter {
-    backend: WebdavBackend,
+    core: Arc<WebdavCore>,
 
     op: OpWrite,
     path: String,
 }
 
 impl WebdavWriter {
-    pub fn new(backend: WebdavBackend, op: OpWrite, path: String) -> Self {
-        WebdavWriter { backend, op, path }
+    pub fn new(core: Arc<WebdavCore>, op: OpWrite, path: String) -> Self {
+        WebdavWriter { core, op, path }
     }
 }
 
@@ -43,7 +44,7 @@ impl oio::OneShotWrite for WebdavWriter {
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
 
         let resp = self
-            .backend
+            .core
             .webdav_put(
                 &self.path,
                 Some(bs.len() as u64),

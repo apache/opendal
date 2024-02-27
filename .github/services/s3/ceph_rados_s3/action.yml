@@ -15,31 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Python CI
+name: ceph_rados_s3
+description: 'Behavior test for CEPH OBJECT GATEWAY S3'
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/ci_bindings_python.yml"
-      - "bindings/python/**"
-  workflow_dispatch:
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Ceph Rados Server
+      shell: bash
+      working-directory: fixtures/s3
+      run: docker compose -f docker-compose-ceph-rados.yml up -d --wait
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+    # ceph/demo has support for CEPH_DEMO_BUCKET, but it doesn't work as expected.
+    - name: Create bucket
+      shell: bash
+      working-directory: fixtures/s3
+      run: docker exec ceph-demo s3cmd mb s3://demo
 
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Ruff Check
-        working-directory: "bindings/python"
-        run: |
-          pip install ruff
-          ruff check .
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_S3_BUCKET=demo
+        OPENDAL_S3_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_S3_ACCESS_KEY_ID=demo
+        OPENDAL_S3_SECRET_ACCESS_KEY=demo
+        OPENDAL_S3_REGION=us-east-1
+        EOF

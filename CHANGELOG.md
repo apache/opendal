@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(release): Implement releasing OpenDAL components separately by @Xuanwo in https://github.com/apache/opendal/pull/4196
 * feat: object store adapter based on v0.9 by @waynexia in https://github.com/apache/opendal/pull/4233
 * feat(bin/ofs): implement fuse for linux by @ho-229 in https://github.com/apache/opendal/pull/4179
+* feat(services/memcached): change to binary protocol by @hoslo in https://github.com/apache/opendal/pull/4252
+* feat(services/memcached): setup auth test for memcached by @hoslo in https://github.com/apache/opendal/pull/4259
+* feat(services/yandex_disk): setup test for yandex disk by @hoslo in https://github.com/apache/opendal/pull/4264
+* feat: add ci support for ceph_rados by @ZhengLin-Li in https://github.com/apache/opendal/pull/4191
 ### Changed
 * refactor(bindings/python): simplify async writer aexit by @suyanhanx in https://github.com/apache/opendal/pull/4128
 * refactor(service/d1): Add D1Config by @jihuayu in https://github.com/apache/opendal/pull/4129
@@ -29,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(services/webdav): remove base_dir component by @hoslo in https://github.com/apache/opendal/pull/4231
 * fix(core): Poll TimeoutLayer::sleep once to make sure timer registered by @Xuanwo in https://github.com/apache/opendal/pull/4230
 * fix(services/webdav): Fix endpoint suffix not handled by @Xuanwo in https://github.com/apache/opendal/pull/4257
+* fix(services/webdav): Fix possible error with value loosing from config by @AJIOB in https://github.com/apache/opendal/pull/4262
 ### Docs
 * docs: add request for add secrets of services by @suyanhanx in https://github.com/apache/opendal/pull/4104
 * docs(website): announce release v0.45.0 to news by @morristai in https://github.com/apache/opendal/pull/4152
@@ -49,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: fix grammar and spelling in Markdown in `examples/rust` by @jbampton in https://github.com/apache/opendal/pull/4241
 * docs: remove unneeded duplicate words from Rust files by @jbampton in https://github.com/apache/opendal/pull/4243
 * docs: fix grammar and spelling in Markdown by @jbampton in https://github.com/apache/opendal/pull/4245
+* docs: Add architectural.png to website by @Xuanwo in https://github.com/apache/opendal/pull/4261
+* docs: Re-org project README by @Xuanwo in https://github.com/apache/opendal/pull/4260
+* docs: order the README `Who is using OpenDAL` list  by @jbampton in https://github.com/apache/opendal/pull/4263
 ### CI
 * ci: Use old version of seafile mc instead by @Xuanwo in https://github.com/apache/opendal/pull/4107
 * ci: Refactor workflows layout by @Xuanwo in https://github.com/apache/opendal/pull/4139
@@ -61,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: Fix dependabot not update by @Xuanwo in https://github.com/apache/opendal/pull/4202
 * ci: reduce the open pull request limits to 1 by @jbampton in https://github.com/apache/opendal/pull/4225
 * ci: Remove version suffix from package versions by @Xuanwo in https://github.com/apache/opendal/pull/4254
+* ci: Fix fuzz test for minio s3 name change by @Xuanwo in https://github.com/apache/opendal/pull/4266
+* ci: Mark python 3.13 is not supported by @Xuanwo in https://github.com/apache/opendal/pull/4269
 ### Chore
 * chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4118
 * chore(deps): bump toml from 0.8.8 to 0.8.9 by @dependabot in https://github.com/apache/opendal/pull/4109
@@ -80,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump serde from 1.0.196 to 1.0.197 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4214
 * chore(deps): bump anyhow from 1.0.79 to 1.0.80 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4209
 * chore(deps): bump anyhow from 1.0.79 to 1.0.80 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4216
+* chore(deps): bump cacache from 12.0.0 to 13.0.0 in /core by @dependabot in https://github.com/apache/opendal/pull/4215
 
 ## [v0.45.0] - 2024-01-29
 

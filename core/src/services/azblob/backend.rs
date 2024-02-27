@@ -52,6 +52,7 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
+
 /// Azure Storage Blob services support.
 #[derive(Default, Deserialize, Clone)]
 pub struct AzblobConfig {
@@ -124,7 +125,7 @@ pub struct AzblobBuilder {
 
 impl Debug for AzblobBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("AzblobBuilder");
 
         ds.field("config", &self.config);
 

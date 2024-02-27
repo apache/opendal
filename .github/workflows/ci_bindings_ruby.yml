@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/ruby/**"
-      - ".github/workflows/bindings_ruby.yml"
+      - ".github/workflows/ci_bindings_ruby.yml"
   workflow_dispatch:
 
 concurrency:

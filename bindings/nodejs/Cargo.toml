@@ -87,6 +87,7 @@ services-all = [
   "services-upyun",
   "services-vercel-artifacts",
   "services-wasabi",
+  "services-yandex-disk",
 ]
 
 # Default services provided by opendal.
@@ -144,6 +145,7 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-yandex-disk = ["opendal/services-yandex-disk"]
 
 [lib]
 crate-type = ["cdylib"]

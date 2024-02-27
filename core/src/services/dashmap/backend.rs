@@ -21,21 +21,29 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
+use serde::Deserialize;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::ConfigDeserializer;
 use crate::*;
+
+/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
+#[derive(Default, Deserialize, Clone, Debug)]
+pub struct DashmapConfig {
+    root: Option<String>,
+}
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {
-    root: Option<String>,
+    config: DashmapConfig,
 }
 
 impl DashmapBuilder {
     /// Set the root for dashmap.
     pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+        self.config.root = Some(path.into());
         self
     }
 }
@@ -45,18 +53,17 @@ impl Builder for DashmapBuilder {
     type Accessor = DashmapBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
+        let config = DashmapConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-
-        builder
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         Ok(DashmapBackend::new(Adapter {
             inner: DashMap::default(),
         })
-        .with_root(self.root.as_deref().unwrap_or_default()))
+        .with_root(self.config.root.as_deref().unwrap_or_default()))
     }
 }
 

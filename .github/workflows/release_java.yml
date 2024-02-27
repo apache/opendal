@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Java Release
+name: Release Java Binding
 
 on:
   push:
@@ -108,7 +108,7 @@ jobs:
 
   deploy-staged-snapshots:
     runs-on: ubuntu-latest
-    needs: [stage-snapshot]
+    needs: [ stage-snapshot ]
     steps:
       - uses: actions/checkout@v4
         with:

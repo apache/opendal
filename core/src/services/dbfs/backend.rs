@@ -34,17 +34,16 @@ use crate::raw::*;
 use crate::*;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
-#[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
-pub struct DbfsBuilder {
+#[derive(Default, Deserialize, Clone)]
+pub struct DbfsConfig {
     root: Option<String>,
     endpoint: Option<String>,
     token: Option<String>,
 }
 
-impl Debug for DbfsBuilder {
+impl Debug for DbfsConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("DbfsConfig");
 
         ds.field("root", &self.root);
         ds.field("endpoint", &self.endpoint);
@@ -57,13 +56,30 @@ impl Debug for DbfsBuilder {
     }
 }
 
+/// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
+#[doc = include_str!("docs.md")]
+#[derive(Default, Clone)]
+pub struct DbfsBuilder {
+    config: DbfsConfig,
+}
+
+impl Debug for DbfsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("DbfsBuilder");
+
+        ds.field("config", &self.config);
+
+        ds.finish()
+    }
+}
+
 impl DbfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -76,7 +92,7 @@ impl DbfsBuilder {
     /// - Azure: `https://adb-1234567890123456.78.azuredatabricks.net`
     /// - Aws: `https://dbc-123a5678-90bc.cloud.databricks.com`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
@@ -87,7 +103,7 @@ impl DbfsBuilder {
     /// Set the token of this backend.
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -98,22 +114,20 @@ impl Builder for DbfsBuilder {
     type Accessor = DbfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = DbfsBuilder::default();
+        let config = DbfsConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+        Self { config }
     }
 
     /// Build a DbfsBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
@@ -121,7 +135,7 @@ impl Builder for DbfsBuilder {
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 
-        let token = match self.token.take() {
+        let token = match self.config.token.take() {
             Some(token) => token,
             None => {
                 return Err(Error::new(

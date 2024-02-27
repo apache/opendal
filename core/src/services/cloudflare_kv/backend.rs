@@ -31,9 +31,9 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct CloudflareKvBuilder {
+/// Cloudflare Kv Service Support.
+#[derive(Default, Deserialize, Clone)]
+pub struct CloudflareKvConfig {
     /// The token used to authenticate with CloudFlare.
     token: Option<String>,
     /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
@@ -41,18 +41,39 @@ pub struct CloudflareKvBuilder {
     /// The namespace ID. Used as URI path parameter.
     namespace_id: Option<String>,
 
-    /// The HTTP client used to communicate with CloudFlare.
-    http_client: Option<HttpClient>,
     /// Root within this backend.
     root: Option<String>,
+}
+
+impl Debug for CloudflareKvConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("CloudflareKvConfig");
+
+        ds.field("root", &self.root);
+        ds.field("account_id", &self.account_id);
+        ds.field("namespace_id", &self.namespace_id);
+
+        if self.token.is_some() {
+            ds.field("token", &"<redacted>");
+        }
+
+        ds.finish()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct CloudflareKvBuilder {
+    config: CloudflareKvConfig,
+
+    /// The HTTP client used to communicate with CloudFlare.
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CloudFlareKvBuilder")
-            .field("account_id", &self.account_id)
-            .field("namespace_id", &self.namespace_id)
-            .field("root", &self.root)
+            .field("config", &self.config)
             .finish()
     }
 }
@@ -61,7 +82,7 @@ impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string())
+            self.config.token = Some(token.to_string())
         }
         self
     }
@@ -69,7 +90,7 @@ impl CloudflareKvBuilder {
     /// Set the account ID used to authenticate with CloudFlare.
     pub fn account_id(&mut self, account_id: &str) -> &mut Self {
         if !account_id.is_empty() {
-            self.account_id = Some(account_id.to_string())
+            self.config.account_id = Some(account_id.to_string())
         }
         self
     }
@@ -77,7 +98,7 @@ impl CloudflareKvBuilder {
     /// Set the namespace ID.
     pub fn namespace_id(&mut self, namespace_id: &str) -> &mut Self {
         if !namespace_id.is_empty() {
-            self.namespace_id = Some(namespace_id.to_string())
+            self.config.namespace_id = Some(namespace_id.to_string())
         }
         self
     }
@@ -85,7 +106,7 @@ impl CloudflareKvBuilder {
     /// Set the root within this backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
         self
     }
@@ -97,28 +118,29 @@ impl Builder for CloudflareKvBuilder {
     type Accessor = CloudflareKvBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-        map.get("token").map(|v| builder.token(v));
-        map.get("account_id").map(|v| builder.account_id(v));
-        map.get("namespace_id").map(|v| builder.namespace_id(v));
-        map.get("root").map(|v| builder.root(v));
-        builder
+        let config = CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
+
+        Self {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let authorization = match &self.token {
+        let authorization = match &self.config.token {
             Some(token) => format_authorization_by_bearer(token)?,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
         };
 
-        let Some(account_id) = self.account_id.clone() else {
+        let Some(account_id) = self.config.account_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "account_id is required",
             ));
         };
 
-        let Some(namespace_id) = self.namespace_id.clone() else {
+        let Some(namespace_id) = self.config.namespace_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "namespace_id is required",
@@ -135,7 +157,8 @@ impl Builder for CloudflareKvBuilder {
         };
 
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
@@ -271,7 +294,7 @@ impl kv::Adapter for Adapter {
                 let body = resp.into_body().bytes().await?;
                 let response: CfKvScanResponse = serde_json::from_slice(&body).map_err(|e| {
                     Error::new(
-                        crate::ErrorKind::Unexpected,
+                        ErrorKind::Unexpected,
                         &format!("failed to parse error response: {}", e),
                     )
                 })?;

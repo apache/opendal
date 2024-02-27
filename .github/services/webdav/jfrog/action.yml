@@ -25,9 +25,8 @@ runs:
       shell: bash
       working-directory: fixtures/webdav
       run: |
-        mkdir -p artifactory/etc/
-        touch artifactory/etc/system.yaml
-        sudo chown -R 1030:1030 artifactory
+        # Can we remove this?
+        # touch artifactory/etc/system.yaml
         docker compose -f docker-compose-webdav-jfrog.yml up -d --wait
 
     - name: Setup

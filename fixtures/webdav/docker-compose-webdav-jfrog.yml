@@ -24,9 +24,12 @@ services:
       - "8081:8081"
       - "8082:8082"
     volumes:
-      - ./artifactory:/var/opt/jfrog/artifactory
+      - jfrog-data:/var/opt/jfrog/artifactory
     healthcheck:
-      test: ["CMD", "curl", "-f", "-X", "PROPFIND", "-H", "Depth: 1", "-u", "admin:password", "http://localhost:8081/artifactory/example-repo-local"]
+      test: [ "CMD", "curl", "-f", "-X", "PROPFIND", "-H", "Depth: 1", "-u", "admin:password", "http://localhost:8081/artifactory/example-repo-local" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  jfrog-data:

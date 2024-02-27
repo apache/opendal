@@ -60,7 +60,7 @@ impl oio::PageList for WebdavLister {
                 .unwrap_or(&res.href);
 
             // Ignore the root path itself.
-            if self.root == path {
+            if self.root == path || self.root.trim_end_matches('/') == path {
                 continue;
             }
 

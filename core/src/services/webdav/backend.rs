@@ -663,7 +663,7 @@ impl WebdavBackend {
 
         let mut dirs = VecDeque::default();
 
-        while path != "/" {
+        loop {
             // check path first.
             let parent = get_parent(path);
 
@@ -682,6 +682,10 @@ impl WebdavBackend {
                     path = parent
                 }
                 _ => return Err(parse_error(resp).await?),
+            }
+
+            if path == "/" {
+                break;
             }
         }
 

@@ -54,28 +54,38 @@ impl oio::PageList for WebdavLister {
         let oes = self.multistates.response.clone();
 
         for res in oes {
-            let path = res
+            let mut path = res
                 .href
                 .strip_prefix(&self.server_path)
-                .unwrap_or(&res.href);
+                .unwrap_or(&res.href)
+                .to_string();
+
+            let meta = res.parse_into_metadata()?;
+
+            // Append `/` to path if it's a dir
+            if !path.ends_with('/') && meta.is_dir() {
+                path += "/"
+            }
 
             // Ignore the root path itself.
-            if self.root == path || self.root.trim_end_matches('/') == path {
+            if self.root == path {
                 continue;
             }
 
-            let normalized_path = build_rel_path(&self.root, path);
-            let mut decoded_path = percent_decode_path(normalized_path.as_str());
+            let normalized_path = build_rel_path(&self.root, &path);
+            let decoded_path = percent_decode_path(normalized_path.as_str());
 
             if normalized_path == self.path || decoded_path == self.path {
                 // WebDav server may return the current path as an entry.
                 continue;
             }
 
-            let meta = res.parse_into_metadata()?;
-
-            if meta.mode().is_dir() && !decoded_path.ends_with('/') {
-                decoded_path.push('/');
+            // Mark files complete if it's an `application/x-checksum` file.
+            //
+            // AFAIK, this content type is only used by jfrog artifactory. And this file is
+            // a shadow file that can't be stat, so we mark it as complete.
+            if meta.content_type() == Some("application/x-checksum") {
+                continue;
             }
 
             ctx.entries.push_back(oio::Entry::new(&decoded_path, meta))

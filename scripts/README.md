@@ -13,14 +13,6 @@ NOTES: all scripts must be running at root folder of OpenDAL project.
 
 > Before running release, please make sure you have bump all versions.
 
-## Check
-
-```shell
-./scripts/check.py
-```
-
-> Before running the check, please ensure that you have completed the following preparations.
-
 ### Preparations
 
 Import gpg key

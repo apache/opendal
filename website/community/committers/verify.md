@@ -103,7 +103,7 @@ git clone https://github.com/apache/opendal
 Run the script in a specific release candidate's folder:
 
 ```shell
-./scripts/check.py
+./scripts/verify.py
 ```
 
 You will see the following output if the verification is successful:

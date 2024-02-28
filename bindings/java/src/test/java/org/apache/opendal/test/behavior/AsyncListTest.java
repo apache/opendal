@@ -23,13 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
 import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
@@ -92,7 +90,7 @@ class AsyncListTest extends BehaviorTestBase {
 
         final List<Entry> entries = op().list(parent + "/").join();
         final List<String> actual =
-            entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+                entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
 
         Collections.sort(expected);
         assertThat(actual).isEqualTo(expected);
@@ -187,7 +185,7 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testRemoveAll() {
         final String parent = UUID.randomUUID().toString();
-        final String[] expected = new String[]{
+        final String[] expected = new String[] {
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         };
         for (String path : expected) {
@@ -205,8 +203,8 @@ class AsyncListTest extends BehaviorTestBase {
                 continue;
             }
             assertThatThrownBy(() ->
-                op().stat(String.format("%s/%s", parent, path)).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                            op().stat(String.format("%s/%s", parent, path)).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
         }
 
         op().removeAll(parent + "/").join();

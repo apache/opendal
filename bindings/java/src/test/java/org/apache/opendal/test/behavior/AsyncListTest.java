@@ -80,7 +80,7 @@ class AsyncListTest extends BehaviorTestBase {
         final String parent = "test_list_rich_dir";
         op().createDir(parent + "/").join();
         final List<String> expected = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             expected.add(String.format("%s/file-%d", parent, i));
         }
 

@@ -23,6 +23,6 @@ You can start discussing the project ideas with OpenDAL Project maintainers imme
 
 If you are interested in contributing to the OpenDAL Project, we encourage you to check out our project idea list and send us a GSoC project proposal! Of course, you are also free to discuss these projects and/or try to move them forward even if you do not intend to (or cannot) participate in GSoC. We welcome all contributors to OpenDAL, as there is always enough work to do.
 
-we are excited about this event. Hoping you all feel the same way!
+We are excited about this event. Hoping you all feel the same way!
 
 > This announcement is inspired a lot by the [Rust participates in Google Summer of Code 2024](https://blog.rust-lang.org/2024/02/21/Rust-participates-in-GSoC-2024.html). 

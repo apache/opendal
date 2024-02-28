@@ -19,6 +19,7 @@ mod backend;
 pub use backend::WebdavBuilder as Webdav;
 pub use backend::WebdavConfig;
 
+mod core;
 mod error;
 mod lister;
 mod writer;

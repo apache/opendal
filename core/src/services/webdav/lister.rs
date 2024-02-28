@@ -16,33 +16,27 @@
 // under the License.
 
 use async_trait::async_trait;
-use serde::Deserialize;
-use std::str::FromStr;
+use http::StatusCode;
+use std::sync::Arc;
 
+use super::core::*;
+use super::error::*;
 use crate::raw::*;
 use crate::*;
 
 pub struct WebdavLister {
-    server_path: String,
-    root: String,
+    core: Arc<WebdavCore>,
+
     path: String,
-    response: Vec<ListOpResponse>,
+    args: OpList,
 }
 
 impl WebdavLister {
-    /// TODO: sending request in `next_page` instead of in `new`.
-    pub fn new(endpoint: &str, root: &str, path: &str, response: Vec<ListOpResponse>) -> Self {
-        // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
-        let server_path = http::Uri::from_str(endpoint)
-            .expect("must be valid http uri")
-            .path()
-            .trim_end_matches('/')
-            .to_string();
+    pub fn new(core: Arc<WebdavCore>, path: &str, args: OpList) -> Self {
         Self {
-            server_path,
-            root: root.into(),
-            path: path.into(),
-            response,
+            core,
+            path: path.to_string(),
+            args,
         }
     }
 }
@@ -50,14 +44,37 @@ impl WebdavLister {
 #[async_trait]
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        for res in &self.response {
+        let resp = self.core.webdav_list(&self.path, &self.args).await?;
+
+        // jfrog artifactory's webdav services have some strange behavior.
+        // We add this flag to check if the server is jfrog artifactory.
+        //
+        // Example: `"x-jfrog-version": "Artifactory/7.77.5 77705900"`
+        let is_jfrog_artifactory = if let Some(v) = resp.headers().get("x-jfrog-version") {
+            v.to_str().unwrap_or_default().starts_with("Artifactory")
+        } else {
+            false
+        };
+
+        let bs = if resp.status().is_success() {
+            resp.into_body().bytes().await?
+        } else if resp.status() == StatusCode::NOT_FOUND && self.path.ends_with('/') {
+            ctx.done = true;
+            return Ok(());
+        } else {
+            return Err(parse_error(resp).await?);
+        };
+
+        let result: Multistatus = deserialize_multistatus(&bs)?;
+
+        for res in result.response {
             let mut path = res
                 .href
-                .strip_prefix(&self.server_path)
+                .strip_prefix(&self.core.server_path)
                 .unwrap_or(&res.href)
                 .to_string();
 
-            let meta = res.parse_into_metadata()?;
+            let meta = parse_propstat(&res.propstat)?;
 
             // Append `/` to path if it's a dir
             if !path.ends_with('/') && meta.is_dir() {
@@ -65,25 +82,24 @@ impl oio::PageList for WebdavLister {
             }
 
             // Ignore the root path itself.
-            if self.root == path {
+            if self.core.root == path {
                 continue;
             }
 
-            let normalized_path = build_rel_path(&self.root, &path);
-            let decoded_path = percent_decode_path(normalized_path.as_str());
+            let normalized_path = build_rel_path(&self.core.root, &path);
+            let decoded_path = percent_decode_path(&normalized_path);
 
             if normalized_path == self.path || decoded_path == self.path {
-                // WebDav server may return the current path as an entry.
+                // WebDAV server may return the current path as an entry.
                 continue;
             }
 
-            // Mark files complete if it's an `application/x-checksum` file.
+            // HACKS! HACKS! HACKS!
             //
-            // AFAIK, this content type is only used by jfrog artifactory. And this file is
-            // a shadow file that can't be stat, so we mark it as complete.
-            if meta.contains_metakey(Metakey::ContentType)
-                && meta.content_type() == Some("application/x-checksum")
-            {
+            // jfrog artifactory will generate a virtual checksum file for each file.
+            // The checksum file can't be stated, but can be listed and read.
+            // We ignore the checksum files to avoid listing unexpected files.
+            if is_jfrog_artifactory && meta.content_type() == Some("application/x-checksum") {
                 continue;
             }
 
@@ -92,486 +108,5 @@ impl oio::PageList for WebdavLister {
         ctx.done = true;
 
         Ok(())
-    }
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct Multistatus {
-    pub response: Option<Vec<ListOpResponse>>,
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct ListOpResponse {
-    pub href: String,
-    pub propstat: Propstat,
-}
-
-impl ListOpResponse {
-    pub fn parse_into_metadata(&self) -> Result<Metadata> {
-        let ListOpResponse {
-            propstat:
-                Propstat {
-                    prop:
-                        Prop {
-                            getlastmodified,
-                            getcontentlength,
-                            getcontenttype,
-                            getetag,
-                            resourcetype,
-                            ..
-                        },
-                    status,
-                },
-            ..
-        } = self;
-        if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {
-            // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
-            let code = code.parse::<u16>().unwrap();
-            if code >= 400 {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("Invalid response: {} {}", code, text),
-                ));
-            }
-        }
-
-        let mode: EntryMode = if resourcetype.value == Some(ResourceType::Collection) {
-            EntryMode::DIR
-        } else {
-            EntryMode::FILE
-        };
-        let mut m = Metadata::new(mode);
-
-        if let Some(v) = getcontentlength {
-            m.set_content_length(v.parse::<u64>().unwrap());
-        }
-
-        if let Some(v) = getcontenttype {
-            m.set_content_type(v);
-        }
-
-        if let Some(v) = getetag {
-            m.set_etag(v);
-        }
-
-        // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-        m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
-        Ok(m)
-    }
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct Propstat {
-    pub prop: Prop,
-    pub status: String,
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct Prop {
-    #[serde(default)]
-    pub displayname: String,
-    pub getlastmodified: String,
-    pub getetag: Option<String>,
-    pub getcontentlength: Option<String>,
-    pub getcontenttype: Option<String>,
-    pub resourcetype: ResourceTypeContainer,
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct ResourceTypeContainer {
-    #[serde(rename = "$value")]
-    pub value: Option<ResourceType>,
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum ResourceType {
-    Collection,
-}
-
-#[cfg(test)]
-mod tests {
-    use quick_xml::de::from_str;
-
-    use super::*;
-
-    #[test]
-    fn test_propstat() {
-        let xml = r#"<D:propstat>
-            <D:prop>
-                <D:displayname>/</D:displayname>
-                <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
-                <D:resourcetype><D:collection/></D:resourcetype>
-                <D:lockdiscovery/>
-                <D:supportedlock>
-                    <D:lockentry>
-                        <D:lockscope><D:exclusive/></D:lockscope>
-                        <D:locktype><D:write/></D:locktype>
-                    </D:lockentry>
-                </D:supportedlock>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-        </D:propstat>"#;
-
-        let propstat = from_str::<Propstat>(xml).unwrap();
-        assert_eq!(
-            propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
-        );
-        assert_eq!(
-            propstat.prop.resourcetype.value.unwrap(),
-            ResourceType::Collection
-        );
-
-        assert_eq!(propstat.status, "HTTP/1.1 200 OK");
-    }
-
-    #[test]
-    fn test_response_simple() {
-        let xml = r#"<D:response>
-            <D:href>/</D:href>
-            <D:propstat>
-                <D:prop>
-                    <D:displayname>/</D:displayname>
-                    <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
-                    <D:resourcetype><D:collection/></D:resourcetype>
-                    <D:lockdiscovery/>
-                    <D:supportedlock>
-                        <D:lockentry>
-                            <D:lockscope><D:exclusive/></D:lockscope>
-                            <D:locktype><D:write/></D:locktype>
-                        </D:lockentry>
-                    </D:supportedlock>
-                </D:prop>
-                <D:status>HTTP/1.1 200 OK</D:status>
-            </D:propstat>
-        </D:response>"#;
-
-        let response = from_str::<ListOpResponse>(xml).unwrap();
-        assert_eq!(response.href, "/");
-
-        assert_eq!(response.propstat.prop.displayname, "/");
-
-        assert_eq!(
-            response.propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
-        );
-        assert_eq!(
-            response.propstat.prop.resourcetype.value.unwrap(),
-            ResourceType::Collection
-        );
-        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
-    }
-
-    #[test]
-    fn test_response_file() {
-        let xml = r#"<D:response>
-        <D:href>/test_file</D:href>
-        <D:propstat>
-          <D:prop>
-            <D:displayname>test_file</D:displayname>
-            <D:getcontentlength>1</D:getcontentlength>
-            <D:getlastmodified>Tue, 07 May 2022 05:52:22 GMT</D:getlastmodified>
-            <D:resourcetype></D:resourcetype>
-            <D:lockdiscovery />
-            <D:supportedlock>
-              <D:lockentry>
-                <D:lockscope>
-                  <D:exclusive />
-                </D:lockscope>
-                <D:locktype>
-                  <D:write />
-                </D:locktype>
-              </D:lockentry>
-            </D:supportedlock>
-          </D:prop>
-          <D:status>HTTP/1.1 200 OK</D:status>
-        </D:propstat>
-      </D:response>"#;
-
-        let response = from_str::<ListOpResponse>(xml).unwrap();
-        assert_eq!(response.href, "/test_file");
-        assert_eq!(
-            response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 05:52:22 GMT"
-        );
-        assert_eq!(response.propstat.prop.getcontentlength.unwrap(), "1");
-        assert_eq!(response.propstat.prop.resourcetype.value, None);
-        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
-    }
-
-    #[test]
-    fn test_with_multiple_items_simple() {
-        let xml = r#"<D:multistatus xmlns:D="DAV:">
-        <D:response>
-        <D:href>/</D:href>
-        <D:propstat>
-            <D:prop>
-                <D:displayname>/</D:displayname>
-                <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
-                <D:resourcetype><D:collection/></D:resourcetype>
-                <D:lockdiscovery/>
-                <D:supportedlock>
-                    <D:lockentry>
-                        <D:lockscope><D:exclusive/></D:lockscope>
-                        <D:locktype><D:write/></D:locktype>
-                    </D:lockentry>
-                </D:supportedlock>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-        </D:propstat>
-    </D:response>
-    <D:response>
-            <D:href>/</D:href>
-            <D:propstat>
-                <D:prop>
-                    <D:displayname>/</D:displayname>
-                    <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
-                    <D:resourcetype><D:collection/></D:resourcetype>
-                    <D:lockdiscovery/>
-                    <D:supportedlock>
-                        <D:lockentry>
-                            <D:lockscope><D:exclusive/></D:lockscope>
-                            <D:locktype><D:write/></D:locktype>
-                        </D:lockentry>
-                    </D:supportedlock>
-                </D:prop>
-                <D:status>HTTP/1.1 200 OK</D:status>
-            </D:propstat>
-        </D:response>
-        </D:multistatus>"#;
-
-        let multistatus = from_str::<Multistatus>(xml).unwrap();
-
-        let response = multistatus.response.unwrap();
-        assert_eq!(response.len(), 2);
-        assert_eq!(response[0].href, "/");
-        assert_eq!(
-            response[0].propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
-        );
-    }
-
-    #[test]
-    fn test_with_multiple_items_mixed() {
-        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <D:multistatus xmlns:D="DAV:">
-          <D:response>
-            <D:href>/</D:href>
-            <D:propstat>
-              <D:prop>
-                <D:displayname>/</D:displayname>
-                <D:getlastmodified>Tue, 07 May 2022 06:39:47 GMT</D:getlastmodified>
-                <D:resourcetype>
-                  <D:collection />
-                </D:resourcetype>
-                <D:lockdiscovery />
-                <D:supportedlock>
-                  <D:lockentry>
-                    <D:lockscope>
-                      <D:exclusive />
-                    </D:lockscope>
-                    <D:locktype>
-                      <D:write />
-                    </D:locktype>
-                  </D:lockentry>
-                </D:supportedlock>
-              </D:prop>
-              <D:status>HTTP/1.1 200 OK</D:status>
-            </D:propstat>
-          </D:response>
-          <D:response>
-            <D:href>/testdir/</D:href>
-            <D:propstat>
-              <D:prop>
-                <D:displayname>testdir</D:displayname>
-                <D:getlastmodified>Tue, 07 May 2022 06:40:10 GMT</D:getlastmodified>
-                <D:resourcetype>
-                  <D:collection />
-                </D:resourcetype>
-                <D:lockdiscovery />
-                <D:supportedlock>
-                  <D:lockentry>
-                    <D:lockscope>
-                      <D:exclusive />
-                    </D:lockscope>
-                    <D:locktype>
-                      <D:write />
-                    </D:locktype>
-                  </D:lockentry>
-                </D:supportedlock>
-              </D:prop>
-              <D:status>HTTP/1.1 200 OK</D:status>
-            </D:propstat>
-          </D:response>
-          <D:response>
-            <D:href>/test_file</D:href>
-            <D:propstat>
-              <D:prop>
-                <D:displayname>test_file</D:displayname>
-                <D:getcontentlength>1</D:getcontentlength>
-                <D:getlastmodified>Tue, 07 May 2022 05:52:22 GMT</D:getlastmodified>
-                <D:resourcetype></D:resourcetype>
-                <D:lockdiscovery />
-                <D:supportedlock>
-                  <D:lockentry>
-                    <D:lockscope>
-                      <D:exclusive />
-                    </D:lockscope>
-                    <D:locktype>
-                      <D:write />
-                    </D:locktype>
-                  </D:lockentry>
-                </D:supportedlock>
-              </D:prop>
-              <D:status>HTTP/1.1 200 OK</D:status>
-            </D:propstat>
-          </D:response>
-        </D:multistatus>"#;
-
-        let multistatus = from_str::<Multistatus>(xml).unwrap();
-
-        let response = multistatus.response.unwrap();
-        assert_eq!(response.len(), 3);
-        let first_response = &response[0];
-        assert_eq!(first_response.href, "/");
-        assert_eq!(
-            first_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 06:39:47 GMT"
-        );
-
-        let second_response = &response[1];
-        assert_eq!(second_response.href, "/testdir/");
-        assert_eq!(
-            second_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 06:40:10 GMT"
-        );
-
-        let third_response = &response[2];
-        assert_eq!(third_response.href, "/test_file");
-        assert_eq!(
-            third_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 05:52:22 GMT"
-        );
-    }
-
-    #[test]
-    fn test_with_multiple_items_mixed_nginx() {
-        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-      <D:multistatus xmlns:D="DAV:">
-        <D:response>
-          <D:href>/</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
-              <D:resourcetype>
-                <D:collection />
-              </D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_75</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_36</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_38</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_59</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_9</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_93</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_43</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-        <D:response>
-          <D:href>/test_file_95</D:href>
-          <D:propstat>
-            <D:prop>
-              <D:getcontentlength>1</D:getcontentlength>
-              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
-              <D:resourcetype></D:resourcetype>
-            </D:prop>
-            <D:status>HTTP/1.1 200 OK</D:status>
-          </D:propstat>
-        </D:response>
-      </D:multistatus>
-      "#;
-
-        let multistatus: Multistatus = from_str(xml).unwrap();
-
-        let response = multistatus.response.unwrap();
-        assert_eq!(response.len(), 9);
-
-        let first_response = &response[0];
-        assert_eq!(first_response.href, "/");
-        assert_eq!(
-            first_response.propstat.prop.getlastmodified,
-            "Fri, 17 Feb 2023 03:37:22 GMT"
-        );
     }
 }

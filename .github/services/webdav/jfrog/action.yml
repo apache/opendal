@@ -24,10 +24,7 @@ runs:
     - name: Setup webdav in jfrog
       shell: bash
       working-directory: fixtures/webdav
-      run: |
-        # Can we remove this?
-        # touch artifactory/etc/system.yaml
-        docker compose -f docker-compose-webdav-jfrog.yml up -d --wait
+      run: docker compose -f docker-compose-webdav-jfrog.yml up -d --wait
 
     - name: Setup
       shell: bash

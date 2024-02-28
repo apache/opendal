@@ -59,7 +59,7 @@ There is a [Community bonding](https://google.github.io/gsocguides/student/how-g
 
 ## How to increase your chance of being accepted?
 
-You can demonstrate your dedication (and ability) to work on the selected project proposal by contributing something related to it before your proposal is evaluted. This can encompass e.g. sending a pull request to the relevant repository, fixing a bug, writing documentation, etc. There is no specific template for these kinds of contributions, and it might not be possible to do for all types of projects. You can coordinate with the project mentors to find out if they can suggest some entry-level task for you.
+You can demonstrate your dedication (and ability) to work on the selected project proposal by contributing something related to it before your proposal is evaluated. This can encompass e.g. sending a pull request to the relevant repository, fixing a bug, writing documentation, etc. There is no specific template for these kinds of contributions, and it might not be possible to do for all types of projects. You can coordinate with the project mentors to find out if they can suggest some entry-level task for you.
 
 You can also tell us more about your motivation in your proposal. Why did you choose OpenDAL for a GSoC project specifically? Do you like the OpenDAL language? Is the specific project that you want to work on sympathetic to you for some reason? We would like to know!
 
@@ -73,7 +73,7 @@ Good luck! :)
 
 There are some actions and behaviours that will make it much less likely that your application will be considered, so you should avoid these. For example:
 
-- Spamming or harrassing mentors or other members of the OpenDAL community.
+- Spamming or harassing mentors or other members of the OpenDAL community.
 - Letting AI automatically generate your project proposal (you should put effort in it, don't be lazy!).
 - Suggesting unreasonably grandiose project proposals, e.g. adding a garbage collector to OpenDAL.
 - Suggesting unreasonably trivial project proposals, e.g. fixing a typo in the OpenDAL documentation. Remember that even the smallest [project size](https://google.github.io/gsocguides/student/time-management-for-students) should take about 90 hours!

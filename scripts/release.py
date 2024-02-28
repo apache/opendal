@@ -34,6 +34,10 @@ def archive_package(path):
     ls_command = [
         "git",
         "ls-files",
+        # Make sure LICENSE and NOTICE files are included.
+        "LICENSE",
+        "NOTICE",
+        # Always include core.
         "core",
         f"{path}",
         f"{get_package_dependence(path)}",

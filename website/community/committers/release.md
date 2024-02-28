@@ -341,15 +341,12 @@ Checklist for reference:
 [ ] All source files have ASF headers
 [ ] Can compile from source
 
-More detailed checklist please refer to:
-https://github.com/apache/opendal/tree/main/scripts
+Use our verify.py to assist in the verify process:
 
-To compile from source, please refer to:
-https://github.com/apache/opendal/blob/main/CONTRIBUTING.md
-
-Here is a Python script in release to help you verify the release candidate:
-
-./scripts/verify.py
+svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
+cd opendal-dev
+curl -sSL https://github.com/apache/opendal/raw/${release_version}/scripts/verify.py -o verify.py
+python verify.py
 
 Thanks
 

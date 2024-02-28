@@ -20,9 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/memcached): setup auth test for memcached by @hoslo in https://github.com/apache/opendal/pull/4259
 * feat(services/yandex_disk): setup test for yandex disk by @hoslo in https://github.com/apache/opendal/pull/4264
 * feat: add ci support for ceph_rados by @ZhengLin-Li in https://github.com/apache/opendal/pull/4191
+* feat: Implement Config for part of services by @Xuanwo in https://github.com/apache/opendal/pull/4277
+* feat: add jfrog test setup for webdav by @zjregee in https://github.com/apache/opendal/pull/4265
 ### Changed
 * refactor(bindings/python): simplify async writer aexit by @suyanhanx in https://github.com/apache/opendal/pull/4128
 * refactor(service/d1): Add D1Config by @jihuayu in https://github.com/apache/opendal/pull/4129
+* refactor: Rewrite webdav to improve code quality by @Xuanwo in https://github.com/apache/opendal/pull/4280
 ### Fixed
 * fix: Azdls returns 403 while continuation contains `=` by @Xuanwo in https://github.com/apache/opendal/pull/4105
 * fix(bindings/python): missed to call close for the file internally by @zzl221000 in https://github.com/apache/opendal/pull/4122
@@ -71,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: Remove version suffix from package versions by @Xuanwo in https://github.com/apache/opendal/pull/4254
 * ci: Fix fuzz test for minio s3 name change by @Xuanwo in https://github.com/apache/opendal/pull/4266
 * ci: Mark python 3.13 is not supported by @Xuanwo in https://github.com/apache/opendal/pull/4269
+* ci: Disable yandex disk test for too slow by @Xuanwo in https://github.com/apache/opendal/pull/4274
+* ci: Split python CI into release and checks by @Xuanwo in https://github.com/apache/opendal/pull/4275
+* ci(release): Make sure LICENSE and NOTICE files are included by @Xuanwo in https://github.com/apache/opendal/pull/4283
+* ci(release): Refactor and merge the check.py into verify.py by @Xuanwo in https://github.com/apache/opendal/pull/4284
 ### Chore
 * chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/4118
 * chore(deps): bump toml from 0.8.8 to 0.8.9 by @dependabot in https://github.com/apache/opendal/pull/4109

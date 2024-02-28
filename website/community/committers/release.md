@@ -311,7 +311,7 @@ https://downloads.apache.org/opendal/KEYS
 
 Git tag for the release:
 
-https://github.com/apache/opendal/releases/tag/${release_version}
+https://github.com/apache/opendal/releases/tag/v${release_version}
 
 Maven staging repo:
 
@@ -345,7 +345,7 @@ Use our verify.py to assist in the verify process:
 
 svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
 cd opendal-dev
-curl -sSL https://github.com/apache/opendal/raw/${release_version}/scripts/verify.py -o verify.py
+curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
 python verify.py
 
 Thanks

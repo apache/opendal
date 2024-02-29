@@ -229,6 +229,13 @@ mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::Gdrive;
 
+#[cfg(feature = "services-github")]
+mod github;
+#[cfg(feature = "services-github")]
+pub use github::Github;
+#[cfg(feature = "services-github")]
+pub use github::GithubConfig;
+
 #[cfg(feature = "services-dropbox")]
 mod dropbox;
 #[cfg(feature = "services-dropbox")]

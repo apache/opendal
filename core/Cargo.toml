@@ -156,6 +156,7 @@ services-gcs = [
 ]
 services-gdrive = ["internal-path-cache"]
 services-ghac = []
+services-github = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]
 services-http = []

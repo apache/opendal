@@ -151,6 +151,8 @@ pub enum Scheme {
     Mongodb,
     /// [gridfs](crate::services::gridfs): MongoDB Gridfs Services
     Gridfs,
+    /// [Github Contents][crate::services::Github]: Github contents support.
+    Github,
     /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
     HdfsNative,
     /// Custom that allow users to implement services outside of OpenDAL.
@@ -338,6 +340,7 @@ impl FromStr for Scheme {
             "gdrive" => Ok(Scheme::Gdrive),
             "ghac" => Ok(Scheme::Ghac),
             "gridfs" => Ok(Scheme::Gridfs),
+            "github" => Ok(Scheme::Github),
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
             "huggingface" | "hf" => Ok(Scheme::Huggingface),
@@ -422,6 +425,7 @@ impl From<Scheme> for &'static str {
             Scheme::Postgresql => "postgresql",
             Scheme::Mysql => "mysql",
             Scheme::Gdrive => "gdrive",
+            Scheme::Github => "github",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",

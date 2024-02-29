@@ -48,6 +48,7 @@ def provided_cases() -> list[dict[str, str]]:
         }
         for service in os.listdir(root_dir)
         for setup in os.listdir(os.path.join(root_dir, service))
+        if os.path.exists(os.path.join(root_dir, service, setup, "action.yml"))
     ]
 
     # Check if this workflow needs to read secrets.

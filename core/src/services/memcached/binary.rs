@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
+use tokio::io::{self};
 use tokio::net::TcpStream;
 
 use crate::raw::*;

@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
-use std::sync::Arc;
 
 use super::core::*;
 use super::error::*;

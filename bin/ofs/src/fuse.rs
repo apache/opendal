@@ -48,6 +48,26 @@ struct OpenedFile {
     is_append: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FileKey(usize);
+
+impl TryFrom<u64> for FileKey {
+    type Error = Errno;
+
+    fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0 => Err(Errno::from(libc::EBADF)),
+            _ => Ok(FileKey(value as usize - 1)),
+        }
+    }
+}
+
+impl FileKey {
+    fn to_fh(self) -> u64 {
+        self.0 as u64 + 1 // ensure fh is not 0
+    }
+}
+
 pub(super) struct Ofs {
     op: Operator,
     gid: u32,
@@ -86,10 +106,10 @@ impl Ofs {
     }
 
     // Get opened file and check given path
-    fn get_opened_file(&self, key: usize, path: Option<&OsStr>) -> Result<OpenedFile> {
+    fn get_opened_file(&self, key: FileKey, path: Option<&OsStr>) -> Result<OpenedFile> {
         let file = self
             .opened_files
-            .get(key)
+            .get(key.0)
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
@@ -145,13 +165,12 @@ impl PathFilesystem for Ofs {
     ) -> Result<ReplyAttr> {
         log::debug!("getattr(path={:?}, fh={:?}, flags={:?})", path, fh, flags);
 
-        let key = fh.unwrap_or_default() - 1;
-        let fh_path = self
-            .opened_files
-            .get(key as usize)
-            .as_ref()
-            .map(|f| &f.path)
-            .cloned();
+        let fh_path = fh.and_then(|fh| {
+            self.opened_files
+                .get(FileKey::try_from(fh).ok()?.0)
+                .as_ref()
+                .map(|f| f.path.clone())
+        });
 
         let file_path = match (path.map(Into::into), fh_path) {
             (Some(a), Some(b)) => {
@@ -347,7 +366,7 @@ impl PathFilesystem for Ofs {
         let metadata = Metadata::new(EntryMode::FILE);
         let attr = metadata2file_attr(&metadata, SystemTime::now(), self.uid, self.gid);
 
-        let fh = self
+        let key = self
             .opened_files
             .insert(OpenedFile {
                 path: path.into(),
@@ -355,14 +374,13 @@ impl PathFilesystem for Ofs {
                 is_write,
                 is_append: flags & libc::O_APPEND as u32 != 0,
             })
-            .ok_or(Errno::from(libc::EBUSY))? as u64
-            + 1; // ensure fh > 0
+            .ok_or(Errno::from(libc::EBUSY))?;
 
         Ok(ReplyCreated {
             ttl: TTL,
             attr,
             generation: 0,
-            fh,
+            fh: FileKey(key).to_fh(),
             flags,
         })
     }
@@ -385,10 +403,9 @@ impl PathFilesystem for Ofs {
             flush
         );
 
-        let key = fh as usize - 1;
         let file = self
             .opened_files
-            .take(key)
+            .take(FileKey::try_from(fh)?.0)
             .ok_or(Errno::from(libc::EBADF))?;
         if matches!(path, Some(ref p) if p != &file.path) {
             Err(Errno::from(libc::EBADF))?;
@@ -402,7 +419,7 @@ impl PathFilesystem for Ofs {
 
         let (is_read, is_write) = self.check_flags(flags)?;
 
-        let fh = self
+        let key = self
             .opened_files
             .insert(OpenedFile {
                 path: path.into(),
@@ -410,10 +427,12 @@ impl PathFilesystem for Ofs {
                 is_write,
                 is_append: flags & libc::O_APPEND as u32 != 0,
             })
-            .ok_or(Errno::from(libc::EBUSY))? as u64
-            + 1; // ensure fh > 0
+            .ok_or(Errno::from(libc::EBUSY))?;
 
-        Ok(ReplyOpen { fh, flags })
+        Ok(ReplyOpen {
+            fh: FileKey(key).to_fh(),
+            flags,
+        })
     }
 
     async fn read(
@@ -432,11 +451,7 @@ impl PathFilesystem for Ofs {
             size
         );
 
-        if fh == 0 {
-            Err(Errno::from(libc::EBADF))?;
-        }
-        let key = fh - 1;
-        let file = self.get_opened_file(key as _, path)?;
+        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
 
         if !file.is_read {
             Err(Errno::from(libc::EACCES))?;
@@ -474,12 +489,7 @@ impl PathFilesystem for Ofs {
             Err(Errno::from(libc::EINVAL))?;
         }
 
-        if fh == 0 {
-            Err(Errno::from(libc::EBADF))?;
-        }
-        let key = fh - 1;
-
-        let file = self.get_opened_file(key as _, path)?;
+        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
         if !file.is_write {
             Err(Errno::from(libc::EACCES))?;
         }

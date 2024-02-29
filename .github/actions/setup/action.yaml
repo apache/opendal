@@ -27,7 +27,7 @@ inputs:
   need-protoc:
     description: "This setup needs protoc or not"
   need-deny:
-      description: "This setup needs cargo-deny or not"
+    description: "This setup needs cargo-deny or not"
   github-token:
     description: "Github Token"
     default: ""
@@ -59,14 +59,14 @@ runs:
 
     - name: Setup Protoc
       if: inputs.need-protoc == 'true'
-      uses: arduino/setup-protoc@v2
+      uses: arduino/setup-protoc@v3
       with:
         version: "23.4"
         repo-token: ${{ inputs.github-token }}
 
     - name: Cache nextest on linux
       id: cache-nextest
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: inputs.need-nextest == 'true'
       with:
         path: |
@@ -81,13 +81,13 @@ runs:
 
     - name: Cache cargo-deny on linux
       id: cache-deny
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: inputs.need-deny == 'true'
       with:
-          path: |
-              ~/.cargo/bin/cargo-deny
-              ~/.cargo/bin/cargo-deny.exe
-          key: r0-${{runner.os}}-deny-0.14.3
+        path: |
+          ~/.cargo/bin/cargo-deny
+          ~/.cargo/bin/cargo-deny.exe
+        key: r0-${{runner.os}}-deny-0.14.3
 
     - name: Build cargo-deny if not cached
       if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
@@ -103,7 +103,7 @@ runs:
 
     - name: Cache rocksdb
       id: cache-rocksdb
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
@@ -130,7 +130,7 @@ runs:
 
     - name: Cache foundationdb
       id: cache-foundationdb
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       with:
         path: /etc/foundationdb

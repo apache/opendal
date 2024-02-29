@@ -18,137 +18,137 @@
 name: Setup Rust Builder
 description: 'Prepare Rust Build Environment'
 inputs:
-    need-rocksdb:
-        description: "This setup needs rocksdb or not"
-    need-foundationdb:
-        description: "This setup needs foundationdb or not"
-    need-nextest:
-        description: "This setup needs nextest or not"
-    need-protoc:
-        description: "This setup needs protoc or not"
-    need-deny:
-        description: "This setup needs cargo-deny or not"
-    github-token:
-        description: "Github Token"
-        default: ""
+  need-rocksdb:
+    description: "This setup needs rocksdb or not"
+  need-foundationdb:
+    description: "This setup needs foundationdb or not"
+  need-nextest:
+    description: "This setup needs nextest or not"
+  need-protoc:
+    description: "This setup needs protoc or not"
+  need-deny:
+    description: "This setup needs cargo-deny or not"
+  github-token:
+    description: "Github Token"
+    default: ""
 
 runs:
-    using: "composite"
-    steps:
-        -   name: Setup rust related environment variables
-            shell: bash
-            run: |
-                # Disable full debug symbol generation to speed up CI build and keep memory down
-                # "1" means line tables only, which is useful for panic tracebacks.
-                # About `force-frame-pointers`, here's the discussion history: https://github.com/apache/opendal/issues/3756
-                echo "RUSTFLAGS=-C force-frame-pointers=yes -C debuginfo=1" >> $GITHUB_ENV
-                # Enable backtraces
-                echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
-                # Enable logging
-                echo "RUST_LOG=opendal=trace" >> $GITHUB_ENV
-                # Enable sparse index
-                echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
-                # Make sure rust has been setup
-                cargo version
+  using: "composite"
+  steps:
+    - name: Setup rust related environment variables
+      shell: bash
+      run: |
+        # Disable full debug symbol generation to speed up CI build and keep memory down
+        # "1" means line tables only, which is useful for panic tracebacks.
+        # About `force-frame-pointers`, here's the discussion history: https://github.com/apache/opendal/issues/3756
+        echo "RUSTFLAGS=-C force-frame-pointers=yes -C debuginfo=1" >> $GITHUB_ENV
+        # Enable backtraces
+        echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
+        # Enable logging
+        echo "RUST_LOG=opendal=trace" >> $GITHUB_ENV
+        # Enable sparse index
+        echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+        # Make sure rust has been setup
+        cargo version
 
-        # Make sure all required lib has been installed.
-        -   name: Setup Linux
-            if: runner.os == 'Linux'
-            shell: bash
-            run: sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+    # Make sure all required lib has been installed.
+    - name: Setup Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
 
-        -   name: Setup Protoc
-            if: inputs.need-protoc == 'true'
-            uses: arduino/setup-protoc@v3
-            with:
-                version: "23.4"
-                repo-token: ${{ inputs.github-token }}
+    - name: Setup Protoc
+      if: inputs.need-protoc == 'true'
+      uses: arduino/setup-protoc@v3
+      with:
+        version: "23.4"
+        repo-token: ${{ inputs.github-token }}
 
-        -   name: Cache nextest on linux
-            id: cache-nextest
-            uses: actions/cache@v4
-            if: inputs.need-nextest == 'true'
-            with:
-                path: |
-                    ~/.cargo/bin/cargo-nextest
-                    ~/.cargo/bin/cargo-nextest.exe
-                key: r0-${{runner.os}}-nextest-0.9.59
+    - name: Cache nextest on linux
+      id: cache-nextest
+      uses: actions/cache@v4
+      if: inputs.need-nextest == 'true'
+      with:
+        path: |
+          ~/.cargo/bin/cargo-nextest
+          ~/.cargo/bin/cargo-nextest.exe
+        key: r0-${{runner.os}}-nextest-0.9.59
 
-        -   name: Build nextest if not cached
-            if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
-            shell: bash
-            run: cargo install cargo-nextest@0.9.59 --locked
+    - name: Build nextest if not cached
+      if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
+      shell: bash
+      run: cargo install cargo-nextest@0.9.59 --locked
 
-        -   name: Cache cargo-deny on linux
-            id: cache-deny
-            uses: actions/cache@v4
-            if: inputs.need-deny == 'true'
-            with:
-                path: |
-                    ~/.cargo/bin/cargo-deny
-                    ~/.cargo/bin/cargo-deny.exe
-                key: r0-${{runner.os}}-deny-0.14.3
+    - name: Cache cargo-deny on linux
+      id: cache-deny
+      uses: actions/cache@v4
+      if: inputs.need-deny == 'true'
+      with:
+        path: |
+          ~/.cargo/bin/cargo-deny
+          ~/.cargo/bin/cargo-deny.exe
+        key: r0-${{runner.os}}-deny-0.14.3
 
-        -   name: Build cargo-deny if not cached
-            if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
-            shell: bash
-            run: cargo install cargo-deny@0.14.3 --locked
+    - name: Build cargo-deny if not cached
+      if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
+      shell: bash
+      run: cargo install cargo-deny@0.14.3 --locked
 
-        -   name: Setup rust on linux
-            if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
-            shell: bash
-            run: |
-                # Set rocksdb lib path
-                echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
+    - name: Setup rust on linux
+      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      shell: bash
+      run: |
+        # Set rocksdb lib path
+        echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
 
-        -   name: Cache rocksdb
-            id: cache-rocksdb
-            uses: actions/cache@v4
-            if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
-            with:
-                path: /tmp/rocksdb
-                key: r2-rocksdb-8.1.1
+    - name: Cache rocksdb
+      id: cache-rocksdb
+      uses: actions/cache@v4
+      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      with:
+        path: /tmp/rocksdb
+        key: r2-rocksdb-8.1.1
 
-        -   name: Build rocksdb if not cached
-            if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
-            shell: bash
-            run: |
-                set -e
+    - name: Build rocksdb if not cached
+      if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      shell: bash
+      run: |
+        set -e
 
-                cd /tmp
-                curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
-                tar -xzf rocksdb.tar.gz
-                cd rocksdb-8.1.1
+        cd /tmp
+        curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
+        tar -xzf rocksdb.tar.gz
+        cd rocksdb-8.1.1
 
-                mkdir /tmp/rocksdb
-                cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
-                make -j$(nproc)
-                make install
+        mkdir /tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
+        make -j$(nproc)
+        make install
 
-                cd ..
-                rm -rf /tmp/rocksdb-8.1.1
+        cd ..
+        rm -rf /tmp/rocksdb-8.1.1
 
-        -   name: Cache foundationdb
-            id: cache-foundationdb
-            uses: actions/cache@v4
-            if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
-            with:
-                path: /etc/foundationdb
-                key: r0-foundationdb-7.1.17
+    - name: Cache foundationdb
+      id: cache-foundationdb
+      uses: actions/cache@v4
+      if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
+      with:
+        path: /etc/foundationdb
+        key: r0-foundationdb-7.1.17
 
-        -   name: Build foundationdb if not cached
-            if: steps.cache-foundationdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-foundationdb == 'true'
-            shell: bash
-            run: |
-                set -e
+    - name: Build foundationdb if not cached
+      if: steps.cache-foundationdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-foundationdb == 'true'
+      shell: bash
+      run: |
+        set -e
 
-                cd /tmp
+        cd /tmp
 
-                curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-clients_7.1.17-1_amd64.deb -L -o foundationdb-clients_7.1.17-1_amd64.deb
-                curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-server_7.1.17-1_amd64.deb -L -o foundationdb-server_7.1.17-1_amd64.deb
+        curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-clients_7.1.17-1_amd64.deb -L -o foundationdb-clients_7.1.17-1_amd64.deb
+        curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-server_7.1.17-1_amd64.deb -L -o foundationdb-server_7.1.17-1_amd64.deb
 
-                sudo dpkg -i foundationdb-clients_7.1.17-1_amd64.deb foundationdb-server_7.1.17-1_amd64.deb
+        sudo dpkg -i foundationdb-clients_7.1.17-1_amd64.deb foundationdb-server_7.1.17-1_amd64.deb
 
-                rm foundationdb-clients_7.1.17-1_amd64.deb
-                rm foundationdb-server_7.1.17-1_amd64.deb
+        rm foundationdb-clients_7.1.17-1_amd64.deb
+        rm foundationdb-server_7.1.17-1_amd64.deb
 

@@ -1,5 +1,3 @@
-This service will visit the [Swift API](https://docs.openstack.org/api-ref/object-store/) supported by [OpenStack Object Storage](https://docs.openstack.org/swift/latest/).
-
 ## Capabilities
 
 This service can be used to:
@@ -20,6 +18,7 @@ This service can be used to:
 
 - `endpoint`: Set the endpoint for backend.
 - `account_name`: Name of Swift account.
+- `storage_url`: Swift storage url.
 - `container`: Swift container.
 - `token`: Swift personal access token.
 

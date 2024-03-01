@@ -170,14 +170,12 @@ impl Builder for SwiftBuilder {
         debug!("backend use root {}", root);
 
         // Ensure that there is at least one way to build the URL prefix.
-        if self.endpoint.is_none() || self.account.is_none() {
-            if self.storage_url.is_none() {
-                // It is recommended that users configure through the endpoint and account.
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "missing endpoint or account for Swift",
-                ));
-            }
+        if (self.endpoint.is_none() || self.account.is_none()) && self.storage_url.is_none() {
+            // It is recommended that users configure through the endpoint and account.
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "missing endpoint or account for Swift",
+            ));
         }
 
         let endpoint = match self.endpoint.take() {

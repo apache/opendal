@@ -29,6 +29,7 @@ pub struct SwiftCore {
     pub root: String,
     pub endpoint: String,
     pub account: String,
+    pub storage_url: String,
     pub container: String,
     pub token: String,
     pub client: HttpClient,
@@ -40,6 +41,7 @@ impl Debug for SwiftCore {
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("account", &self.account)
+            .field("storage_url", &self.storage_url)
             .field("container", &self.container)
             .finish_non_exhaustive()
     }
@@ -50,10 +52,9 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            self.build_url_prefix(),
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -80,10 +81,9 @@ impl SwiftCore {
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
         let mut url = format!(
-            "{}/v1/{}/{}/?prefix={}&delimiter={}&format=json",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/?prefix={}&delimiter={}&format=json",
+            self.build_url_prefix(),
+            &self.container,
             percent_encode_path(&p),
             delimiter
         );
@@ -115,10 +115,9 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            self.build_url_prefix(),
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -140,10 +139,9 @@ impl SwiftCore {
             .to_string();
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            self.build_url_prefix(),
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -180,10 +178,9 @@ impl SwiftCore {
             .to_string();
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            self.build_url_prefix(),
+            &self.container,
             percent_encode_path(&dst_p)
         );
 
@@ -208,9 +205,8 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            &self.endpoint,
-            &self.account,
+            "{}/{}/{}",
+            self.build_url_prefix(),
             &self.container,
             percent_encode_path(&p)
         );
@@ -224,6 +220,22 @@ impl SwiftCore {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
+    }
+
+    fn build_url_prefix(&self) -> String {
+        // This method of URL construction ensures seamless integration and functionality
+        // across different swift storage backends.
+        if !self.storage_url.is_empty() {
+            return self.storage_url.clone()
+        }
+
+        // This doesn't work well in Ceph Rados Gateway.
+        // Reference: https://docs.ceph.com/en/latest/radosgw/swift/auth/
+        format!(
+            "{}/v1/{}",
+            &self.endpoint,
+            &self.account,
+        )
     }
 }
 

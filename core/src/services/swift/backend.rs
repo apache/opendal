@@ -37,6 +37,7 @@ use crate::*;
 pub struct SwiftBuilder {
     endpoint: Option<String>,
     account: Option<String>,
+    storage_url: Option<String>,
     container: Option<String>,
     root: Option<String>,
     token: Option<String>,
@@ -49,6 +50,7 @@ impl Debug for SwiftBuilder {
         ds.field("root", &self.root);
         ds.field("endpoint", &self.endpoint);
         ds.field("account", &self.account);
+        ds.field("storage_url", &self.storage_url);
         ds.field("container", &self.container);
 
         if self.token.is_some() {
@@ -62,7 +64,8 @@ impl Debug for SwiftBuilder {
 impl SwiftBuilder {
     /// Set the remote address of this backend
     ///
-    /// Endpoints should be full uri, e.g.
+    /// Endpoints should be full uri, it is necessary
+    /// when storage_url is not set, e.g.
     ///
     /// - `https://openstack-controller.example.com:8080`
     /// - `http://192.168.66.88:8080`
@@ -80,12 +83,31 @@ impl SwiftBuilder {
 
     /// Set account of this backend.
     ///
-    /// It is required. e.g. `TEST_account`
+    /// It is necessary when storage_url is not set, e.g. `TEST_account`
     pub fn account(&mut self, account: &str) -> &mut Self {
         self.account = if account.is_empty() {
             None
         } else {
             Some(account.trim_end_matches('/').to_string())
+        };
+        self
+    }
+
+    /// Set storage_url of this backend
+    ///
+    /// Default to empty string, it is used to replace the endpoint
+    /// and account configurations, e.g.
+    ///
+    /// - `http://127.0.0.1:8080/v1/AUTH_test`
+    /// - `http://127.0.0.1:8080/swift/v1`
+    ///
+    /// It can be obtained through swift's authentication service.
+    /// Reference: https://docs.openstack.org/swift/latest/api/object_api_v1_overview.html
+    pub fn storage_url(&mut self, storage_url: &str) -> &mut Self {
+        self.storage_url = if storage_url.is_empty() {
+            None
+        } else {
+            Some(storage_url.trim_end_matches('/').to_string())
         };
         self
     }
@@ -133,6 +155,7 @@ impl Builder for SwiftBuilder {
 
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("account").map(|v| builder.account(v));
+        map.get("storage_url").map(|v| builder.storage_url(v));
         map.get("container").map(|v| builder.container(v));
         map.get("token").map(|v| builder.token(v));
 
@@ -146,6 +169,17 @@ impl Builder for SwiftBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
+        // Ensure that there is at least one way to build the URL prefix.
+        if self.endpoint.is_none() || self.account.is_none() {
+            if self.storage_url.is_none() {
+                // It is recommended that users configure through the endpoint and account.
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "missing endpoint or account for Swift",
+                ));
+            }
+        }
+
         let endpoint = match self.endpoint.take() {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
@@ -154,25 +188,21 @@ impl Builder for SwiftBuilder {
                     format!("https://{endpoint}")
                 }
             }
-            None => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "missing endpoint for Swift",
-                ));
-            }
+            None => String::new(),
         };
         debug!("backend use endpoint: {}", &endpoint);
 
         let account = match self.account.take() {
             Some(account) => account,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "missing account name for Swift",
-                ));
-            }
+            None => String::new(),
         };
         debug!("backend use account: {}", &account);
+
+        let storage_url = match self.storage_url.take() {
+            Some(storage_url) => storage_url,
+            None => String::new(),
+        };
+        debug!("backend use storage_url: {}", &storage_url);
 
         let container = match self.container.take() {
             Some(container) => container,
@@ -198,6 +228,7 @@ impl Builder for SwiftBuilder {
                 root,
                 endpoint,
                 account,
+                storage_url,
                 container,
                 token,
                 client,

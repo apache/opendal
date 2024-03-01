@@ -226,16 +226,12 @@ impl SwiftCore {
         // This method of URL construction ensures seamless integration and functionality
         // across different swift storage backends.
         if !self.storage_url.is_empty() {
-            return self.storage_url.clone()
+            return self.storage_url.clone();
         }
 
         // This doesn't work well in Ceph Rados Gateway.
         // Reference: https://docs.ceph.com/en/latest/radosgw/swift/auth/
-        format!(
-            "{}/v1/{}",
-            &self.endpoint,
-            &self.account,
-        )
+        format!("{}/v1/{}", &self.endpoint, &self.account)
     }
 }
 

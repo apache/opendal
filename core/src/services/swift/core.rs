@@ -28,7 +28,6 @@ use crate::*;
 pub struct SwiftCore {
     pub root: String,
     pub endpoint: String,
-    pub account: String,
     pub container: String,
     pub token: String,
     pub client: HttpClient,
@@ -39,7 +38,6 @@ impl Debug for SwiftCore {
         f.debug_struct("SwiftCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("account", &self.account)
             .field("container", &self.container)
             .finish_non_exhaustive()
     }
@@ -50,10 +48,9 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            &self.endpoint,
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -80,10 +77,9 @@ impl SwiftCore {
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
         let mut url = format!(
-            "{}/v1/{}/{}/?prefix={}&delimiter={}&format=json",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/?prefix={}&delimiter={}&format=json",
+            &self.endpoint,
+            &self.container,
             percent_encode_path(&p),
             delimiter
         );
@@ -115,10 +111,9 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            &self.endpoint,
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -140,10 +135,9 @@ impl SwiftCore {
             .to_string();
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            &self.endpoint,
+            &self.container,
             percent_encode_path(&p)
         );
 
@@ -180,10 +174,9 @@ impl SwiftCore {
             .to_string();
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
-            self.endpoint,
-            self.account,
-            self.container,
+            "{}/{}/{}",
+            &self.endpoint,
+            &self.container,
             percent_encode_path(&dst_p)
         );
 
@@ -208,9 +201,8 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/v1/{}/{}/{}",
+            "{}/{}/{}",
             &self.endpoint,
-            &self.account,
             &self.container,
             percent_encode_path(&p)
         );

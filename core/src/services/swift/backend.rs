@@ -36,7 +36,6 @@ use crate::*;
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
     endpoint: Option<String>,
-    account: Option<String>,
     container: Option<String>,
     root: Option<String>,
     token: Option<String>,
@@ -48,7 +47,6 @@ impl Debug for SwiftBuilder {
 
         ds.field("root", &self.root);
         ds.field("endpoint", &self.endpoint);
-        ds.field("account", &self.account);
         ds.field("container", &self.container);
 
         if self.token.is_some() {
@@ -64,8 +62,9 @@ impl SwiftBuilder {
     ///
     /// Endpoints should be full uri, e.g.
     ///
-    /// - `https://openstack-controller.example.com:8080`
-    /// - `http://192.168.66.88:8080`
+    /// - `http://127.0.0.1:8080/v1/AUTH_test`
+    /// - `http://192.168.66.88:8080/swift/v1`
+    /// - `https://openstack-controller.example.com:8080/v1/ccount`
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `https://` to it.
@@ -74,18 +73,6 @@ impl SwiftBuilder {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
-        };
-        self
-    }
-
-    /// Set account of this backend.
-    ///
-    /// It is required. e.g. `TEST_account`
-    pub fn account(&mut self, account: &str) -> &mut Self {
-        self.account = if account.is_empty() {
-            None
-        } else {
-            Some(account.trim_end_matches('/').to_string())
         };
         self
     }
@@ -132,7 +119,6 @@ impl Builder for SwiftBuilder {
         let mut builder = SwiftBuilder::default();
 
         map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("account").map(|v| builder.account(v));
         map.get("container").map(|v| builder.container(v));
         map.get("token").map(|v| builder.token(v));
 
@@ -163,17 +149,6 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        let account = match self.account.take() {
-            Some(account) => account,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "missing account name for Swift",
-                ));
-            }
-        };
-        debug!("backend use account: {}", &account);
-
         let container = match self.container.take() {
             Some(container) => container,
             None => {
@@ -197,7 +172,6 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 root,
                 endpoint,
-                account,
                 container,
                 token,
                 client,

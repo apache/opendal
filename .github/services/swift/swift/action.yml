@@ -16,7 +16,7 @@
 # under the License.
 
 name: swift
-description: "Behavior test for OpenStack Swift"
+description: "Behavior test for OpenStack Swift."
 
 runs:
   using: "composite"
@@ -27,19 +27,20 @@ runs:
       run: |
         docker compose -f docker-compose-swift.yml up -d --wait
 
-    - name: Create test token and setup test container
+    - name: Create environment variables and setup test container
       shell: bash
       run: |
-        token=$(curl -i -H 'X-Storage-User: test:tester' -H 'X-Storage-Pass: testing' http://127.0.0.1:8080/auth/v1.0 | grep X-Auth-Token | head -n1 | awk '{print $2}')
-        curl --location --request PUT 'http://127.0.0.1:8080/v1/AUTH_test/testing' --header "X-Auth-Token: $token"
-        echo "OPENDAL_SWIFT_TOKEN=$(echo "$token" | tr -d '[:space:]')" >> $GITHUB_ENV
+        response=$(curl -i -H 'X-Storage-User: test:tester' -H 'X-Storage-Pass: testing' http://127.0.0.1:8080/auth/v1.0)
+        token=$(echo "$response" | grep X-Auth-Token | head -n1 | awk '{print $2}' | tr -d '[:space:]')
+        endpoint=$(echo "$response" | grep X-Storage-Url | head -n1 | awk '{print $2}' | tr -d '[:space:]')
+        curl --location --request PUT "${endpoint}/testing" --header "X-Auth-Token: $token"
+        echo "OPENDAL_SWIFT_TOKEN=${token}" >> $GITHUB_ENV
+        echo "OPENDAL_SWIFT_ENDPOINT=${endpoint}" >> $GITHUB_ENV
 
     - name: Set environment variables
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_SWIFT_ENDPOINT=http://127.0.0.1:8080
-        OPENDAL_SWIFT_ACCOUNT=AUTH_test
         OPENDAL_SWIFT_CONTAINER=testing
         OPENDAL_SWIFT_ROOT=/
         EOF

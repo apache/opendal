@@ -71,6 +71,7 @@ trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
 rustls = ["reqwest/rustls-tls-native-roots"]
+rustls-webpki = ["reqwest/rustls-tls-webpki-roots"]
 # Enable native-tls for TLS support
 native-tls = ["reqwest/native-tls"]
 # Enable vendored native-tls for TLS support

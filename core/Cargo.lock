@@ -5331,6 +5331,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
+ "webpki-roots 0.25.4",
  "winreg",
 ]
 

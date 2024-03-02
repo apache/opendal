@@ -17,8 +17,6 @@ This service can be used to:
 ## Configurations
 
 - `endpoint`: Set the endpoint for backend.
-- `account_name`: Name of Swift account.
-- `storage_url`: Swift storage url.
 - `container`: Swift container.
 - `token`: Swift personal access token.
 
@@ -43,9 +41,7 @@ async fn main() -> Result<()> {
     // Set the root for swift, all operations will happen under this root
     builder.root("/path/to/dir");
     // set the endpoint of Swift backend
-    builder.endpoint("https://openstack-controller.example.com:8080");
-    // set the account name of Swift workspace
-    builder.account_name("account");
+    builder.endpoint("https://openstack-controller.example.com:8080/v1/account");
     // set the container name of Swift workspace
     builder.container("container");
     // set the auth token for builder

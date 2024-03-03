@@ -100,7 +100,7 @@ impl oio::PageList for SwiftLister {
                         last_modified.push('Z');
                     }
                     meta.set_last_modified(parse_datetime_from_rfc3339(last_modified.as_str())?);
-                    
+
                     if let Some(content_type) = content_type {
                         meta.set_content_type(content_type.as_str());
                     }

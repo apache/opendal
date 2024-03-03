@@ -95,7 +95,9 @@ impl oio::PageList for SwiftLister {
                     meta.set_content_length(bytes);
                     meta.set_content_md5(hash.as_str());
 
-                    // we'll change "2023-10-28T19:18:11.682610" to "2023-10-28T19:18:11.682610Z"
+                    // OpenStack Swift returns time without 'Z' at the end,
+                    // which causes an error in parse_datetime_from_rfc3339.
+                    // we'll change "2023-10-28T19:18:11.682610" to "2023-10-28T19:18:11.682610Z".
                     if !last_modified.ends_with('Z') {
                         last_modified.push('Z');
                     }

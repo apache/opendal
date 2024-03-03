@@ -229,8 +229,8 @@ pub enum ListOpResponse {
         bytes: u64,
         hash: String,
         name: String,
-        content_type: String,
         last_modified: String,
+        content_type: Option<String>,
     },
 }
 
@@ -270,10 +270,10 @@ mod tests {
                 bytes: 147,
                 hash: "5e6b5b70b0426b1cc1968003e1afa5ad".to_string(),
                 name: "test.txt".to_string(),
-                content_type:
-                    "multipart/form-data;boundary=------------------------25004a866ee9c0cb"
-                        .to_string(),
                 last_modified: "2023-11-01T03:00:23.147480".to_string(),
+                content_type:
+                    Some("multipart/form-data;boundary=------------------------25004a866ee9c0cb"
+                        .to_string()),
             }
         );
 

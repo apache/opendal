@@ -47,7 +47,15 @@ default = ["rustls"]
 # And doesn't have any other effects.
 #
 # You should never enable this feature unless you are developing opendal.
-tests = ["dep:rand", "dep:sha2", "dep:dotenvy", "layers-blocking"]
+tests = [
+  "dep:rand",
+  "dep:sha2",
+  "dep:dotenvy",
+  "layers-blocking",
+  "services-azblob",
+  "services-memory",
+  "services-http",
+]
 
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns"]

@@ -60,7 +60,24 @@ dirs = "5.0.1"
 env_logger = "0.11"
 futures = "0.3"
 log = "0.4"
-opendal = { version = "0.45.1", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core", feature = [
+  # These are default features before v0.46. TODO: change to optional features
+  "services-azblob",
+  "services-azdls",
+  "services-cos",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+  "services-azfile",
+] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.34", features = [
   "fs",

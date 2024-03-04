@@ -1,3 +1,9 @@
+# Upgrade to v0.46
+
+## Services Feature Flag
+
+Starting from v0.46, OpenDAL does not include any services in default features to avoid compiling unneeded services' code. Please enable each service's feature flag to use it.
+
 # Upgrade to v0.45
 
 ## Public API

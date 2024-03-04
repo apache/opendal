@@ -257,6 +257,6 @@ jobs:
 
       - name: Test
         working-directory: core
-        run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
+        run: cargo nextest run --no-fail-fast --features layers-all,test && cargo test --doc
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

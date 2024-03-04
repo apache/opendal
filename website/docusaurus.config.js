@@ -44,6 +44,10 @@ const config = {
     locales: ['en'],
   },
 
+  markdown: {
+    format: "detect"
+  },
+
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -76,20 +80,35 @@ const config = {
 
   plugins: [
     [
-        '@docusaurus/plugin-content-docs',
-        {
-            id: 'community',
-            path: 'community',
-            routeBasePath: 'community',
-            sidebarPath: require.resolve('./community/sidebars.js'),
-            editUrl: 'https://github.com/apache/opendal/tree/main/website/',
-        },
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'community',
+        path: 'community',
+        routeBasePath: 'community',
+        sidebarPath: require.resolve('./community/sidebars.js'),
+        editUrl: 'https://github.com/apache/opendal/tree/main/website/',
+      },
     ],
     [require.resolve("docusaurus-plugin-image-zoom"), {}],
-],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        "redirects": [
+          {
+            "from": "/discord",
+            "to": "https://discord.gg/XQy8yGR2dg",
+          },
+          {
+            "from": "/maillist",
+            "to": "https://lists.apache.org/list.html?dev@opendal.apache.org"
+          },
+        ],
+      },
+    ]
+  ],
 
   themeConfig:
-    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
+  /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // TODO social card image
       // image: 'img/opendal-social-card.jpg',

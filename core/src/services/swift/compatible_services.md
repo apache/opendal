@@ -2,7 +2,7 @@
 
 ### OpenStack Swift
 
-[OpenStack Swift](https://docs.openstack.org/swift/latest/) is the default implementations of swift servcies.
+[OpenStack Swift](https://docs.openstack.org/swift/latest/) is the default implementations of swift services.
 
 To connect to OpenStack Swift, we need to set:
 

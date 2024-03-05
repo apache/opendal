@@ -39,7 +39,7 @@ default-members = ["."]
 members = [".", "fuzz", "edge/*", "benches/vs_*"]
 
 [features]
-default = ["rustls"]
+default = ["rustls", "services-memory"]
 
 # Build test utils or not.
 #
@@ -274,7 +274,7 @@ sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
 
 # For http based services.
-reqsign = { version = "0.14.7", default-features = false, optional = true }
+reqsign = { version = "0.14.9", default-features = false, optional = true }
 
 # for services-atomic-server
 atomic_lib = { version = "0.34.5", optional = true }

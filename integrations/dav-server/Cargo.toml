@@ -35,7 +35,7 @@ dav-server = { version = "0.5.8" }
 dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16" }
-opendal = { version = "0.45.1", path = "../../core" }
+opendal = { version = "0.45.1", path = "../../core", features = ["services-fs"] }
 quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.27", features = [

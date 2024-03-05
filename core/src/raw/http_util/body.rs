@@ -76,6 +76,7 @@ impl IncomingAsyncBody {
     }
 
     /// Create an empty IncomingAsyncBody.
+    #[allow(dead_code)]
     pub(crate) fn empty() -> Self {
         Self {
             inner: Box::new(()),

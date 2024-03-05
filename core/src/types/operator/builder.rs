@@ -151,6 +151,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[allow(unused_variables, unreachable_code)]
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
         let op = match scheme {
             #[cfg(feature = "services-atomicserver")]

@@ -41,6 +41,7 @@ impl EntryMode {
     }
 
     /// Create entry mode from given path.
+    #[allow(dead_code)]
     pub(crate) fn from_path(path: &str) -> Self {
         if path.ends_with('/') {
             EntryMode::DIR

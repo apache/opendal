@@ -337,11 +337,14 @@ impl DropboxCore {
                     (path, Ok(RpDelete::default().into()))
                 }
                 "failure" => {
-                    let error = entry.error.expect("error should be present");
-                    let err = Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("delete failed with error {}", error.error_summary),
-                    );
+                    let err = if let Some(error) = entry.error {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("delete failed with error {}", error.error_summary),
+                        )
+                    } else {
+                        Error::new(ErrorKind::Unexpected, "delete failed")
+                    };
                     ("".to_string(), Err(err))
                 }
                 _ => (

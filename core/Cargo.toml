@@ -53,8 +53,10 @@ tests = [
   "dep:dotenvy",
   "layers-blocking",
   "services-azblob",
-  "services-memory",
+  "services-fs",
   "services-http",
+  "services-memory",
+  "services-s3",
 ]
 
 # Enable trust-dns for pure rust dns cache.

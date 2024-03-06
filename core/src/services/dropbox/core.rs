@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -37,7 +38,6 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use super::error::DropboxErrorResponse;
 use crate::raw::*;
 use crate::*;
 
@@ -337,10 +337,15 @@ impl DropboxCore {
                     (path, Ok(RpDelete::default().into()))
                 }
                 "failure" => {
-                    let error = entry.error.expect("error should be present");
+                    let error = entry.failure.expect("error should be present");
+                    let error_cause = &error
+                        .failure_cause_map
+                        .get(&error.tag)
+                        .expect("error should be present")
+                        .tag;
                     let err = Error::new(
                         ErrorKind::Unexpected,
-                        &format!("delete failed with error {}", error.error_summary),
+                        &format!("delete failed with error {} {}", error.tag, error_cause),
                     );
                     ("".to_string(), Err(err))
                 }
@@ -515,5 +520,26 @@ pub struct DropboxDeleteBatchResponseEntry {
     #[serde(rename(deserialize = ".tag"))]
     pub tag: String,
     pub metadata: Option<DropboxMetadataResponse>,
-    pub error: Option<DropboxErrorResponse>,
+    pub failure: Option<DropboxDeleteBatchFailureResponse>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+pub struct DropboxDeleteBatchFailureResponse {
+    #[serde(rename(deserialize = ".tag"))]
+    pub tag: String,
+    // During the batch deletion process, Dropbox returns
+    // part of the error information in the form of a JSON key.
+    // Since it is impossible to determine the JSON key in advance,
+    // the error information is parsed into a HashMap here.
+    // The key of the HashMap is equal to the value of the tag above.
+    #[serde(flatten)]
+    pub failure_cause_map: HashMap<String, DropboxDeleteBatchFailureResponseCause>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+pub struct DropboxDeleteBatchFailureResponseCause {
+    #[serde(rename(deserialize = ".tag"))]
+    pub tag: String,
 }

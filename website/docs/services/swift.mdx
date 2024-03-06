@@ -2,7 +2,9 @@
 title: Swift
 ---
 
-[OpenStack Swift](https://docs.openstack.org/api-ref/object-store/) service support.
+[OpenStack Swift](https://docs.openstack.org/api-ref/object-store/) and compatible services support.
+
+For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
 
 import Docs from '../../../core/src/services/swift/docs.md'
 
@@ -25,13 +27,14 @@ use std::collections::HashMap;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut map = HashMap::new();
-    map.insert("endpoint".to_string(), "http://127.0.0.1:8080".to_string());
-    map.insert("account".to_string(), "test_account".to_string());
+
+    map.insert("endpoint".to_string(), "http://127.0.0.1:8080/v1/AUTH_test".to_string());
     map.insert("container".to_string(), "test_container".to_string());
     map.insert("token".to_string(), "test_token".to_string());
     map.insert("root".to_string(), "/".to_string());
 
     let op: Operator = Operator::via_map(Scheme::Swift, map)?;
+
     Ok(())
 }
 ```
@@ -41,10 +44,10 @@ async fn main() -> Result<()> {
 
 ```javascript
 import { Operator } from "opendal";
+
 async function main() {
   const op = new Operator("swift", {
-    endpoint: "http://127.0.0.1:8080",
-    account: "test_account",
+    endpoint: "http://127.0.0.1:8080/v1/AUTH_test",
     container: "test_container",
     token: "test_token",
     root: "/",
@@ -57,9 +60,9 @@ async function main() {
 
 ```python
 import opendal
+
 op = opendal.Operator("swift",
-    endpoint="http://127.0.0.1:8080"
-    account="test_account",
+    endpoint="http://127.0.0.1:8080/v1/AUTH_test"
     container="test_container",
     token="test_token",
     root="/",
@@ -68,3 +71,7 @@ op = opendal.Operator("swift",
 
   </TabItem>
 </Tabs>
+
+import CompatibleServices from '../../../core/src/services/swift/compatible_services.md'
+
+<CompatibleServices components={props.components} />

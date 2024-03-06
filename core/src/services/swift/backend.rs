@@ -32,7 +32,9 @@ use crate::raw::*;
 use crate::*;
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
+/// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
+#[doc = include_str!("compatible_services.md")]
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
     endpoint: Option<String>,

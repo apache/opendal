@@ -165,7 +165,7 @@ pub struct TimeoutAccessor<A: Accessor> {
 }
 
 impl<A: Accessor> TimeoutAccessor<A> {
-    async fn timeout<F: Future<Output = Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
+    async fn timeout<F: Future<Output=Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
         tokio::time::timeout(self.timeout, fut).await.map_err(|_| {
             Error::new(ErrorKind::Unexpected, "operation timeout reached")
                 .with_operation(op)
@@ -174,7 +174,7 @@ impl<A: Accessor> TimeoutAccessor<A> {
         })?
     }
 
-    async fn io_timeout<F: Future<Output = Result<T>>, T>(
+    async fn io_timeout<F: Future<Output=Result<T>>, T>(
         &self,
         op: Operation,
         fut: F,
@@ -191,7 +191,7 @@ impl<A: Accessor> TimeoutAccessor<A> {
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(target_arch = "wasm32", async_trait(? Send))]
 impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
@@ -334,7 +334,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    async fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let sleep = self
             .sleep
             .get_or_insert_with(|| Box::pin(tokio::time::sleep(self.timeout)));
@@ -356,7 +356,7 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let sleep = self
             .sleep
             .get_or_insert_with(|| Box::pin(tokio::time::sleep(self.timeout)));
@@ -378,7 +378,7 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let sleep = self
             .sleep
             .get_or_insert_with(|| Box::pin(tokio::time::sleep(self.timeout)));
@@ -435,7 +435,7 @@ mod tests {
     struct MockService;
 
     #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+    #[cfg_attr(target_arch = "wasm32", async_trait(? Send))]
     impl Accessor for MockService {
         type Reader = MockReader;
         type Writer = ();

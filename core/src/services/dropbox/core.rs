@@ -343,7 +343,7 @@ impl DropboxCore {
                         .get(&error.tag)
                         .expect("error should be present")
                         .tag;
-                    // Ignore error about path lookup not found
+                    // Ignore errors about path lookup not found and report others.
                     if error.tag == "path_lookup" && error_cause == "not_found" {
                         ("".to_string(), Ok(RpDelete::default().into()))
                     } else {

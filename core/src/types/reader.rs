@@ -76,20 +76,6 @@ impl Reader {
     }
 }
 
-// impl oio::Read for Reader {
-//     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-//         self.inner.poll_read(cx, buf)
-//     }
-//
-//     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-//         self.inner.poll_seek(cx, pos)
-//     }
-//
-//     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-//         self.inner.poll_next(cx)
-//     }
-// }
-
 impl AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,

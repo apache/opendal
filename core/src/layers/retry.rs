@@ -709,25 +709,6 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         //     .await
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        todo!()
-        // { || self.inner.next() }
-        //     .retry(&self.builder)
-        //     .when(|e| e.is_temporary())
-        //     .notify(|err, dur| {
-        //         self.notify.intercept(
-        //             err,
-        //             dur,
-        //             &[
-        //                 ("operation", ReadOperation::Next.into_static()),
-        //                 ("path", &self.path),
-        //             ],
-        //         )
-        //     })
-        //     .map(|v| v.map_err(|e| e.set_persistent()))
-        //     .await
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         todo!()
         // { || self.inner.next_v2(size) }
@@ -1235,12 +1216,12 @@ mod tests {
             Ok(self.pos)
         }
 
-        async fn next(&mut self) -> Option<Result<Bytes>> {
+        async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
             let mut bs = vec![0; 1];
             match self.read(&mut bs).await {
-                Ok(0) => None,
-                Ok(v) => Some(Ok(Bytes::from(bs[..v].to_vec()))),
-                Err(err) => Some(Err(err)),
+                Ok(0) => Ok(Bytes::new()),
+                Ok(v) => Ok(Bytes::from(bs[..v].to_vec())),
+                Err(err) => Err(err),
             }
         }
     }

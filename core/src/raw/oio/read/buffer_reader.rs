@@ -190,21 +190,6 @@ where
         }
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.fill_buf().await {
-            Ok(bytes) => {
-                if bytes.is_empty() {
-                    return None;
-                }
-
-                let bytes = Bytes::copy_from_slice(bytes);
-                self.consume(bytes.len());
-                Some(Ok(bytes))
-            }
-            Err(err) => Some(Err(err)),
-        }
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         match self.fill_buf().await {
             Ok(bytes) => {

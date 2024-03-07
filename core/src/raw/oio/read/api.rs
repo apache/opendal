@@ -99,15 +99,6 @@ pub trait Read: Unpin + Send + Sync {
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
     fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
 
-    /// Stream [`Bytes`] from underlying reader.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support stream.
-    ///
-    /// This API exists for avoiding bytes copying inside async runtime.
-    /// Users can poll bytes from underlying reader and decide when to
-    /// read/consume them.
-    fn next(&mut self) -> impl Future<Output = Option<Result<Bytes>>> + Send;
-
     /// Fetch more bytes from underlying reader.
     ///
     /// `size` is used to hint the data that user want to read at most. Implementer
@@ -135,13 +126,6 @@ impl Read for () {
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
         ))
-    }
-
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support streaming",
-        )))
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
@@ -215,8 +199,6 @@ pub trait DynRead: Unpin + Send + Sync {
 
     fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 
-    fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>>;
-
     fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
 }
 
@@ -227,10 +209,6 @@ impl<T: Read + ?Sized> DynRead for T {
 
     fn dyn_seek(&mut self, pos: SeekFrom) -> BoxedFuture<Result<u64>> {
         Box::pin(self.seek(pos))
-    }
-
-    fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>> {
-        Box::pin(self.next())
     }
 
     fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
@@ -245,10 +223,6 @@ impl<T: DynRead + ?Sized> Read for Box<T> {
 
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.dyn_seek(pos).await
-    }
-
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        self.dyn_next().await
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {

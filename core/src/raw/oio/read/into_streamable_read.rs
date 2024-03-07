@@ -52,21 +52,6 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
         self.r.seek(pos).await
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        let dst = self.buf.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(self.cap) };
-
-        match self.r.read(buf.initialized_mut()).await {
-            Err(err) => Some(Err(err)),
-            Ok(0) => None,
-            Ok(n) => {
-                buf.set_filled(n);
-                Some(Ok(Bytes::from(buf.filled().to_vec())))
-            }
-        }
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);

@@ -331,49 +331,6 @@ where
         Ok(self.cur)
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        // Sanity check for normal cases.
-        if self.cur >= self.size.unwrap_or(u64::MAX) {
-            return None;
-        }
-
-        if self.offset.is_none() {
-            let rp = match self.stat_future().await {
-                Ok(v) => v,
-                Err(err) => return Some(Err(err)),
-            };
-            let length = rp.into_metadata().content_length();
-            if let Err(err) = self.ensure_offset(length) {
-                return Some(Err(err));
-            }
-        }
-        if self.reader.is_none() {
-            let (rp, r) = match self.read_future().await {
-                Ok((rp, r)) => (rp, r),
-                Err(err) => return Some(Err(err)),
-            };
-
-            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-        match r.next().await {
-            Some(Ok(bs)) => {
-                self.cur += bs.len() as u64;
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => {
-                self.reader = None;
-                Some(Err(err))
-            }
-            None => {
-                self.reader = None;
-                None
-            }
-        }
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {

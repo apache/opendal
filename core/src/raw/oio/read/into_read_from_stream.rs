@@ -75,14 +75,6 @@ where
         ))
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        if !self.buf.is_empty() {
-            return Some(Ok(std::mem::take(&mut self.buf)));
-        }
-
-        self.inner.next().await.map(|v| v.map(|v| v.into()))
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         if self.buf.is_empty() {
             self.buf = match self.inner.next().await.transpose()? {

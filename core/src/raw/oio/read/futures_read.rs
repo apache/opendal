@@ -62,13 +62,6 @@ where
         })
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "FuturesReader doesn't support poll_next",
-        )))
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         Err(Error::new(
             ErrorKind::Unsupported,

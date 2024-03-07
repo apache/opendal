@@ -265,10 +265,6 @@ impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
         self.inner.seek(pos).await
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next().await
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         self.inner.next_v2(size).await
     }

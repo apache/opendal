@@ -103,17 +103,6 @@ impl oio::Read for Cursor {
         Ok(n)
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.is_empty() {
-            None
-        } else {
-            // The clone here is required as we don't want to change it.
-            let bs = self.inner.clone().split_off(self.pos as usize);
-            self.pos += bs.len() as u64;
-            Some(Ok(bs))
-        }
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         if self.is_empty() {
             Ok(Bytes::new())

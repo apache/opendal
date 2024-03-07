@@ -90,7 +90,7 @@ impl IncomingAsyncBody {
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        while let Some(bs) = self.next().await {
+        while let bs = self.next_v2(4 * 1024 * 1024).await {
             bs.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
@@ -106,17 +106,15 @@ impl IncomingAsyncBody {
     /// This code is inspired from hyper's [`to_bytes`](https://docs.rs/hyper/0.14.23/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
         // If there's only 1 chunk, we can just return Buf::to_bytes()
-        let first = if let Some(buf) = self.next().await {
-            buf?
-        } else {
-            return Ok(Bytes::new());
-        };
-
-        let second = if let Some(buf) = self.next().await {
-            buf?
-        } else {
+        let first = self.next_v2(4 * 1024 * 1024).await?;
+        if first.is_empty() {
             return Ok(first);
-        };
+        }
+
+        let second = self.next_v2(4 * 1024 * 1024).await?;
+        if second.is_empty() {
+            return Ok(first);
+        }
 
         // With more than 1 buf, we gotta flatten into a Vec first.
         let cap = if let Some(size) = self.size {
@@ -132,7 +130,8 @@ impl IncomingAsyncBody {
         vec.put(first);
         vec.put(second);
 
-        while let Some(buf) = self.next().await {
+        // TODO: we can tune the io size here.
+        while let buf = self.next_v2(4 * 1024 * 1024).await {
             vec.put(buf?);
         }
 
@@ -169,36 +168,6 @@ impl oio::Read for IncomingAsyncBody {
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
         ))
-    }
-
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        todo!()
-        // if self.size == Some(0) {
-        //     return None;
-        // }
-        //
-        // if let Some(bs) = self.chunk.take() {
-        //     return Some(Ok(bs));
-        // }
-        //
-        // let res = match self.inner.next().await {
-        //     Some(Ok(bs)) => {
-        //         self.consumed += bs.len() as u64;
-        //         Some(Ok(bs))
-        //     }
-        //     Some(Err(err)) => Some(Err(err)),
-        //     None => {
-        //         if let Some(size) = self.size {
-        //             if let Err(err) = Self::check(size, self.consumed) {
-        //                 return Some(Err(err));
-        //             }
-        //         }
-        //
-        //         None
-        //     }
-        // };
-        //
-        // res
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {

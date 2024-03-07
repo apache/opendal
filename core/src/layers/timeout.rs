@@ -332,21 +332,6 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
         Self::io_timeout(self.timeout, ReadOperation::Seek.into_static(), fut).await
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        match tokio::time::timeout(self.timeout, self.inner.next()).await {
-            Ok(v) => v,
-            Err(err) => {
-                return Some(Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "io operation timeout reached",
-                )
-                .with_operation(ReadOperation::Next.into_static())
-                .with_context("timeout", self.timeout.as_secs_f64().to_string())
-                .set_temporary()))
-            }
-        }
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         let fut = self.inner.next_v2(size);
         Self::io_timeout(self.timeout, ReadOperation::Next.into_static(), fut).await

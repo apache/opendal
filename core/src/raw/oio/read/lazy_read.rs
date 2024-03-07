@@ -82,14 +82,6 @@ where
         self.reader().await?.seek(pos).await
     }
 
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        let r = match self.reader().await {
-            Ok(r) => r,
-            Err(err) => return Some(Err(err)),
-        };
-        r.next().await
-    }
-
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         let r = self.reader().await?;
         r.next_v2(size).await

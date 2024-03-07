@@ -58,24 +58,24 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            Self::One(v) => v.poll_read(cx, buf),
-            Self::Two(v) => v.poll_read(cx, buf),
+            Self::One(v) => v.read(buf).await,
+            Self::Two(v) => v.read(buf).await,
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
-            Self::One(v) => v.poll_seek(cx, pos),
-            Self::Two(v) => v.poll_seek(cx, pos),
+            Self::One(v) => v.seek(pos).await,
+            Self::Two(v) => v.seek(pos).await,
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         match self {
-            Self::One(v) => v.poll_next(cx),
-            Self::Two(v) => v.poll_next(cx),
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
         }
     }
 }
@@ -139,27 +139,27 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            Self::One(v) => v.poll_read(cx, buf),
-            Self::Two(v) => v.poll_read(cx, buf),
-            Self::Three(v) => v.poll_read(cx, buf),
+            Self::One(v) => v.read(buf).await,
+            Self::Two(v) => v.read(buf).await,
+            Self::Three(v) => v.read(buf).await,
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
-            Self::One(v) => v.poll_seek(cx, pos),
-            Self::Two(v) => v.poll_seek(cx, pos),
-            Self::Three(v) => v.poll_seek(cx, pos),
+            Self::One(v) => v.seek(pos).await,
+            Self::Two(v) => v.seek(pos).await,
+            Self::Three(v) => v.seek(pos).await,
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         match self {
-            Self::One(v) => v.poll_next(cx),
-            Self::Two(v) => v.poll_next(cx),
-            Self::Three(v) => v.poll_next(cx),
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
         }
     }
 }
@@ -241,30 +241,30 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            Self::One(v) => v.poll_read(cx, buf),
-            Self::Two(v) => v.poll_read(cx, buf),
-            Self::Three(v) => v.poll_read(cx, buf),
-            Self::Four(v) => v.poll_read(cx, buf),
+            Self::One(v) => v.read(buf).await,
+            Self::Two(v) => v.read(buf).await,
+            Self::Three(v) => v.read(buf).await,
+            Self::Four(v) => v.read(buf).await,
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
-            Self::One(v) => v.poll_seek(cx, pos),
-            Self::Two(v) => v.poll_seek(cx, pos),
-            Self::Three(v) => v.poll_seek(cx, pos),
-            Self::Four(v) => v.poll_seek(cx, pos),
+            Self::One(v) => v.seek(pos).await,
+            Self::Two(v) => v.seek(pos).await,
+            Self::Three(v) => v.seek(pos).await,
+            Self::Four(v) => v.seek(pos).await,
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         match self {
-            Self::One(v) => v.poll_next(cx),
-            Self::Two(v) => v.poll_next(cx),
-            Self::Three(v) => v.poll_next(cx),
-            Self::Four(v) => v.poll_next(cx),
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
+            Self::Four(v) => v.next().await,
         }
     }
 }

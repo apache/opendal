@@ -67,15 +67,6 @@ where
 
         Ok(self.reader.as_mut().expect("reader must be valid"))
     }
-
-    fn blocking_reader(&mut self) -> Result<&mut R> {
-        if self.reader.is_none() {
-            let (_, r) = self.acc.blocking_read(&self.path, self.op.clone())?;
-            self.reader = Some(r);
-        }
-
-        Ok(self.reader.as_mut().expect("reader must be valid"))
-    }
 }
 
 impl<A, R> oio::Read for LazyReader<A, R>
@@ -92,7 +83,26 @@ where
     }
 
     async fn next(&mut self) -> Option<Result<Bytes>> {
-        self.reader().await?.next().await
+        let r = match self.reader().await {
+            Ok(r) => r,
+            Err(err) => return Some(Err(err)),
+        };
+        r.next().await
+    }
+}
+
+impl<A, R> LazyReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn blocking_reader(&mut self) -> Result<&mut R> {
+        if self.reader.is_none() {
+            let (_, r) = self.acc.blocking_read(&self.path, self.op.clone())?;
+            self.reader = Some(r);
+        }
+
+        Ok(self.reader.as_mut().expect("reader must be valid"))
     }
 }
 
@@ -110,6 +120,11 @@ where
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        self.blocking_reader()?.next()
+        let r = match self.blocking_reader() {
+            Ok(r) => r,
+            Err(err) => return Some(Err(err)),
+        };
+
+        r.next()
     }
 }

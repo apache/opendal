@@ -671,146 +671,61 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
-
-        match ready!(self.inner.poll_read(cx, buf)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Read.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_read(cx, buf)
-                    }
-                }
-            }
-        }
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // { || self.inner.read(buf) }
+        //     .retry(&self.builder)
+        //     .when(|e| e.is_temporary())
+        //     .notify(|err, dur| {
+        //         self.notify.intercept(
+        //             err,
+        //             dur,
+        //             &[
+        //                 ("operation", ReadOperation::Read.into_static()),
+        //                 ("path", &self.path),
+        //             ],
+        //         )
+        //     })
+        //     .map(|v| v.map_err(|e| e.set_persistent()))
+        //     .await
+        todo!()
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
-
-        match ready!(self.inner.poll_seek(cx, pos)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Seek.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_seek(cx, pos)
-                    }
-                }
-            }
-        }
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        todo!()
+        // { || self.inner.seek(pos) }
+        //     .retry(&self.builder)
+        //     .when(|e| e.is_temporary())
+        //     .notify(|err, dur| {
+        //         self.notify.intercept(
+        //             err,
+        //             dur,
+        //             &[
+        //                 ("operation", ReadOperation::Seek.into_static()),
+        //                 ("path", &self.path),
+        //             ],
+        //         )
+        //     })
+        //     .map(|v| v.map_err(|e| e.set_persistent()))
+        //     .await
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
-
-        match ready!(self.inner.poll_next(cx)) {
-            None => {
-                self.current_backoff = None;
-                Poll::Ready(None)
-            }
-            Some(Ok(v)) => {
-                self.current_backoff = None;
-                Poll::Ready(Some(Ok(v)))
-            }
-            Some(Err(err)) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Some(Err(err)))
-            }
-            Some(Err(err)) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Some(Err(err)))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Next.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_next(cx)
-                    }
-                }
-            }
-        }
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        todo!()
+        // { || self.inner.next() }
+        //     .retry(&self.builder)
+        //     .when(|e| e.is_temporary())
+        //     .notify(|err, dur| {
+        //         self.notify.intercept(
+        //             err,
+        //             dur,
+        //             &[
+        //                 ("operation", ReadOperation::Next.into_static()),
+        //                 ("path", &self.path),
+        //             ],
+        //         )
+        //     })
+        //     .map(|v| v.map_err(|e| e.set_persistent()))
+        //     .await
     }
 }
 
@@ -1263,11 +1178,11 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
-            Poll::Ready(match *attempt {
+            match *attempt {
                 1 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
@@ -1288,25 +1203,25 @@ mod tests {
                 }
                 5 => Ok(0),
                 _ => unreachable!(),
-            })
+            }
         }
 
-        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+        async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
             self.pos = match pos {
                 io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
                 io::SeekFrom::Start(n) => n,
                 io::SeekFrom::End(n) => (13 + n) as u64,
             };
 
-            Poll::Ready(Ok(self.pos))
+            Ok(self.pos)
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        async fn next(&mut self) -> Option<Result<Bytes>> {
             let mut bs = vec![0; 1];
-            match ready!(self.poll_read(cx, &mut bs)) {
-                Ok(0) => Poll::Ready(None),
-                Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs[..v].to_vec())))),
-                Err(err) => Poll::Ready(Some(Err(err))),
+            match self.read(&mut bs).await {
+                Ok(0) => None,
+                Ok(v) => Some(Ok(Bytes::from(bs[..v].to_vec()))),
+                Err(err) => Some(Err(err)),
             }
         }
     }

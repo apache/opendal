@@ -23,7 +23,9 @@ use std::task::Poll;
 
 use bytes::Bytes;
 use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeek;
+use tokio::io::AsyncSeekExt;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
@@ -50,44 +52,26 @@ impl<R> oio::Read for TokioReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let mut buf = ReadBuf::new(buf);
-
-        ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf)).map_err(|err| {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.inner.read(buf).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Read)
                 .with_context("source", "TokioReader")
-        })?;
-
-        Poll::Ready(Ok(buf.filled().len()))
+        })
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        if self.seek_pos != Some(pos) {
-            Pin::new(&mut self.inner).start_seek(pos).map_err(|err| {
-                new_std_io_error(err)
-                    .with_operation(oio::ReadOperation::Seek)
-                    .with_context("source", "TokioReader")
-            })?;
-            self.seek_pos = Some(pos)
-        }
-
-        // NOTE: don't return error by `?` here, we need to reset seek_pos.
-        let pos = ready!(Pin::new(&mut self.inner).poll_complete(cx).map_err(|err| {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Seek)
                 .with_context("source", "TokioReader")
-        }));
-        self.seek_pos = None;
-        Poll::Ready(pos)
+        })
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
-
-        Poll::Ready(Some(Err(Error::new(
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
             ErrorKind::Unsupported,
             "TokioReader doesn't support poll_next",
-        ))))
+        )))
     }
 }

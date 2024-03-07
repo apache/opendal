@@ -54,11 +54,11 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
     }
 }
 
-impl Stream for dyn raw::oio::Read {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        raw::oio::Read::poll_next(self, cx)
-    }
-}
+// impl<T: raw::oio::Read> Stream for T {
+//     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+//         raw::oio::Read::poll_next(self, cx)
+//     }
+// }
 
 impl futures::Stream for dyn Stream {
     type Item = Result<Bytes>;

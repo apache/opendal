@@ -76,19 +76,19 @@ impl Reader {
     }
 }
 
-impl oio::Read for Reader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.inner.poll_read(cx, buf)
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx)
-    }
-}
+// impl oio::Read for Reader {
+//     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+//         self.inner.poll_read(cx, buf)
+//     }
+//
+//     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+//         self.inner.poll_seek(cx, pos)
+//     }
+//
+//     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+//         self.inner.poll_next(cx)
+//     }
+// }
 
 impl AsyncRead for Reader {
     fn poll_read(
@@ -96,7 +96,8 @@ impl AsyncRead for Reader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf)
+        todo!()
+        // Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
 
@@ -106,7 +107,8 @@ impl AsyncSeek for Reader {
         cx: &mut Context<'_>,
         pos: io::SeekFrom,
     ) -> Poll<io::Result<u64>> {
-        Pin::new(&mut self.inner).poll_seek(cx, pos)
+        todo!()
+        // Pin::new(&mut self.inner).poll_seek(cx, pos)
     }
 }
 
@@ -116,43 +118,49 @@ impl tokio::io::AsyncRead for Reader {
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        // Safety: We make sure that we will set filled correctly.
-        unsafe { buf.assume_init(buf.remaining()) }
-        let n = ready!(self.inner.poll_read(cx, buf.initialize_unfilled()))?;
-        buf.advance(n);
-        Poll::Ready(Ok(()))
+        todo!()
+
+        // // Safety: We make sure that we will set filled correctly.
+        // unsafe { buf.assume_init(buf.remaining()) }
+        // let n = ready!(self.inner.poll_read(cx, buf.initialize_unfilled()))?;
+        // buf.advance(n);
+        // Poll::Ready(Ok(()))
     }
 }
 
 impl tokio::io::AsyncSeek for Reader {
     fn start_seek(self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
-        let this = self.get_mut();
-        if let SeekState::Start(_) = this.seek_state {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "another search is in progress.",
-            ));
-        }
-        this.seek_state = SeekState::Start(pos);
-        Ok(())
+        todo!()
+
+        // let this = self.get_mut();
+        // if let SeekState::Start(_) = this.seek_state {
+        //     return Err(io::Error::new(
+        //         io::ErrorKind::Other,
+        //         "another search is in progress.",
+        //     ));
+        // }
+        // this.seek_state = SeekState::Start(pos);
+        // Ok(())
     }
 
     fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-        let state = self.seek_state;
-        match state {
-            SeekState::Init => {
-                // AsyncSeek recommends calling poll_complete before start_seek.
-                // We don't have to guarantee that the value returned by
-                // poll_complete called without start_seek is correct,
-                // so we'll return 0.
-                Poll::Ready(Ok(0))
-            }
-            SeekState::Start(pos) => {
-                let n = ready!(self.inner.poll_seek(cx, pos))?;
-                self.get_mut().seek_state = SeekState::Init;
-                Poll::Ready(Ok(n))
-            }
-        }
+        todo!()
+
+        // let state = self.seek_state;
+        // match state {
+        //     SeekState::Init => {
+        //         // AsyncSeek recommends calling poll_complete before start_seek.
+        //         // We don't have to guarantee that the value returned by
+        //         // poll_complete called without start_seek is correct,
+        //         // so we'll return 0.
+        //         Poll::Ready(Ok(0))
+        //     }
+        //     SeekState::Start(pos) => {
+        //         let n = ready!(self.inner.poll_seek(cx, pos))?;
+        //         self.get_mut().seek_state = SeekState::Init;
+        //         Poll::Ready(Ok(n))
+        //     }
+        // }
     }
 }
 
@@ -169,9 +177,10 @@ impl Stream for Reader {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner)
-            .poll_next(cx)
-            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+        todo!()
+        // Pin::new(&mut self.inner)
+        //     .poll_next(cx)
+        //     .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
     }
 }
 

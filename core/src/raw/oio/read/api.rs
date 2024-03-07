@@ -92,12 +92,12 @@ pub type Reader = Box<dyn DynRead>;
 /// is optional. We use `Read` to make users life easier.
 pub trait Read: Unpin + Send + Sync {
     /// Read bytes asynchronously.
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+    fn read(&mut self, buf: &mut [u8]) -> impl Future<Output = Result<usize>> + Send;
 
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
+    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
 
     /// Stream [`Bytes`] from underlying reader.
     ///
@@ -106,7 +106,7 @@ pub trait Read: Unpin + Send + Sync {
     /// This API exists for avoiding bytes copying inside async runtime.
     /// Users can poll bytes from underlying reader and decide when to
     /// read/consume them.
-    async fn next(&mut self) -> Option<Result<Bytes>>;
+    fn next(&mut self) -> impl Future<Output = Option<Result<Bytes>>> + Send;
 }
 
 impl Read for () {
@@ -135,19 +135,19 @@ impl Read for () {
 
 /// `Box<dyn Read>` won't implement `Read` automatically. To make Reader
 /// work as expected, we must add this impl.
-impl<T: Read + ?Sized> Read for Box<T> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        (**self).read(buf).await
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        (**self).seek(pos).await
-    }
-
-    async fn next(&mut self) -> Option<Result<Bytes>> {
-        (**self).next().await
-    }
-}
+// impl<T: Read + ?Sized> Read for Box<T> {
+//     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+//         (**self).read(buf).await
+//     }
+//
+//     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+//         (**self).seek(pos).await
+//     }
+//
+//     async fn next(&mut self) -> Option<Result<Bytes>> {
+//         (**self).next().await
+//     }
+// }
 
 /// Impl ReadExt for all T: Read
 impl<T: Read> ReadExt for T {}
@@ -206,7 +206,7 @@ where
 }
 
 pub trait DynRead: Unpin + Send + Sync {
-    fn dyn_read(&mut self, buf: &mut [u8]) -> BoxedFuture<Result<usize>>;
+    fn dyn_read<'a>(&'a mut self, buf: &'a mut [u8]) -> BoxedFuture<'a, Result<usize>>;
 
     fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 
@@ -214,7 +214,7 @@ pub trait DynRead: Unpin + Send + Sync {
 }
 
 impl<T: Read + ?Sized> DynRead for T {
-    fn dyn_read(&mut self, buf: &mut [u8]) -> BoxedFuture<Result<usize>> {
+    fn dyn_read<'a>(&'a mut self, buf: &'a mut [u8]) -> BoxedFuture<'a, Result<usize>> {
         Box::pin(self.read(buf))
     }
 
@@ -224,6 +224,20 @@ impl<T: Read + ?Sized> DynRead for T {
 
     fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>> {
         Box::pin(self.next())
+    }
+}
+
+impl<T: DynRead + ?Sized> Read for Box<T> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.dyn_read(buf).await
+    }
+
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.dyn_seek(pos).await
+    }
+
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        self.dyn_next().await
     }
 }
 

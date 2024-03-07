@@ -297,7 +297,7 @@ where
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.fill_buf() {
+        match self.blocking_fill_buf() {
             Ok(bytes) => {
                 if bytes.is_empty() {
                     return None;

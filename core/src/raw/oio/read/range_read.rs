@@ -17,13 +17,10 @@
 
 use std::future::Future;
 use std::io::SeekFrom;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
+use futures::AsyncSeek;
 
 use crate::raw::*;
 use crate::*;
@@ -45,22 +42,8 @@ pub struct RangeReader<A: Accessor, R> {
     offset: Option<u64>,
     size: Option<u64>,
     cur: u64,
-    state: State<R>,
+    reader: Option<R>,
 }
-
-enum State<R> {
-    Idle,
-    SendStat(BoxedStaticFuture<Result<RpStat>>),
-    SendRead(BoxedStaticFuture<Result<(RpRead, R)>>),
-    Read(R),
-}
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this state.
-unsafe impl<R> Send for State<R> {}
-/// Safety: State will only be accessed under &mut.
-unsafe impl<R> Sync for State<R> {}
 
 impl<A, R> RangeReader<A, R>
 where
@@ -95,7 +78,7 @@ where
             offset,
             size,
             cur: 0,
-            state: State::<R>::Idle,
+            reader: None,
         }
     }
 
@@ -106,7 +89,7 @@ where
                 if size > total_size {
                     // If returns an error, we should reset
                     // state to Idle so that we can retry it.
-                    self.state = State::Idle;
+                    self.reader = None;
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
                         "read to a negative or overflowing position is invalid",
@@ -195,10 +178,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn read_future(&self) -> BoxedStaticFuture<Result<(RpRead, R)>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
-
+    async fn read_future(&self) -> Result<(RpRead, R)> {
         let mut op = self.op.clone();
         // cur != 0 means we have read some data out, we should convert
         // the op into deterministic to avoid ETag changes.
@@ -208,13 +188,10 @@ where
         // Alter OpRead with correct calculated range.
         op = op.with_range(self.calculate_range());
 
-        Box::pin(async move { acc.read(&path, op).await })
+        self.acc.read(&self.path, op).await
     }
 
-    fn stat_future(&self) -> BoxedStaticFuture<Result<RpStat>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
-
+    async fn stat_future(&self) -> Result<RpStat> {
         // Handle if-match and if-none-match correctly.
         let mut args = OpStat::default();
         // TODO: stat should support range to check if ETag matches.
@@ -227,7 +204,7 @@ where
             }
         }
 
-        Box::pin(async move { acc.stat(&path, args).await })
+        self.acc.stat(&self.path, args).await
     }
 }
 
@@ -277,192 +254,123 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         // Sanity check for normal cases.
         if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
-            return Poll::Ready(Ok(0));
+            return Ok(0);
         }
 
-        match &mut self.state {
-            State::Idle => {
-                self.state = if self.offset.is_none() {
-                    // Offset is none means we are doing tailing reading.
-                    // we should stat first to get the correct offset.
-                    State::SendStat(self.stat_future())
+        if self.offset.is_none() {
+            let rp = self.stat_future().await?;
+            let length = rp.into_metadata().content_length();
+            self.ensure_offset(length)?;
+        }
+        if self.reader.is_none() {
+            let (rp, r) = self.read_future().await?;
+
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
+
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.read(buf).await {
+            Ok(0) => {
+                // Reset state to Idle after all data has been consumed.
+                self.reader = None;
+                Ok(0)
+            }
+            Ok(n) => {
+                self.cur += n as u64;
+                Ok(n)
+            }
+            Err(e) => {
+                self.reader = None;
+                Err(e)
+            }
+        }
+    }
+
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        // There is an optimization here that we can calculate if users trying to seek
+        // the same position, for example, `reader.seek(SeekFrom::Current(0))`.
+        // In this case, we can just return current position without dropping reader.
+        if pos == SeekFrom::Current(0) || pos == SeekFrom::Start(self.cur) {
+            return Ok(self.cur);
+        }
+
+        // We are seeking to other places, let's drop existing reader.
+        self.reader = None;
+
+        let (base, amt) = match pos {
+            SeekFrom::Start(n) => (0, n as i64),
+            SeekFrom::Current(n) => (self.cur as i64, n),
+            SeekFrom::End(n) => {
+                if let Some(size) = self.size {
+                    (size as i64, n)
                 } else {
-                    State::SendRead(self.read_future())
-                };
+                    let rp = self.stat_future().await?;
+                    let length = rp.into_metadata().content_length();
+                    self.ensure_offset(length)?;
 
-                self.poll_read(cx, buf)
-            }
-            State::SendStat(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If stat future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
-
-                let length = rp.into_metadata().content_length();
-                self.ensure_offset(length)?;
-
-                self.state = State::Idle;
-                self.poll_read(cx, buf)
-            }
-            State::SendRead(fut) => {
-                let (rp, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If read future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
-
-                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-
-                self.state = State::Read(r);
-                self.poll_read(cx, buf)
-            }
-            State::Read(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
-                Ok(0) => {
-                    // Reset state to Idle after all data has been consumed.
-                    self.state = State::Idle;
-                    Poll::Ready(Ok(0))
+                    (length as i64, n)
                 }
-                Ok(n) => {
-                    self.cur += n as u64;
-                    Poll::Ready(Ok(n))
-                }
-                Err(e) => {
-                    self.state = State::Idle;
-                    Poll::Ready(Err(e))
-                }
-            },
-        }
+            }
+        };
+
+        let seek_pos = match base.checked_add(amt) {
+            Some(n) if n >= 0 => n as u64,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                ))
+            }
+        };
+
+        self.cur = seek_pos;
+        Ok(self.cur)
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        match &mut self.state {
-            State::Idle => {
-                let (base, amt) = match pos {
-                    SeekFrom::Start(n) => (0, n as i64),
-                    SeekFrom::Current(n) => (self.cur as i64, n),
-                    SeekFrom::End(n) => {
-                        if let Some(size) = self.size {
-                            (size as i64, n)
-                        } else {
-                            self.state = State::SendStat(self.stat_future());
-                            return self.poll_seek(cx, pos);
-                        }
-                    }
-                };
-
-                let seek_pos = match base.checked_add(amt) {
-                    Some(n) if n >= 0 => n as u64,
-                    _ => {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "invalid seek to a negative or overflowing position",
-                        )))
-                    }
-                };
-
-                self.cur = seek_pos;
-                Poll::Ready(Ok(self.cur))
-            }
-            State::SendStat(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If stat future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
-
-                let length = rp.into_metadata().content_length();
-                self.ensure_offset(length)?;
-
-                self.state = State::Idle;
-                self.poll_seek(cx, pos)
-            }
-            State::SendRead(_) => {
-                // It's impossible for us to go into this state while
-                // poll_seek. We can just drop this future and check state.
-                self.state = State::Idle;
-                self.poll_seek(cx, pos)
-            }
-            State::Read(_) => {
-                // There is an optimization here that we can calculate if users trying to seek
-                // the same position, for example, `reader.seek(SeekFrom::Current(0))`.
-                // In this case, we can just return current position without dropping reader.
-                if pos == SeekFrom::Current(0) || pos == SeekFrom::Start(self.cur) {
-                    return Poll::Ready(Ok(self.cur));
-                }
-
-                self.state = State::Idle;
-                self.poll_seek(cx, pos)
-            }
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {
-            return Poll::Ready(None);
+            return None;
         }
 
-        match &mut self.state {
-            State::Idle => {
-                self.state = if self.offset.is_none() {
-                    // Offset is none means we are doing tailing reading.
-                    // we should stat first to get the correct offset.
-                    State::SendStat(self.stat_future())
-                } else {
-                    State::SendRead(self.read_future())
-                };
-
-                self.poll_next(cx)
+        if self.offset.is_none() {
+            let rp = match self.stat_future().await {
+                Ok(v) => v,
+                Err(err) => return Some(Err(err)),
+            };
+            let length = rp.into_metadata().content_length();
+            if let Err(err) = self.ensure_offset(length) {
+                return Some(Err(err));
             }
-            State::SendStat(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If stat future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
+        }
+        if self.reader.is_none() {
+            let (rp, r) = match self.read_future().await {
+                Ok((rp, r)) => (rp, r),
+                Err(err) => return Some(Err(err)),
+            };
 
-                let length = rp.into_metadata().content_length();
-                self.ensure_offset(length)?;
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
 
-                self.state = State::Idle;
-                self.poll_next(cx)
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.next().await {
+            Some(Ok(bs)) => {
+                self.cur += bs.len() as u64;
+                Some(Ok(bs))
             }
-            State::SendRead(fut) => {
-                let (rp, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If read future returns an error, we should reset
-                    // state to Idle so that we can retry it.
-                    self.state = State::Idle;
-                    err
-                })?;
-
-                // Set size if read returns size hint.
-                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-
-                self.state = State::Read(r);
-                self.poll_next(cx)
+            Some(Err(err)) => {
+                self.reader = None;
+                Some(Err(err))
             }
-            State::Read(r) => match ready!(Pin::new(r).poll_next(cx)) {
-                Some(Ok(bs)) => {
-                    self.cur += bs.len() as u64;
-                    Poll::Ready(Some(Ok(bs)))
-                }
-                Some(Err(err)) => {
-                    self.state = State::Idle;
-                    Poll::Ready(Some(Err(err)))
-                }
-                None => {
-                    self.state = State::Idle;
-                    Poll::Ready(None)
-                }
-            },
+            None => {
+                self.reader = None;
+                None
+            }
         }
     }
 }
@@ -478,155 +386,116 @@ where
             return Ok(0);
         }
 
-        match &mut self.state {
-            State::Idle => {
-                // Offset is none means we are doing tailing reading.
-                // we should stat first to get the correct offset.
-                if self.offset.is_none() {
-                    let rp = self.stat_action()?;
+        if self.offset.is_none() {
+            let rp = self.stat_action()?;
+            let length = rp.into_metadata().content_length();
+            self.ensure_offset(length)?;
+        }
+        if self.reader.is_none() {
+            let (rp, r) = self.read_action()?;
 
-                    let length = rp.into_metadata().content_length();
-                    self.ensure_offset(length)?;
-                }
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
 
-                let (rp, r) = self.read_action()?;
-
-                // Set size if read returns size hint.
-                self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-
-                self.state = State::Read(r);
-                self.read(buf)
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.read(buf) {
+            Ok(0) => {
+                // Reset state to Idle after all data has been consumed.
+                self.reader = None;
+                Ok(0)
             }
-            State::Read(r) => {
-                match r.read(buf) {
-                    Ok(0) => {
-                        // Reset state to Idle after all data has been consumed.
-                        self.state = State::Idle;
-                        Ok(0)
-                    }
-                    Ok(n) => {
-                        self.cur += n as u64;
-                        Ok(n)
-                    }
-                    Err(e) => {
-                        self.state = State::Idle;
-                        Err(e)
-                    }
-                }
+            Ok(n) => {
+                self.cur += n as u64;
+                Ok(n)
             }
-            State::SendStat(_) => {
-                unreachable!("It's invalid to go into State::SendStat for BlockingRead, please report this bug")
-            }
-            State::SendRead(_) => {
-                unreachable!("It's invalid to go into State::SendRead for BlockingRead, please report this bug")
+            Err(e) => {
+                self.reader = None;
+                Err(e)
             }
         }
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        match &mut self.state {
-            State::Idle => {
-                let (base, amt) = match pos {
-                    SeekFrom::Start(n) => (0, n as i64),
-                    SeekFrom::End(n) => {
-                        if let Some(size) = self.size {
-                            (size as i64, n)
-                        } else {
-                            let rp = self.stat_action()?;
-                            let length = rp.into_metadata().content_length();
-                            self.ensure_offset(length)?;
-
-                            let size = self.size.expect("size must be valid after fill_range");
-                            (size as i64, n)
-                        }
-                    }
-                    SeekFrom::Current(n) => (self.cur as i64, n),
-                };
-
-                let seek_pos = match base.checked_add(amt) {
-                    Some(n) if n >= 0 => n as u64,
-                    _ => {
-                        return Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "invalid seek to a negative or overflowing position",
-                        ));
-                    }
-                };
-
-                self.cur = seek_pos;
-                Ok(self.cur)
-            }
-            State::Read(_) => {
-                // There is an optimization here that we can calculate if users trying to seek
-                // the same position, for example, `reader.seek(SeekFrom::Current(0))`.
-                // In this case, we can just return current position without dropping reader.
-                if pos == SeekFrom::Current(0) || pos == SeekFrom::Start(self.cur) {
-                    return Ok(self.cur);
-                }
-
-                self.state = State::Idle;
-                self.seek(pos)
-            }
-            State::SendStat(_) => {
-                unreachable!("It's invalid to go into State::SendStat for BlockingRead, please report this bug")
-            }
-            State::SendRead(_) => {
-                unreachable!("It's invalid to go into State::SendRead for BlockingRead, please report this bug")
-            }
+        // There is an optimization here that we can calculate if users trying to seek
+        // the same position, for example, `reader.seek(SeekFrom::Current(0))`.
+        // In this case, we can just return current position without dropping reader.
+        if pos == SeekFrom::Current(0) || pos == SeekFrom::Start(self.cur) {
+            return Ok(self.cur);
         }
+
+        // We are seeking to other places, let's drop existing reader.
+        self.reader = None;
+
+        let (base, amt) = match pos {
+            SeekFrom::Start(n) => (0, n as i64),
+            SeekFrom::Current(n) => (self.cur as i64, n),
+            SeekFrom::End(n) => {
+                if let Some(size) = self.size {
+                    (size as i64, n)
+                } else {
+                    let rp = self.stat_action()?;
+                    let length = rp.into_metadata().content_length();
+                    self.ensure_offset(length)?;
+
+                    (length as i64, n)
+                }
+            }
+        };
+
+        let seek_pos = match base.checked_add(amt) {
+            Some(n) if n >= 0 => n as u64,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                ))
+            }
+        };
+
+        self.cur = seek_pos;
+        Ok(self.cur)
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        match &mut self.state {
-            State::Idle => {
-                // Sanity check for normal cases.
-                if self.cur >= self.size.unwrap_or(u64::MAX) {
-                    return None;
-                }
+        // Sanity check for normal cases.
+        if self.cur >= self.size.unwrap_or(u64::MAX) {
+            return None;
+        }
 
-                // Offset is none means we are doing tailing reading.
-                // we should stat first to get the correct offset.
-                if self.offset.is_none() {
-                    let rp = match self.stat_action() {
-                        Ok(rp) => rp,
-                        Err(err) => return Some(Err(err)),
-                    };
-
-                    let length = rp.into_metadata().content_length();
-                    if let Err(err) = self.ensure_offset(length) {
-                        return Some(Err(err));
-                    }
-                }
-
-                let r = match self.read_action() {
-                    Ok((rp, r)) => {
-                        self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-                        r
-                    }
-                    Err(err) => return Some(Err(err)),
-                };
-                self.state = State::Read(r);
-                self.next()
+        if self.offset.is_none() {
+            let rp = match self.stat_action() {
+                Ok(rp) => rp,
+                Err(err) => return Some(Err(err)),
+            };
+            let length = rp.into_metadata().content_length();
+            if let Err(err) = self.ensure_offset(length) {
+                return Some(Err(err));
             }
-            State::Read(r) => match r.next() {
-                Some(Ok(bs)) => {
-                    self.cur += bs.len() as u64;
-                    Some(Ok(bs))
-                }
-                Some(Err(err)) => {
-                    self.state = State::Idle;
-                    Some(Err(err))
-                }
-                None => {
-                    self.state = State::Idle;
-                    None
-                }
-            },
-            State::SendStat(_) => {
-                unreachable!("It's invalid to go into State::SendStat for BlockingRead, please report this bug")
+        }
+        if self.reader.is_none() {
+            let (rp, r) = match self.read_action() {
+                Ok((rp, r)) => (rp, r),
+                Err(err) => return Some(Err(err)),
+            };
+
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
+
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.next() {
+            Some(Ok(bs)) => {
+                self.cur += bs.len() as u64;
+                Some(Ok(bs))
             }
-            State::SendRead(_) => {
-                unreachable!("It's invalid to go into State::SendRead for BlockingRead, please report this bug")
+            Some(Err(err)) => {
+                self.reader = None;
+                Some(Err(err))
+            }
+            None => {
+                self.reader = None;
+                None
             }
         }
     }
@@ -706,32 +575,30 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-            Pin::new(&mut self.inner).poll_read(cx, buf).map_err(|err| {
+        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+            self.inner.read(buf).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
             })
         }
 
-        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-            let (_, _) = (cx, pos);
+        async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+            let _ = pos;
 
-            Poll::Ready(Err(Error::new(
+            Err(Error::new(
                 ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
-            )))
+            ))
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        async fn next(&mut self) -> Option<Result<Bytes>> {
             let mut bs = vec![0; 4 * 1024];
-            let n = ready!(Pin::new(&mut self.inner)
-                .poll_read(cx, &mut bs)
-                .map_err(
-                    |err| Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
-                )?);
+            let n = self.inner.read(&mut bs).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
+            })?;
             if n == 0 {
-                Poll::Ready(None)
+                None
             } else {
-                Poll::Ready(Some(Ok(Bytes::from(bs[..n].to_vec()))))
+                Some(Ok(Bytes::from(bs[..n].to_vec())))
             }
         }
     }

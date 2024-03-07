@@ -43,25 +43,25 @@ pub struct StreamableReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for StreamableReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.r.poll_read(cx, buf)
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.r.read(buf).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        self.r.poll_seek(cx, pos)
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.r.seek(pos).await
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
         unsafe { buf.assume_init(self.cap) };
 
-        match ready!(self.r.poll_read(cx, buf.initialized_mut())) {
-            Err(err) => Poll::Ready(Some(Err(err))),
-            Ok(0) => Poll::Ready(None),
+        match self.r.read(buf.initialized_mut()).await {
+            Err(err) => Some(Err(err)),
+            Ok(0) => None,
             Ok(n) => {
                 buf.set_filled(n);
-                Poll::Ready(Some(Ok(Bytes::from(buf.filled().to_vec()))))
+                Some(Ok(Bytes::from(buf.filled().to_vec())))
             }
         }
     }
@@ -94,6 +94,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use crate::raw::oio::Read;
     use bytes::BufMut;
     use bytes::BytesMut;
     use rand::prelude::*;
@@ -102,8 +103,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_stream() {
-        use oio::ReadExt;
-
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
         let size = rng.gen_range(1..16 * 1024 * 1024);

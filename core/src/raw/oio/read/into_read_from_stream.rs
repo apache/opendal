@@ -45,43 +45,39 @@ where
     S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
     T: Into<Bytes>,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if !self.buf.is_empty() {
             let len = std::cmp::min(buf.len(), self.buf.len());
             buf[..len].copy_from_slice(&self.buf[..len]);
             self.buf.advance(len);
-            return Poll::Ready(Ok(len));
+            return Ok(len);
         }
 
-        match futures::ready!(self.inner.poll_next_unpin(cx)) {
+        match self.inner.next().await {
             Some(Ok(bytes)) => {
                 let bytes = bytes.into();
                 let len = std::cmp::min(buf.len(), bytes.len());
                 buf[..len].copy_from_slice(&bytes[..len]);
                 self.buf = bytes.slice(len..);
-                Poll::Ready(Ok(len))
+                Ok(len)
             }
-            Some(Err(err)) => Poll::Ready(Err(err)),
-            None => Poll::Ready(Ok(0)),
+            Some(Err(err)) => Err(err),
+            None => Ok(0),
         }
     }
 
-    fn poll_seek(&mut self, _: &mut Context<'_>, _: SeekFrom) -> Poll<Result<u64>> {
-        Poll::Ready(Err(Error::new(
+    async fn seek(&mut self, _: SeekFrom) -> Result<u64> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "FromStreamReader can't support operation",
-        )))
+        ))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         if !self.buf.is_empty() {
-            return Poll::Ready(Some(Ok(std::mem::take(&mut self.buf))));
+            return Some(Ok(std::mem::take(&mut self.buf)));
         }
 
-        match futures::ready!(self.inner.poll_next_unpin(cx)) {
-            Some(Ok(bytes)) => Poll::Ready(Some(Ok(bytes.into()))),
-            Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            None => Poll::Ready(None),
-        }
+        self.inner.next().await.map(|v| v.map(|v| v.into()))
     }
 }

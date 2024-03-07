@@ -25,7 +25,9 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
+use futures::StreamExt;
 
+use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -160,9 +162,9 @@ impl IncomingAsyncBody {
 }
 
 impl oio::Read for IncomingAsyncBody {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
         if buf.is_empty() || self.size == Some(0) {
-            return Poll::Ready(Ok(0));
+            return Ok(0);
         }
 
         // Avoid extra poll of next if we already have chunks.
@@ -170,7 +172,7 @@ impl oio::Read for IncomingAsyncBody {
             chunk
         } else {
             loop {
-                match ready!(self.inner.poll_next(cx)) {
+                match self.inner.next().await {
                     // It's possible for underlying stream to return empty bytes, we should continue
                     // to fetch next one.
                     Some(Ok(bs)) if bs.is_empty() => continue,
@@ -178,12 +180,12 @@ impl oio::Read for IncomingAsyncBody {
                         self.consumed += bs.len() as u64;
                         break bs;
                     }
-                    Some(Err(err)) => return Poll::Ready(Err(err)),
+                    Some(Err(err)) => return Err(err),
                     None => {
                         if let Some(size) = self.size {
                             Self::check(size, self.consumed)?;
                         }
-                        return Poll::Ready(Ok(0));
+                        return Ok(0);
                     }
                 }
             }
@@ -196,28 +198,28 @@ impl oio::Read for IncomingAsyncBody {
             self.chunk = Some(bs);
         }
 
-        Poll::Ready(Ok(amt))
+        Ok(amt)
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        let (_) = (pos);
 
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        )))
+        ))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         if self.size == Some(0) {
-            return Poll::Ready(None);
+            return None;
         }
 
         if let Some(bs) = self.chunk.take() {
-            return Poll::Ready(Some(Ok(bs)));
+            return Some(Ok(bs));
         }
 
-        let res = match ready!(self.inner.poll_next(cx)) {
+        let res = match self.inner.next().await {
             Some(Ok(bs)) => {
                 self.consumed += bs.len() as u64;
                 Some(Ok(bs))
@@ -225,13 +227,15 @@ impl oio::Read for IncomingAsyncBody {
             Some(Err(err)) => Some(Err(err)),
             None => {
                 if let Some(size) = self.size {
-                    Self::check(size, self.consumed)?;
+                    if let Err(err) = Self::check(size, self.consumed) {
+                        return Some(Err(err));
+                    }
                 }
 
                 None
             }
         };
 
-        Poll::Ready(res)
+        res
     }
 }

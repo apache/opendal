@@ -22,7 +22,9 @@ use std::task::Poll;
 
 use bytes::Bytes;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::AsyncSeek;
+use futures::AsyncSeekExt;
 
 use crate::raw::*;
 use crate::*;
@@ -43,28 +45,26 @@ impl<R> oio::Read for FuturesReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf).map_err(|err| {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.inner.read(buf).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Read)
                 .with_context("source", "FuturesReader")
         })
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        Pin::new(&mut self.inner).poll_seek(cx, pos).map_err(|err| {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Seek)
                 .with_context("source", "FuturesReader")
         })
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
-
-        Poll::Ready(Some(Err(Error::new(
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
             ErrorKind::Unsupported,
             "FuturesReader doesn't support poll_next",
-        ))))
+        )))
     }
 }

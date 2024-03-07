@@ -52,7 +52,7 @@ pub struct FileReader<A: Accessor, R> {
 
 enum State<R> {
     Idle,
-    Send(BoxedFuture<Result<(RpRead, R)>>),
+    Send(BoxedStaticFuture<Result<(RpRead, R)>>),
     Read(R),
 }
 
@@ -93,7 +93,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn read_future(&self) -> BoxedFuture<Result<(RpRead, R)>> {
+    fn read_future(&self) -> BoxedStaticFuture<Result<(RpRead, R)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 

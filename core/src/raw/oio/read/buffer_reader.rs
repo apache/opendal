@@ -100,7 +100,7 @@ impl<R> BufferReader<R>
 where
     R: oio::Read,
 {
-    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
+    async fn fill_buf(&mut self) -> Result<&[u8]> {
         // If we've reached the end of our internal buffer then we need to fetch
         // some more data from the underlying reader.
         // Branch using `>=` instead of the more correct `==`
@@ -114,22 +114,22 @@ where
             let mut buf = ReadBuf::uninit(dst);
             unsafe { buf.assume_init(cap) };
 
-            let n = ready!(self.r.poll_read(cx, buf.initialized_mut()))?;
+            let n = self.r.read(buf.initialized_mut()).await?;
             unsafe { self.buf.set_len(n) }
 
             self.pos = 0;
             self.filled = n;
         }
 
-        Poll::Ready(Ok(&self.buf[self.pos..self.filled]))
+        Ok(&self.buf[self.pos..self.filled])
     }
 
-    fn poll_inner_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let cur = ready!(self.r.poll_seek(cx, pos))?;
+    async fn inner_seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let cur = self.r.seek(pos).await?;
         self.discard_buffer();
         self.cur = cur;
 
-        Poll::Ready(Ok(cur))
+        Ok(cur)
     }
 }
 
@@ -137,68 +137,70 @@ impl<R> oio::Read for BufferReader<R>
 where
     R: oio::Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut dst: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, mut dst: &mut [u8]) -> Result<usize> {
         // Sanity check for normal cases.
         if dst.is_empty() {
-            return Poll::Ready(Ok(0));
+            return Ok(0);
         }
 
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
         if self.pos == self.filled && dst.len() >= self.capacity() {
-            let res = ready!(self.r.poll_read(cx, dst));
+            let res = self.r.read(dst).await;
             self.discard_buffer();
             return match res {
                 Ok(nread) => {
                     self.cur += nread as u64;
-                    Poll::Ready(Ok(nread))
+                    Ok(nread)
                 }
-                Err(err) => Poll::Ready(Err(err)),
+                Err(err) => Err(err),
             };
         }
 
-        let rem = ready!(self.poll_fill_buf(cx))?;
+        let rem = self.fill_buf().await?;
         let amt = min(rem.len(), dst.len());
         dst.put(&rem[..amt]);
         self.consume(amt);
-        Poll::Ready(Ok(amt))
+        Ok(amt)
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match pos {
             SeekFrom::Start(new_pos) => {
                 // TODO(weny): Check the overflowing.
                 let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
-                    return self.poll_inner_seek(cx, pos);
+                    return self.inner_seek(pos).await;
                 };
 
                 match self.seek_relative(offset) {
-                    Some(cur) => Poll::Ready(Ok(cur)),
-                    None => self.poll_inner_seek(cx, pos),
+                    Some(cur) => Ok(cur),
+                    None => self.inner_seek(pos).await,
                 }
             }
             SeekFrom::Current(offset) => match self.seek_relative(offset) {
-                Some(cur) => Poll::Ready(Ok(cur)),
-                None => self
-                    .poll_inner_seek(cx, SeekFrom::Current(offset - self.unconsumed_buffer_len())),
+                Some(cur) => Ok(cur),
+                None => {
+                    self.inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len()))
+                        .await
+                }
             },
-            SeekFrom::End(_) => self.poll_inner_seek(cx, pos),
+            SeekFrom::End(_) => self.inner_seek(pos).await,
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match ready!(self.poll_fill_buf(cx)) {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        match self.fill_buf().await {
             Ok(bytes) => {
                 if bytes.is_empty() {
-                    return Poll::Ready(None);
+                    return None;
                 }
 
                 let bytes = Bytes::copy_from_slice(bytes);
                 self.consume(bytes.len());
-                Poll::Ready(Some(Ok(bytes)))
+                Some(Ok(bytes))
             }
-            Err(err) => Poll::Ready(Some(Err(err))),
+            Err(err) => Some(Err(err)),
         }
     }
 }
@@ -207,7 +209,7 @@ impl<R> BufferReader<R>
 where
     R: BlockingRead,
 {
-    fn fill_buf(&mut self) -> Result<&[u8]> {
+    fn blocking_fill_buf(&mut self) -> Result<&[u8]> {
         // If we've reached the end of our internal buffer then we need to fetch
         // some more data from the underlying reader.
         // Branch using `>=` instead of the more correct `==`
@@ -231,7 +233,7 @@ where
         Ok(&self.buf[self.pos..self.filled])
     }
 
-    fn inner_seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    fn blocking_inner_seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let cur = self.r.seek(pos)?;
         self.discard_buffer();
         self.cur = cur;
@@ -265,7 +267,7 @@ where
             };
         }
 
-        let rem = self.fill_buf()?;
+        let rem = self.blocking_fill_buf()?;
         let amt = min(rem.len(), dst.len());
         dst.put(&rem[..amt]);
         self.consume(amt);
@@ -277,19 +279,20 @@ where
             SeekFrom::Start(new_pos) => {
                 // TODO(weny): Check the overflowing.
                 let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
-                    return self.inner_seek(pos);
+                    return self.blocking_inner_seek(pos);
                 };
 
                 match self.seek_relative(offset) {
                     Some(cur) => Ok(cur),
-                    None => self.inner_seek(pos),
+                    None => self.blocking_inner_seek(pos),
                 }
             }
             SeekFrom::Current(offset) => match self.seek_relative(offset) {
                 Some(cur) => Ok(cur),
-                None => self.inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len())),
+                None => self
+                    .blocking_inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len())),
             },
-            SeekFrom::End(_) => self.inner_seek(pos),
+            SeekFrom::End(_) => self.blocking_inner_seek(pos),
         }
     }
 
@@ -394,21 +397,21 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-            self.inner.poll_read(cx, buf)
+        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+            self.inner.read(buf).await
         }
 
-        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-            let (_, _) = (cx, pos);
+        async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+            let (_) = (pos);
 
-            Poll::Ready(Err(Error::new(
+            Err(Error::new(
                 ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
-            )))
+            ))
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-            self.inner.poll_next(cx)
+        async fn next(&mut self) -> Option<Result<Bytes>> {
+            self.inner.next().await
         }
     }
 

@@ -50,8 +50,8 @@ pub struct RangeReader<A: Accessor, R> {
 
 enum State<R> {
     Idle,
-    SendStat(BoxedFuture<Result<RpStat>>),
-    SendRead(BoxedFuture<Result<(RpRead, R)>>),
+    SendStat(BoxedStaticFuture<Result<RpStat>>),
+    SendRead(BoxedStaticFuture<Result<(RpRead, R)>>),
     Read(R),
 }
 
@@ -195,7 +195,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    fn read_future(&self) -> BoxedFuture<Result<(RpRead, R)>> {
+    fn read_future(&self) -> BoxedStaticFuture<Result<(RpRead, R)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 
@@ -211,7 +211,7 @@ where
         Box::pin(async move { acc.read(&path, op).await })
     }
 
-    fn stat_future(&self) -> BoxedFuture<Result<RpStat>> {
+    fn stat_future(&self) -> BoxedStaticFuture<Result<RpStat>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
 

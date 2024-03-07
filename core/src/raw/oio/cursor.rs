@@ -71,17 +71,17 @@ impl From<Vec<u8>> for Cursor {
 }
 
 impl oio::Read for Cursor {
-    fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read data from Cursor")
                 .with_context("source", "Cursor")
                 .set_source(err)
         })?;
         self.pos += n as u64;
-        Poll::Ready(Ok(n))
+        Ok(n)
     }
 
-    fn poll_seek(&mut self, _: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, amt) = match pos {
             SeekFrom::Start(n) => (0, n as i64),
             SeekFrom::End(n) => (self.inner.len() as i64, n),
@@ -91,24 +91,24 @@ impl oio::Read for Cursor {
         let n = match base.checked_add(amt) {
             Some(n) if n >= 0 => n as u64,
             _ => {
-                return Poll::Ready(Err(Error::new(
+                return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "invalid seek to a negative or overflowing position",
-                )))
+                ))
             }
         };
         self.pos = n;
-        Poll::Ready(Ok(n))
+        Ok(n)
     }
 
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    async fn next(&mut self) -> Option<Result<Bytes>> {
         if self.is_empty() {
-            Poll::Ready(None)
+            None
         } else {
             // The clone here is required as we don't want to change it.
             let bs = self.inner.clone().split_off(self.pos as usize);
             self.pos += bs.len() as u64;
-            Poll::Ready(Some(Ok(bs)))
+            Some(Ok(bs))
         }
     }
 }

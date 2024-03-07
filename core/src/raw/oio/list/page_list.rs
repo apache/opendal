@@ -72,7 +72,7 @@ pub struct PageLister<L: PageList> {
 
 enum State<L> {
     Idle(Option<(L, PageContext)>),
-    Fetch(BoxedFuture<((L, PageContext), Result<()>)>),
+    Fetch(BoxedStaticFuture<((L, PageContext), Result<()>)>),
 }
 
 /// # Safety

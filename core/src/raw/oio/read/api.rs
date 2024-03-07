@@ -18,6 +18,7 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -27,6 +28,7 @@ use bytes::Bytes;
 use futures::Future;
 use tokio::io::ReadBuf;
 
+use crate::raw::BoxedFuture;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -76,7 +78,7 @@ impl From<ReadOperation> for &'static str {
 }
 
 /// Reader is a type erased [`Read`].
-pub type Reader = Box<dyn Read>;
+pub type Reader = Box<dyn DynRead>;
 
 /// Read is the trait that OpenDAL returns to callers.
 ///
@@ -90,12 +92,12 @@ pub type Reader = Box<dyn Read>;
 /// is optional. We use `Read` to make users life easier.
 pub trait Read: Unpin + Send + Sync {
     /// Read bytes asynchronously.
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>>;
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
 
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>>;
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
 
     /// Stream [`Bytes`] from underlying reader.
     ///
@@ -104,79 +106,46 @@ pub trait Read: Unpin + Send + Sync {
     /// This API exists for avoiding bytes copying inside async runtime.
     /// Users can poll bytes from underlying reader and decide when to
     /// read/consume them.
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
+    async fn next(&mut self) -> Option<Result<Bytes>>;
 }
 
 impl Read for () {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let (_, _) = (cx, buf);
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let _ = buf;
 
         unimplemented!("poll_read is required to be implemented for oio::Read")
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        let (_) = (pos);
 
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        )))
+        ))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
-
-        Poll::Ready(Some(Err(Error::new(
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support streaming",
-        ))))
+        )))
     }
 }
 
 /// `Box<dyn Read>` won't implement `Read` automatically. To make Reader
 /// work as expected, we must add this impl.
 impl<T: Read + ?Sized> Read for Box<T> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        (**self).poll_read(cx, buf)
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        (**self).poll_seek(cx, pos)
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        (**self).seek(pos).await
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        (**self).poll_next(cx)
-    }
-}
-
-impl futures::AsyncRead for dyn Read {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        let this: &mut dyn Read = &mut *self;
-        this.poll_read(cx, buf).map_err(format_io_error)
-    }
-}
-
-impl futures::AsyncSeek for dyn Read {
-    fn poll_seek(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: io::SeekFrom,
-    ) -> Poll<io::Result<u64>> {
-        let this: &mut dyn Read = &mut *self;
-        this.poll_seek(cx, pos).map_err(format_io_error)
-    }
-}
-
-impl futures::Stream for dyn Read {
-    type Item = Result<Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this: &mut dyn Read = &mut *self;
-        this.poll_next(cx)
+    async fn next(&mut self) -> Option<Result<Bytes>> {
+        (**self).next().await
     }
 }
 
@@ -185,73 +154,9 @@ impl<T: Read> ReadExt for T {}
 
 /// Extension of [`Read`] to make it easier for use.
 pub trait ReadExt: Read {
-    /// Build a future for `poll_read`.
-    fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFuture<'a, Self> {
-        ReadFuture { reader: self, buf }
-    }
-
-    /// Build a future for `poll_seek`.
-    fn seek(&mut self, pos: io::SeekFrom) -> SeekFuture<'_, Self> {
-        SeekFuture { reader: self, pos }
-    }
-
-    /// Build a future for `poll_next`
-    fn next(&mut self) -> NextFuture<'_, Self> {
-        NextFuture { reader: self }
-    }
-
     /// Build a future for `read_to_end`.
     fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self> {
         ReadToEndFuture { reader: self, buf }
-    }
-}
-
-pub struct ReadFuture<'a, R: Read + Unpin + ?Sized> {
-    reader: &'a mut R,
-    buf: &'a mut [u8],
-}
-
-impl<R> Future for ReadFuture<'_, R>
-where
-    R: Read + Unpin + ?Sized,
-{
-    type Output = Result<usize>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.get_mut();
-        this.reader.poll_read(cx, this.buf)
-    }
-}
-
-pub struct SeekFuture<'a, R: Read + Unpin + ?Sized> {
-    reader: &'a mut R,
-    pos: io::SeekFrom,
-}
-
-impl<R> Future for SeekFuture<'_, R>
-where
-    R: Read + Unpin + ?Sized,
-{
-    type Output = Result<u64>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<u64>> {
-        let this = self.get_mut();
-        this.reader.poll_seek(cx, this.pos)
-    }
-}
-
-pub struct NextFuture<'a, R: Read + Unpin + ?Sized> {
-    reader: &'a mut R,
-}
-
-impl<R> Future for NextFuture<'_, R>
-where
-    R: Read + Unpin + ?Sized,
-{
-    type Output = Option<Result<Bytes>>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.reader.poll_next(cx)
     }
 }
 
@@ -267,35 +172,58 @@ where
     type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.get_mut();
-        let start_len = this.buf.len();
+        todo!()
+        // let this = self.get_mut();
+        // let start_len = this.buf.len();
+        //
+        // loop {
+        //     if this.buf.len() == this.buf.capacity() {
+        //         this.buf.reserve(32); // buf is full, need more space
+        //     }
+        //
+        //     let spare = this.buf.spare_capacity_mut();
+        //     let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
+        //
+        //     // SAFETY: These bytes were initialized but not filled in the previous loop
+        //     unsafe {
+        //         read_buf.assume_init(read_buf.capacity());
+        //     }
+        //
+        //     match ready!(this.reader.poll_read(cx, read_buf.initialize_unfilled())) {
+        //         Ok(0) => {
+        //             return Poll::Ready(Ok(this.buf.len() - start_len));
+        //         }
+        //         Ok(n) => {
+        //             // SAFETY: Read API makes sure that returning `n` is correct.
+        //             unsafe {
+        //                 this.buf.set_len(this.buf.len() + n);
+        //             }
+        //         }
+        //         Err(e) => return Poll::Ready(Err(e)),
+        //     }
+        // }
+    }
+}
 
-        loop {
-            if this.buf.len() == this.buf.capacity() {
-                this.buf.reserve(32); // buf is full, need more space
-            }
+pub trait DynRead: Unpin + Send + Sync {
+    fn dyn_read(&mut self, buf: &mut [u8]) -> BoxedFuture<Result<usize>>;
 
-            let spare = this.buf.spare_capacity_mut();
-            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
+    fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 
-            // SAFETY: These bytes were initialized but not filled in the previous loop
-            unsafe {
-                read_buf.assume_init(read_buf.capacity());
-            }
+    fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>>;
+}
 
-            match ready!(this.reader.poll_read(cx, read_buf.initialize_unfilled())) {
-                Ok(0) => {
-                    return Poll::Ready(Ok(this.buf.len() - start_len));
-                }
-                Ok(n) => {
-                    // SAFETY: Read API makes sure that returning `n` is correct.
-                    unsafe {
-                        this.buf.set_len(this.buf.len() + n);
-                    }
-                }
-                Err(e) => return Poll::Ready(Err(e)),
-            }
-        }
+impl<T: Read + ?Sized> DynRead for T {
+    fn dyn_read(&mut self, buf: &mut [u8]) -> BoxedFuture<Result<usize>> {
+        Box::pin(self.read(buf))
+    }
+
+    fn dyn_seek(&mut self, pos: SeekFrom) -> BoxedFuture<Result<u64>> {
+        Box::pin(self.seek(pos))
+    }
+
+    fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>> {
+        Box::pin(self.next())
     }
 }
 

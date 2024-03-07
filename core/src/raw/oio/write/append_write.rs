@@ -65,8 +65,8 @@ pub struct AppendWriter<W: AppendWrite> {
 
 enum State<W> {
     Idle(Option<W>),
-    Offset(BoxedFuture<(W, Result<u64>)>),
-    Append(BoxedFuture<(W, Result<usize>)>),
+    Offset(BoxedStaticFuture<(W, Result<u64>)>),
+    Append(BoxedStaticFuture<(W, Result<usize>)>),
 }
 
 /// # Safety

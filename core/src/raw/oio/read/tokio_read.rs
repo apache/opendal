@@ -34,17 +34,12 @@ use crate::*;
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct TokioReader<R: AsyncRead + AsyncSeek> {
     inner: R,
-
-    seek_pos: Option<SeekFrom>,
 }
 
 impl<R: AsyncRead + AsyncSeek> TokioReader<R> {
     /// Create a new tokio reader.
     pub fn new(inner: R) -> Self {
-        Self {
-            inner,
-            seek_pos: None,
-        }
+        Self { inner }
     }
 }
 

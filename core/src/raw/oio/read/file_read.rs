@@ -149,17 +149,6 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn blocking_reader(&mut self) -> Result<&mut R> {
-        if self.reader.is_none() {
-            // FileReader doesn't support range, we will always use full range to open a file.
-            let op = self.op.clone().with_range(BytesRange::from(..));
-            let (_, r) = self.acc.blocking_read(&self.path, op)?;
-            self.reader = Some(r);
-        }
-
-        Ok(self.reader.as_mut().expect("reader must be valid"))
-    }
-
     /// calculate_offset will make sure that the offset has been set.
     fn calculate_offset(r: &mut R, range: BytesRange) -> Result<(Option<u64>, Option<u64>)> {
         let (offset, size) = match (range.offset(), range.size()) {

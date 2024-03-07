@@ -343,11 +343,16 @@ impl DropboxCore {
                         .get(&error.tag)
                         .expect("error should be present")
                         .tag;
-                    let err = Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("delete failed with error {} {}", error.tag, error_cause),
-                    );
-                    ("".to_string(), Err(err))
+                    // Ignore error about path lookup not found
+                    if error.tag == "path_lookup" && error_cause == "not_found" {
+                        ("".to_string(), Ok(RpDelete::default().into()))
+                    } else {
+                        let err = Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("delete failed with error {} {}", error.tag, error_cause),
+                        );
+                        ("".to_string(), Err(err))
+                    }
                 }
                 _ => (
                     "".to_string(),

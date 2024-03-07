@@ -154,7 +154,7 @@ const config = {
               },
               {
                 label: 'object-store-opendal',
-                to: 'pathname:///docs/object-store-opendal/object-store-opendal'
+                to: 'pathname:///docs/object-store-opendal/object_store_opendal'
               },
             ]
           },

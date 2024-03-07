@@ -27,6 +27,7 @@ on:
     paths:
       - "core/**"
       - "bindings/**"
+      - "integrations/**"
       - ".github/workflows/docs.yml"
 
 concurrency:
@@ -292,6 +293,33 @@ jobs:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html
 
+  build-object-store-opendal-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install nightly-2024-01-01
+
+      - name: Build object-store-opendal doc
+        working-directory: "integrations/object_store"
+        run: cargo +nightly-2024-01-01 doc --lib --no-deps --all-features
+        env:
+          # Enable cfg docs to make sure docs are built.
+          RUSTDOCFLAGS: "--cfg docs"
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: object-store-opendal-docs
+          path: ./integrations/object_store/target/doc
+
   build-website:
     runs-on: ubuntu-latest
     needs:
@@ -304,6 +332,7 @@ jobs:
       - build-haskell-doc
       - build-cpp-doc
       - build-ocaml-doc
+      - build-object-store-opendal-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -375,6 +404,12 @@ jobs:
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml
+
+      - name: Download object-store-opendal docs
+        uses: actions/download-artifact@v3
+        with:
+          name: object-store-opendal-docs
+          path: ./website/static/docs/object-store-opendal
 
       - name: Install Dependencies
         working-directory: website

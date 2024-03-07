@@ -152,6 +152,10 @@ const config = {
                 label: 'Java Binding',
                 to: 'pathname:///docs/java/'
               },
+              {
+                label: 'object-store-opendal',
+                to: 'pathname:///docs/object-store-opendal/object-store-opendal'
+              },
             ]
           },
           {

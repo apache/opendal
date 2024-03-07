@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::ready;
@@ -68,5 +69,12 @@ where
             ErrorKind::Unsupported,
             "TokioReader doesn't support poll_next",
         )))
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "TokioReader doesn't support poll_next",
+        ))
     }
 }

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
+use std::future::Future;
 use std::io::Read;
 use std::io::SeekFrom;
 use std::task::Context;
@@ -109,6 +111,18 @@ impl oio::Read for Cursor {
             let bs = self.inner.clone().split_off(self.pos as usize);
             self.pos += bs.len() as u64;
             Some(Ok(bs))
+        }
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        if self.is_empty() {
+            Ok(Bytes::new())
+        } else {
+            // The clone here is required as we don't want to change it.
+            let mut bs = self.inner.clone().split_off(self.pos as usize);
+            let bs = bs.split_to(min(bs.len(), size));
+            self.pos += bs.len() as u64;
+            Ok(bs)
         }
     }
 }

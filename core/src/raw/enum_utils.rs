@@ -78,6 +78,13 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
             Self::Two(v) => v.next().await,
         }
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        match self {
+            Self::One(v) => v.next_v2(size).await,
+            Self::Two(v) => v.next_v2(size).await,
+        }
+    }
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
@@ -160,6 +167,14 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
             Self::One(v) => v.next().await,
             Self::Two(v) => v.next().await,
             Self::Three(v) => v.next().await,
+        }
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        match self {
+            Self::One(v) => v.next_v2(size).await,
+            Self::Two(v) => v.next_v2(size).await,
+            Self::Three(v) => v.next_v2(size).await,
         }
     }
 }
@@ -265,6 +280,15 @@ where
             Self::Two(v) => v.next().await,
             Self::Three(v) => v.next().await,
             Self::Four(v) => v.next().await,
+        }
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        match self {
+            Self::One(v) => v.next_v2(size).await,
+            Self::Two(v) => v.next_v2(size).await,
+            Self::Three(v) => v.next_v2(size).await,
+            Self::Four(v) => v.next_v2(size).await,
         }
     }
 }

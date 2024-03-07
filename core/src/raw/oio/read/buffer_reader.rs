@@ -16,6 +16,7 @@
 // under the License.
 
 use std::cmp::min;
+use std::future::Future;
 use std::io::SeekFrom;
 use std::task::ready;
 use std::task::Context;
@@ -201,6 +202,22 @@ where
                 Some(Ok(bytes))
             }
             Err(err) => Some(Err(err)),
+        }
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        match self.fill_buf().await {
+            Ok(bytes) => {
+                if bytes.is_empty() {
+                    return Ok(Bytes::new());
+                }
+
+                let size = min(bytes.len(), size);
+                let bytes = Bytes::copy_from_slice(&bytes[..size]);
+                self.consume(bytes.len());
+                Ok(bytes)
+            }
+            Err(err) => Err(err),
         }
     }
 }

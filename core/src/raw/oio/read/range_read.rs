@@ -373,6 +373,45 @@ where
             }
         }
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        // Sanity check for normal cases.
+        if self.cur >= self.size.unwrap_or(u64::MAX) {
+            return Ok(Bytes::new());
+        }
+
+        if self.offset.is_none() {
+            let rp = match self.stat_future().await {
+                Ok(v) => v,
+                Err(err) => return Err(err),
+            };
+            let length = rp.into_metadata().content_length();
+            if let Err(err) = self.ensure_offset(length) {
+                return Err(err);
+            }
+        }
+        if self.reader.is_none() {
+            let (rp, r) = match self.read_future().await {
+                Ok((rp, r)) => (rp, r),
+                Err(err) => return Err(err),
+            };
+
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
+
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.next_v2(size).await {
+            Ok(bs) => {
+                self.cur += bs.len() as u64;
+                Ok(bs)
+            }
+            Err(err) => {
+                self.reader = None;
+                Err(err)
+            }
+        }
+    }
 }
 
 impl<A, R> oio::BlockingRead for RangeReader<A, R>

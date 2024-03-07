@@ -727,6 +727,25 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         //     .map(|v| v.map_err(|e| e.set_persistent()))
         //     .await
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        todo!()
+        // { || self.inner.next_v2(size) }
+        //     .retry(&self.builder)
+        //     .when(|e| e.is_temporary())
+        //     .notify(|err, dur| {
+        //         self.notify.intercept(
+        //             err,
+        //             dur,
+        //             &[
+        //                 ("operation", ReadOperation::NextV2.into_static()),
+        //                 ("path", &self.path),
+        //             ],
+        //         )
+        //     })
+        //     .map_err(|e| e.set_persistent())
+        //     .await
+    }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {

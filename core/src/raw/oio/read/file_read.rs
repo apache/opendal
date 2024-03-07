@@ -337,6 +337,10 @@ where
             Err(err) => Some(Err(err)),
         }
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        todo!()
+    }
 }
 
 impl<A, R> oio::BlockingRead for FileReader<A, R>

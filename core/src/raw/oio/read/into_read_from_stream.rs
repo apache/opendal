@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
+use std::future::Future;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -79,5 +81,17 @@ where
         }
 
         self.inner.next().await.map(|v| v.map(|v| v.into()))
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        if self.buf.is_empty() {
+            self.buf = match self.inner.next().await.transpose()? {
+                Some(v) => v.into(),
+                None => return Ok(Bytes::new()),
+            };
+        }
+
+        let bs = self.buf.split_to(min(size, self.buf.len()));
+        Ok(bs)
     }
 }

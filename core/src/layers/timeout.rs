@@ -346,6 +346,11 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
             }
         }
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let fut = self.inner.next_v2(size);
+        Self::io_timeout(self.timeout, ReadOperation::Next.into_static(), fut).await
+    }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {

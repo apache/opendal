@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
 use std::io::SeekFrom;
 use std::task::ready;
 use std::task::Context;
@@ -64,6 +65,16 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
                 Some(Ok(Bytes::from(buf.filled().to_vec())))
             }
         }
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let dst = self.buf.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+        unsafe { buf.assume_init(min(self.cap, size)) };
+
+        let n = self.r.read(buf.initialized_mut()).await?;
+        buf.set_filled(n);
+        Ok(Bytes::from(buf.filled().to_vec()))
     }
 }
 

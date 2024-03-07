@@ -89,6 +89,11 @@ where
         };
         r.next().await
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let r = self.reader().await?;
+        r.next_v2(size).await
+    }
 }
 
 impl<A, R> LazyReader<A, R>

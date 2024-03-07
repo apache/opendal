@@ -1101,6 +1101,39 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             }
         }
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        match self.inner.next_v2(size).await {
+            Ok(bs) => {
+                self.read += bs.len() as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} read={} -> next returns {}B",
+                    self.ctx.scheme,
+                    ReadOperation::Next,
+                    self.path,
+                    self.read,
+                    bs.len()
+                );
+                Ok(bs)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.ctx.error_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} read={} -> next failed: {}",
+                        self.ctx.scheme,
+                        ReadOperation::Next,
+                        self.path,
+                        self.read,
+                        self.ctx.error_print(&err),
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {

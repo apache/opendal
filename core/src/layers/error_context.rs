@@ -375,6 +375,14 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
             })
         })
     }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        self.inner.next_v2(size).await.map_err(|err| {
+            err.with_operation(ReadOperation::Next)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {

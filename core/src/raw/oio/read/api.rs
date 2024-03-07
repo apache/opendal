@@ -107,6 +107,18 @@ pub trait Read: Unpin + Send + Sync {
     /// Users can poll bytes from underlying reader and decide when to
     /// read/consume them.
     fn next(&mut self) -> impl Future<Output = Option<Result<Bytes>>> + Send;
+
+    /// Fetch more bytes from underlying reader.
+    ///
+    /// `size` is used to hint the data that user want to read at most. Implementer
+    /// MUST NOT return more than `size` bytes. However, implementer can decide
+    /// whether to split or merge the read requests underground.
+    ///
+    /// Returning `bytes`'s `length == 0` means:
+    ///
+    /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
+    /// - The `size` specified was `0`.
+    fn next_v2(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send;
 }
 
 impl Read for () {
@@ -131,23 +143,16 @@ impl Read for () {
             "output reader doesn't support streaming",
         )))
     }
-}
 
-/// `Box<dyn Read>` won't implement `Read` automatically. To make Reader
-/// work as expected, we must add this impl.
-// impl<T: Read + ?Sized> Read for Box<T> {
-//     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-//         (**self).read(buf).await
-//     }
-//
-//     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-//         (**self).seek(pos).await
-//     }
-//
-//     async fn next(&mut self) -> Option<Result<Bytes>> {
-//         (**self).next().await
-//     }
-// }
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let _ = size;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support streaming",
+        ))
+    }
+}
 
 /// Impl ReadExt for all T: Read
 impl<T: Read> ReadExt for T {}
@@ -211,6 +216,8 @@ pub trait DynRead: Unpin + Send + Sync {
     fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 
     fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>>;
+
+    fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
 }
 
 impl<T: Read + ?Sized> DynRead for T {
@@ -225,6 +232,10 @@ impl<T: Read + ?Sized> DynRead for T {
     fn dyn_next(&mut self) -> BoxedFuture<Option<Result<Bytes>>> {
         Box::pin(self.next())
     }
+
+    fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
+        Box::pin(self.next_v2(size))
+    }
 }
 
 impl<T: DynRead + ?Sized> Read for Box<T> {
@@ -238,6 +249,10 @@ impl<T: DynRead + ?Sized> Read for Box<T> {
 
     async fn next(&mut self) -> Option<Result<Bytes>> {
         self.dyn_next().await
+    }
+
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        self.dyn_next_v2(size).await
     }
 }
 

@@ -186,7 +186,7 @@ impl Accessor for HdfsNativeBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
-                
+
                 delete: true,
                 rename: true,
                 blocking: true,

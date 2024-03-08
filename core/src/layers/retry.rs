@@ -647,7 +647,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
 }
 
 pub struct RetryWrapper<R, I> {
-    inner: R,
+    inner: Option<R>,
     notify: Arc<I>,
 
     path: String,
@@ -659,7 +659,7 @@ pub struct RetryWrapper<R, I> {
 impl<R, I> RetryWrapper<R, I> {
     fn new(inner: R, notify: Arc<I>, path: &str, backoff: ExponentialBuilder) -> Self {
         Self {
-            inner,
+            inner: Some(inner),
             notify,
 
             path: path.to_string(),
@@ -672,47 +672,72 @@ impl<R, I> RetryWrapper<R, I> {
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        todo!()
-        // { || self.inner.seek(pos) }
-        //     .retry(&self.builder)
-        //     .when(|e| e.is_temporary())
-        //     .notify(|err, dur| {
-        //         self.notify.intercept(
-        //             err,
-        //             dur,
-        //             &[
-        //                 ("operation", ReadOperation::Seek.into_static()),
-        //                 ("path", &self.path),
-        //             ],
-        //         )
-        //     })
-        //     .map(|v| v.map_err(|e| e.set_persistent()))
-        //     .await
+        use backon::RetryableWithContext;
+
+        let inner = self.inner.take().expect("inner must be valid");
+
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.seek(pos).await;
+
+                (r, res)
+            }
+        }
+        .retry(&self.builder)
+        .context(inner)
+        .when(|e| e.is_temporary())
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ReadOperation::Seek.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        todo!()
-        // { || self.inner.next_v2(size) }
-        //     .retry(&self.builder)
-        //     .when(|e| e.is_temporary())
-        //     .notify(|err, dur| {
-        //         self.notify.intercept(
-        //             err,
-        //             dur,
-        //             &[
-        //                 ("operation", ReadOperation::NextV2.into_static()),
-        //                 ("path", &self.path),
-        //             ],
-        //         )
-        //     })
-        //     .map_err(|e| e.set_persistent())
-        //     .await
+        use backon::RetryableWithContext;
+
+        let inner = self.inner.take().expect("inner must be valid");
+
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.next_v2(size).await;
+
+                (r, res)
+            }
+        }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ReadOperation::Next.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        { || self.inner.read(buf) }
+        { || self.inner.as_mut().unwrap().read(buf) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -730,7 +755,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        { || self.inner.seek(pos) }
+        { || self.inner.as_mut().unwrap().seek(pos) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -748,7 +773,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        { || self.inner.next().transpose() }
+        { || self.inner.as_mut().unwrap().next().transpose() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -774,7 +799,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_write(cx, bs)) {
+        match ready!(self.inner.as_mut().unwrap().poll_write(cx, bs)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -820,7 +845,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_abort(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_abort(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -866,7 +891,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_close(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_close(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -909,7 +934,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        { || self.inner.write(bs) }
+        { || self.inner.as_mut().unwrap().write(bs) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -927,7 +952,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
     }
 
     fn close(&mut self) -> Result<()> {
-        { || self.inner.close() }
+        { || self.inner.as_mut().unwrap().close() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -954,7 +979,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_next(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_next(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -997,7 +1022,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
 
 impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        { || self.inner.next() }
+        { || self.inner.as_mut().unwrap().next() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {

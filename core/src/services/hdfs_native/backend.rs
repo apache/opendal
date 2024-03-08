@@ -187,17 +187,7 @@ impl Accessor for HdfsNativeBackend {
             .set_native_capability(Capability {
                 stat: true,
 
-                read: true,
-                read_can_seek: true,
-
-                write: true,
-                write_can_append: self._enable_append,
-
-                create_dir: true,
                 delete: true,
-
-                list: true,
-
                 rename: true,
                 blocking: true,
 

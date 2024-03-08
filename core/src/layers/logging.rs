@@ -991,42 +991,6 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let buf_size = buf.len();
-
-        match self.inner.read(buf).await {
-            Ok(n) => {
-                self.read += n as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> buf size: {}B, read {}B ",
-                    self.ctx.scheme,
-                    ReadOperation::Read,
-                    self.path,
-                    self.read,
-                    buf_size,
-                    n
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::Read,
-                        self.path,
-                        self.read,
-                        self.ctx.error_print(&err)
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         match self.inner.seek(pos).await {
             Ok(n) => {

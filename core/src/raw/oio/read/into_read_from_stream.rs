@@ -47,27 +47,6 @@ where
     S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
     T: Into<Bytes>,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if !self.buf.is_empty() {
-            let len = std::cmp::min(buf.len(), self.buf.len());
-            buf[..len].copy_from_slice(&self.buf[..len]);
-            self.buf.advance(len);
-            return Ok(len);
-        }
-
-        match self.inner.next().await {
-            Some(Ok(bytes)) => {
-                let bytes = bytes.into();
-                let len = std::cmp::min(buf.len(), bytes.len());
-                buf[..len].copy_from_slice(&bytes[..len]);
-                self.buf = bytes.slice(len..);
-                Ok(len)
-            }
-            Some(Err(err)) => Err(err),
-            None => Ok(0),
-        }
-    }
-
     async fn seek(&mut self, _: SeekFrom) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,

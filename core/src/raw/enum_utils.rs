@@ -58,13 +58,6 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self {
-            Self::One(v) => v.read(buf).await,
-            Self::Two(v) => v.read(buf).await,
-        }
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
             Self::One(v) => v.seek(pos).await,
@@ -139,14 +132,6 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self {
-            Self::One(v) => v.read(buf).await,
-            Self::Two(v) => v.read(buf).await,
-            Self::Three(v) => v.read(buf).await,
-        }
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
             Self::One(v) => v.seek(pos).await,
@@ -241,15 +226,6 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self {
-            Self::One(v) => v.read(buf).await,
-            Self::Two(v) => v.read(buf).await,
-            Self::Three(v) => v.read(buf).await,
-            Self::Four(v) => v.read(buf).await,
-        }
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match self {
             Self::One(v) => v.seek(pos).await,

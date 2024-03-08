@@ -44,10 +44,6 @@ pub struct StreamableReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for StreamableReader<R> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.r.read(buf).await
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.r.seek(pos).await
     }
@@ -55,10 +51,12 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(min(self.cap, size)) };
+        unsafe { buf.assume_init(self.cap) };
 
-        let n = self.r.read(buf.initialized_mut()).await?;
-        buf.set_filled(n);
+        let bs = self.r.next_v2(self.cap).await?;
+        buf.put_slice(&bs);
+        buf.set_filled(bs.len());
+
         Ok(Bytes::from(buf.filled().to_vec()))
     }
 }
@@ -111,7 +109,7 @@ mod tests {
         let mut s = into_streamable_read(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
-        while let Some(b) = s.next().await {
+        while let Some(b) = s.next_v2(4 * 1024 * 1024).await {
             let b = b.expect("read must success");
             bs.put_slice(&b);
         }

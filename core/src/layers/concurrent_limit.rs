@@ -257,10 +257,6 @@ impl<R> ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf).await
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.inner.seek(pos).await
     }

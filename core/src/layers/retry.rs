@@ -671,25 +671,6 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // { || self.inner.read(buf) }
-        //     .retry(&self.builder)
-        //     .when(|e| e.is_temporary())
-        //     .notify(|err, dur| {
-        //         self.notify.intercept(
-        //             err,
-        //             dur,
-        //             &[
-        //                 ("operation", ReadOperation::Read.into_static()),
-        //                 ("path", &self.path),
-        //             ],
-        //         )
-        //     })
-        //     .map(|v| v.map_err(|e| e.set_persistent()))
-        //     .await
-        todo!()
-    }
-
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         todo!()
         // { || self.inner.seek(pos) }

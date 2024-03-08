@@ -349,15 +349,6 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf).await.map_err(|err| {
-            err.with_operation(ReadOperation::Read)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context("read_buf", buf.len().to_string())
-        })
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.inner.seek(pos).await.map_err(|err| {
             err.with_operation(ReadOperation::Seek)

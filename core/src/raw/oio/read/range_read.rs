@@ -254,42 +254,6 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // Sanity check for normal cases.
-        if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
-            return Ok(0);
-        }
-
-        if self.offset.is_none() {
-            let rp = self.stat_future().await?;
-            let length = rp.into_metadata().content_length();
-            self.ensure_offset(length)?;
-        }
-        if self.reader.is_none() {
-            let (rp, r) = self.read_future().await?;
-
-            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-        match r.read(buf).await {
-            Ok(0) => {
-                // Reset state to Idle after all data has been consumed.
-                self.reader = None;
-                Ok(0)
-            }
-            Ok(n) => {
-                self.cur += n as u64;
-                Ok(n)
-            }
-            Err(e) => {
-                self.reader = None;
-                Err(e)
-            }
-        }
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         // There is an optimization here that we can calculate if users trying to seek
         // the same position, for example, `reader.seek(SeekFrom::Current(0))`.

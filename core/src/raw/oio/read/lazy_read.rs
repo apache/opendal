@@ -74,10 +74,6 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.reader().await?.read(buf).await
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.reader().await?.seek(pos).await
     }

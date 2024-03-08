@@ -218,41 +218,41 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if self.reader.is_none() {
-            // FileReader doesn't support range, we will always use full range to open a file.
-            let op = self.op.clone().with_range(BytesRange::from(..));
-            let (_, r) = self.acc.read(&self.path, op).await?;
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-
-        // We should know where to start read the data.
-        if self.offset.is_none() {
-            (self.offset, self.size) = Self::offset(r, self.op.range()).await?;
-        }
-
-        let size = if let Some(size) = self.size {
-            // Sanity check.
-            if self.cur >= size {
-                return Ok(0);
-            }
-            cmp::min(buf.len(), (size - self.cur) as usize)
-        } else {
-            buf.len()
-        };
-
-        match r.read(&mut buf[..size]).await {
-            Ok(0) => Ok(0),
-            Ok(n) => {
-                self.cur += n as u64;
-                Ok(n)
-            }
-            // We don't need to reset state here since it's ok to poll the same reader.
-            Err(err) => Err(err),
-        }
-    }
+    // async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    //     if self.reader.is_none() {
+    //         // FileReader doesn't support range, we will always use full range to open a file.
+    //         let op = self.op.clone().with_range(BytesRange::from(..));
+    //         let (_, r) = self.acc.read(&self.path, op).await?;
+    //         self.reader = Some(r);
+    //     }
+    //
+    //     let r = self.reader.as_mut().expect("reader must be valid");
+    //
+    //     // We should know where to start read the data.
+    //     if self.offset.is_none() {
+    //         (self.offset, self.size) = Self::offset(r, self.op.range()).await?;
+    //     }
+    //
+    //     let size = if let Some(size) = self.size {
+    //         // Sanity check.
+    //         if self.cur >= size {
+    //             return Ok(0);
+    //         }
+    //         cmp::min(buf.len(), (size - self.cur) as usize)
+    //     } else {
+    //         buf.len()
+    //     };
+    //
+    //     match r.read(&mut buf[..size]).await {
+    //         Ok(0) => Ok(0),
+    //         Ok(n) => {
+    //             self.cur += n as u64;
+    //             Ok(n)
+    //         }
+    //         // We don't need to reset state here since it's ok to poll the same reader.
+    //         Err(err) => Err(err),
+    //     }
+    // }
 
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         if self.reader.is_none() {

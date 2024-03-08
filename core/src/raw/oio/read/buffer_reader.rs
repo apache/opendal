@@ -36,6 +36,7 @@ pub struct BufferReader<R> {
     r: R,
     cur: u64,
 
+    /// TODO: maybe we can use chunked bytes here?
     buf: Vec<u8>,
     filled: usize,
     pos: usize,
@@ -115,11 +116,12 @@ where
             let mut buf = ReadBuf::uninit(dst);
             unsafe { buf.assume_init(cap) };
 
-            let n = self.r.read(buf.initialized_mut()).await?;
-            unsafe { self.buf.set_len(n) }
+            let bs = self.r.next_v2(cap).await?;
+            buf.put_slice(&bs);
+            unsafe { self.buf.set_len(bs.len()) }
 
             self.pos = 0;
-            self.filled = n;
+            self.filled = bs.len();
         }
 
         Ok(&self.buf[self.pos..self.filled])
@@ -138,34 +140,6 @@ impl<R> oio::Read for BufferReader<R>
 where
     R: oio::Read,
 {
-    async fn read(&mut self, mut dst: &mut [u8]) -> Result<usize> {
-        // Sanity check for normal cases.
-        if dst.is_empty() {
-            return Ok(0);
-        }
-
-        // If we don't have any buffered data and we're doing a massive read
-        // (larger than our internal buffer), bypass our internal buffer
-        // entirely.
-        if self.pos == self.filled && dst.len() >= self.capacity() {
-            let res = self.r.read(dst).await;
-            self.discard_buffer();
-            return match res {
-                Ok(nread) => {
-                    self.cur += nread as u64;
-                    Ok(nread)
-                }
-                Err(err) => Err(err),
-            };
-        }
-
-        let rem = self.fill_buf().await?;
-        let amt = min(rem.len(), dst.len());
-        dst.put(&rem[..amt]);
-        self.consume(amt);
-        Ok(amt)
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match pos {
             SeekFrom::Start(new_pos) => {
@@ -399,10 +373,6 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            self.inner.read(buf).await
-        }
-
         async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
             let (_) = (pos);
 
@@ -412,8 +382,8 @@ mod tests {
             ))
         }
 
-        async fn next(&mut self) -> Option<Result<Bytes>> {
-            self.inner.next().await
+        async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+            self.inner.next_v2(size).await
         }
     }
 

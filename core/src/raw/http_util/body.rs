@@ -157,10 +157,6 @@ impl IncomingAsyncBody {
 }
 
 impl oio::Read for IncomingAsyncBody {
-    async fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
-        todo!()
-    }
-
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         let (_) = (pos);
 

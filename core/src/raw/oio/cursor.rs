@@ -73,16 +73,6 @@ impl From<Vec<u8>> for Cursor {
 }
 
 impl oio::Read for Cursor {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read data from Cursor")
-                .with_context("source", "Cursor")
-                .set_source(err)
-        })?;
-        self.pos += n as u64;
-        Ok(n)
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, amt) = match pos {
             SeekFrom::Start(n) => (0, n as i64),

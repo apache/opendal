@@ -46,14 +46,6 @@ impl<R> oio::Read for FuturesReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf).await.map_err(|err| {
-            new_std_io_error(err)
-                .with_operation(oio::ReadOperation::Read)
-                .with_context("source", "FuturesReader")
-        })
-    }
-
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.inner.seek(pos).await.map_err(|err| {
             new_std_io_error(err)

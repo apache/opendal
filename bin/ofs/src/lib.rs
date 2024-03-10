@@ -48,19 +48,23 @@ pub async fn new_app(cfg: Config) -> Result<()> {
     let backend = Operator::via_map(scheme, op_args)?;
 
     let args = Args {
+        #[cfg(target_os = "linux")]
         mount_path: cfg.mount_path,
         backend,
     };
     execute(args).await
 }
 
+#[derive(Debug)]
 struct Args {
+    #[cfg(target_os = "linux")]
     mount_path: String,
     backend: Operator,
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn execute(_: FrontendArgs) -> Result<()> {
+async fn execute(args: Args) -> Result<()> {
+    _ = args.backend;
     Err(anyhow::anyhow!("platform not supported"))
 }
 

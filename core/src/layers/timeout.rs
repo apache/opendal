@@ -386,7 +386,6 @@ mod tests {
 
     use crate::layers::TimeoutLayer;
     use crate::layers::TypeEraseLayer;
-    use crate::raw::oio::Read;
     use crate::raw::*;
     use crate::*;
 

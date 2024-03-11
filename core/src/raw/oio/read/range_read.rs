@@ -464,7 +464,6 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::AsyncReadExt;
-    use futures::AsyncSeekExt;
     use rand::prelude::*;
     use sha2::Digest;
     use sha2::Sha256;
@@ -624,8 +623,7 @@ mod tests {
         let n = r.seek(SeekFrom::Start(1024)).await?;
         assert_eq!(1024, n, "seek to 1024");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf).await?;
+        let buf = r.read_exact(1024).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 1024..4096 + 2048])),
             format!("{:x}", Sha256::digest(&buf)),
@@ -635,8 +633,7 @@ mod tests {
         let n = r.seek(SeekFrom::Current(1024)).await?;
         assert_eq!(3072, n, "seek to 3072");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf).await?;
+        let buf = r.read_exact(1024).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 3072..4096 + 3072 + 1024])),
             format!("{:x}", Sha256::digest(&buf)),

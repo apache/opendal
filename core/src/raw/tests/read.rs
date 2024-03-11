@@ -157,8 +157,6 @@ impl ReadChecker {
     ///
     /// Check will panic if any check failed.
     pub async fn check(&mut self, mut r: Reader, actions: &[ReadAction]) {
-        use oio::Read;
-
         for action in actions {
             match action {
                 ReadAction::Read(size) => {

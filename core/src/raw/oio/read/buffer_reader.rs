@@ -306,8 +306,6 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::AsyncReadExt;
-    use futures::AsyncSeekExt;
     use rand::prelude::*;
     use sha2::Digest;
     use sha2::Sha256;
@@ -426,21 +424,17 @@ mod tests {
         let r = Box::new(BufferReader::new(r, buf_cap)) as oio::Reader;
         let mut r = Reader::new(r);
 
-        let mut dst = [0u8; 5];
+        let bs = r.read(5).await?;
+        assert_eq!(bs.len(), 5);
+        assert_eq!(bs.as_ref(), b"Hello");
 
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"Hello");
+        let bs = r.read(5).await?;
+        assert_eq!(bs.len(), 5);
+        assert_eq!(bs.as_ref(), b", Wor");
 
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b", Wor");
-
-        let mut dst = [0u8; 3];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"ld!");
+        let bs = r.read(3).await?;
+        assert_eq!(bs.len(), 3);
+        assert_eq!(bs.as_ref(), b"ld!");
 
         Ok(())
     }
@@ -456,33 +450,29 @@ mod tests {
         let mut r = Reader::new(r);
 
         // The underlying reader buffers the b"Hello, Wor".
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"Hello");
+        let bs = r.read(5).await?;
+        assert_eq!(bs.len(), 5);
+        assert_eq!(bs.as_ref(), b"Hello");
 
         let pos = r.seek(SeekFrom::Start(7)).await?;
         assert_eq!(pos, 7);
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(&dst[..nread], &bs[7..10]);
-        assert_eq!(nread, 3);
+        let bs = r.read(5).await?;
+        assert_eq!(&bs, &bs[7..10]);
+        assert_eq!(bs.len(), 3);
 
         // Should perform a relative seek.
         let pos = r.seek(SeekFrom::Start(0)).await?;
         assert_eq!(pos, 0);
-        let mut dst = [0u8; 9];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(&dst[..nread], &bs[0..9]);
-        assert_eq!(nread, 9);
+        let bs = r.read(9).await?;
+        assert_eq!(&bs, &bs[0..9]);
+        assert_eq!(bs.len(), 9);
 
         // Should perform a non-relative seek.
         let pos = r.seek(SeekFrom::Start(11)).await?;
         assert_eq!(pos, 11);
-        let mut dst = [0u8; 9];
-        let nread = r.read(&mut dst).await?;
-        assert_eq!(&dst[..nread], &bs[11..13]);
-        assert_eq!(nread, 2);
+        let bs = r.read(9).await?;
+        assert_eq!(&bs, &bs[11..13]);
+        assert_eq!(bs.len(), 2);
 
         Ok(())
     }
@@ -541,9 +531,8 @@ mod tests {
 
         let mut cur = 0;
         for _ in 0..3 {
-            let mut dst = [0u8; 5];
-            let nread = r.read(&mut dst).await?;
-            assert_eq!(nread, 5);
+            let bs = r.read(5).await?;
+            assert_eq!(bs.len(), 5);
             cur += 5;
         }
 
@@ -569,9 +558,8 @@ mod tests {
 
         let mut cur = 0;
         for _ in 0..3 {
-            let mut dst = [0u8; 6];
-            let nread = r.read(&mut dst).await?;
-            assert_eq!(nread, 6);
+            let bs = r.read(6).await?;
+            assert_eq!(bs.len(), 6);
             cur += 6;
         }
 
@@ -618,8 +606,7 @@ mod tests {
         let n = r.seek(SeekFrom::Start(1024)).await?;
         assert_eq!(1024, n, "seek to 1024");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf).await?;
+        let buf = r.read_exact(1024).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 1024..4096 + 2048])),
             format!("{:x}", Sha256::digest(&buf)),
@@ -629,8 +616,7 @@ mod tests {
         let n = r.seek(SeekFrom::Current(1024)).await?;
         assert_eq!(3072, n, "seek to 3072");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf).await?;
+        let buf = r.read_exact(1024).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 3072..4096 + 3072 + 1024])),
             format!("{:x}", Sha256::digest(&buf)),

@@ -22,10 +22,9 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
-use futures::AsyncRead;
-use futures::AsyncSeek;
+use bytes::{Bytes, BytesMut};
 use futures::Stream;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -59,6 +58,13 @@ pub struct Reader {
 }
 
 impl Reader {
+    /// Create a new reader from an `oio::Reader`.
+    pub(crate) fn new(r: oio::Reader) -> Self {
+        Reader {
+            state: State::Idle(Some(r)),
+        }
+    }
+
     /// Create a new reader.
     ///
     /// Create will use internal information to decide the most suitable
@@ -74,11 +80,127 @@ impl Reader {
         })
     }
 
-    /// Create a new reader from an `oio::Reader`.
-    #[cfg(test)]
-    pub(crate) fn new(r: oio::Reader) -> Self {
-        Reader {
-            state: State::Idle(Some(r)),
+    /// Convert [`Reader`] into an [`futures::AsyncRead`] and [`futures::AsyncSeek`]
+    ///
+    /// `Reader` itself implements [`futures::AsyncRead`], this function is used to
+    /// make sure that `Reader` is used as an `AsyncRead` only.
+    ///
+    /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
+    /// as `Box<dyn futures::AsyncRead>` and calling `poll_read_unpin` on it.
+    #[inline]
+    pub fn into_futures_read(
+        self,
+    ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
+        self
+    }
+
+    /// Convert [`Reader`] into an [`tokio::io::AsyncRead`] and [`tokio::io::AsyncSeek`]
+    ///
+    /// `Reader` itself implements [`tokio::io::AsyncRead`], this function is used to
+    /// make sure that `Reader` is used as an [`tokio::io::AsyncRead`] only.
+    ///
+    /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
+    /// as `Box<dyn tokio::io::AsyncRead>` and calling `poll_read_unpin` on it.
+    #[inline]
+    pub fn into_tokio_read(
+        self,
+    ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin {
+        self
+    }
+
+    /// Seek to the position of `pos` of reader.
+    #[inline]
+    pub async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+        r.seek_dyn(pos).await
+    }
+
+    /// Read at most `size` bytes of data from reader.
+    #[inline]
+    pub async fn read(&mut self, size: usize) -> Result<Bytes> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+        r.read_dyn(size).await
+    }
+
+    /// Read exact `size` bytes of data from reader.
+    pub async fn read_exact(&mut self, size: usize) -> Result<Bytes> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+
+        // Lucky path.
+        let bs1 = r.read_dyn(size).await?;
+        debug_assert!(
+            bs1.len() <= size,
+            "read should not return more bytes than expected"
+        );
+        if bs1.len() == size {
+            return Ok(bs1);
+        }
+        if bs1.is_empty() {
+            return Err(
+                Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
+                    .with_context("expect", size.to_string()),
+            );
+        }
+
+        let mut bs = BytesMut::with_capacity(size);
+        bs.copy_from_slice(&bs1);
+        let mut remaining = size - bs.len();
+
+        loop {
+            let tmp = r.read_dyn(remaining).await?;
+            if tmp.is_empty() {
+                return Err(
+                    Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
+                        .with_context("expect", size.to_string())
+                        .with_context("actual", bs.len().to_string()),
+                );
+            }
+            bs.copy_from_slice(&tmp);
+            remaining -= tmp.len();
+            if remaining == 0 {
+                break;
+            }
+        }
+
+        Ok(bs.freeze())
+    }
+
+    /// Reads all bytes until EOF in this source, placing them into buf.
+    pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+        let start_len = buf.len();
+
+        loop {
+            if buf.len() == buf.capacity() {
+                buf.reserve(32); // buf is full, need more space
+            }
+
+            let spare = buf.spare_capacity_mut();
+            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
+
+            // SAFETY: These bytes were initialized but not filled in the previous loop
+            unsafe {
+                read_buf.assume_init(read_buf.capacity());
+            }
+
+            match self.read(read_buf.initialize_unfilled().len()).await {
+                Ok(bs) if bs.is_empty() => {
+                    return Ok(bs.len() - start_len);
+                }
+                Ok(bs) => {
+                    read_buf.initialize_unfilled()[..bs.len()].copy_from_slice(&bs);
+                    // SAFETY: Read API makes sure that returning `n` is correct.
+                    unsafe {
+                        buf.set_len(buf.len() + bs.len());
+                    }
+                }
+                Err(e) => return Err(e),
+            }
         }
     }
 }
@@ -94,23 +216,7 @@ enum State {
 /// Reader will only be used with `&mut self`.
 unsafe impl Sync for State {}
 
-impl oio::Read for Reader {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        let State::Idle(Some(r)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
-        };
-        r.read_dyn(size).await
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let State::Idle(Some(r)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
-        };
-        r.seek_dyn(pos).await
-    }
-}
-
-impl AsyncRead for Reader {
+impl futures::AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -145,7 +251,7 @@ impl AsyncRead for Reader {
     }
 }
 
-impl AsyncSeek for Reader {
+impl futures::AsyncSeek for Reader {
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -370,8 +476,6 @@ mod tests {
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
-    use tokio::io::AsyncReadExt;
-    use tokio::io::AsyncSeekExt;
 
     use crate::services;
     use crate::Operator;

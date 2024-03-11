@@ -125,47 +125,6 @@ impl Read for () {
     }
 }
 
-/// Impl ReadExt for all T: Read
-impl<T: Read> ReadExt for T {}
-
-/// Extension of [`Read`] to make it easier for use.
-pub trait ReadExt: Read {
-    /// Build a future for `read_to_end`.
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> impl Future<Output = Result<usize>> + Send {
-        async {
-            let start_len = buf.len();
-
-            loop {
-                if buf.len() == buf.capacity() {
-                    buf.reserve(32); // buf is full, need more space
-                }
-
-                let spare = buf.spare_capacity_mut();
-                let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
-
-                // SAFETY: These bytes were initialized but not filled in the previous loop
-                unsafe {
-                    read_buf.assume_init(read_buf.capacity());
-                }
-
-                match self.read(read_buf.initialize_unfilled().len()).await {
-                    Ok(bs) if bs.is_empty() => {
-                        return Ok(bs.len() - start_len);
-                    }
-                    Ok(bs) => {
-                        read_buf.initialize_unfilled()[..bs.len()].copy_from_slice(&bs);
-                        // SAFETY: Read API makes sure that returning `n` is correct.
-                        unsafe {
-                            buf.set_len(buf.len() + bs.len());
-                        }
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-    }
-}
-
 pub trait ReadDyn: Unpin + Send + Sync {
     fn read_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
 

@@ -343,14 +343,14 @@ impl oio::BlockingRead for BlockingReader {
 impl io::Read for BlockingReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
+        self.inner.read(buf).map_err(format_std_io_error)
     }
 }
 
 impl io::Seek for BlockingReader {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.inner.seek(pos)
+        self.inner.seek(pos).map_err(format_std_io_error)
     }
 }
 

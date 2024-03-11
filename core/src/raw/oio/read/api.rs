@@ -23,7 +23,7 @@ use bytes::Bytes;
 use futures::Future;
 use tokio::io::ReadBuf;
 
-use crate::raw::{format_std_io_error, BoxedFuture};
+use crate::raw::BoxedFuture;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -299,31 +299,5 @@ impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
 
     fn next(&mut self) -> Option<Result<Bytes>> {
         (**self).next()
-    }
-}
-
-impl io::Read for dyn BlockingRead {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let this: &mut dyn BlockingRead = &mut *self;
-        this.read(buf).map_err(format_std_io_error)
-    }
-}
-
-impl io::Seek for dyn BlockingRead {
-    #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos).map_err(format_std_io_error)
-    }
-}
-
-impl Iterator for dyn BlockingRead {
-    type Item = Result<Bytes>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let this: &mut dyn BlockingRead = &mut *self;
-        this.next()
     }
 }

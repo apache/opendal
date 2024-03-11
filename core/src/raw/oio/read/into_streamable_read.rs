@@ -45,11 +45,18 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        // Make sure buf has enough space.
+        if self.buf.capacity() < size {
+            self.buf.reserve(size - self.buf.capacity());
+        }
+
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(self.cap) };
 
-        let bs = self.r.next_v2(self.cap).await?;
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe { buf.assume_init(size) };
+
+        let bs = self.r.next_v2(size).await?;
         buf.put_slice(&bs);
         buf.set_filled(bs.len());
 

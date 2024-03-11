@@ -88,12 +88,15 @@ impl IncomingAsyncBody {
     pub async fn consume(mut self) -> Result<()> {
         use oio::Read;
 
-        while let bs = self.next_v2(4 * 1024 * 1024).await {
-            bs.map_err(|err| {
+        loop {
+            let buf = self.next_v2(4 * 1024 * 1024).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
                     .set_source(err)
             })?;
+            if buf.is_empty() {
+                break;
+            }
         }
 
         Ok(())
@@ -131,8 +134,12 @@ impl IncomingAsyncBody {
         vec.put(second);
 
         // TODO: we can tune the io size here.
-        while let buf = self.next_v2(4 * 1024 * 1024).await {
-            vec.put(buf?);
+        loop {
+            let buf = self.next_v2(4 * 1024 * 1024).await?;
+            if buf.is_empty() {
+                break;
+            }
+            vec.put(buf);
         }
 
         Ok(vec.into())

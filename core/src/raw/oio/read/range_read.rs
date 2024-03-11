@@ -19,7 +19,6 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::AsyncSeek;
 
 use crate::raw::*;
 use crate::*;

@@ -717,6 +717,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         }
         .retry(&self.builder)
         .when(|e| e.is_temporary())
+        .context(inner)
         .notify(|err, dur| {
             self.notify.intercept(
                 err,

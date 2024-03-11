@@ -58,5 +58,5 @@ feel free to inquire by leaving a comment on the associated issue.
 
 ## Some useful tips
 
-- The author of an RFC may not be the same one as the implementor. Therefore, when submitting an RFC, it is advisable to include sufficient information.
+- The author of an RFC may not be the same one as the implementer. Therefore, when submitting an RFC, it is advisable to include sufficient information.
 - If modifications are needed for an accepted RFC, please submit a new pull request or create a new RFC to propose changes.

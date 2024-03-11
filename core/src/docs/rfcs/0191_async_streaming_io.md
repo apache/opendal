@@ -11,7 +11,7 @@ Use `Stream`/`Sink` instead of `AsyncRead` in `Accessor`.
 
 # Motivation
 
-`Accessor` intends to be the `underlying trait of all backends for implementors`. However, it's not so underlying enough.
+`Accessor` intends to be the `underlying trait of all backends for implementers`. However, it's not so underlying enough.
 
 ## Over-wrapped
 

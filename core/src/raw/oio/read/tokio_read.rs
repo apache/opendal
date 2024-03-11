@@ -77,9 +77,8 @@ where
                     .with_operation(oio::ReadOperation::Read)
                     .with_context("source", "FuturesReader")
             })?;
-
         read_buf.set_filled(n);
 
-        Ok(Bytes::copy_from_slice(&self.buf[..n]))
+        Ok(Bytes::copy_from_slice(read_buf.filled()))
     }
 }

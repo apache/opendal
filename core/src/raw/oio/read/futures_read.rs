@@ -80,6 +80,6 @@ where
 
         read_buf.set_filled(n);
 
-        Ok(Bytes::copy_from_slice(&self.buf[..n]))
+        Ok(Bytes::copy_from_slice(read_buf.filled()))
     }
 }

@@ -161,19 +161,34 @@ where
     }
 
     async fn read(&mut self, size: usize) -> Result<Bytes> {
-        match self.fill_buf().await {
-            Ok(bytes) => {
-                if bytes.is_empty() {
-                    return Ok(Bytes::new());
-                }
-
-                let size = min(bytes.len(), size);
-                let bytes = Bytes::copy_from_slice(&bytes[..size]);
-                self.consume(bytes.len());
-                Ok(bytes)
-            }
-            Err(err) => Err(err),
+        if size == 0 {
+            return Ok(Bytes::new());
         }
+
+        // If we don't have any buffered data and we're doing a massive read
+        // (larger than our internal buffer), bypass our internal buffer
+        // entirely.
+        if self.pos == self.filled && size >= self.capacity() {
+            let res = self.r.read(size).await;
+            self.discard_buffer();
+            return match res {
+                Ok(bs) => {
+                    self.cur += bs.len() as u64;
+                    Ok(bs)
+                }
+                Err(err) => Err(err),
+            };
+        }
+
+        let bytes = self.fill_buf().await?;
+
+        if bytes.is_empty() {
+            return Ok(Bytes::new());
+        }
+        let size = min(bytes.len(), size);
+        let bytes = Bytes::copy_from_slice(&bytes[..size]);
+        self.consume(bytes.len());
+        Ok(bytes)
     }
 }
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
 use std::io::SeekFrom;
 
 use bytes::Bytes;
@@ -45,10 +46,7 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
     }
 
     async fn read(&mut self, size: usize) -> Result<Bytes> {
-        // Make sure buf has enough space.
-        if self.buf.capacity() < size {
-            self.buf.reserve(size - self.buf.capacity());
-        }
+        let size = min(self.buf.capacity(), size);
 
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);

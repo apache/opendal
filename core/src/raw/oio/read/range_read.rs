@@ -539,8 +539,8 @@ mod tests {
             ))
         }
 
-        async fn read(&mut self, _: usize) -> Result<Bytes> {
-            let mut bs = vec![0; 4 * 1024];
+        async fn read(&mut self, size: usize) -> Result<Bytes> {
+            let mut bs = vec![0; size];
             let n = self.inner.read(&mut bs).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
             })?;

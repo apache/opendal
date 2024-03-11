@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::*;
+use std::io;
 
 /// Parse std io error into opendal::Error.
 ///
@@ -45,4 +46,21 @@ pub fn new_std_io_error(err: std::io::Error) -> Error {
     }
 
     err
+}
+
+/// helper functions to format `Error` into `io::Error`.
+///
+/// This function is added privately by design and only valid in current
+/// context (i.e. `raw` mod). We don't want to expose this function to
+/// users.
+#[inline]
+pub(crate) fn format_std_io_error(err: Error) -> io::Error {
+    let kind = match err.kind() {
+        ErrorKind::NotFound => io::ErrorKind::NotFound,
+        ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
+        ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
+        _ => io::ErrorKind::Interrupted,
+    };
+
+    io::Error::new(kind, err)
 }

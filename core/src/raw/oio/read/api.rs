@@ -28,7 +28,7 @@ use bytes::Bytes;
 use futures::Future;
 use tokio::io::ReadBuf;
 
-use crate::raw::BoxedFuture;
+use crate::raw::{format_std_io_error, BoxedFuture};
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -326,7 +326,7 @@ impl io::Read for dyn BlockingRead {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.read(buf).map_err(format_io_error)
+        this.read(buf).map_err(format_std_io_error)
     }
 }
 
@@ -334,7 +334,7 @@ impl io::Seek for dyn BlockingRead {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos).map_err(format_io_error)
+        this.seek(pos).map_err(format_std_io_error)
     }
 }
 
@@ -346,21 +346,4 @@ impl Iterator for dyn BlockingRead {
         let this: &mut dyn BlockingRead = &mut *self;
         this.next()
     }
-}
-
-/// helper functions to format `Error` into `io::Error`.
-///
-/// This function is added privately by design and only valid in current
-/// context (i.e. `oio` crate). We don't want to expose this function to
-/// users.
-#[inline]
-fn format_io_error(err: Error) -> io::Error {
-    let kind = match err.kind() {
-        ErrorKind::NotFound => io::ErrorKind::NotFound,
-        ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
-        ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
-        _ => io::ErrorKind::Interrupted,
-    };
-
-    io::Error::new(kind, err)
 }

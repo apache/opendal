@@ -183,9 +183,7 @@ impl oio::Read for IncomingAsyncBody {
                 Some(bs) => bs,
                 None => {
                     if let Some(size) = self.size {
-                        if let Err(err) = Self::check(size, self.consumed) {
-                            return Err(err);
-                        }
+                        Self::check(size, self.consumed)?
                     }
 
                     return Ok(Bytes::new());

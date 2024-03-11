@@ -305,9 +305,7 @@ where
                 Err(err) => return Err(err),
             };
             let length = rp.into_metadata().content_length();
-            if let Err(err) = self.ensure_offset(length) {
-                return Err(err);
-            }
+            self.ensure_offset(length)?
         }
         if self.reader.is_none() {
             let (rp, r) = match self.read_future().await {

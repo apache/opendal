@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -96,22 +95,18 @@ enum State {
 unsafe impl Sync for State {}
 
 impl oio::Read for Reader {
-    fn seek(&mut self, pos: SeekFrom) -> impl Future<Output = Result<u64>> + Send {
-        async move {
-            let State::Idle(Some(r)) = &mut self.state else {
-                return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
-            };
-            r.seek(pos).await
-        }
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+        r.seek(pos).await
     }
 
-    fn next_v2(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send {
-        async move {
-            let State::Idle(Some(r)) = &mut self.state else {
-                return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
-            };
-            r.next_v2(size).await
-        }
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+        r.next_v2(size).await
     }
 }
 

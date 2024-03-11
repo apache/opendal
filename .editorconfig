@@ -55,3 +55,6 @@ indent_size = 2
 
 [*.html]
 indent_size = 2
+
+[*.rdf]
+indent_size = 2

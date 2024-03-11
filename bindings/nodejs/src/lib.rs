@@ -27,7 +27,6 @@ use std::time::Duration;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use opendal::raw::oio::BlockingRead;
-use opendal::raw::oio::ReadExt;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -665,9 +664,14 @@ impl Reader {
     /// > &mut self in async napi methods should be marked as unsafe
     ///
     /// Read bytes from this reader into given buffer.
+    ///
+    /// TODO: change api into stream based.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        self.0.read(buf.as_mut()).await.map_err(format_napi_error)
+        let size = buf.len();
+        let bs = self.0.read(size).await.map_err(format_napi_error)?;
+        buf[..bs.len()].copy_from_slice(&bs);
+        Ok(bs.len())
     }
 }
 

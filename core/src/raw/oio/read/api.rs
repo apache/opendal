@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
@@ -135,53 +134,38 @@ impl<T: Read> ReadExt for T {}
 /// Extension of [`Read`] to make it easier for use.
 pub trait ReadExt: Read {
     /// Build a future for `read_to_end`.
-    fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self> {
-        ReadToEndFuture { reader: self, buf }
-    }
-}
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> impl Future<Output = Result<usize>> + Send {
+        async {
+            let start_len = buf.len();
 
-pub struct ReadToEndFuture<'a, R: Read + Unpin + ?Sized> {
-    reader: &'a mut R,
-    buf: &'a mut Vec<u8>,
-}
+            loop {
+                if buf.len() == buf.capacity() {
+                    buf.reserve(32); // buf is full, need more space
+                }
 
-impl<R> Future for ReadToEndFuture<'_, R>
-where
-    R: Read + Unpin + ?Sized,
-{
-    type Output = Result<usize>;
+                let spare = buf.spare_capacity_mut();
+                let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        todo!()
-        // let this = self.get_mut();
-        // let start_len = this.buf.len();
-        //
-        // loop {
-        //     if this.buf.len() == this.buf.capacity() {
-        //         this.buf.reserve(32); // buf is full, need more space
-        //     }
-        //
-        //     let spare = this.buf.spare_capacity_mut();
-        //     let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
-        //
-        //     // SAFETY: These bytes were initialized but not filled in the previous loop
-        //     unsafe {
-        //         read_buf.assume_init(read_buf.capacity());
-        //     }
-        //
-        //     match ready!(this.reader.poll_read(cx, read_buf.initialize_unfilled())) {
-        //         Ok(0) => {
-        //             return Poll::Ready(Ok(this.buf.len() - start_len));
-        //         }
-        //         Ok(n) => {
-        //             // SAFETY: Read API makes sure that returning `n` is correct.
-        //             unsafe {
-        //                 this.buf.set_len(this.buf.len() + n);
-        //             }
-        //         }
-        //         Err(e) => return Poll::Ready(Err(e)),
-        //     }
-        // }
+                // SAFETY: These bytes were initialized but not filled in the previous loop
+                unsafe {
+                    read_buf.assume_init(read_buf.capacity());
+                }
+
+                match self.next_v2(read_buf.initialize_unfilled().len()).await {
+                    Ok(bs) if bs.is_empty() => {
+                        return Ok(bs.len() - start_len);
+                    }
+                    Ok(bs) => {
+                        read_buf.initialize_unfilled()[..bs.len()].copy_from_slice(&bs);
+                        // SAFETY: Read API makes sure that returning `n` is correct.
+                        unsafe {
+                            buf.set_len(buf.len() + bs.len());
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
     }
 }
 

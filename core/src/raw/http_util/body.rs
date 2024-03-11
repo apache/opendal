@@ -18,16 +18,12 @@
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::io;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
 use futures::StreamExt;
 
-use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -90,6 +86,8 @@ impl IncomingAsyncBody {
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
+        use oio::Read;
+
         while let bs = self.next_v2(4 * 1024 * 1024).await {
             bs.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
@@ -105,6 +103,8 @@ impl IncomingAsyncBody {
     ///
     /// This code is inspired from hyper's [`to_bytes`](https://docs.rs/hyper/0.14.23/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
+        use oio::Read;
+
         // If there's only 1 chunk, we can just return Buf::to_bytes()
         let first = self.next_v2(4 * 1024 * 1024).await?;
         if first.is_empty() {
@@ -158,7 +158,7 @@ impl IncomingAsyncBody {
 
 impl oio::Read for IncomingAsyncBody {
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let (_) = (pos);
+        let _ = pos;
 
         Err(Error::new(
             ErrorKind::Unsupported,

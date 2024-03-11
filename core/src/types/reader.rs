@@ -95,18 +95,18 @@ enum State {
 unsafe impl Sync for State {}
 
 impl oio::Read for Reader {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let State::Idle(Some(r)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
-        };
-        r.seek(pos).await
-    }
-
     async fn read(&mut self, size: usize) -> Result<Bytes> {
         let State::Idle(Some(r)) = &mut self.state else {
             return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
         };
-        r.read(size).await
+        r.read_dyn(size).await
+    }
+
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let State::Idle(Some(r)) = &mut self.state else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+        };
+        r.seek_dyn(pos).await
     }
 }
 

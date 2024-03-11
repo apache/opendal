@@ -18,6 +18,7 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
+use std::ops::DerefMut;
 
 use bytes::Bytes;
 use futures::Future;
@@ -181,13 +182,17 @@ impl<T: Read + ?Sized> ReadDyn for T {
     }
 }
 
+/// # NOTE
+///
+/// Take care about the `deref_mut()` here. This makes sure that we are calling functions
+/// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
     async fn read(&mut self, size: usize) -> Result<Bytes> {
-        self.read_dyn(size).await
+        self.deref_mut().read_dyn(size).await
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.seek_dyn(pos).await
+        self.deref_mut().seek_dyn(pos).await
     }
 }
 

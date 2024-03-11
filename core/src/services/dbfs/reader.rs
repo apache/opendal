@@ -16,6 +16,7 @@
 // under the License.
 
 use std::cmp;
+use std::future::Future;
 use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::ready;
@@ -94,59 +95,22 @@ enum State {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
-        while self.has_filled as usize != buf.len() {
-            match &mut self.state {
-                State::Reading(core) => {
-                    let core = core.take().expect("DbfsReader must be initialized");
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+        let _ = size;
 
-                    let path = self.path.clone();
-                    let offset = self.offset;
-                    let len = cmp::min(buf.len(), DBFS_READ_LIMIT);
-
-                    let fut = async move {
-                        let resp = async { core.dbfs_read(&path, offset, len as u64).await }.await;
-                        let body = match resp {
-                            Ok(resp) => resp.into_body(),
-                            Err(err) => {
-                                return (core, Err(err));
-                            }
-                        };
-                        let bs = async { body.bytes().await }.await;
-                        (core, bs)
-                    };
-                    self.state = State::Finalize(Box::pin(fut));
-                }
-                State::Finalize(fut) => {
-                    let (core, bs) = ready!(fut.as_mut().poll(cx));
-                    let data = self.serde_json_decode(&bs?)?;
-
-                    buf.put_slice(&data[..]);
-                    self.set_offset(self.offset + data.len() as u64);
-                    self.has_filled += data.len() as u64;
-                    self.state = State::Reading(Some(core));
-                }
-            }
-        }
-        Poll::Ready(Ok(self.has_filled as usize))
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
-
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        )))
+        ))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let _ = pos;
 
-        Poll::Ready(Some(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
-            "output reader doesn't support iterating",
-        ))))
+            "output reader doesn't support seeking",
+        ))
     }
 }
 

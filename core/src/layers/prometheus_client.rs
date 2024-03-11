@@ -539,7 +539,7 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
                 self.bytes_total += bytes;
@@ -553,7 +553,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
         })
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.poll_seek(cx, pos).map(|res| match res {
             Ok(n) => Ok(n),
             Err(e) => {

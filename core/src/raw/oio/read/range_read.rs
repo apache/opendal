@@ -542,15 +542,15 @@ mod tests {
             ))
         }
 
-        async fn next_v2(&mut self, size: usize) -> Option<Result<Bytes>> {
+        async fn next_v2(&mut self, _: usize) -> Result<Bytes> {
             let mut bs = vec![0; 4 * 1024];
             let n = self.inner.read(&mut bs).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
             })?;
             if n == 0 {
-                None
+                Ok(Bytes::new())
             } else {
-                Some(Ok(Bytes::from(bs[..n].to_vec())))
+                Ok(Bytes::from(bs[..n].to_vec()))
             }
         }
     }

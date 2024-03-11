@@ -272,7 +272,7 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         self.inner.poll_read(cx, buf)
     }
 
@@ -280,7 +280,7 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.poll_seek(cx, pos)
     }
 

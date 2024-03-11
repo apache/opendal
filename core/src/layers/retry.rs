@@ -1185,34 +1185,6 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            let mut attempt = self.attempt.lock().unwrap();
-            *attempt += 1;
-
-            match *attempt {
-                1 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                2 => {
-                    buf[..7].copy_from_slice("Hello, ".as_bytes());
-                    self.pos += 7;
-                    Ok(7)
-                }
-                3 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                4 => {
-                    buf[..6].copy_from_slice("World!".as_bytes());
-                    self.pos += 6;
-                    Ok(6)
-                }
-                5 => Ok(0),
-                _ => unreachable!(),
-            }
-        }
-
         async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
             self.pos = match pos {
                 io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
@@ -1223,12 +1195,29 @@ mod tests {
             Ok(self.pos)
         }
 
-        async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-            let mut bs = vec![0; 1];
-            match self.read(&mut bs).await {
-                Ok(0) => Ok(Bytes::new()),
-                Ok(v) => Ok(Bytes::from(bs[..v].to_vec())),
-                Err(err) => Err(err),
+        async fn next_v2(&mut self, _: usize) -> Result<Bytes> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                2 => {
+                    self.pos += 7;
+                    Ok(Bytes::copy_from_slice("Hello, ".as_bytes()))
+                }
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                4 => {
+                    self.pos += 6;
+                    Ok(Bytes::copy_from_slice("World!".as_bytes()))
+                }
+                5 => Ok(Bytes::new()),
+                _ => unreachable!(),
             }
         }
     }

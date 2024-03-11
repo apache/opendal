@@ -176,7 +176,7 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
         if self.i_feel_lucky() {
             self.inner.poll_read(cx, buf)
         } else {
@@ -184,7 +184,7 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         if self.i_feel_lucky() {
             self.inner.poll_seek(cx, pos)
         } else {

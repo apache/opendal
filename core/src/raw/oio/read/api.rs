@@ -166,28 +166,28 @@ pub trait ReadExt: Read {
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
+    fn read_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
 
-    fn next_v2_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
+    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
-        Box::pin(self.seek(pos))
+    fn read_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
+        Box::pin(self.read(size))
     }
 
-    fn next_v2_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
-        Box::pin(self.read(size))
+    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
+        Box::pin(self.seek(pos))
     }
 }
 
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.seek_dyn(pos).await
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        self.read_dyn(size).await
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        self.next_v2_dyn(size).await
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        self.seek_dyn(pos).await
     }
 }
 

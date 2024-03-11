@@ -15,17 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::AsyncSeek;
 use futures::AsyncSeekExt;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -33,12 +30,16 @@ use crate::*;
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct FuturesReader<R: AsyncRead + AsyncSeek> {
     inner: R,
+    buf: Vec<u8>,
 }
 
 impl<R: AsyncRead + AsyncSeek> FuturesReader<R> {
     /// Create a new futures reader.
     pub fn new(inner: R) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            buf: Vec::with_capacity(64 * 1024),
+        }
     }
 }
 
@@ -55,9 +56,30 @@ where
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "FuturesReader doesn't support poll_next",
-        ))
+        // Make sure buf has enough space.
+        if self.buf.capacity() < size {
+            self.buf.reserve(size - self.buf.capacity());
+        }
+        let buf = self.buf.spare_capacity_mut();
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
+
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(size);
+        }
+
+        let n = self
+            .inner
+            .read(read_buf.initialize_unfilled())
+            .await
+            .map_err(|err| {
+                new_std_io_error(err)
+                    .with_operation(oio::ReadOperation::Read)
+                    .with_context("source", "FuturesReader")
+            })?;
+
+        read_buf.set_filled(n);
+
+        Ok(Bytes::copy_from_slice(&self.buf[..n]))
     }
 }

@@ -18,10 +18,6 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
-use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Future;
@@ -110,7 +106,7 @@ pub trait Read: Unpin + Send + Sync {
 
 impl Read for () {
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let (_) = (pos);
+        let _ = pos;
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -176,7 +172,7 @@ pub trait DynRead: Unpin + Send + Sync {
 }
 
 impl<T: Read + ?Sized> DynRead for T {
-    fn dyn_seek(&mut self, pos: SeekFrom) -> BoxedFuture<Result<u64>> {
+    fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
         Box::pin(self.seek(pos))
     }
 
@@ -186,7 +182,7 @@ impl<T: Read + ?Sized> DynRead for T {
 }
 
 impl<T: DynRead + ?Sized> Read for Box<T> {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.dyn_seek(pos).await
     }
 

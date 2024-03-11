@@ -16,11 +16,7 @@
 // under the License.
 
 use std::cmp::min;
-use std::future::Future;
 use std::io::SeekFrom;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::BufMut;
 use bytes::Bytes;

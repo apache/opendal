@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::io::SeekFrom;
 use std::sync::Arc;
 
@@ -535,12 +534,6 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            self.inner.read(buf).await.map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
-            })
-        }
-
         async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
             let _ = pos;
 
@@ -550,7 +543,7 @@ mod tests {
             ))
         }
 
-        async fn next(&mut self) -> Option<Result<Bytes>> {
+        async fn next_v2(&mut self, size: usize) -> Option<Result<Bytes>> {
             let mut bs = vec![0; 4 * 1024];
             let n = self.inner.read(&mut bs).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)

@@ -16,12 +16,8 @@
 // under the License.
 
 use std::cmp::min;
-use std::future::Future;
 use std::io::SeekFrom;
-use std::task::Context;
-use std::task::Poll;
 
-use bytes::Buf;
 use bytes::Bytes;
 use futures::StreamExt;
 

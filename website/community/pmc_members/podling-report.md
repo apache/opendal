@@ -37,7 +37,7 @@ Note that IPMC update the template from time to time, so be sure to use the one 
 
 Each Podling Status Report must be signed off by a mentor. **Without a mentor's sign-off, the IPMC will not accept the report**, and the podling will need to submit a new report the following month.
 
-After submitting the report, you can send a email to dev@opendal.apache.org to remind our mentors and the community to review the report and provide feedback.
+After submitting the report, you can email dev@opendal.apache.org to remind our mentors and the community to review the report and provide feedback.
 
 ```
 [ANNOUNCE] OpenDAL's Podling Report of <Month><Year>

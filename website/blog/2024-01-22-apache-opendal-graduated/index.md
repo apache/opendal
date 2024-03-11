@@ -115,7 +115,7 @@ We plan to:
 
 ### More Useful Documents
 
-OpenDAL have good docs for it's rust core, but not for other language bindings.
+OpenDAL have good docs for its rust core, but not for other language bindings.
 
 The lack of comprehensive documentation makes OpenDAL challenging for users to operate in Java or Python. Without user feedback, the community is unable to enhance this documentation, leading to a detrimental cycle that must be broken.
 
@@ -126,7 +126,7 @@ We plan to:
 - Introduce code generation to automatically create documentation for the service builder due to its numerous configurations.
 - Add more API Docs and examples for other language bindings.
 
-OpenDAL have good docs for it's public API, but not for its internal design.
+OpenDAL have good docs for its public API, but not for its internal design.
 
 OpenDAL is proud of its elegant design, but it is not well documented. This makes it difficult for new contributors to understand the codebase and make contributions.
 

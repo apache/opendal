@@ -50,7 +50,7 @@ where
         ))
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         if self.buf.is_empty() {
             self.buf = match self.inner.next().await.transpose()? {
                 Some(v) => v.into(),

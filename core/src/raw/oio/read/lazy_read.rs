@@ -73,9 +73,9 @@ where
         self.reader().await?.seek(pos).await
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         let r = self.reader().await?;
-        r.next_v2(size).await
+        r.read(size).await
     }
 }
 

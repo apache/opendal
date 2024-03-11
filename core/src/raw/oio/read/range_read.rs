@@ -293,7 +293,7 @@ where
         Ok(self.cur)
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {
             return Ok(Bytes::new());
@@ -318,7 +318,7 @@ where
         }
 
         let r = self.reader.as_mut().expect("reader must be valid");
-        match r.next_v2(size).await {
+        match r.read(size).await {
             Ok(bs) => {
                 self.cur += bs.len() as u64;
                 Ok(bs)
@@ -539,7 +539,7 @@ mod tests {
             ))
         }
 
-        async fn next_v2(&mut self, _: usize) -> Result<Bytes> {
+        async fn read(&mut self, _: usize) -> Result<Bytes> {
             let mut bs = vec![0; 4 * 1024];
             let n = self.inner.read(&mut bs).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)

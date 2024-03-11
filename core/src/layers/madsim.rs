@@ -263,7 +263,7 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    async fn next_v2(&mut self, size: usize) -> crate::Result<Bytes> {
+    async fn read(&mut self, size: usize) -> crate::Result<Bytes> {
         if let Some(ref data) = self.data {
             let size = min(size, data.len());
             Ok(data.clone().split_to(size))

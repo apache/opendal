@@ -773,8 +773,8 @@ impl<R> Drop for MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        match self.inner.next_v2(size).await {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        match self.inner.read(size).await {
             Ok(bytes) => {
                 self.bytes += bytes.len() as u64;
                 Ok(bytes)

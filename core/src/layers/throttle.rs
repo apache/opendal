@@ -185,9 +185,9 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.next_v2(size).await
+        self.inner.read(size).await
     }
 
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {

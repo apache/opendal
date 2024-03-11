@@ -162,7 +162,7 @@ impl ReadChecker {
         for action in actions {
             match action {
                 ReadAction::Read(size) => {
-                    let bs = r.next_v2(*size).await.expect("read must success");
+                    let bs = r.read(*size).await.expect("read must success");
                     self.check_read(*size, &bs);
                 }
 

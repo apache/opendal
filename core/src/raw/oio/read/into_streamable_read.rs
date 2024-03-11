@@ -44,7 +44,7 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
         self.r.seek(pos).await
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         // Make sure buf has enough space.
         if self.buf.capacity() < size {
             self.buf.reserve(size - self.buf.capacity());
@@ -56,7 +56,7 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
         // SAFETY: Read at most `size` bytes into `read_buf`.
         unsafe { buf.assume_init(size) };
 
-        let bs = self.r.next_v2(size).await?;
+        let bs = self.r.read(size).await?;
         buf.put_slice(&bs);
         buf.set_filled(bs.len());
 
@@ -113,7 +113,7 @@ mod tests {
 
         let mut bs = BytesMut::new();
         loop {
-            let b = s.next_v2(4 * 1024 * 1024).await.expect("read must success");
+            let b = s.read(4 * 1024 * 1024).await.expect("read must success");
             if b.is_empty() {
                 break;
             }

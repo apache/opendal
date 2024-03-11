@@ -89,7 +89,7 @@ impl IncomingAsyncBody {
         use oio::Read;
 
         loop {
-            let buf = self.next_v2(4 * 1024 * 1024).await.map_err(|err| {
+            let buf = self.read(4 * 1024 * 1024).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
                     .set_source(err)
@@ -109,12 +109,12 @@ impl IncomingAsyncBody {
         use oio::Read;
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
-        let first = self.next_v2(4 * 1024 * 1024).await?;
+        let first = self.read(4 * 1024 * 1024).await?;
         if first.is_empty() {
             return Ok(first);
         }
 
-        let second = self.next_v2(4 * 1024 * 1024).await?;
+        let second = self.read(4 * 1024 * 1024).await?;
         if second.is_empty() {
             return Ok(first);
         }
@@ -135,7 +135,7 @@ impl IncomingAsyncBody {
 
         // TODO: we can tune the io size here.
         loop {
-            let buf = self.next_v2(4 * 1024 * 1024).await?;
+            let buf = self.read(4 * 1024 * 1024).await?;
             if buf.is_empty() {
                 break;
             }
@@ -173,7 +173,7 @@ impl oio::Read for IncomingAsyncBody {
         ))
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         if self.size == Some(0) {
             return Ok(Bytes::new());
         }

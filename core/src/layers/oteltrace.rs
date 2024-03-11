@@ -278,8 +278,8 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        self.inner.next_v2(size).await
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        self.inner.read(size).await
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {

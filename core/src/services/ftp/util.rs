@@ -53,7 +53,7 @@ impl FtpReader {
 }
 
 impl oio::Read for FtpReader {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         if self.conn.is_none() {
             return Err(Error::new(
                 ErrorKind::Unexpected,

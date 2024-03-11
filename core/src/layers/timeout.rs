@@ -327,8 +327,8 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
         Self::io_timeout(self.timeout, ReadOperation::Seek.into_static(), fut).await
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        let fut = self.inner.next_v2(size);
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        let fut = self.inner.read(size);
         Self::io_timeout(self.timeout, ReadOperation::Next.into_static(), fut).await
     }
 }
@@ -439,7 +439,7 @@ mod tests {
             pending()
         }
 
-        fn next_v2(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
+        fn read(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
             pending()
         }
     }
@@ -480,7 +480,7 @@ mod tests {
 
         let mut reader = op.reader("test").await.unwrap();
 
-        let res = reader.next_v2(4).await;
+        let res = reader.read(4).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

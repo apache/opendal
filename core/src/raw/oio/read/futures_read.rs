@@ -55,7 +55,7 @@ where
         })
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         // Make sure buf has enough space.
         if self.buf.capacity() < size {
             self.buf.reserve(size - self.buf.capacity());

@@ -102,11 +102,11 @@ impl oio::Read for Reader {
         r.seek(pos).await
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         let State::Idle(Some(r)) = &mut self.state else {
             return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
         };
-        r.next_v2(size).await
+        r.read(size).await
     }
 }
 
@@ -123,7 +123,7 @@ impl AsyncRead for Reader {
                 let mut r = r.take().expect("reader must be valid");
                 let size = buf.len();
                 let fut = async move {
-                    let res = r.next_v2(size).await;
+                    let res = r.read(size).await;
                     (r, res)
                 };
                 self.state = State::Reading(Box::pin(fut));
@@ -193,7 +193,7 @@ impl tokio::io::AsyncRead for Reader {
 
                     let mut r = r.take().expect("reader must be valid");
                     let fut = async move {
-                        let res = r.next_v2(size).await;
+                        let res = r.read(size).await;
                         (r, res)
                     };
                     self.state = State::Reading(Box::pin(fut));
@@ -272,7 +272,7 @@ impl Stream for Reader {
                 let mut r = r.take().expect("reader must be valid");
                 let fut = async move {
                     // TODO: should allow user to tune this value.
-                    let res = r.next_v2(4 * 1024 * 1024).await;
+                    let res = r.read(4 * 1024 * 1024).await;
                     (r, res)
                 };
                 self.state = State::Reading(Box::pin(fut));

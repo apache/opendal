@@ -703,14 +703,14 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         res
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         use backon::RetryableWithContext;
 
         let inner = self.inner.take().expect("inner must be valid");
 
         let (inner, res) = {
             |mut r: R| async move {
-                let res = r.next_v2(size).await;
+                let res = r.read(size).await;
 
                 (r, res)
             }
@@ -1195,7 +1195,7 @@ mod tests {
             Ok(self.pos)
         }
 
-        async fn next_v2(&mut self, _: usize) -> Result<Bytes> {
+        async fn read(&mut self, _: usize) -> Result<Bytes> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 

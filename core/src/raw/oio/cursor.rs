@@ -92,7 +92,7 @@ impl oio::Read for Cursor {
         Ok(n)
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         if self.is_empty() {
             Ok(Bytes::new())
         } else {

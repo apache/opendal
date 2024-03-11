@@ -344,10 +344,10 @@ impl<R> DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.next_v2(size).await {
+        match self.inner.read(size).await {
             Ok(bs) => {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.len());
                 Ok(bs)

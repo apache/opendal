@@ -86,11 +86,6 @@ pub type Reader = Box<dyn ReadDyn>;
 /// `AsyncRead` is required to be implemented, `AsyncSeek` and `Stream`
 /// is optional. We use `Read` to make users life easier.
 pub trait Read: Unpin + Send + Sync {
-    /// Seek asynchronously.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
-
     /// Fetch more bytes from underlying reader.
     ///
     /// `size` is used to hint the data that user want to read at most. Implementer
@@ -101,25 +96,30 @@ pub trait Read: Unpin + Send + Sync {
     ///
     /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
     /// - The `size` specified was `0`.
-    fn next_v2(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send;
+
+    /// Seek asynchronously.
+    ///
+    /// Returns `Unsupported` error if underlying reader doesn't support seek.
+    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
 }
 
 impl Read for () {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        let _ = size;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support streaming",
+        ))
+    }
+
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         let _ = pos;
 
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        ))
-    }
-
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        let _ = size;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support streaming",
         ))
     }
 }
@@ -147,7 +147,7 @@ pub trait ReadExt: Read {
                     read_buf.assume_init(read_buf.capacity());
                 }
 
-                match self.next_v2(read_buf.initialize_unfilled().len()).await {
+                match self.read(read_buf.initialize_unfilled().len()).await {
                     Ok(bs) if bs.is_empty() => {
                         return Ok(bs.len() - start_len);
                     }
@@ -177,7 +177,7 @@ impl<T: Read + ?Sized> ReadDyn for T {
     }
 
     fn next_v2_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
-        Box::pin(self.next_v2(size))
+        Box::pin(self.read(size))
     }
 }
 
@@ -186,7 +186,7 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
         self.seek_dyn(pos).await
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         self.next_v2_dyn(size).await
     }
 }

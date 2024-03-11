@@ -289,7 +289,7 @@ impl<I> BlockingWrapper<I> {
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
-        let bs = self.handle.block_on(self.inner.next_v2(buf.len()));
+        let bs = self.handle.block_on(self.inner.read(buf.len()));
         let bs = bs?;
         buf.put_slice(&bs);
         Ok(bs.len())
@@ -300,7 +300,7 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        let bs = self.handle.block_on(self.inner.next_v2(4 * 1024 * 1024));
+        let bs = self.handle.block_on(self.inner.read(4 * 1024 * 1024));
         match bs {
             Ok(bs) if bs.is_empty() => None,
             Ok(bs) => Some(Ok(bs)),

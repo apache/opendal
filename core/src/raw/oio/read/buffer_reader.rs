@@ -112,7 +112,7 @@ where
             let mut buf = ReadBuf::uninit(dst);
             unsafe { buf.assume_init(cap) };
 
-            let bs = self.r.next_v2(cap).await?;
+            let bs = self.r.read(cap).await?;
             buf.put_slice(&bs);
             unsafe { self.buf.set_len(bs.len()) }
 
@@ -160,7 +160,7 @@ where
         }
     }
 
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         match self.fill_buf().await {
             Ok(bytes) => {
                 if bytes.is_empty() {
@@ -378,8 +378,8 @@ mod tests {
             ))
         }
 
-        async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-            self.inner.next_v2(size).await
+        async fn read(&mut self, size: usize) -> Result<Bytes> {
+            oio::Read::read(&mut self.inner, size).await
         }
     }
 

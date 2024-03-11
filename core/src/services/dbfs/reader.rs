@@ -86,7 +86,7 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         let _ = size;
 
         Err(Error::new(

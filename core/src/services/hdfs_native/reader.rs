@@ -34,7 +34,7 @@ impl HdfsNativeReader {
 }
 
 impl Read for HdfsNativeReader {
-    async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
         let _ = size;
 
         todo!()

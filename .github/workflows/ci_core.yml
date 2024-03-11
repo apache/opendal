@@ -80,8 +80,8 @@ jobs:
   check_msrv:
     runs-on: ubuntu-latest
     env:
-      # OpenDAL's MSRV is 1.67.
-      OPENDAL_MSRV: "1.67"
+      # OpenDAL's MSRV is 1.75.
+      OPENDAL_MSRV: "1.75"
     steps:
       - uses: actions/checkout@v4
       - name: Setup msrv of rust

@@ -25,7 +25,6 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 use pyo3::exceptions::PyIOError;
@@ -243,12 +242,11 @@ impl AsyncFile {
 
             let buffer = match size {
                 Some(size) => {
-                    let mut buffer = vec![0; size];
-                    reader
-                        .read_exact(&mut buffer)
+                    let buffer = reader
+                        .read_exact(size)
                         .await
                         .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    buffer
+                    buffer.to_vec()
                 }
                 None => {
                     let mut buffer = Vec::new();

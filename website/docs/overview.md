@@ -61,7 +61,7 @@ For example, we DO
 
 OpenDAL needs to implement features in a zero cost way which means:
 
-- Users need not to pay cost for unused features.
+- Users don't need to pay costs for unused features.
 - Users cannot write better implementation for used features.
 
 For example, we DO

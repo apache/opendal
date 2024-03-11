@@ -540,9 +540,9 @@ impl<R> PrometheusMetricWrapper<R> {
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        self.inner.poll_read(cx, buf).map(|res| match res {
+        match self.inner.next_v2(size).await {
             Ok(bytes) => {
-                self.bytes_total += bytes;
+                self.bytes_total += bytes.len();
                 Ok(bytes)
             }
             Err(e) => {
@@ -550,33 +550,18 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
                     .increment_errors_total(self.scheme, self.op, e.kind());
                 Err(e)
             }
-        })
+        }
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.poll_seek(cx, pos).map(|res| match res {
+        match self.inner.seek(pos).await {
             Ok(n) => Ok(n),
             Err(e) => {
                 self.metrics
                     .increment_errors_total(self.scheme, self.op, e.kind());
                 Err(e)
             }
-        })
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx).map(|res| match res {
-            Some(Ok(bytes)) => {
-                self.bytes_total += bytes.len();
-                Some(Ok(bytes))
-            }
-            Some(Err(e)) => {
-                self.metrics
-                    .increment_errors_total(self.scheme, self.op, e.kind());
-                Some(Err(e))
-            }
-            None => None,
-        })
+        }
     }
 }
 

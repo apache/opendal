@@ -17,11 +17,10 @@
 
 use async_trait::async_trait;
 use bytes;
-use bytes::Bytes;
+use bytes::{BufMut, Bytes};
 use futures::future::poll_fn;
 use tokio::runtime::Handle;
 
-use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
@@ -289,8 +288,11 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.handle.block_on(self.inner.read(buf))
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
+        let bs = self.handle.block_on(self.inner.next_v2(buf.len()));
+        let bs = bs?;
+        buf.put_slice(&bs);
+        Ok(bs.len())
     }
 
     fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
@@ -298,7 +300,12 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        self.handle.block_on(self.inner.next())
+        let bs = self.handle.block_on(self.inner.next_v2(4 * 1024 * 1024));
+        match bs {
+            Ok(bs) if bs.is_empty() => None,
+            Ok(bs) => Some(Ok(bs)),
+            Err(err) => Some(Err(err)),
+        }
     }
 }
 

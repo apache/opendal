@@ -279,15 +279,11 @@ impl<R> OtelTraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        self.inner.poll_read(cx, buf)
+        self.inner.next_v2(size).await
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx)
+        self.inner.seek(pos).await
     }
 }
 

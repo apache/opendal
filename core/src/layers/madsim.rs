@@ -22,6 +22,7 @@
 #![allow(dead_code)]
 
 use std::any::Any;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Result;
@@ -262,28 +263,20 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
+    async fn next_v2(&mut self, size: usize) -> crate::Result<Bytes> {
         if let Some(ref data) = self.data {
-            let len = data.len();
-            buf[..len].copy_from_slice(data);
-            Poll::Ready(Ok(len))
+            let size = min(size, data.len());
+            Ok(data.clone().split_to(size))
         } else {
-            Poll::Ready(Ok(0))
+            Ok(Bytes::new())
         }
     }
 
-    fn poll_seek(&mut self, _: &mut Context<'_>, _: SeekFrom) -> Poll<crate::Result<u64>> {
-        Poll::Ready(Err(Error::new(
+    async fn seek(&mut self, _: SeekFrom) -> crate::Result<u64> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
-        )))
-    }
-
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
-        Poll::Ready(Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "will be supported in the future",
-        ))))
+        ))
     }
 }
 

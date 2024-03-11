@@ -692,51 +692,29 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             Operation::Read.into_static(),
             &self.path,
         );
-        self.inner.poll_read(cx, buf).map(|res| match res {
+        match self.inner.next_v2(size).await {
             Ok(bytes) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(bytes as f64);
+                    .observe(bytes.len() as f64);
                 Ok(bytes)
             }
             Err(e) => {
                 self.stats.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
-        })
+        }
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.poll_seek(cx, pos).map(|res| match res {
+        match self.inner.seek(pos).await {
             Ok(n) => Ok(n),
             Err(e) => {
                 self.stats.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
-        })
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let labels = self.stats.generate_metric_label(
-            self.scheme.into_static(),
-            Operation::Read.into_static(),
-            &self.path,
-        );
-        self.inner.poll_next(cx).map(|res| match res {
-            Some(Ok(bytes)) => {
-                self.stats
-                    .bytes_total
-                    .with_label_values(&labels)
-                    .observe(bytes.len() as f64);
-                Some(Ok(bytes))
-            }
-            Some(Err(e)) => {
-                self.stats.increment_errors_total(self.op, e.kind());
-                Some(Err(e))
-            }
-            None => None,
-        })
+        }
     }
 }
 

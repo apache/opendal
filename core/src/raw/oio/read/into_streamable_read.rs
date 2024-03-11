@@ -112,8 +112,11 @@ mod tests {
         let mut s = into_streamable_read(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
-        while let Some(b) = s.next_v2(4 * 1024 * 1024).await {
-            let b = b.expect("read must success");
+        loop {
+            let b = s.next_v2(4 * 1024 * 1024).await.expect("read must success");
+            if b.is_empty() {
+                break;
+            }
             bs.put_slice(&b);
         }
         assert_eq!(bs.freeze().to_vec(), content)

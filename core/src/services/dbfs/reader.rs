@@ -15,19 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
-use std::future::Future;
 use std::io::SeekFrom;
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use base64::engine::general_purpose;
 use base64::Engine;
-use bytes::BufMut;
 use bytes::Bytes;
-use futures::future::BoxFuture;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
@@ -36,10 +29,11 @@ use crate::*;
 
 // The number of bytes to read starting from the offset. This has a limit of 1 MB
 // Reference: https://docs.databricks.com/api/azure/workspace/dbfs/read
-const DBFS_READ_LIMIT: usize = 1024 * 1024;
+// const DBFS_READ_LIMIT: usize = 1024 * 1024;
 
+#[allow(dead_code)]
 pub struct DbfsReader {
-    state: State,
+    core: Arc<DbfsCore>,
     path: String,
     offset: u64,
     has_filled: u64,
@@ -48,7 +42,7 @@ pub struct DbfsReader {
 impl DbfsReader {
     pub fn new(core: Arc<DbfsCore>, op: OpRead, path: String) -> Self {
         DbfsReader {
-            state: State::Reading(Some(core)),
+            core,
             path,
             offset: op.range().offset().unwrap_or(0),
             has_filled: 0,
@@ -56,10 +50,12 @@ impl DbfsReader {
     }
 
     #[inline]
+    #[allow(dead_code)]
     fn set_offset(&mut self, offset: u64) {
         self.offset = offset;
     }
 
+    #[allow(dead_code)]
     fn serde_json_decode(&self, bs: &Bytes) -> Result<Bytes> {
         let response_body = match serde_json::from_slice::<ReadContentJsonResponse>(bs) {
             Ok(v) => v,
@@ -82,11 +78,6 @@ impl DbfsReader {
 
         Ok(decoded_data.into())
     }
-}
-
-enum State {
-    Reading(Option<Arc<DbfsCore>>),
-    Finalize(BoxFuture<'static, (Arc<DbfsCore>, Result<Bytes>)>),
 }
 
 /// # Safety

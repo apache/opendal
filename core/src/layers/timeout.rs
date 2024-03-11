@@ -386,7 +386,7 @@ mod tests {
 
     use crate::layers::TimeoutLayer;
     use crate::layers::TypeEraseLayer;
-    use crate::raw::oio::ReadExt;
+    use crate::raw::oio::Read;
     use crate::raw::*;
     use crate::*;
 
@@ -435,15 +435,11 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read(&mut self, _: &mut [u8]) -> impl Future<Output = Result<usize>> {
-            pending()
-        }
-
         fn seek(&mut self, _: SeekFrom) -> impl Future<Output = Result<u64>> {
             pending()
         }
 
-        fn next(&mut self) -> impl Future<Output = Option<Result<Bytes>>> {
+        fn next_v2(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
             pending()
         }
     }
@@ -484,7 +480,7 @@ mod tests {
 
         let mut reader = op.reader("test").await.unwrap();
 
-        let res = reader.read(&mut [0; 4]).await;
+        let res = reader.next_v2(4).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

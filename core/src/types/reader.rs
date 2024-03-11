@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::io;
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -26,7 +28,6 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
 
-use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -73,6 +74,14 @@ impl Reader {
             state: State::Idle(Some(r)),
         })
     }
+
+    /// Create a new reader from an `oio::Reader`.
+    #[cfg(test)]
+    pub(crate) fn new(r: oio::Reader) -> Self {
+        Reader {
+            state: State::Idle(Some(r)),
+        }
+    }
 }
 
 enum State {
@@ -81,12 +90,39 @@ enum State {
     Seeking(BoxedStaticFuture<(oio::Reader, Result<u64>)>),
 }
 
+/// # Safety
+///
+/// Reader will only be used with `&mut self`.
+unsafe impl Sync for State {}
+
+impl oio::Read for Reader {
+    fn seek(&mut self, pos: SeekFrom) -> impl Future<Output = Result<u64>> + Send {
+        async move {
+            let State::Idle(Some(r)) = &mut self.state else {
+                return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+            };
+            r.seek(pos).await
+        }
+    }
+
+    fn next_v2(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send {
+        async move {
+            let State::Idle(Some(r)) = &mut self.state else {
+                return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
+            };
+            r.next_v2(size).await
+        }
+    }
+}
+
 impl AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
+        use oio::Read;
+
         match &mut self.state {
             State::Idle(r) => {
                 let mut r = r.take().expect("reader must be valid");
@@ -120,6 +156,8 @@ impl AsyncSeek for Reader {
         cx: &mut Context<'_>,
         pos: io::SeekFrom,
     ) -> Poll<io::Result<u64>> {
+        use oio::Read;
+
         match &mut self.state {
             State::Idle(r) => {
                 let mut r = r.take().expect("reader must be valid");
@@ -149,6 +187,8 @@ impl tokio::io::AsyncRead for Reader {
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
+        use oio::Read;
+
         loop {
             match &mut self.state {
                 State::Idle(r) => {
@@ -185,6 +225,8 @@ impl tokio::io::AsyncRead for Reader {
 
 impl tokio::io::AsyncSeek for Reader {
     fn start_seek(mut self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
+        use oio::Read;
+
         match &mut self.state {
             State::Idle(r) => {
                 let mut r = r.take().expect("reader must be valid");
@@ -228,6 +270,8 @@ impl Stream for Reader {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use oio::Read;
+
         match &mut self.state {
             State::Idle(r) => {
                 let mut r = r.take().expect("reader must be valid");
@@ -275,6 +319,12 @@ impl BlockingReader {
         let (_, r) = acc.blocking_read(path, op)?;
 
         Ok(BlockingReader { inner: r })
+    }
+
+    /// Create a new reader from an `oio::BlockingReader`.
+    #[cfg(test)]
+    pub(crate) fn new(r: oio::BlockingReader) -> Self {
+        BlockingReader { inner: r }
     }
 }
 

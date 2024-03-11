@@ -465,7 +465,6 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::AsyncRead;
     use futures::AsyncReadExt;
     use futures::AsyncSeekExt;
     use rand::prelude::*;
@@ -560,11 +559,12 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(RangeReader::new(
+        let r = Box::new(RangeReader::new(
             acc,
             "x",
             OpRead::default().with_range(BytesRange::from(..)),
         )) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -595,11 +595,12 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(RangeReader::new(
+        let r = Box::new(RangeReader::new(
             acc,
             "x",
             OpRead::default().with_range(BytesRange::from(4096..4096 + 4096)),
         )) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

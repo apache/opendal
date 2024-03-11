@@ -370,7 +370,7 @@ mod tests {
 
     impl oio::Read for MockReader {
         async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-            let (_) = (pos);
+            let _ = pos;
 
             Err(Error::new(
                 ErrorKind::Unsupported,
@@ -408,7 +408,9 @@ mod tests {
         let r = Box::new(RangeReader::new(acc, "x", OpRead::default())) as oio::Reader;
 
         let buf_cap = 10;
-        let mut r = Box::new(BufferReader::new(r, buf_cap)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, buf_cap)) as oio::Reader;
+        let mut r = Reader::new(r);
+
         let mut dst = [0u8; 5];
 
         let nread = r.read(&mut dst).await?;
@@ -435,7 +437,8 @@ mod tests {
         let r = Box::new(RangeReader::new(acc, "x", OpRead::default())) as oio::Reader;
 
         let buf_cap = 10;
-        let mut r = Box::new(BufferReader::new(r, buf_cap)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, buf_cap)) as oio::Reader;
+        let mut r = Reader::new(r);
 
         // The underlying reader buffers the b"Hello, Wor".
         let mut dst = [0u8; 5];
@@ -480,7 +483,8 @@ mod tests {
             OpRead::default().with_range(BytesRange::from(..)),
         )) as oio::Reader;
 
-        let mut r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -517,7 +521,8 @@ mod tests {
             "x",
             OpRead::default().with_range(BytesRange::from(..)),
         )) as oio::Reader;
-        let mut r = Box::new(BufferReader::new(r, 10)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, 10)) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut cur = 0;
         for _ in 0..3 {
@@ -544,7 +549,8 @@ mod tests {
             "x",
             OpRead::default().with_range(BytesRange::from(..)),
         )) as oio::Reader;
-        let mut r = Box::new(BufferReader::new(r, 5)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, 5)) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut cur = 0;
         for _ in 0..3 {
@@ -570,7 +576,8 @@ mod tests {
             "x",
             OpRead::default().with_range(BytesRange::from(4096..4096 + 4096)),
         )) as oio::Reader;
-        let mut r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::Reader;
+        let r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::Reader;
+        let mut r = Reader::new(r);
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -623,7 +630,8 @@ mod tests {
         let bs = Bytes::copy_from_slice(&b"Hello, World!"[..]);
         let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
         let buf_cap = 10;
-        let mut r = Box::new(BufferReader::new(r, buf_cap)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, buf_cap)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         let mut dst = [0u8; 5];
         let nread = r.read(&mut dst)?;
@@ -648,7 +656,8 @@ mod tests {
         let bs = Bytes::copy_from_slice(&b"Hello, World!"[..]);
         let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
         let buf_cap = 10;
-        let mut r = Box::new(BufferReader::new(r, buf_cap)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, buf_cap)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         // The underlying reader buffers the b"Hello, Wor".
         let mut dst = [0u8; 5];
@@ -686,7 +695,8 @@ mod tests {
     async fn test_blocking_read_all() -> anyhow::Result<()> {
         let (bs, _) = gen_bytes();
         let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
-        let mut r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf)?;
@@ -718,7 +728,8 @@ mod tests {
             &b"Hello, World! I'm going to tests a seek relative related bug!"[..],
         );
         let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
-        let mut r = Box::new(BufferReader::new(r, 10)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, 10)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         let mut cur = 0;
         for _ in 0..3 {
@@ -740,7 +751,8 @@ mod tests {
             &b"Hello, World! I'm going to tests a seek relative related bug!"[..],
         );
         let r = Box::new(oio::Cursor::from(bs.clone())) as oio::BlockingReader;
-        let mut r = Box::new(BufferReader::new(r, 5)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, 5)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         let mut cur = 0;
         for _ in 0..3 {
@@ -767,7 +779,8 @@ mod tests {
             "x",
             OpRead::default().with_range(BytesRange::from(4096..4096 + 4096)),
         )) as oio::BlockingReader;
-        let mut r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::BlockingReader;
+        let r = Box::new(BufferReader::new(r, 4096 * 1024)) as oio::BlockingReader;
+        let mut r = BlockingReader::new(r);
 
         let mut buf = Vec::new();
         BlockingRead::read_to_end(&mut r, &mut buf)?;

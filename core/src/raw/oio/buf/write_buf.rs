@@ -78,7 +78,7 @@ pub trait WriteBuf: Send + Sync {
     ///
     /// # Notes
     ///
-    /// This function is used to avoid copy when possible. Implementors should return `true`
+    /// This function is used to avoid copy when possible. Implementers should return `true`
     /// the given `self.bytes(size)` could be done without cost. For example, the underlying
     /// buffer is `Bytes`.
     ///
@@ -98,7 +98,7 @@ pub trait WriteBuf: Send + Sync {
     /// This functions is used to return a vectored bytes from underlying chunks.
     /// Use `bytes` if you just want to get a continuous bytes.
     ///
-    /// # Notes for implementors
+    /// # Notes for implementers
     ///
     /// It's better to align the vectored bytes with underlying chunks to avoid copy.
     ///

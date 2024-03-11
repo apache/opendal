@@ -73,7 +73,7 @@ if let Err(e) = meta {
 }
 ```
 
-For a backend implementor, we can provide as much information as possible. For example, we can return `bucket is empty` to let the user know:
+For a backend implementer, we can provide as much information as possible. For example, we can return `bucket is empty` to let the user know:
 
 ```rust
 return Err(Error::Backend {
@@ -162,7 +162,7 @@ pub fn kind(&self) -> Kind {
 }
 ```
 
-The implementor should do their best to carry as much context as possible. Such as, they should return `Error::Object` to carry the `op` and `path`, instead of just returns `Error::Unexpected(anyhow::Error::from(err))`.
+The implementer should do their best to carry as much context as possible. Such as, they should return `Error::Object` to carry the `op` and `path`, instead of just returns `Error::Unexpected(anyhow::Error::from(err))`.
 
 ```rust
 Error::Object {

@@ -450,29 +450,29 @@ mod tests {
         let mut r = Reader::new(r);
 
         // The underlying reader buffers the b"Hello, Wor".
-        let bs = r.read(5).await?;
-        assert_eq!(bs.len(), 5);
-        assert_eq!(bs.as_ref(), b"Hello");
+        let buf = r.read(5).await?;
+        assert_eq!(buf.len(), 5);
+        assert_eq!(buf.as_ref(), b"Hello");
 
         let pos = r.seek(SeekFrom::Start(7)).await?;
         assert_eq!(pos, 7);
-        let bs = r.read(5).await?;
-        assert_eq!(&bs, &bs[7..10]);
-        assert_eq!(bs.len(), 3);
+        let buf = r.read(5).await?;
+        assert_eq!(&buf, &bs[7..10]);
+        assert_eq!(buf.len(), 3);
 
         // Should perform a relative seek.
         let pos = r.seek(SeekFrom::Start(0)).await?;
         assert_eq!(pos, 0);
-        let bs = r.read(9).await?;
-        assert_eq!(&bs, &bs[0..9]);
-        assert_eq!(bs.len(), 9);
+        let buf = r.read(9).await?;
+        assert_eq!(&buf, &bs[0..9]);
+        assert_eq!(buf.len(), 9);
 
         // Should perform a non-relative seek.
         let pos = r.seek(SeekFrom::Start(11)).await?;
         assert_eq!(pos, 11);
-        let bs = r.read(9).await?;
-        assert_eq!(&bs, &bs[11..13]);
-        assert_eq!(bs.len(), 2);
+        let buf = r.read(9).await?;
+        assert_eq!(&buf, &bs[11..13]);
+        assert_eq!(buf.len(), 2);
 
         Ok(())
     }

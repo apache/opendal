@@ -190,7 +190,7 @@ impl Reader {
 
             match self.read(read_buf.initialize_unfilled().len()).await {
                 Ok(bs) if bs.is_empty() => {
-                    return Ok(bs.len() - start_len);
+                    return Ok(buf.len() - start_len);
                 }
                 Ok(bs) => {
                     read_buf.initialize_unfilled()[..bs.len()].copy_from_slice(&bs);

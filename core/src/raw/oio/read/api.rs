@@ -97,12 +97,18 @@ pub trait Read: Unpin + Send + Sync {
     ///
     /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
     /// - The `size` specified was `0`.
+    #[cfg(not(target_arch = "wasm32"))]
     fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>>;
 
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
+    #[cfg(not(target_arch = "wasm32"))]
     fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>>;
 }
 
 impl Read for () {

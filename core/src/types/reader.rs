@@ -88,6 +88,7 @@ impl Reader {
     /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
     /// as `Box<dyn futures::AsyncRead>` and calling `poll_read_unpin` on it.
     #[inline]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn into_futures_read(
         self,
     ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
@@ -102,6 +103,7 @@ impl Reader {
     /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
     /// as `Box<dyn tokio::io::AsyncRead>` and calling `poll_read_unpin` on it.
     #[inline]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn into_tokio_read(
         self,
     ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin {

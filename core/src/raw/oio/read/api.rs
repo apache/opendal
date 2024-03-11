@@ -73,7 +73,7 @@ impl From<ReadOperation> for &'static str {
 }
 
 /// Reader is a type erased [`Read`].
-pub type Reader = Box<dyn DynRead>;
+pub type Reader = Box<dyn ReadDyn>;
 
 /// Read is the trait that OpenDAL returns to callers.
 ///
@@ -165,29 +165,29 @@ pub trait ReadExt: Read {
     }
 }
 
-pub trait DynRead: Unpin + Send + Sync {
-    fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
+pub trait ReadDyn: Unpin + Send + Sync {
+    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 
-    fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
+    fn next_v2_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
 }
 
-impl<T: Read + ?Sized> DynRead for T {
-    fn dyn_seek(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
+impl<T: Read + ?Sized> ReadDyn for T {
+    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
         Box::pin(self.seek(pos))
     }
 
-    fn dyn_next_v2(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
+    fn next_v2_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
         Box::pin(self.next_v2(size))
     }
 }
 
-impl<T: DynRead + ?Sized> Read for Box<T> {
+impl<T: ReadDyn + ?Sized> Read for Box<T> {
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.dyn_seek(pos).await
+        self.seek_dyn(pos).await
     }
 
     async fn next_v2(&mut self, size: usize) -> Result<Bytes> {
-        self.dyn_next_v2(size).await
+        self.next_v2_dyn(size).await
     }
 }
 

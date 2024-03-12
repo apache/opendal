@@ -290,8 +290,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit)
     }
 
     #[tracing::instrument(

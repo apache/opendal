@@ -566,12 +566,12 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         self.inner
-            .read(buf)
-            .map(|n| {
-                self.bytes_total += n;
-                n
+            .read(limit)
+            .map(|bs| {
+                self.bytes_total += bs.len();
+                bs
             })
             .map_err(|e| {
                 self.metrics

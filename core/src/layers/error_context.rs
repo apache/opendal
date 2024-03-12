@@ -367,12 +367,12 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf).map_err(|err| {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-                .with_context("read_buf", buf.len().to_string())
+                .with_context("limit", limit.to_string())
         })
     }
 

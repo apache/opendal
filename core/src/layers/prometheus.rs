@@ -719,20 +719,20 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::BlockingRead.into_static(),
             &self.path,
         );
         self.inner
-            .read(buf)
-            .map(|n| {
+            .read(limit)
+            .map(|bs| {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(n as f64);
-                n
+                    .observe(bs.len() as f64);
+                bs
             })
             .map_err(|e| {
                 self.stats.increment_errors_total(self.op, e.kind());

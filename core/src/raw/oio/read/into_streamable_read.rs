@@ -61,8 +61,8 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.r.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.r.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -118,12 +118,13 @@ mod tests {
         let r = oio::Cursor::from(content.clone());
         let mut s = into_streamable_read(Box::new(r) as oio::BlockingReader, cap);
 
-        let mut bs = BytesMut::zeroed(size);
+        let mut bs = BytesMut::with_capacity(size);
         loop {
-            let n = s.read(&mut bs).expect("read must success");
-            if n == 0 {
+            let buf = s.read(size).expect("read must success");
+            if buf.is_empty() {
                 break;
             }
+            bs.put_slice(&buf)
         }
         assert_eq!(bs.freeze().to_vec(), content)
     }

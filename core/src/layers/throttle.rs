@@ -196,9 +196,9 @@ impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read(buf)
+        self.inner.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {

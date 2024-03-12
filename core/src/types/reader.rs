@@ -26,6 +26,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::Stream;
 use tokio::io::ReadBuf;
 
+use crate::raw::oio::BlockingRead;
 use crate::raw::*;
 use crate::*;
 
@@ -441,28 +442,61 @@ impl BlockingReader {
     }
 
     /// Create a new reader from an `oio::BlockingReader`.
-    #[cfg(test)]
     pub(crate) fn new(r: oio::BlockingReader) -> Self {
         BlockingReader { inner: r }
     }
-}
 
-impl oio::BlockingRead for BlockingReader {
+    /// Seek to the position of `pos` of reader.
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
+    pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos)
     }
 
+    /// Read at most `size` bytes of data from reader.
     #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    pub fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit)
+    }
+
+    /// Reads all bytes until EOF in this source, placing them into buf.
+    pub fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+        let start_len = buf.len();
+
+        loop {
+            if buf.len() == buf.capacity() {
+                buf.reserve(32); // buf is full, need more space
+            }
+
+            let spare = buf.spare_capacity_mut();
+            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
+
+            // SAFETY: These bytes were initialized but not filled in the previous loop
+            unsafe {
+                read_buf.assume_init(read_buf.capacity());
+            }
+
+            match self.read(read_buf.initialized_mut().len()) {
+                Ok(bs) if bs.is_empty() => return Ok(buf.len() - start_len),
+                Ok(bs) => {
+                    read_buf.initialized_mut()[..bs.len()].copy_from_slice(&bs);
+
+                    // SAFETY: Read API makes sure that returning `n` is correct.
+                    unsafe {
+                        buf.set_len(buf.len() + bs.len());
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 }
 
 impl io::Read for BlockingReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf).map_err(format_std_io_error)
+        let bs = self.inner.read(buf.len()).map_err(format_std_io_error)?;
+        buf[..bs.len()].copy_from_slice(&bs);
+        Ok(bs.len())
     }
 }
 
@@ -478,10 +512,15 @@ impl Iterator for BlockingReader {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-        // self.inner
-        //     .next()
-        //     .map(|v| v.map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err)))
+        match self
+            .inner
+            .read(4 * 1024 * 1024)
+            .map_err(format_std_io_error)
+        {
+            Ok(bs) if bs.is_empty() => None,
+            Ok(bs) => Some(Ok(bs)),
+            Err(err) => Some(Err(err)),
+        }
     }
 }
 

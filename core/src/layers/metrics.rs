@@ -798,12 +798,12 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         self.inner
-            .read(buf)
-            .map(|n| {
-                self.bytes += n as u64;
-                n
+            .read(limit)
+            .map(|bs| {
+                self.bytes += bs.len() as u64;
+                bs
             })
             .map_err(|e| {
                 self.handle.increment_errors_total(self.op, e.kind());

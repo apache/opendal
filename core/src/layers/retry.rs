@@ -737,8 +737,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        { || self.inner.as_mut().unwrap().read(buf) }
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        { || self.inner.as_mut().unwrap().read(limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {

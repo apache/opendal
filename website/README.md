@@ -27,3 +27,8 @@ This command generates static content into the `build` directory and can be serv
 ## Dependencies
 
 Generate dependencies by `npx license-checker --production --excludePrivatePackages --csv > DEPENDENCIES.node.csv`
+
+
+## For content search
+
+Since search plugin can not work with `pnpm start`, for testing please run `pnpm build && pnpm serve`.

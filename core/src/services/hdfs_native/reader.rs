@@ -16,8 +16,6 @@
 // under the License.
 
 use std::io::SeekFrom;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use hdfs_native::file::FileReader;
@@ -36,25 +34,18 @@ impl HdfsNativeReader {
 }
 
 impl Read for HdfsNativeReader {
-    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let _ = limit;
+
         todo!()
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let _ = pos;
 
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "HdfsNativeReader doesn't support seeking",
-        )))
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
-
-        Poll::Ready(Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "HdfsNativeReader doesn't support iterating",
-        ))))
+        ))
     }
 }

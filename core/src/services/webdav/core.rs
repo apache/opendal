@@ -15,15 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
+use bytes::Bytes;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use serde::Deserialize;
+
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-use bytes::Bytes;
-use http::{header, Request, Response, StatusCode};
-use serde::Deserialize;
-use std::collections::VecDeque;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
 
 /// The request to query all properties of a file or directory.
 ///

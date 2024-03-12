@@ -24,7 +24,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.67"
+rust-version = "1.75"
 version = "0.43.0"
 
 [dependencies]
@@ -38,3 +38,4 @@ tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+opendal = { version = "0.45.1", path = "../../core", features = ["services-memory"] }

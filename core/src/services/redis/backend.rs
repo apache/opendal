@@ -121,6 +121,7 @@ impl RedisBuilder {
     /// currently supported schemes:
     /// - no scheme: will be seen as "tcp"
     /// - "tcp" or "redis": unsecured redis connections
+    /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
@@ -130,11 +131,12 @@ impl RedisBuilder {
     }
 
     /// set the network address of redis cluster service.
-    /// This parameter is mutually exclusive with the endponit parameter.
+    /// This parameter is mutually exclusive with the endpoint parameter.
     ///
     /// currently supported schemes:
     /// - no scheme: will be seen as "tcp"
     /// - "tcp" or "redis": unsecured redis connections
+    /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
     pub fn cluster_endpoints(&mut self, cluster_endpoints: &str) -> &mut Self {
         if !cluster_endpoints.is_empty() {

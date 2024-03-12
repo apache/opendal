@@ -31,7 +31,8 @@ use serde::Deserialize;
 use super::core::AzdlsCore;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
-use super::writer::{AzdlsWriter, AzdlsWriters};
+use super::writer::AzdlsWriter;
+use super::writer::AzdlsWriters;
 use crate::raw::*;
 use crate::*;
 

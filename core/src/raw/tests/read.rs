@@ -41,8 +41,6 @@ pub enum ReadAction {
     ///
     /// It's valid that seek outside of the file's end.
     Seek(SeekFrom),
-    /// Next represents a next action.
-    Next,
 }
 
 /// ReadChecker is used to check the correctness of the read process.
@@ -155,55 +153,20 @@ impl ReadChecker {
         self.cur = expected as usize;
     }
 
-    /// check_next checks the correctness of the read process after a next action.
-    fn check_next(&mut self, output: Option<Bytes>) {
-        if self.cur < self.ranged_data.len() {
-            let Some(bs) = output else {
-                panic!("check next failed: there are remaining bytes, but next output is None",);
-            };
-
-            assert_eq!(
-                format!("{:x}", Sha256::digest(&bs)),
-                format!(
-                    "{:x}",
-                    Sha256::digest(&self.ranged_data[self.cur..self.cur + bs.len()])
-                ),
-                "check next failed: output bs is different with expected bs, current: {}, output length: {}",
-                self.cur, bs.len(),
-            );
-
-            // update the current position
-            self.cur += bs.len();
-        } else {
-            assert!(
-                output.is_none(),
-                "check next failed: there are no remaining bytes, the next output is Some",
-            );
-        }
-    }
-
     /// Check will check the correctness of the read process via given actions.
     ///
     /// Check will panic if any check failed.
     pub async fn check(&mut self, mut r: Reader, actions: &[ReadAction]) {
-        use oio::ReadExt;
-
         for action in actions {
             match action {
                 ReadAction::Read(size) => {
-                    let mut buf = vec![0; *size];
-                    let n = r.read(&mut buf).await.expect("read must success");
-                    self.check_read(*size, &buf[..n]);
+                    let bs = r.read(*size).await.expect("read must success");
+                    self.check_read(*size, &bs);
                 }
 
                 ReadAction::Seek(pos) => {
                     let res = r.seek(*pos).await;
                     self.check_seek(*pos, res);
-                }
-
-                ReadAction::Next => {
-                    let res = r.next().await.transpose().expect("next must success");
-                    self.check_next(res);
                 }
             }
         }
@@ -228,11 +191,6 @@ impl ReadChecker {
 
                     let res = r.seek(*pos);
                     self.check_seek(*pos, res);
-                }
-
-                ReadAction::Next => {
-                    let res = r.next().transpose().expect("next must success");
-                    self.check_next(res);
                 }
             }
         }

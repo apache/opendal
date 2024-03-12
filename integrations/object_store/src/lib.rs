@@ -347,10 +347,9 @@ struct OpendalReader {
 impl Stream for OpendalReader {
     type Item = Result<Bytes>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use opendal::raw::oio::Read;
-
-        self.inner
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let inner = Pin::new(&mut self.get_mut().inner);
+        inner
             .poll_next(cx)
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",

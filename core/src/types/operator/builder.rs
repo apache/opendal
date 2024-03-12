@@ -151,6 +151,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[allow(unused_variables, unreachable_code)]
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
         let op = match scheme {
             #[cfg(feature = "services-atomicserver")]
@@ -199,6 +200,8 @@ impl Operator {
             Scheme::Ghac => Self::from_map::<services::Ghac>(map)?.finish(),
             #[cfg(feature = "services-gridfs")]
             Scheme::Gridfs => Self::from_map::<services::Gridfs>(map)?.finish(),
+            #[cfg(feature = "services-github")]
+            Scheme::Github => Self::from_map::<services::Github>(map)?.finish(),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
             #[cfg(feature = "services-http")]

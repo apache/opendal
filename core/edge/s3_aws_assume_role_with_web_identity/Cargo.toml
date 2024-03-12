@@ -20,7 +20,7 @@ edition = "2021"
 license = "Apache-2.0"
 name = "edge_test_aws_s3_assume_role_with_web_identity"
 publish = false
-rust-version = "1.67"
+rust-version = "1.75"
 version = "0.0.0"
 
 [dependencies]

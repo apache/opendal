@@ -991,153 +991,66 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let buf_size = buf.len();
-
-        match self.inner.poll_read(cx, buf) {
-            Poll::Ready(res) => match res {
-                Ok(n) => {
-                    self.read += n as u64;
-                    trace!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> buf size: {}B, read {}B ",
-                        self.ctx.scheme,
-                        ReadOperation::Read,
-                        self.path,
-                        self.read,
-                        buf_size,
-                        n
-                    );
-                    Poll::Ready(Ok(n))
-                }
-                Err(err) => {
-                    if let Some(lvl) = self.ctx.error_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} read={} -> read failed: {}",
-                            self.ctx.scheme,
-                            ReadOperation::Read,
-                            self.path,
-                            self.read,
-                            self.ctx.error_print(&err)
-                        )
-                    }
-                    Poll::Ready(Err(err))
-                }
-            },
-            Poll::Pending => {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit).await {
+            Ok(bs) => {
+                self.read += bs.len() as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> buf size: {}B, read pending",
+                    "service={} operation={} path={} read={} -> next returns {}B",
                     self.ctx.scheme,
                     ReadOperation::Read,
                     self.path,
                     self.read,
-                    buf_size
+                    bs.len()
                 );
-                Poll::Pending
+                Ok(bs)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.ctx.error_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} read={} -> next failed: {}",
+                        self.ctx.scheme,
+                        ReadOperation::Read,
+                        self.path,
+                        self.read,
+                        self.ctx.error_print(&err),
+                    )
+                }
+                Err(err)
             }
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        match self.inner.poll_seek(cx, pos) {
-            Poll::Ready(res) => match res {
-                Ok(n) => {
-                    trace!(
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        match self.inner.seek(pos).await {
+            Ok(n) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} read={} -> seek to {pos:?}, current offset {n}",
+                    self.ctx.scheme,
+                    ReadOperation::Seek,
+                    self.path,
+                    self.read,
+                );
+                Ok(n)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.ctx.error_level(&err) {
+                    log!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> seek to {pos:?}, current offset {n}",
+                        lvl,
+                        "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
                         self.ctx.scheme,
                         ReadOperation::Seek,
                         self.path,
                         self.read,
-                    );
-                    Poll::Ready(Ok(n))
+                        self.ctx.error_print(&err),
+                    )
                 }
-                Err(err) => {
-                    if let Some(lvl) = self.ctx.error_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
-                            self.ctx.scheme,
-                            ReadOperation::Seek,
-                            self.path,
-                            self.read,
-                            self.ctx.error_print(&err),
-                        )
-                    }
-                    Poll::Ready(Err(err))
-                }
-            },
-            Poll::Pending => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> seek to {pos:?} pending",
-                    self.ctx.scheme,
-                    ReadOperation::Seek,
-                    self.path,
-                    self.read
-                );
-                Poll::Pending
-            }
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match self.inner.poll_next(cx) {
-            Poll::Ready(res) => match res {
-                Some(Ok(bs)) => {
-                    self.read += bs.len() as u64;
-                    trace!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> next returns {}B",
-                        self.ctx.scheme,
-                        ReadOperation::Next,
-                        self.path,
-                        self.read,
-                        bs.len()
-                    );
-                    Poll::Ready(Some(Ok(bs)))
-                }
-                Some(Err(err)) => {
-                    if let Some(lvl) = self.ctx.error_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} read={} -> next failed: {}",
-                            self.ctx.scheme,
-                            ReadOperation::Next,
-                            self.path,
-                            self.read,
-                            self.ctx.error_print(&err),
-                        )
-                    }
-                    Poll::Ready(Some(Err(err)))
-                }
-                None => {
-                    trace!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} read={} -> next returns None",
-                        self.ctx.scheme,
-                        ReadOperation::Next,
-                        self.path,
-                        self.read,
-                    );
-                    Poll::Ready(None)
-                }
-            },
-            Poll::Pending => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> next returns pending",
-                    self.ctx.scheme,
-                    ReadOperation::Next,
-                    self.path,
-                    self.read
-                );
-                Poll::Pending
+                Err(err)
             }
         }
     }

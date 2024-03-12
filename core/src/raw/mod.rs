@@ -71,6 +71,7 @@ pub use std_io_util::*;
 
 mod futures_util;
 pub use futures_util::BoxedFuture;
+pub use futures_util::BoxedStaticFuture;
 pub use futures_util::ConcurrentFutures;
 
 mod enum_utils;

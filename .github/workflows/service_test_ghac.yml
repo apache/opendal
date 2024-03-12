@@ -57,7 +57,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run behavior --features tests
+        run: cargo nextest run behavior --features tests,services-ghac
         env:
           OPENDAL_TEST: ghac
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

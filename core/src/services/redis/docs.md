@@ -18,7 +18,7 @@ This service can be used to:
 
 - `root`: Set the working directory of `OpenDAL`
 - `endpoint`: Set the network address of redis server
-- `cluster_endpoints`: Set the network address of redis cluster server. This parameter is mutually exclusive with the `endponit` parameter.
+- `cluster_endpoints`: Set the network address of redis cluster server. This parameter is mutually exclusive with the `endpoint` parameter.
 - `username`: Set the username of Redis
 - `password`: Set the password for authentication
 - `db`: Set the DB of redis

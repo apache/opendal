@@ -15,18 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::io::SeekFrom;
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use base64::engine::general_purpose;
 use base64::Engine;
-use bytes::BufMut;
 use bytes::Bytes;
-use futures::future::BoxFuture;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
@@ -35,10 +29,11 @@ use crate::*;
 
 // The number of bytes to read starting from the offset. This has a limit of 1 MB
 // Reference: https://docs.databricks.com/api/azure/workspace/dbfs/read
-const DBFS_READ_LIMIT: usize = 1024 * 1024;
+// const DBFS_READ_LIMIT: usize = 1024 * 1024;
 
+#[allow(dead_code)]
 pub struct DbfsReader {
-    state: State,
+    core: Arc<DbfsCore>,
     path: String,
     offset: u64,
     has_filled: u64,
@@ -47,7 +42,7 @@ pub struct DbfsReader {
 impl DbfsReader {
     pub fn new(core: Arc<DbfsCore>, op: OpRead, path: String) -> Self {
         DbfsReader {
-            state: State::Reading(Some(core)),
+            core,
             path,
             offset: op.range().offset().unwrap_or(0),
             has_filled: 0,
@@ -55,10 +50,12 @@ impl DbfsReader {
     }
 
     #[inline]
+    #[allow(dead_code)]
     fn set_offset(&mut self, offset: u64) {
         self.offset = offset;
     }
 
+    #[allow(dead_code)]
     fn serde_json_decode(&self, bs: &Bytes) -> Result<Bytes> {
         let response_body = match serde_json::from_slice::<ReadContentJsonResponse>(bs) {
             Ok(v) => v,
@@ -83,70 +80,28 @@ impl DbfsReader {
     }
 }
 
-enum State {
-    Reading(Option<Arc<DbfsCore>>),
-    Finalize(BoxFuture<'static, (Arc<DbfsCore>, Result<Bytes>)>),
-}
-
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for DbfsReader.
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
-        while self.has_filled as usize != buf.len() {
-            match &mut self.state {
-                State::Reading(core) => {
-                    let core = core.take().expect("DbfsReader must be initialized");
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let _ = limit;
 
-                    let path = self.path.clone();
-                    let offset = self.offset;
-                    let len = cmp::min(buf.len(), DBFS_READ_LIMIT);
-
-                    let fut = async move {
-                        let resp = async { core.dbfs_read(&path, offset, len as u64).await }.await;
-                        let body = match resp {
-                            Ok(resp) => resp.into_body(),
-                            Err(err) => {
-                                return (core, Err(err));
-                            }
-                        };
-                        let bs = async { body.bytes().await }.await;
-                        (core, bs)
-                    };
-                    self.state = State::Finalize(Box::pin(fut));
-                }
-                State::Finalize(fut) => {
-                    let (core, bs) = ready!(fut.as_mut().poll(cx));
-                    let data = self.serde_json_decode(&bs?)?;
-
-                    buf.put_slice(&data[..]);
-                    self.set_offset(self.offset + data.len() as u64);
-                    self.has_filled += data.len() as u64;
-                    self.state = State::Reading(Some(core));
-                }
-            }
-        }
-        Poll::Ready(Ok(self.has_filled as usize))
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
-
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        )))
+        ))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let _ = pos;
 
-        Poll::Ready(Some(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
-            "output reader doesn't support iterating",
-        ))))
+            "output reader doesn't support seeking",
+        ))
     }
 }
 

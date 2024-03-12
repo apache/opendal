@@ -16,13 +16,13 @@
 // under the License.
 
 use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::AsyncSeek;
+use futures::AsyncSeekExt;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -30,12 +30,16 @@ use crate::*;
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct FuturesReader<R: AsyncRead + AsyncSeek> {
     inner: R,
+    buf: Vec<u8>,
 }
 
 impl<R: AsyncRead + AsyncSeek> FuturesReader<R> {
     /// Create a new futures reader.
     pub fn new(inner: R) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            buf: Vec::with_capacity(64 * 1024),
+        }
     }
 }
 
@@ -43,28 +47,38 @@ impl<R> oio::Read for FuturesReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf).map_err(|err| {
-            new_std_io_error(err)
-                .with_operation(oio::ReadOperation::Read)
-                .with_context("source", "FuturesReader")
-        })
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        Pin::new(&mut self.inner).poll_seek(cx, pos).map_err(|err| {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Seek)
                 .with_context("source", "FuturesReader")
         })
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        // Make sure buf has enough space.
+        if self.buf.capacity() < limit {
+            self.buf.reserve(limit);
+        }
+        let buf = self.buf.spare_capacity_mut();
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
-        Poll::Ready(Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "FuturesReader doesn't support poll_next",
-        ))))
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(limit);
+        }
+
+        let n = self
+            .inner
+            .read(read_buf.initialized_mut())
+            .await
+            .map_err(|err| {
+                new_std_io_error(err)
+                    .with_operation(oio::ReadOperation::Read)
+                    .with_context("source", "FuturesReader")
+            })?;
+        read_buf.set_filled(n);
+
+        Ok(Bytes::copy_from_slice(read_buf.filled()))
     }
 }

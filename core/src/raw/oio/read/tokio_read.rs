@@ -16,14 +16,12 @@
 // under the License.
 
 use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeek;
+use tokio::io::AsyncSeekExt;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
@@ -32,8 +30,7 @@ use crate::*;
 /// FuturesReader implements [`oio::Read`] via [`AsyncRead`] + [`AsyncSeek`].
 pub struct TokioReader<R: AsyncRead + AsyncSeek> {
     inner: R,
-
-    seek_pos: Option<SeekFrom>,
+    buf: Vec<u8>,
 }
 
 impl<R: AsyncRead + AsyncSeek> TokioReader<R> {
@@ -41,7 +38,7 @@ impl<R: AsyncRead + AsyncSeek> TokioReader<R> {
     pub fn new(inner: R) -> Self {
         Self {
             inner,
-            seek_pos: None,
+            buf: Vec::with_capacity(64 * 1024),
         }
     }
 }
@@ -50,44 +47,38 @@ impl<R> oio::Read for TokioReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let mut buf = ReadBuf::new(buf);
-
-        ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf)).map_err(|err| {
-            new_std_io_error(err)
-                .with_operation(oio::ReadOperation::Read)
-                .with_context("source", "TokioReader")
-        })?;
-
-        Poll::Ready(Ok(buf.filled().len()))
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        if self.seek_pos != Some(pos) {
-            Pin::new(&mut self.inner).start_seek(pos).map_err(|err| {
-                new_std_io_error(err)
-                    .with_operation(oio::ReadOperation::Seek)
-                    .with_context("source", "TokioReader")
-            })?;
-            self.seek_pos = Some(pos)
-        }
-
-        // NOTE: don't return error by `?` here, we need to reset seek_pos.
-        let pos = ready!(Pin::new(&mut self.inner).poll_complete(cx).map_err(|err| {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
             new_std_io_error(err)
                 .with_operation(oio::ReadOperation::Seek)
                 .with_context("source", "TokioReader")
-        }));
-        self.seek_pos = None;
-        Poll::Ready(pos)
+        })
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _ = cx;
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        // Make sure buf has enough space.
+        if self.buf.capacity() < limit {
+            self.buf.reserve(limit);
+        }
+        let buf = self.buf.spare_capacity_mut();
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
-        Poll::Ready(Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "TokioReader doesn't support poll_next",
-        ))))
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(limit);
+        }
+
+        let n = self
+            .inner
+            .read(read_buf.initialized_mut())
+            .await
+            .map_err(|err| {
+                new_std_io_error(err)
+                    .with_operation(oio::ReadOperation::Read)
+                    .with_context("source", "TokioReader")
+            })?;
+        read_buf.set_filled(n);
+
+        Ok(Bytes::copy_from_slice(read_buf.filled()))
     }
 }

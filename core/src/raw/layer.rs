@@ -27,7 +27,7 @@ use crate::*;
 /// Struct that implement this trait must accept input `Arc<dyn Accessor>` as inner,
 /// and returns a new `Arc<dyn Accessor>` as output.
 ///
-/// All functions in `Accessor` requires `&self`, so it's implementor's responsibility
+/// All functions in `Accessor` requires `&self`, so it's implementer's responsibility
 /// to maintain the internal mutability. Please also keep in mind that `Accessor`
 /// requires `Send` and `Sync`.
 ///

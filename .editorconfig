@@ -29,29 +29,35 @@ insert_final_newline = true
 indent_style = space
 indent_size = 4
 
+[*.css]
+indent_size = 2
+
+[*.go]
+indent_style = tab
+
+[*.html]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
 [*.md]
 # double whitespace at end of line
 # denotes a line break in Markdown
 trim_trailing_whitespace = false
 indent_size = 2
 
-[*.yml]
+[*.{mjs,js,jsx}]
+indent_size = 2
+
+[*.rdf]
 indent_size = 2
 
 [*.toml]
 indent_size = 2
 
-[*.json]
-indent_size = 2
-
 [*.{ts,tsx}]
 indent_size = 2
 
-[*.{mjs,js,jsx}]
-indent_size = 2
-
-[*.css]
-indent_size = 2
-
-[*.html]
+[*.{yaml,yml}]
 indent_size = 2

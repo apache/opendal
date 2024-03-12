@@ -44,7 +44,7 @@ pub trait PageList: Send + Sync + Unpin + 'static {
 
 /// PageContext is the context passing between `PageList`.
 ///
-/// [`PageLister`] will init the PageContext, and implementor of [`PageList`] should fill the `PageContext`
+/// [`PageLister`] will init the PageContext, and implementer of [`PageList`] should fill the `PageContext`
 /// based on their needs.
 ///
 /// - Set `done` to `true` if all page have been fetched.
@@ -60,7 +60,7 @@ pub struct PageContext {
     /// entries is used to store entries fetched from underlying storage.
     ///
     /// Please always reuse the same `VecDeque` to avoid unnecessary memory allocation.
-    /// PageLister makes sure that entries is reset before calling `next_page`. Implementor
+    /// PageLister makes sure that entries is reset before calling `next_page`. Implementer
     /// can calling `push_back` on `entries` directly.
     pub entries: VecDeque<oio::Entry>,
 }
@@ -72,7 +72,7 @@ pub struct PageLister<L: PageList> {
 
 enum State<L> {
     Idle(Option<(L, PageContext)>),
-    Fetch(BoxedFuture<((L, PageContext), Result<()>)>),
+    Fetch(BoxedStaticFuture<((L, PageContext), Result<()>)>),
 }
 
 /// # Safety

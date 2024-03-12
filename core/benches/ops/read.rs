@@ -17,7 +17,6 @@
 
 use criterion::Criterion;
 use futures::io;
-use futures::AsyncReadExt;
 use opendal::raw::tests::init_test_service;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
@@ -112,25 +111,24 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
         let content = gen_bytes(&mut rng, (size.bytes() * 2) as usize);
         let path = uuid::Uuid::new_v4().to_string();
         let offset = (size.bytes() / 2) as u64;
-        let buf = vec![0; size.bytes() as usize];
+        let buf_size = size.bytes() as usize;
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
         for parallel in [1, 2, 4, 8, 16] {
             group.throughput(criterion::Throughput::Bytes(parallel * size.bytes() as u64));
             group.bench_with_input(
                 format!("{}x{}", parallel, size.to_string()),
-                &(op.clone(), &path, buf.clone()),
-                |b, (op, path, buf)| {
+                &(op.clone(), &path, buf_size),
+                |b, (op, path, buf_size)| {
                     b.to_async(&*TEST_RUNTIME).iter(|| async {
                         let futures = (0..parallel)
                             .map(|_| async {
-                                let mut buf = buf.clone();
                                 let mut r = op
                                     .reader_with(path)
                                     .range(offset..=offset + size.bytes() as u64)
                                     .await
                                     .unwrap();
-                                r.read_exact(&mut buf).await.unwrap();
+                                r.read_exact(*buf_size).await.unwrap();
 
                                 let mut d = 0;
                                 // mock same little cpu work

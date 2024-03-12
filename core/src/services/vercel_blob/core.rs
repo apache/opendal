@@ -29,10 +29,9 @@ use serde::Serialize;
 use serde_json::json;
 
 use self::constants::*;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 pub(super) mod constants {
     // https://github.com/vercel/storage/blob/main/packages/blob/src/put.ts#L16

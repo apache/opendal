@@ -40,7 +40,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | Name                                                                | Description                                                                                | Release                                                                                                        | 
 |---------------------------------------------------------------------|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------| 
 | [dav-server-opendalfs](integrations/dav-server/README.md)           | Access data via integrations to [dav-server-rs](https://github.com/messense/dav-server-rs) | [![](https://img.shields.io/crates/v/dav-server-opendalfs.svg)](https://crates.io/crates/dav-server-opendalfs) |
-| [object_store_opendal](integrations/object_store_opendal/README.md) | Access data via integrations to [object_store](https://docs.rs/object_store)               | [![](https://img.shields.io/crates/v/object_store_opendal.svg)](https://crates.io/crates/object_store_opendal) |
+| [object_store_opendal](integrations/object_store/README.md) | Access data via integrations to [object_store](https://docs.rs/object_store)               | [![](https://img.shields.io/crates/v/object_store_opendal.svg)](https://crates.io/crates/object_store_opendal) |
 
 ## For *ANY* services
 

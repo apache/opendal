@@ -16,8 +16,6 @@
 // under the License.
 
 use std::io;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -176,27 +174,19 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.i_feel_lucky() {
-            self.inner.poll_read(cx, buf)
+            self.inner.read(limit).await
         } else {
-            Poll::Ready(Err(Self::unexpected_eof()))
+            Err(Self::unexpected_eof())
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         if self.i_feel_lucky() {
-            self.inner.poll_seek(cx, pos)
+            self.inner.seek(pos).await
         } else {
-            Poll::Ready(Err(Self::unexpected_eof()))
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if self.i_feel_lucky() {
-            self.inner.poll_next(cx)
-        } else {
-            Poll::Ready(Some(Err(Self::unexpected_eof())))
+            Err(Self::unexpected_eof())
         }
     }
 }

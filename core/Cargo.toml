@@ -27,7 +27,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.67"
+rust-version = "1.75"
 version = "0.45.1"
 
 [package.metadata.docs.rs]
@@ -39,24 +39,7 @@ default-members = ["."]
 members = [".", "fuzz", "edge/*", "benches/vs_*"]
 
 [features]
-default = [
-  "rustls",
-  "services-azblob",
-  "services-azdls",
-  "services-cos",
-  "services-fs",
-  "services-gcs",
-  "services-ghac",
-  "services-http",
-  "services-ipmfs",
-  "services-memory",
-  "services-obs",
-  "services-oss",
-  "services-s3",
-  "services-webdav",
-  "services-webhdfs",
-  "services-azfile",
-]
+default = ["rustls", "services-memory"]
 
 # Build test utils or not.
 #
@@ -64,13 +47,24 @@ default = [
 # And doesn't have any other effects.
 #
 # You should never enable this feature unless you are developing opendal.
-tests = ["dep:rand", "dep:sha2", "dep:dotenvy", "layers-blocking"]
+tests = [
+  "dep:rand",
+  "dep:sha2",
+  "dep:dotenvy",
+  "layers-blocking",
+  "services-azblob",
+  "services-fs",
+  "services-http",
+  "services-memory",
+  "services-s3",
+]
 
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
 rustls = ["reqwest/rustls-tls-native-roots"]
+rustls-webpki = ["reqwest/rustls-tls-webpki-roots"]
 # Enable native-tls for TLS support
 native-tls = ["reqwest/native-tls"]
 # Enable vendored native-tls for TLS support
@@ -156,6 +150,7 @@ services-gcs = [
 ]
 services-gdrive = ["internal-path-cache"]
 services-ghac = []
+services-github = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]
 services-http = []
@@ -240,7 +235,7 @@ async-tls = { version = "0.13.0", optional = true }
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
-backon = "0.4.1"
+backon = "0.4.3"
 base64 = "0.21"
 bytes = "1.4"
 chrono = { version = "0.4.28", default-features = false, features = [
@@ -261,7 +256,7 @@ reqwest = { version = "0.11.18", features = [
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.27", features = ["sync"] }
+tokio = { version = "1.27", features = ["sync", "io-util"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
@@ -279,7 +274,7 @@ sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
 
 # For http based services.
-reqsign = { version = "0.14.7", default-features = false, optional = true }
+reqsign = { version = "0.14.9", default-features = false, optional = true }
 
 # for services-atomic-server
 atomic_lib = { version = "0.34.5", optional = true }

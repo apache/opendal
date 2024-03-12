@@ -27,7 +27,6 @@ use futures::TryStreamExt;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::raw::oio::ReadExt;
 use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
@@ -540,9 +539,10 @@ impl Operator {
                     (range.size().unwrap(), range)
                 };
 
-                let (_, mut s) = inner.read(&path, args.with_range(range)).await?;
+                let (_, r) = inner.read(&path, args.with_range(range)).await?;
+                let mut r = Reader::new(r);
                 let mut buf = Vec::with_capacity(size_hint as usize);
-                s.read_to_end(&mut buf).await?;
+                r.read_to_end(&mut buf).await?;
 
                 Ok(buf)
             },
@@ -718,7 +718,13 @@ impl Operator {
     /// ## Streaming Write
     ///
     /// This function will write all bytes at once. For more precise memory control or
-    /// writing data lazily, please use [`Operator::writer`].
+    /// writing data continuously, please use [`Operator::writer`].
+    ///
+    /// ## Multipart Uploads Write
+    ///
+    /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
+    /// handle the multipart uploads for you. You can control the behavior of multipart uploads
+    /// by setting `buffer`, `concurrent` via [`Operator::writer_with`]
     ///
     /// # Examples
     ///
@@ -867,6 +873,17 @@ impl Operator {
     /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
     /// instead.
     ///
+    /// ## Buffer
+    ///
+    /// OpenDAL is designed to write files directly without buffering by default, giving users
+    /// control over the exact size of their writes and helping avoid unnecessary costs.
+    ///
+    /// This is not efficient for cases when users write small chunks of data. Some storage services
+    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
+    /// will cost more money if we write data in small chunks.
+    ///
+    /// Users can use [`Operator::write_with`] to set a good buffer size might improve the performance,
+    ///
     /// # Examples
     ///
     /// ```
@@ -923,12 +940,14 @@ impl Operator {
     ///
     /// Set `buffer` for the writer.
     ///
-    /// OpenDAL by default to write file without buffer. This is not efficient for cases when users
-    /// write small chunks of data. Some storage services like `s3` could even return hard errors
-    /// like `EntityTooSmall`. To improve performance, we can set a buffer.
+    /// OpenDAL is designed to write files directly without buffering by default, giving users
+    /// control over the exact size of their writes and helping avoid unnecessary costs.
     ///
-    /// Besides, cloud storage services will cost more money if we write data in small chunks. Set
-    /// a good buffer size might reduce the API calls and save money.
+    /// This is not efficient for cases when users write small chunks of data. Some storage services
+    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
+    /// will cost more money if we write data in small chunks.
+    ///
+    /// Set a good buffer size might improve the performance, reduce the API calls and save money.
     ///
     /// The following example will set the writer buffer to 8MiB. Only one API call will be sent at
     /// `close` instead.
@@ -1113,6 +1132,12 @@ impl Operator {
     ///
     /// This function will write all bytes at once. For more precise memory control or
     /// writing data lazily, please use [`Operator::writer_with`].
+    ///
+    /// ## Multipart Uploads Write
+    ///
+    /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
+    /// handle the multipart uploads for you. You can control the behavior of multipart uploads
+    /// by setting `buffer`, `concurrent` via [`Operator::writer_with`]
     ///
     /// # Options
     ///
@@ -2003,6 +2028,14 @@ impl Operator {
 
     /// Presign an operation for read.
     ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// `presign_read` is a wrapper of [`Self::presign_read_with`] without any options. To use
+    /// extra options like `override_content_disposition`, please use [`Self::presign_read_with`]
+    /// instead.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -2036,26 +2069,66 @@ impl Operator {
         Ok(rp.into_presigned_request())
     }
 
-    /// Presign an operation for read option described in OpenDAL [RFC-1735][`crate::docs::rfcs::rfc_1735_operation_extension`].
+    /// Presign an operation for read with extra options.
     ///
-    /// You can pass `OpRead` to this method to specify the content disposition.
+    /// # Options
     ///
-    /// # Example
+    /// ## `override_content_disposition`
+    ///
+    /// Override the [`content-disposition`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) header returned by storage services.
     ///
     /// ```no_run
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
     ///         .presign_read_with("test.txt", Duration::from_secs(3600))
     ///         .override_content_disposition("attachment; filename=\"othertext.txt\"")
     ///         .await?;
-    /// #    Ok(())
-    /// # }
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## `override_cache_control`
+    ///
+    /// Override the [`cache-control`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) header returned by storage services.
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
+    ///         .override_cache_control("no-store")
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## `override_content_type`
+    ///
+    /// Override the [`content-type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header returned by storage services.
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
+    ///         .override_content_type("text/plain")
+    ///         .await?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn presign_read_with(
         &self,
@@ -2078,19 +2151,27 @@ impl Operator {
 
     /// Presign an operation for write.
     ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// `presign_write` is a wrapper of [`Self::presign_write_with`] without any options. To use
+    /// extra options like `content_type`, please use [`Self::presign_write_with`] instead.
+    ///
     /// # Example
     ///
     /// ```no_run
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_write("test.txt", Duration::from_secs(3600)).await?;
-    /// #    Ok(())
-    /// # }
+    ///     let signed_req = op
+    ///         .presign_write("test.txt", Duration::from_secs(3600))
+    ///         .await?;
+    ///     Ok(())
+    /// }
     /// ```
     ///
     /// - `signed_req.method()`: `PUT`
@@ -2106,29 +2187,80 @@ impl Operator {
         self.presign_write_with(path, expire).await
     }
 
-    /// Presign an operation for write with option described in OpenDAL [RFC-0661][`crate::docs::rfcs::rfc_0661_path_in_accessor`]
+    /// Presign an operation for write with extra options.
     ///
-    /// You can pass `OpWrite` to this method to specify the content length and content type.
+    /// # Options
     ///
-    /// # Example
+    /// ## `content_type`
+    ///
+    /// Set the [`content-type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header returned by storage services.
     ///
     /// ```no_run
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_write_with("test", Duration::from_secs(3600))
-    ///                        .content_type("text/csv").await?;
+    ///     let signed_req = op
+    ///         .presign_write_with("test", Duration::from_secs(3600))
+    ///         .content_type("text/csv")
+    ///         .await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
     ///         .body(())?;
     ///
-    /// #    Ok(())
-    /// # }
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## `content_disposition`
+    ///
+    /// Set the [`content-disposition`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) header returned by storage services.
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_write_with("test", Duration::from_secs(3600))
+    ///         .content_disposition("attachment; filename=\"cool.html\"")
+    ///         .await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## `cache_control`
+    ///
+    /// Set the [`cache-control`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) header returned by storage services.
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_write_with("test", Duration::from_secs(3600))
+    ///         .cache_control("no-store")
+    ///         .await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     pub fn presign_write_with(
         &self,

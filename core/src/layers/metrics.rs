@@ -773,41 +773,27 @@ impl<R> Drop for MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.inner.poll_read(cx, buf).map(|res| match res {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit).await {
             Ok(bytes) => {
-                self.bytes += bytes as u64;
+                self.bytes += bytes.len() as u64;
                 Ok(bytes)
             }
             Err(e) => {
                 self.handle.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
-        })
+        }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos).map(|res| match res {
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        match self.inner.seek(pos).await {
             Ok(n) => Ok(n),
             Err(e) => {
                 self.handle.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
-        })
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx).map(|res| match res {
-            Some(Ok(bytes)) => {
-                self.bytes += bytes.len() as u64;
-                Some(Ok(bytes))
-            }
-            Some(Err(e)) => {
-                self.handle.increment_errors_total(self.op, e.kind());
-                Some(Err(e))
-            }
-            None => None,
-        })
+        }
     }
 }
 

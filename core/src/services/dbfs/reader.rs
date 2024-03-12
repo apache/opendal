@@ -86,8 +86,8 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        let _ = size;
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let _ = limit;
 
         Err(Error::new(
             ErrorKind::Unsupported,

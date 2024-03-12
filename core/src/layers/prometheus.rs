@@ -686,13 +686,13 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::Read.into_static(),
             &self.path,
         );
-        match self.inner.read(size).await {
+        match self.inner.read(limit).await {
             Ok(bytes) => {
                 self.stats
                     .bytes_total

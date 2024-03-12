@@ -31,12 +31,10 @@ use crate::*;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ReadOperation {
-    /// Operation for [`Read::poll_read`]
+    /// Operation for [`Read::read`]
     Read,
-    /// Operation for [`Read::poll_seek`]
+    /// Operation for [`Read::seek`]
     Seek,
-    /// Operation for [`Read::poll_next`]
-    Next,
     /// Operation for [`BlockingRead::read`]
     BlockingRead,
     /// Operation for [`BlockingRead::seek`]
@@ -65,7 +63,6 @@ impl From<ReadOperation> for &'static str {
         match v {
             Read => "Reader::read",
             Seek => "Reader::seek",
-            Next => "Reader::next",
             BlockingRead => "BlockingReader::read",
             BlockingSeek => "BlockingReader::seek",
             BlockingNext => "BlockingReader::next",
@@ -76,29 +73,33 @@ impl From<ReadOperation> for &'static str {
 /// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn ReadDyn>;
 
-/// Read is the trait that OpenDAL returns to callers.
+/// Read is the internal trait used by OpenDAL to read data from storage.
 ///
-/// Read is compose of the following trait
+/// Users should not use or import this trait unless they are implementing an `Accessor`.
 ///
-/// - `AsyncRead`
-/// - `AsyncSeek`
-/// - `Stream<Item = Result<Bytes>>`
+/// # Notes
 ///
-/// `AsyncRead` is required to be implemented, `AsyncSeek` and `Stream`
-/// is optional. We use `Read` to make users life easier.
+/// ## Object Safety
+///
+/// `Read` uses `async in trait`, making it not object safe, preventing the use of `Box<dyn Read>`.
+/// To address this, we've introduced [`ReadDyn`] and its compatible type `Box<dyn ReadDyn>`.
+///
+/// `ReadDyn` uses `Box::pin()` to transform the returned future into a [`BoxedFuture`], introducing
+/// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
+/// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
     /// Fetch more bytes from underlying reader.
     ///
-    /// `size` is used to hint the data that user want to read at most. Implementer
-    /// MUST NOT return more than `size` bytes. However, implementer can decide
+    /// `limit` is used to hint the data that user want to read at most. Implementer
+    /// MUST NOT return more than `limit` bytes. However, implementer can decide
     /// whether to split or merge the read requests underground.
     ///
     /// Returning `bytes`'s `length == 0` means:
     ///
     /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
-    /// - The `size` specified was `0`.
+    /// - The `limit` specified was `0`.
     #[cfg(not(target_arch = "wasm32"))]
-    fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    fn read(&mut self, limit: usize) -> impl Future<Output = Result<Bytes>> + Send;
     #[cfg(target_arch = "wasm32")]
     fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>>;
 
@@ -112,8 +113,8 @@ pub trait Read: Unpin + Send + Sync {
 }
 
 impl Read for () {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        let _ = size;
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let _ = limit;
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -132,14 +133,14 @@ impl Read for () {
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>>;
+    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>>;
 
     fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_dyn(&mut self, size: usize) -> BoxedFuture<Result<Bytes>> {
-        Box::pin(self.read(size))
+    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>> {
+        Box::pin(self.read(limit))
     }
 
     fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
@@ -152,8 +153,8 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        self.deref_mut().read_dyn(size).await
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.deref_mut().read_dyn(limit).await
     }
 
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {

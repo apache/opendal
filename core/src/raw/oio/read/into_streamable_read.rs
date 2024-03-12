@@ -45,8 +45,8 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
         self.r.seek(pos).await
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        let size = min(self.buf.capacity(), size);
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let size = min(self.buf.capacity(), limit);
 
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);

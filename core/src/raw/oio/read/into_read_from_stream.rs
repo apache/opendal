@@ -50,7 +50,7 @@ where
         ))
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.buf.is_empty() {
             self.buf = match self.inner.next().await.transpose()? {
                 Some(v) => v.into(),
@@ -58,7 +58,7 @@ where
             };
         }
 
-        let bs = self.buf.split_to(min(size, self.buf.len()));
+        let bs = self.buf.split_to(min(limit, self.buf.len()));
         Ok(bs)
     }
 }

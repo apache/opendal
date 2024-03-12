@@ -160,16 +160,16 @@ where
         }
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        if size == 0 {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        if limit == 0 {
             return Ok(Bytes::new());
         }
 
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
-        if self.pos == self.filled && size >= self.capacity() {
-            let res = self.r.read(size).await;
+        if self.pos == self.filled && limit >= self.capacity() {
+            let res = self.r.read(limit).await;
             self.discard_buffer();
             return match res {
                 Ok(bs) => {
@@ -185,7 +185,7 @@ where
         if bytes.is_empty() {
             return Ok(Bytes::new());
         }
-        let size = min(bytes.len(), size);
+        let size = min(bytes.len(), limit);
         let bytes = Bytes::copy_from_slice(&bytes[..size]);
         self.consume(bytes.len());
         Ok(bytes)
@@ -391,8 +391,8 @@ mod tests {
             ))
         }
 
-        async fn read(&mut self, size: usize) -> Result<Bytes> {
-            oio::Read::read(&mut self.inner, size).await
+        async fn read(&mut self, limit: usize) -> Result<Bytes> {
+            oio::Read::read(&mut self.inner, limit).await
         }
     }
 

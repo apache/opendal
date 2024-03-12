@@ -991,6 +991,39 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit).await {
+            Ok(bs) => {
+                self.read += bs.len() as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} read={} -> next returns {}B",
+                    self.ctx.scheme,
+                    ReadOperation::Read,
+                    self.path,
+                    self.read,
+                    bs.len()
+                );
+                Ok(bs)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.ctx.error_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} read={} -> next failed: {}",
+                        self.ctx.scheme,
+                        ReadOperation::Read,
+                        self.path,
+                        self.read,
+                        self.ctx.error_print(&err),
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         match self.inner.seek(pos).await {
             Ok(n) => {
@@ -1012,39 +1045,6 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
                         self.ctx.scheme,
                         ReadOperation::Seek,
-                        self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        match self.inner.read(size).await {
-            Ok(bs) => {
-                self.read += bs.len() as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> next returns {}B",
-                    self.ctx.scheme,
-                    ReadOperation::Next,
-                    self.path,
-                    self.read,
-                    bs.len()
-                );
-                Ok(bs)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> next failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::Next,
                         self.path,
                         self.read,
                         self.ctx.error_print(&err),

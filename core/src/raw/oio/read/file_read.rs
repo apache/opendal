@@ -246,7 +246,7 @@ where
         Ok(self.cur)
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.reader.is_none() {
             // FileReader doesn't support range, we will always use full range to open a file.
             let op = self.op.clone().with_range(BytesRange::from(..));
@@ -261,7 +261,7 @@ where
             (self.offset, self.size) = Self::offset(r, self.op.range()).await?;
         }
 
-        r.read(size).await
+        r.read(limit).await
     }
 }
 

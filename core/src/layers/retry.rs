@@ -703,14 +703,14 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         res
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         use backon::RetryableWithContext;
 
         let inner = self.inner.take().expect("inner must be valid");
 
         let (inner, res) = {
             |mut r: R| async move {
-                let res = r.read(size).await;
+                let res = r.read(limit).await;
 
                 (r, res)
             }
@@ -723,7 +723,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
                 err,
                 dur,
                 &[
-                    ("operation", ReadOperation::Next.into_static()),
+                    ("operation", ReadOperation::Read.into_static()),
                     ("path", &self.path),
                 ],
             )

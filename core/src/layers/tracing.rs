@@ -272,8 +272,8 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        self.inner.read(size).await
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).await
     }
 
     #[tracing::instrument(

@@ -164,7 +164,7 @@ impl IncomingAsyncBody {
 }
 
 impl oio::Read for IncomingAsyncBody {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.size == Some(0) {
             return Ok(Bytes::new());
         }
@@ -182,7 +182,7 @@ impl oio::Read for IncomingAsyncBody {
             };
         }
 
-        let size = min(size, self.chunk.len());
+        let size = min(limit, self.chunk.len());
         self.consumed += size as u64;
         let bs = self.chunk.split_to(size);
         Ok(bs)

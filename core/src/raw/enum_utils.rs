@@ -65,10 +65,10 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
         }
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(size).await,
-            Self::Two(v) => v.read(size).await,
+            Self::One(v) => v.read(limit).await,
+            Self::Two(v) => v.read(limit).await,
         }
     }
 }
@@ -140,11 +140,11 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
         }
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(size).await,
-            Self::Two(v) => v.read(size).await,
-            Self::Three(v) => v.read(size).await,
+            Self::One(v) => v.read(limit).await,
+            Self::Two(v) => v.read(limit).await,
+            Self::Three(v) => v.read(limit).await,
         }
     }
 }
@@ -235,12 +235,12 @@ where
         }
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(size).await,
-            Self::Two(v) => v.read(size).await,
-            Self::Three(v) => v.read(size).await,
-            Self::Four(v) => v.read(size).await,
+            Self::One(v) => v.read(limit).await,
+            Self::Two(v) => v.read(limit).await,
+            Self::Three(v) => v.read(limit).await,
+            Self::Four(v) => v.read(limit).await,
         }
     }
 }

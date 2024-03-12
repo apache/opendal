@@ -298,8 +298,8 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     #[trace(enter_on_poll = true)]
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        self.inner.read(size).await
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).await
     }
 
     #[trace(enter_on_poll = true)]

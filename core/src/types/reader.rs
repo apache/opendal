@@ -121,11 +121,11 @@ impl Reader {
 
     /// Read at most `size` bytes of data from reader.
     #[inline]
-    pub async fn read(&mut self, size: usize) -> Result<Bytes> {
+    pub async fn read(&mut self, limit: usize) -> Result<Bytes> {
         let State::Idle(Some(r)) = &mut self.state else {
             return Err(Error::new(ErrorKind::Unexpected, "reader must be valid"));
         };
-        r.read_dyn(size).await
+        r.read_dyn(limit).await
     }
 
     /// Read exact `size` bytes of data from reader.

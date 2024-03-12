@@ -55,17 +55,17 @@ where
         })
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         // Make sure buf has enough space.
-        if self.buf.capacity() < size {
-            self.buf.reserve(size);
+        if self.buf.capacity() < limit {
+            self.buf.reserve(limit);
         }
         let buf = self.buf.spare_capacity_mut();
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
         // SAFETY: Read at most `size` bytes into `read_buf`.
         unsafe {
-            read_buf.assume_init(size);
+            read_buf.assume_init(limit);
         }
 
         let n = self

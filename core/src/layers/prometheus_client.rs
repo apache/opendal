@@ -539,8 +539,8 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        match self.inner.read(size).await {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit).await {
             Ok(bytes) => {
                 self.bytes_total += bytes.len();
                 Ok(bytes)

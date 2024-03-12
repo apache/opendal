@@ -1022,8 +1022,8 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
         }
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
-        match self.inner.read(size).await {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit).await {
             Ok(bs) => {
                 self.read += bs.len() as u64;
                 trace!(

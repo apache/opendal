@@ -92,13 +92,13 @@ impl oio::Read for Cursor {
         Ok(n)
     }
 
-    async fn read(&mut self, size: usize) -> Result<Bytes> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.is_empty() {
             Ok(Bytes::new())
         } else {
             // The clone here is required as we don't want to change it.
             let mut bs = self.inner.clone().split_off(self.pos as usize);
-            let bs = bs.split_to(min(bs.len(), size));
+            let bs = bs.split_to(min(bs.len(), limit));
             self.pos += bs.len() as u64;
             Ok(bs)
         }

@@ -18,7 +18,6 @@
 // Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
-use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
@@ -77,11 +76,10 @@ impl File {
 
         let buffer = match size {
             Some(size) => {
-                let mut buffer = vec![0; size];
-                reader
-                    .read_exact(&mut buffer)
+                let bs = reader
+                    .read_exact(size)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                buffer
+                bs.to_vec()
             }
             None => {
                 let mut buffer = Vec::new();

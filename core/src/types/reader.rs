@@ -458,6 +458,52 @@ impl BlockingReader {
         self.inner.read(limit)
     }
 
+    /// Read exact `size` bytes of data from reader.
+    pub fn read_exact(&mut self, size: usize) -> Result<Bytes> {
+        // Lucky path.
+        let bs1 = self.inner.read(size)?;
+        debug_assert!(
+            bs1.len() <= size,
+            "read should not return more bytes than expected"
+        );
+        if bs1.len() == size {
+            return Ok(bs1);
+        }
+        if bs1.is_empty() {
+            return Err(
+                Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
+                    .with_context("expect", size.to_string()),
+            );
+        }
+
+        let mut bs = BytesMut::with_capacity(size);
+        bs.put_slice(&bs1);
+
+        let mut remaining = size - bs.len();
+
+        loop {
+            let tmp = self.inner.read(remaining)?;
+            if tmp.is_empty() {
+                return Err(
+                    Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
+                        .with_context("expect", size.to_string())
+                        .with_context("actual", bs.len().to_string()),
+                );
+            }
+            bs.put_slice(&tmp);
+            debug_assert!(
+                tmp.len() <= remaining,
+                "read should not return more bytes than expected"
+            );
+
+            remaining -= tmp.len();
+            if remaining == 0 {
+                break;
+            }
+        }
+
+        Ok(bs.freeze())
+    }
     /// Reads all bytes until EOF in this source, placing them into buf.
     pub fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
         let start_len = buf.len();

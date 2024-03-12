@@ -34,25 +34,35 @@ use crate::*;
 ///
 /// # Usage
 ///
-/// Reader implements the following APIs:
+/// [`Reader`] provides multiple ways to read data from given reader. Please note that it's
+/// undefined behavior to use `Reader` in different ways.
 ///
-/// - `AsyncRead`
-/// - `AsyncSeek`
-/// - `Stream<Item = <io::Result<Bytes>>>`
+/// ## Direct
 ///
-/// For reading data, we can use `AsyncRead` and `Stream`. The mainly
-/// different is where the `copy` happens.
+/// [`Reader`] provides public API including [`Reader::read`], [`Reader::seek`] and
+/// [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
 ///
-/// `AsyncRead` requires user to prepare a buffer for `Reader` to fill.
-/// And `Stream` will stream out a `Bytes` for user to decide when to copy
-/// it's content.
+/// ## Bytes Stream
 ///
-/// For example, users may have their only CPU/IO bound workers and don't
-/// want to do copy inside IO workers. They can use `Stream` to get a `Bytes`
-/// and consume it in side CPU workers inside.
+/// [`Reader`] can be used as `Stream<Item = <io::Result<Bytes>>>`.
 ///
-/// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
-/// stream based (like services s3, azure which based on HTTP).
+/// It also implements [`Send`], [`Sync`] and [`Unpin`].
+///
+/// ## Futures AsyncRead
+///
+/// [`Reader`] can be used as [`futures::AsyncRead`] and [`futures::AsyncSeek`].
+///
+/// It also implements [`Send`], [`Sync`] and [`Unpin`].
+///
+/// [`Reader`] provides [`Reader::into_futures_read`] to remove extra APIs upon self.
+///
+/// ## Tokio AsyncRead
+///
+/// [`Reader`] can be used as [`tokio::io::AsyncRead`] and [`tokio::io::AsyncSeek`].
+///
+/// It also implements [`Send`], [`Sync`] and [`Unpin`].
+///
+/// [`Reader`] provides [`Reader::into_tokio_read`] to remove extra APIs upon self.
 pub struct Reader {
     state: State,
 }

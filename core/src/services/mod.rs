@@ -201,6 +201,8 @@ pub use sftp::SftpConfig;
 mod sled;
 #[cfg(feature = "services-sled")]
 pub use self::sled::Sled;
+#[cfg(feature = "services-sled")]
+pub use self::sled::SledConfig;
 
 #[cfg(feature = "services-supabase")]
 mod supabase;

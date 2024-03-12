@@ -723,7 +723,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
                 err,
                 dur,
                 &[
-                    ("operation", ReadOperation::Next.into_static()),
+                    ("operation", ReadOperation::Read.into_static()),
                     ("path", &self.path),
                 ],
             )

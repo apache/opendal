@@ -349,17 +349,17 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await.map_err(|err| {
-            err.with_operation(ReadOperation::Seek)
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).await.map_err(|err| {
+            err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
     }
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await.map_err(|err| {
-            err.with_operation(ReadOperation::Next)
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
+            err.with_operation(ReadOperation::Seek)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

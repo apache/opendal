@@ -31,12 +31,10 @@ use crate::*;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ReadOperation {
-    /// Operation for [`Read::poll_read`]
+    /// Operation for [`Read::read`]
     Read,
-    /// Operation for [`Read::poll_seek`]
+    /// Operation for [`Read::seek`]
     Seek,
-    /// Operation for [`Read::poll_next`]
-    Next,
     /// Operation for [`BlockingRead::read`]
     BlockingRead,
     /// Operation for [`BlockingRead::seek`]
@@ -65,7 +63,6 @@ impl From<ReadOperation> for &'static str {
         match v {
             Read => "Reader::read",
             Seek => "Reader::seek",
-            Next => "Reader::next",
             BlockingRead => "BlockingReader::read",
             BlockingSeek => "BlockingReader::seek",
             BlockingNext => "BlockingReader::next",

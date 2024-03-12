@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::min;
 use std::io::SeekFrom;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 use tokio::io::ReadBuf;
@@ -43,27 +41,24 @@ pub struct StreamableReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for StreamableReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.r.poll_read(cx, buf)
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.r.seek(pos).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        self.r.poll_seek(cx, pos)
-    }
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        let size = min(self.buf.capacity(), size);
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(self.cap) };
 
-        match ready!(self.r.poll_read(cx, buf.initialized_mut())) {
-            Err(err) => Poll::Ready(Some(Err(err))),
-            Ok(0) => Poll::Ready(None),
-            Ok(n) => {
-                buf.set_filled(n);
-                Poll::Ready(Some(Ok(Bytes::from(buf.filled().to_vec()))))
-            }
-        }
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe { buf.assume_init(size) };
+
+        let bs = self.r.read(size).await?;
+        buf.put_slice(&bs);
+        buf.set_filled(bs.len());
+
+        Ok(Bytes::from(buf.filled().to_vec()))
     }
 }
 
@@ -94,6 +89,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use crate::raw::oio::Read;
     use bytes::BufMut;
     use bytes::BytesMut;
     use rand::prelude::*;
@@ -102,8 +98,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_stream() {
-        use oio::ReadExt;
-
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
         let size = rng.gen_range(1..16 * 1024 * 1024);
@@ -116,8 +110,11 @@ mod tests {
         let mut s = into_streamable_read(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
-        while let Some(b) = s.next().await {
-            let b = b.expect("read must success");
+        loop {
+            let b = s.read(4 * 1024 * 1024).await.expect("read must success");
+            if b.is_empty() {
+                break;
+            }
             bs.put_slice(&b);
         }
         assert_eq!(bs.freeze().to_vec(), content)

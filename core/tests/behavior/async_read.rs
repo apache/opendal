@@ -18,8 +18,6 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use futures::AsyncReadExt;
-use futures::AsyncSeekExt;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
@@ -613,7 +611,7 @@ pub async fn test_read_with_invalid_seek(op: Operator) -> anyhow::Result<()> {
 
     assert_eq!(
         res.unwrap_err().kind(),
-        std::io::ErrorKind::InvalidInput,
+        ErrorKind::InvalidInput,
         "seeking a negative position should return a InvalidInput error"
     );
 

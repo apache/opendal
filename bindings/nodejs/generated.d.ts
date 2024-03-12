@@ -563,6 +563,8 @@ export class Reader {
    * > &mut self in async napi methods should be marked as unsafe
    *
    * Read bytes from this reader into given buffer.
+   *
+   * TODO: change api into stream based.
    */
   read(buf: Buffer): Promise<bigint>
 }

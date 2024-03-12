@@ -287,6 +287,20 @@ impl<R> TimeoutWrapper<R> {
     }
 
     #[inline]
+    async fn io_timeout<F: Future<Output = Result<T>>, T>(
+        timeout: Duration,
+        op: &'static str,
+        fut: F,
+    ) -> Result<T> {
+        tokio::time::timeout(timeout, fut).await.map_err(|_| {
+            Error::new(ErrorKind::Unexpected, "io operation timeout reached")
+                .with_operation(op)
+                .with_context("timeout", timeout.as_secs_f64().to_string())
+                .set_temporary()
+        })?
+    }
+
+    #[inline]
     fn poll_timeout(&mut self, cx: &mut Context<'_>, op: &'static str) -> Result<()> {
         let sleep = self
             .sleep
@@ -308,28 +322,14 @@ impl<R> TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.poll_timeout(cx, ReadOperation::Read.into_static())?;
-
-        let v = ready!(self.inner.poll_read(cx, buf));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let fut = self.inner.seek(pos);
+        Self::io_timeout(self.timeout, ReadOperation::Seek.into_static(), fut).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        self.poll_timeout(cx, ReadOperation::Seek.into_static())?;
-
-        let v = ready!(self.inner.poll_seek(cx, pos));
-        self.sleep = None;
-        Poll::Ready(v)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.poll_timeout(cx, ReadOperation::Next.into_static())?;
-
-        let v = ready!(self.inner.poll_next(cx));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        let fut = self.inner.read(size);
+        Self::io_timeout(self.timeout, ReadOperation::Next.into_static(), fut).await
     }
 }
 
@@ -371,6 +371,7 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::{pending, Future};
     use std::io::SeekFrom;
     use std::sync::Arc;
     use std::task::Context;
@@ -385,7 +386,6 @@ mod tests {
 
     use crate::layers::TimeoutLayer;
     use crate::layers::TypeEraseLayer;
-    use crate::raw::oio::ReadExt;
     use crate::raw::*;
     use crate::*;
 
@@ -434,16 +434,12 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn poll_read(&mut self, _: &mut Context<'_>, _: &mut [u8]) -> Poll<Result<usize>> {
-            Poll::Pending
+        fn seek(&mut self, _: SeekFrom) -> impl Future<Output = Result<u64>> {
+            pending()
         }
 
-        fn poll_seek(&mut self, _: &mut Context<'_>, _: SeekFrom) -> Poll<Result<u64>> {
-            Poll::Pending
-        }
-
-        fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-            Poll::Pending
+        fn read(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
+            pending()
         }
     }
 
@@ -483,7 +479,7 @@ mod tests {
 
         let mut reader = op.reader("test").await.unwrap();
 
-        let res = reader.read(&mut [0; 4]).await;
+        let res = reader.read(4).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

@@ -96,27 +96,25 @@ impl Arbitrary<'_> for FuzzInput {
         let mut actions = vec![];
 
         for _ in 0..count {
-            let action = match u.int_in_range(0..=4)? {
+            let action = match u.int_in_range(0..=3)? {
                 // Read
                 0 => {
                     let size = u.int_in_range(0..=total_size * 2)?;
                     ReadAction::Read(size)
                 }
-                // Next
-                1 => ReadAction::Next,
                 // Seek Start
-                2 => {
+                1 => {
                     // NOTE: seek out of the end of file is valid.
                     let offset = u.int_in_range(0..=total_size * 2)?;
                     ReadAction::Seek(SeekFrom::Start(offset as u64))
                 }
                 // Seek Current
-                3 => {
+                2 => {
                     let offset = u.int_in_range(-(total_size as i64)..=(total_size as i64))?;
                     ReadAction::Seek(SeekFrom::Current(offset))
                 }
                 // Seek End
-                4 => {
+                3 => {
                     let offset = u.int_in_range(-(total_size as i64)..=(total_size as i64))?;
                     ReadAction::Seek(SeekFrom::End(offset))
                 }

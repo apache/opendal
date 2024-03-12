@@ -93,7 +93,7 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
 /// The error part will carries input `(block_id, bytes, err)` so caller can retry them.
 type WriteBlockResult = std::result::Result<Uuid, (Uuid, oio::ChunkedBytes, Error)>;
 
-struct WriteBlockFuture(BoxedFuture<WriteBlockResult>);
+struct WriteBlockFuture(BoxedStaticFuture<WriteBlockResult>);
 
 /// # Safety
 ///
@@ -144,8 +144,8 @@ pub struct BlockWriter<W: BlockWrite> {
 
 enum State {
     Idle,
-    Close(BoxedFuture<Result<()>>),
-    Abort(BoxedFuture<Result<()>>),
+    Close(BoxedStaticFuture<Result<()>>),
+    Abort(BoxedStaticFuture<Result<()>>),
 }
 
 /// # Safety

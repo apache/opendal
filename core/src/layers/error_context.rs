@@ -349,25 +349,16 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        self.inner.poll_read(cx, buf).map_err(|err| {
-            err.with_operation(ReadOperation::Read)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context("read_buf", buf.len().to_string())
-        })
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos).map_err(|err| {
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
             err.with_operation(ReadOperation::Seek)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx).map_err(|err| {
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        self.inner.read(size).await.map_err(|err| {
             err.with_operation(ReadOperation::Next)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

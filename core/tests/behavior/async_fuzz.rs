@@ -118,7 +118,7 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
 pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
     let actions = [
         ReadAction::Seek(SeekFrom::Current(1)),
-        ReadAction::Next,
+        ReadAction::Read(1024),
         ReadAction::Seek(SeekFrom::End(-1)),
     ];
     test_fuzz_read(op, 1, 0.., &actions).await
@@ -138,9 +138,9 @@ pub async fn test_fuzz_pr_3395_case_1(op: Operator) -> Result<()> {
 /// ```
 pub async fn test_fuzz_pr_3395_case_2(op: Operator) -> Result<()> {
     let actions = [
-        ReadAction::Next,
+        ReadAction::Read(1024),
         ReadAction::Seek(SeekFrom::Current(1)),
-        ReadAction::Next,
+        ReadAction::Read(1024),
         ReadAction::Seek(SeekFrom::End(0)),
     ];
     test_fuzz_read(op, 1, 0.., &actions).await

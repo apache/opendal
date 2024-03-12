@@ -18,13 +18,11 @@
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::io;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
+use futures::StreamExt;
 
 use crate::raw::*;
 use crate::*;
@@ -61,7 +59,7 @@ pub struct IncomingAsyncBody {
     inner: oio::Streamer,
     size: Option<u64>,
     consumed: u64,
-    chunk: Option<Bytes>,
+    chunk: Bytes,
 }
 
 impl IncomingAsyncBody {
@@ -71,7 +69,7 @@ impl IncomingAsyncBody {
             inner: s,
             size,
             consumed: 0,
-            chunk: None,
+            chunk: Bytes::new(),
         }
     }
 
@@ -82,20 +80,23 @@ impl IncomingAsyncBody {
             inner: Box::new(()),
             size: Some(0),
             consumed: 0,
-            chunk: None,
+            chunk: Bytes::new(),
         }
     }
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        use oio::ReadExt;
+        use oio::Read;
 
-        while let Some(bs) = self.next().await {
-            bs.map_err(|err| {
+        loop {
+            let buf = self.read(4 * 1024 * 1024).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
                     .set_source(err)
             })?;
+            if buf.is_empty() {
+                break;
+            }
         }
 
         Ok(())
@@ -105,20 +106,18 @@ impl IncomingAsyncBody {
     ///
     /// This code is inspired from hyper's [`to_bytes`](https://docs.rs/hyper/0.14.23/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
-        use oio::ReadExt;
+        use oio::Read;
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
-        let first = if let Some(buf) = self.next().await {
-            buf?
-        } else {
-            return Ok(Bytes::new());
-        };
-
-        let second = if let Some(buf) = self.next().await {
-            buf?
-        } else {
+        let first = self.read(4 * 1024 * 1024).await?;
+        if first.is_empty() {
             return Ok(first);
-        };
+        }
+
+        let second = self.read(4 * 1024 * 1024).await?;
+        if second.is_empty() {
+            return Ok(first);
+        }
 
         // With more than 1 buf, we gotta flatten into a Vec first.
         let cap = if let Some(size) = self.size {
@@ -134,8 +133,13 @@ impl IncomingAsyncBody {
         vec.put(first);
         vec.put(second);
 
-        while let Some(buf) = self.next().await {
-            vec.put(buf?);
+        // TODO: we can tune the io size here.
+        loop {
+            let buf = self.read(4 * 1024 * 1024).await?;
+            if buf.is_empty() {
+                break;
+            }
+            vec.put(buf);
         }
 
         Ok(vec.into())
@@ -160,78 +164,36 @@ impl IncomingAsyncBody {
 }
 
 impl oio::Read for IncomingAsyncBody {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
-        if buf.is_empty() || self.size == Some(0) {
-            return Poll::Ready(Ok(0));
+    async fn read(&mut self, size: usize) -> Result<Bytes> {
+        if self.size == Some(0) {
+            return Ok(Bytes::new());
         }
 
-        // Avoid extra poll of next if we already have chunks.
-        let mut bs = if let Some(chunk) = self.chunk.take() {
-            chunk
-        } else {
-            loop {
-                match ready!(self.inner.poll_next(cx)) {
-                    // It's possible for underlying stream to return empty bytes, we should continue
-                    // to fetch next one.
-                    Some(Ok(bs)) if bs.is_empty() => continue,
-                    Some(Ok(bs)) => {
-                        self.consumed += bs.len() as u64;
-                        break bs;
+        if self.chunk.is_empty() {
+            self.chunk = match self.inner.next().await.transpose()? {
+                Some(bs) => bs,
+                None => {
+                    if let Some(size) = self.size {
+                        Self::check(size, self.consumed)?
                     }
-                    Some(Err(err)) => return Poll::Ready(Err(err)),
-                    None => {
-                        if let Some(size) = self.size {
-                            Self::check(size, self.consumed)?;
-                        }
-                        return Poll::Ready(Ok(0));
-                    }
+
+                    return Ok(Bytes::new());
                 }
-            }
-        };
-
-        let amt = min(bs.len(), buf.len());
-        buf.put_slice(&bs[..amt]);
-        bs.advance(amt);
-        if !bs.is_empty() {
-            self.chunk = Some(bs);
+            };
         }
 
-        Poll::Ready(Ok(amt))
+        let size = min(size, self.chunk.len());
+        self.consumed += size as u64;
+        let bs = self.chunk.split_to(size);
+        Ok(bs)
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let (_, _) = (cx, pos);
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        let _ = pos;
 
-        Poll::Ready(Err(Error::new(
+        Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
-        )))
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if self.size == Some(0) {
-            return Poll::Ready(None);
-        }
-
-        if let Some(bs) = self.chunk.take() {
-            return Poll::Ready(Some(Ok(bs)));
-        }
-
-        let res = match ready!(self.inner.poll_next(cx)) {
-            Some(Ok(bs)) => {
-                self.consumed += bs.len() as u64;
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => Some(Err(err)),
-            None => {
-                if let Some(size) = self.size {
-                    Self::check(size, self.consumed)?;
-                }
-
-                None
-            }
-        };
-
-        Poll::Ready(res)
+        ))
     }
 }

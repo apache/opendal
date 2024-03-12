@@ -99,7 +99,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
 /// The error part will carries input `(offset, bytes, err)` so caller can retry them.
 type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
 
-struct WriteRangeFuture(BoxedFuture<WriteRangeResult>);
+struct WriteRangeFuture(BoxedStaticFuture<WriteRangeResult>);
 
 /// # Safety
 ///
@@ -153,9 +153,9 @@ pub struct RangeWriter<W: RangeWrite> {
 
 enum State {
     Idle,
-    Init(BoxedFuture<Result<String>>),
-    Complete(BoxedFuture<Result<()>>),
-    Abort(BoxedFuture<Result<()>>),
+    Init(BoxedStaticFuture<Result<String>>),
+    Complete(BoxedStaticFuture<Result<()>>),
+    Abort(BoxedStaticFuture<Result<()>>),
 }
 
 /// # Safety

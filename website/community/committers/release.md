@@ -466,7 +466,7 @@ For non-Java bindings, if we can not find the latest version of artifacts in the
 
 Send the release announcement to `dev@opendal.apache.org` and CC `announce@apache.org`.
 
-> Tips: Please following the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announce mailing list.
+> Tips: Please following the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announcement mailing list.
 
 Instead of adding breaking changes, let's include the new features as "notable changes" in the announcement.
 

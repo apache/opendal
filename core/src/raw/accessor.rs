@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
-/// Underlying trait of all backends for implementors.
+/// Underlying trait of all backends for implementers.
 ///
 /// The actual data access of storage service happens in Accessor layer.
 /// Every storage supported by OpenDAL must implement [`Accessor`] but not all

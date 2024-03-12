@@ -111,7 +111,7 @@ pub async fn metadata_cached(&mut self) -> Result<&Metadata> {
 }
 ```
 
-The backend implementor must make sure `complete` is correctly set.
+The backend implementer must make sure `complete` is correctly set.
 
 `Metadata` will be immutable outsides, so all `set_xxx` APIs will be set to crate public only:
 

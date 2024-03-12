@@ -104,7 +104,7 @@ pub trait Accessor {
 
 # Drawbacks
 
-More heavy work for service implementors.
+More heavy work for service implementers.
 
 # Rationale and alternatives
 

@@ -668,8 +668,8 @@ impl Reader {
     /// TODO: change api into stream based.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let size = buf.len();
-        let bs = self.0.read(size).await.map_err(format_napi_error)?;
+        let buf = buf.as_mut();
+        let bs = self.0.read(buf.len()).await.map_err(format_napi_error)?;
         buf[..bs.len()].copy_from_slice(&bs);
         Ok(bs.len())
     }

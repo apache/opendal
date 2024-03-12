@@ -58,7 +58,7 @@ where
     async fn read(&mut self, size: usize) -> Result<Bytes> {
         // Make sure buf has enough space.
         if self.buf.capacity() < size {
-            self.buf.reserve(size - self.buf.capacity());
+            self.buf.reserve(size);
         }
         let buf = self.buf.spare_capacity_mut();
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
@@ -70,14 +70,13 @@ where
 
         let n = self
             .inner
-            .read(read_buf.initialize_unfilled())
+            .read(read_buf.initialized_mut())
             .await
             .map_err(|err| {
                 new_std_io_error(err)
                     .with_operation(oio::ReadOperation::Read)
                     .with_context("source", "FuturesReader")
             })?;
-
         read_buf.set_filled(n);
 
         Ok(Bytes::copy_from_slice(read_buf.filled()))

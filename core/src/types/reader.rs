@@ -22,7 +22,7 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::Stream;
 use tokio::io::ReadBuf;
 
@@ -151,7 +151,8 @@ impl Reader {
         }
 
         let mut bs = BytesMut::with_capacity(size);
-        bs.copy_from_slice(&bs1);
+        bs.put_slice(&bs1);
+
         let mut remaining = size - bs.len();
 
         loop {
@@ -163,7 +164,12 @@ impl Reader {
                         .with_context("actual", bs.len().to_string()),
                 );
             }
-            bs.copy_from_slice(&tmp);
+            bs.put_slice(&tmp);
+            debug_assert!(
+                tmp.len() <= remaining,
+                "read should not return more bytes than expected"
+            );
+
             remaining -= tmp.len();
             if remaining == 0 {
                 break;

@@ -63,7 +63,7 @@ impl oio::Read for FtpReader {
 
         // Make sure buf has enough space.
         if self.buf.capacity() < size {
-            self.buf.reserve(size - self.buf.capacity());
+            self.buf.reserve(size);
         }
         let buf = self.buf.spare_capacity_mut();
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);

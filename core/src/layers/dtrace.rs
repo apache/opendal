@@ -376,14 +376,14 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
         self.inner
-            .read(buf)
-            .map(|n| {
-                probe_lazy!(opendal, blocking_reader_read_ok, c_path.as_ptr(), n);
-                n
+            .read(limit)
+            .map(|bs| {
+                probe_lazy!(opendal, blocking_reader_read_ok, c_path.as_ptr(), bs.len());
+                bs
             })
             .map_err(|e| {
                 probe_lazy!(opendal, blocking_reader_read_error, c_path.as_ptr());
@@ -404,26 +404,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
                 probe_lazy!(opendal, blocking_reader_seek_error, c_path.as_ptr());
                 e
             })
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_reader_next_start, c_path.as_ptr());
-        self.inner.next().map(|res| match res {
-            Ok(bytes) => {
-                probe_lazy!(
-                    opendal,
-                    blocking_reader_next_ok,
-                    c_path.as_ptr(),
-                    bytes.len()
-                );
-                Ok(bytes)
-            }
-            Err(e) => {
-                probe_lazy!(opendal, blocking_reader_next_error, c_path.as_ptr());
-                Err(e)
-            }
-        })
     }
 }
 

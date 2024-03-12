@@ -18,7 +18,6 @@
 use std::cmp::min;
 use std::io::SeekFrom;
 
-use bytes::BufMut;
 use bytes::Bytes;
 use tokio::io::ReadBuf;
 
@@ -136,30 +135,6 @@ impl<R> oio::Read for BufferReader<R>
 where
     R: oio::Read,
 {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        match pos {
-            SeekFrom::Start(new_pos) => {
-                // TODO(weny): Check the overflowing.
-                let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
-                    return self.inner_seek(pos).await;
-                };
-
-                match self.seek_relative(offset) {
-                    Some(cur) => Ok(cur),
-                    None => self.inner_seek(pos).await,
-                }
-            }
-            SeekFrom::Current(offset) => match self.seek_relative(offset) {
-                Some(cur) => Ok(cur),
-                None => {
-                    self.inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len()))
-                        .await
-                }
-            },
-            SeekFrom::End(_) => self.inner_seek(pos).await,
-        }
-    }
-
     async fn read(&mut self, limit: usize) -> Result<Bytes> {
         if limit == 0 {
             return Ok(Bytes::new());
@@ -190,6 +165,30 @@ where
         self.consume(bytes.len());
         Ok(bytes)
     }
+
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        match pos {
+            SeekFrom::Start(new_pos) => {
+                // TODO(weny): Check the overflowing.
+                let Some(offset) = (new_pos as i64).checked_sub(self.cur as i64) else {
+                    return self.inner_seek(pos).await;
+                };
+
+                match self.seek_relative(offset) {
+                    Some(cur) => Ok(cur),
+                    None => self.inner_seek(pos).await,
+                }
+            }
+            SeekFrom::Current(offset) => match self.seek_relative(offset) {
+                Some(cur) => Ok(cur),
+                None => {
+                    self.inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len()))
+                        .await
+                }
+            },
+            SeekFrom::End(_) => self.inner_seek(pos).await,
+        }
+    }
 }
 
 impl<R> BufferReader<R>
@@ -210,11 +209,12 @@ where
             let mut buf = ReadBuf::uninit(dst);
             unsafe { buf.assume_init(cap) };
 
-            let n = self.r.read(buf.initialized_mut())?;
-            unsafe { self.buf.set_len(n) }
+            let bs = self.r.read(cap)?;
+            buf.put_slice(&bs);
+            unsafe { self.buf.set_len(bs.len()) }
 
             self.pos = 0;
-            self.filled = n;
+            self.filled = bs.len();
         }
 
         Ok(&self.buf[self.pos..self.filled])
@@ -233,32 +233,35 @@ impl<R> BlockingRead for BufferReader<R>
 where
     R: BlockingRead,
 {
-    fn read(&mut self, mut dst: &mut [u8]) -> Result<usize> {
-        // Sanity check for normal cases.
-        if dst.is_empty() {
-            return Ok(0);
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        if limit == 0 {
+            return Ok(Bytes::new());
         }
 
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
-        if self.pos == self.filled && dst.len() >= self.capacity() {
-            let res = self.r.read(dst);
+        if self.pos == self.filled && limit >= self.capacity() {
+            let res = self.r.read(limit);
             self.discard_buffer();
             return match res {
-                Ok(nread) => {
-                    self.cur += nread as u64;
-                    Ok(nread)
+                Ok(bs) => {
+                    self.cur += bs.len() as u64;
+                    Ok(bs)
                 }
                 Err(err) => Err(err),
             };
         }
 
-        let rem = self.blocking_fill_buf()?;
-        let amt = min(rem.len(), dst.len());
-        dst.put(&rem[..amt]);
-        self.consume(amt);
-        Ok(amt)
+        let bytes = self.blocking_fill_buf()?;
+
+        if bytes.is_empty() {
+            return Ok(Bytes::new());
+        }
+        let size = min(bytes.len(), limit);
+        let bytes = Bytes::copy_from_slice(&bytes[..size]);
+        self.consume(bytes.len());
+        Ok(bytes)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -280,21 +283,6 @@ where
                     .blocking_inner_seek(SeekFrom::Current(offset - self.unconsumed_buffer_len())),
             },
             SeekFrom::End(_) => self.blocking_inner_seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.blocking_fill_buf() {
-            Ok(bytes) => {
-                if bytes.is_empty() {
-                    return None;
-                }
-
-                let bytes = Bytes::copy_from_slice(bytes);
-                self.consume(bytes.len());
-                Some(Ok(bytes))
-            }
-            Err(err) => Some(Err(err)),
         }
     }
 }
@@ -397,8 +385,8 @@ mod tests {
     }
 
     impl BlockingRead for MockReader {
-        fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            self.inner.read(buf)
+        fn read(&mut self, limit: usize) -> Result<Bytes> {
+            self.inner.read(limit)
         }
 
         fn seek(&mut self, _pos: SeekFrom) -> Result<u64> {
@@ -406,10 +394,6 @@ mod tests {
                 ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
             ))
-        }
-
-        fn next(&mut self) -> Option<Result<Bytes>> {
-            self.inner.next()
         }
     }
 
@@ -634,20 +618,17 @@ mod tests {
         let r = Box::new(BufferReader::new(r, buf_cap)) as oio::BlockingReader;
         let mut r = BlockingReader::new(r);
 
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"Hello");
+        let buf = r.read(5)?;
+        assert_eq!(buf.len(), 5);
+        assert_eq!(buf.as_ref(), b"Hello");
 
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b", Wor");
+        let buf = r.read(5)?;
+        assert_eq!(buf.len(), 5);
+        assert_eq!(buf.as_ref(), b", Wor");
 
-        let mut dst = [0u8; 3];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"ld!");
+        let buf = r.read(3)?;
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf.as_ref(), b"ld!");
 
         Ok(())
     }
@@ -661,33 +642,29 @@ mod tests {
         let mut r = BlockingReader::new(r);
 
         // The underlying reader buffers the b"Hello, Wor".
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(nread, dst.len());
-        assert_eq!(&dst, b"Hello");
+        let buf = r.read(5)?;
+        assert_eq!(buf.len(), 5);
+        assert_eq!(buf.as_ref(), b"Hello");
 
         let pos = r.seek(SeekFrom::Start(7))?;
         assert_eq!(pos, 7);
-        let mut dst = [0u8; 5];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(&dst[..nread], &bs[7..10]);
-        assert_eq!(nread, 3);
+        let buf = r.read(5)?;
+        assert_eq!(&buf[..], &bs[7..10]);
+        assert_eq!(buf.len(), 3);
 
         // Should perform a relative seek.
         let pos = r.seek(SeekFrom::Start(0))?;
         assert_eq!(pos, 0);
-        let mut dst = [0u8; 9];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(&dst[..nread], &bs[0..9]);
-        assert_eq!(nread, 9);
+        let buf = r.read(9)?;
+        assert_eq!(&buf[..], &bs[0..9]);
+        assert_eq!(buf.len(), 9);
 
         // Should perform a non-relative seek.
         let pos = r.seek(SeekFrom::Start(11))?;
         assert_eq!(pos, 11);
-        let mut dst = [0u8; 9];
-        let nread = r.read(&mut dst)?;
-        assert_eq!(&dst[..nread], &bs[11..13]);
-        assert_eq!(nread, 2);
+        let buf = r.read(9)?;
+        assert_eq!(&buf[..], &bs[11..13]);
+        assert_eq!(buf.len(), 2);
 
         Ok(())
     }
@@ -734,9 +711,8 @@ mod tests {
 
         let mut cur = 0;
         for _ in 0..3 {
-            let mut dst = [0u8; 5];
-            let nread = r.read(&mut dst)?;
-            assert_eq!(nread, 5);
+            let bs = r.read(5)?;
+            assert_eq!(bs.len(), 5);
             cur += 5;
         }
 
@@ -757,9 +733,8 @@ mod tests {
 
         let mut cur = 0;
         for _ in 0..3 {
-            let mut dst = [0u8; 6];
-            let nread = r.read(&mut dst)?;
-            assert_eq!(nread, 6);
+            let bs = r.read(6)?;
+            assert_eq!(bs.len(), 6);
             cur += 6;
         }
 
@@ -771,8 +746,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_blocking_read_part() -> anyhow::Result<()> {
-        use std::io::Read;
-
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
         let r = Box::new(RangeReader::new(
@@ -784,7 +757,7 @@ mod tests {
         let mut r = BlockingReader::new(r);
 
         let mut buf = Vec::new();
-        BlockingRead::read_to_end(&mut r, &mut buf)?;
+        r.read_to_end(&mut buf)?;
         assert_eq!(4096, buf.len(), "read size");
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096..4096 + 4096])),
@@ -796,7 +769,7 @@ mod tests {
         assert_eq!(n, 0, "seek position must be 0");
 
         let mut buf = Vec::new();
-        BlockingRead::read_to_end(&mut r, &mut buf)?;
+        r.read_to_end(&mut buf)?;
         assert_eq!(4096, buf.len(), "read twice size");
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096..4096 + 4096])),
@@ -807,8 +780,7 @@ mod tests {
         let n = r.seek(SeekFrom::Start(1024))?;
         assert_eq!(1024, n, "seek to 1024");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf)?;
+        let buf = r.read_exact(1024)?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 1024..4096 + 2048])),
             format!("{:x}", Sha256::digest(&buf)),
@@ -818,8 +790,7 @@ mod tests {
         let n = r.seek(SeekFrom::Current(1024))?;
         assert_eq!(3072, n, "seek to 3072");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf)?;
+        let buf = r.read_exact(1024)?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 3072..4096 + 3072 + 1024])),
             format!("{:x}", Sha256::digest(&buf)),

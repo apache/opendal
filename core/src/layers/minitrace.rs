@@ -309,22 +309,16 @@ impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
-        self.inner.read(buf)
+        self.inner.read(limit)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingSeek.into_static());
         self.inner.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingNext.into_static());
-        self.inner.next()
     }
 }
 

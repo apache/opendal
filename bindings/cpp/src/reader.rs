@@ -16,7 +16,6 @@
 // under the License.
 
 use anyhow::Result;
-use od::raw::oio::BlockingRead;
 use opendal as od;
 
 use super::ffi;
@@ -25,7 +24,9 @@ pub struct Reader(pub od::BlockingReader);
 
 impl Reader {
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Ok(self.0.read(buf)?)
+        let bs = self.0.read(buf.len())?;
+        buf[..bs.len()].copy_from_slice(&bs);
+        Ok(bs.len())
     }
 
     pub fn seek(&mut self, offset: u64, dir: ffi::SeekFrom) -> Result<u64> {

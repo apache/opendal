@@ -746,8 +746,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_blocking_read_part() -> anyhow::Result<()> {
-        use std::io::Read;
-
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
         let r = Box::new(RangeReader::new(
@@ -782,8 +780,7 @@ mod tests {
         let n = r.seek(SeekFrom::Start(1024))?;
         assert_eq!(1024, n, "seek to 1024");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf)?;
+        let buf = r.read_exact(1024)?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 1024..4096 + 2048])),
             format!("{:x}", Sha256::digest(&buf)),
@@ -793,8 +790,7 @@ mod tests {
         let n = r.seek(SeekFrom::Current(1024))?;
         assert_eq!(3072, n, "seek to 3072");
 
-        let mut buf = vec![0; 1024];
-        r.read_exact(&mut buf)?;
+        let buf = r.read_exact(1024)?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&bs[4096 + 3072..4096 + 3072 + 1024])),
             format!("{:x}", Sha256::digest(&buf)),

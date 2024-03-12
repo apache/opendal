@@ -30,16 +30,14 @@ use serde::Deserialize;
 
 use self::raw::ConfigDeserializer;
 
-//Config for memory.
+///Config for memory.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
-
-pub struct MemoryConfig{
+pub struct MemoryConfig {
     //root of the backend.
     pub root: Option<String>,
 }
-
 
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
@@ -61,9 +59,9 @@ impl Builder for MemoryBuilder {
     type Accessor = MemoryBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        MemoryBuilder{
+        MemoryBuilder {
             config: MemoryConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed"),
+                .expect("config deserialize must succeed"),
         }
     }
 

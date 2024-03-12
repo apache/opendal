@@ -185,17 +185,13 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.poll_read(cx, buf)
+        self.inner.read(limit).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx)
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await
     }
 }
 

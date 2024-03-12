@@ -121,7 +121,7 @@ pub struct MultipartPart {
 /// The error part will carries input `(part_number, bytes, err)` so caller can retry them.
 type WritePartResult = std::result::Result<MultipartPart, (usize, oio::ChunkedBytes, Error)>;
 
-struct WritePartFuture(BoxedFuture<WritePartResult>);
+struct WritePartFuture(BoxedStaticFuture<WritePartResult>);
 
 /// # Safety
 ///
@@ -177,9 +177,9 @@ pub struct MultipartWriter<W: MultipartWrite> {
 
 enum State {
     Idle,
-    Init(BoxedFuture<Result<String>>),
-    Close(BoxedFuture<Result<()>>),
-    Abort(BoxedFuture<Result<()>>),
+    Init(BoxedStaticFuture<Result<String>>),
+    Close(BoxedStaticFuture<Result<()>>),
+    Abort(BoxedStaticFuture<Result<()>>),
 }
 
 /// # Safety

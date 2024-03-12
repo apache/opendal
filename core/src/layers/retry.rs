@@ -647,7 +647,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
 }
 
 pub struct RetryWrapper<R, I> {
-    inner: R,
+    inner: Option<R>,
     notify: Arc<I>,
 
     path: String,
@@ -659,7 +659,7 @@ pub struct RetryWrapper<R, I> {
 impl<R, I> RetryWrapper<R, I> {
     fn new(inner: R, notify: Arc<I>, path: &str, backoff: ExponentialBuilder) -> Self {
         Self {
-            inner,
+            inner: Some(inner),
             notify,
 
             path: path.to_string(),
@@ -671,152 +671,74 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.poll_read(cx, buf)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Read.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_read(cx, buf)
-                    }
-                }
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.seek(pos).await;
+
+                (r, res)
             }
         }
+        .retry(&self.builder)
+        .context(inner)
+        .when(|e| e.is_temporary())
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ReadOperation::Seek.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.poll_seek(cx, pos)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Seek.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_seek(cx, pos)
-                    }
-                }
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.read(limit).await;
+
+                (r, res)
             }
         }
-    }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ReadOperation::Read.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
-
-        match ready!(self.inner.poll_next(cx)) {
-            None => {
-                self.current_backoff = None;
-                Poll::Ready(None)
-            }
-            Some(Ok(v)) => {
-                self.current_backoff = None;
-                Poll::Ready(Some(Ok(v)))
-            }
-            Some(Err(err)) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Some(Err(err)))
-            }
-            Some(Err(err)) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Some(Err(err)))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ReadOperation::Next.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_next(cx)
-                    }
-                }
-            }
-        }
+        self.inner = Some(inner);
+        res
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        { || self.inner.read(buf) }
+        { || self.inner.as_mut().unwrap().read(buf) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -834,7 +756,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        { || self.inner.seek(pos) }
+        { || self.inner.as_mut().unwrap().seek(pos) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -852,7 +774,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        { || self.inner.next().transpose() }
+        { || self.inner.as_mut().unwrap().next().transpose() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -878,7 +800,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_write(cx, bs)) {
+        match ready!(self.inner.as_mut().unwrap().poll_write(cx, bs)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -924,7 +846,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_abort(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_abort(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -970,7 +892,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_close(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_close(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -1013,7 +935,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        { || self.inner.write(bs) }
+        { || self.inner.as_mut().unwrap().write(bs) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -1031,7 +953,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
     }
 
     fn close(&mut self) -> Result<()> {
-        { || self.inner.close() }
+        { || self.inner.as_mut().unwrap().close() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -1058,7 +980,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
             self.sleep = None;
         }
 
-        match ready!(self.inner.poll_next(cx)) {
+        match ready!(self.inner.as_mut().unwrap().poll_next(cx)) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -1101,7 +1023,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
 
 impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        { || self.inner.next() }
+        { || self.inner.as_mut().unwrap().next() }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -1130,7 +1052,6 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::AsyncReadExt;
     use futures::TryStreamExt;
 
     use super::*;
@@ -1263,50 +1184,39 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-            let mut attempt = self.attempt.lock().unwrap();
-            *attempt += 1;
-
-            Poll::Ready(match *attempt {
-                1 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                2 => {
-                    buf[..7].copy_from_slice("Hello, ".as_bytes());
-                    self.pos += 7;
-                    Ok(7)
-                }
-                3 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                4 => {
-                    buf[..6].copy_from_slice("World!".as_bytes());
-                    self.pos += 6;
-                    Ok(6)
-                }
-                5 => Ok(0),
-                _ => unreachable!(),
-            })
-        }
-
-        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+        async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
             self.pos = match pos {
                 io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
                 io::SeekFrom::Start(n) => n,
                 io::SeekFrom::End(n) => (13 + n) as u64,
             };
 
-            Poll::Ready(Ok(self.pos))
+            Ok(self.pos)
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-            let mut bs = vec![0; 1];
-            match ready!(self.poll_read(cx, &mut bs)) {
-                Ok(0) => Poll::Ready(None),
-                Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs[..v].to_vec())))),
-                Err(err) => Poll::Ready(Some(Err(err))),
+        async fn read(&mut self, _: usize) -> Result<Bytes> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                2 => {
+                    self.pos += 7;
+                    Ok(Bytes::copy_from_slice("Hello, ".as_bytes()))
+                }
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                4 => {
+                    self.pos += 6;
+                    Ok(Bytes::copy_from_slice("World!".as_bytes()))
+                }
+                5 => Ok(Bytes::new()),
+                _ => unreachable!(),
             }
         }
     }

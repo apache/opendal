@@ -47,7 +47,7 @@ pub struct OneShotWriter<W: OneShotWrite> {
 
 enum State<W> {
     Idle(Option<W>),
-    Write(BoxedFuture<(W, Result<()>)>),
+    Write(BoxedStaticFuture<(W, Result<()>)>),
 }
 
 /// # Safety

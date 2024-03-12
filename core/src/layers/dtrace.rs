@@ -344,24 +344,25 @@ impl<R> DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        self.inner.poll_read(cx, buf).map(|res| match res {
-            Ok(n) => {
-                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), n);
-                Ok(n)
+        match self.inner.read(limit).await {
+            Ok(bs) => {
+                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.len());
+                Ok(bs)
             }
             Err(e) => {
                 probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
                 Err(e)
             }
-        })
+        }
     }
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_seek_start, c_path.as_ptr());
-        self.inner.poll_seek(cx, pos).map(|res| match res {
+        match self.inner.seek(pos).await {
             Ok(n) => {
                 probe_lazy!(opendal, reader_seek_ok, c_path.as_ptr(), n);
                 Ok(n)
@@ -370,26 +371,7 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
                 probe_lazy!(opendal, reader_seek_error, c_path.as_ptr());
                 Err(e)
             }
-        })
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, reader_next_start, c_path.as_ptr());
-        self.inner.poll_next(cx).map(|res| match res {
-            Some(Ok(bytes)) => {
-                probe_lazy!(opendal, reader_next_ok, c_path.as_ptr(), bytes.len());
-                Some(Ok(bytes))
-            }
-            Some(Err(e)) => {
-                probe_lazy!(opendal, reader_next_error, c_path.as_ptr());
-                Some(Err(e))
-            }
-            None => {
-                probe_lazy!(opendal, reader_next_end, c_path.as_ptr());
-                None
-            }
-        })
+        }
     }
 }
 

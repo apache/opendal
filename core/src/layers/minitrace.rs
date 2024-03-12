@@ -297,22 +297,14 @@ impl<R> MinitraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Read.into_static());
-        self.inner.poll_read(cx, buf)
+    #[trace(enter_on_poll = true)]
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).await
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Seek.into_static());
-        self.inner.poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Next.into_static());
-        self.inner.poll_next(cx)
+    #[trace(enter_on_poll = true)]
+    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await
     }
 }
 

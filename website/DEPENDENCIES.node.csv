@@ -8,3 +8,4 @@
 "prism-react-renderer@1.3.5","MIT","https://github.com/FormidableLabs/prism-react-renderer"
 "react-dom@18.2.0","MIT","https://github.com/facebook/react"
 "react@18.2.0","MIT","https://github.com/facebook/react"
+"docusaurus-lunr-search@3.3.2","MIT","https://github.com/praveenn77/docusaurus-lunr-search"

@@ -587,20 +587,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             err
         })
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next().map(|res| match res {
-            Ok(bytes) => {
-                self.bytes_total += bytes.len();
-                Ok(bytes)
-            }
-            Err(e) => {
-                self.metrics
-                    .increment_errors_total(self.scheme, self.op, e.kind());
-                Err(e)
-            }
-        })
-    }
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {

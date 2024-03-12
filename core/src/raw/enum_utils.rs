@@ -87,13 +87,6 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
             Self::Two(v) => v.seek(pos),
         }
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-        }
-    }
 }
 
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
@@ -165,14 +158,6 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> o
             Self::One(v) => v.seek(pos),
             Self::Two(v) => v.seek(pos),
             Self::Three(v) => v.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-            Self::Three(v) => v.next(),
         }
     }
 }
@@ -267,15 +252,6 @@ where
             Self::Two(v) => v.seek(pos),
             Self::Three(v) => v.seek(pos),
             Self::Four(v) => v.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-            Self::Three(v) => v.next(),
-            Self::Four(v) => v.next(),
         }
     }
 }

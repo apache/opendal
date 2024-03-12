@@ -320,12 +320,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingSeek.into_static());
         self.inner.seek(pos)
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingNext.into_static());
-        self.inner.next()
-    }
 }
 
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {

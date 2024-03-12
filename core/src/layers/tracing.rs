@@ -301,14 +301,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
-
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        skip_all)]
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next()
-    }
 }
 
 impl<R: oio::Write> oio::Write for TracingWrapper<R> {

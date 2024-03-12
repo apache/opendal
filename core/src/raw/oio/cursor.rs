@@ -135,17 +135,6 @@ impl oio::BlockingRead for Cursor {
         self.pos = n;
         Ok(n)
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.is_empty() {
-            None
-        } else {
-            // The clone here is required as we don't want to change it.
-            let bs = self.inner.clone().split_off(self.pos as usize);
-            self.pos += bs.len() as u64;
-            Some(Ok(bs))
-        }
-    }
 }
 
 impl oio::Stream for Cursor {

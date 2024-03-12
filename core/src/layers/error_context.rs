@@ -384,16 +384,6 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 .with_context("seek", format!("{pos:?}"))
         })
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next().map(|v| {
-            v.map_err(|err| {
-                err.with_operation(ReadOperation::BlockingNext)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-            })
-        })
-    }
 }
 
 #[async_trait::async_trait]

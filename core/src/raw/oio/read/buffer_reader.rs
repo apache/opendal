@@ -282,21 +282,6 @@ where
             SeekFrom::End(_) => self.blocking_inner_seek(pos),
         }
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.blocking_fill_buf() {
-            Ok(bytes) => {
-                if bytes.is_empty() {
-                    return None;
-                }
-
-                let bytes = Bytes::copy_from_slice(bytes);
-                self.consume(bytes.len());
-                Some(Ok(bytes))
-            }
-            Err(err) => Some(Err(err)),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -406,10 +391,6 @@ mod tests {
                 ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
             ))
-        }
-
-        fn next(&mut self) -> Option<Result<Bytes>> {
-            self.inner.next()
         }
     }
 

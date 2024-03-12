@@ -295,10 +295,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next()
-    }
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {

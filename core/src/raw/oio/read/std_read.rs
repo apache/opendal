@@ -19,8 +19,6 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
-use bytes::Bytes;
-
 use crate::raw::*;
 use crate::*;
 
@@ -54,12 +52,5 @@ where
                 .with_operation(oio::ReadOperation::BlockingSeek)
                 .with_context("source", "StdReader")
         })
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "StdReader doesn't support poll_next",
-        )))
     }
 }

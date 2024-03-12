@@ -207,12 +207,4 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
             Err(Self::unexpected_eof())
         }
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.i_feel_lucky() {
-            self.inner.next()
-        } else {
-            Some(Err(Self::unexpected_eof()))
-        }
-    }
 }

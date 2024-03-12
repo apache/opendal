@@ -772,25 +772,6 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
             .call()
             .map_err(|e| e.set_persistent())
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        { || self.inner.as_mut().unwrap().next().transpose() }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::BlockingNext.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-            .transpose()
-    }
 }
 
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {

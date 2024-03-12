@@ -405,26 +405,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
                 e
             })
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_reader_next_start, c_path.as_ptr());
-        self.inner.next().map(|res| match res {
-            Ok(bytes) => {
-                probe_lazy!(
-                    opendal,
-                    blocking_reader_next_ok,
-                    c_path.as_ptr(),
-                    bytes.len()
-                );
-                Ok(bytes)
-            }
-            Err(e) => {
-                probe_lazy!(opendal, blocking_reader_next_error, c_path.as_ptr());
-                Err(e)
-            }
-        })
-    }
 }
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {

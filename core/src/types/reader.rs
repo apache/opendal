@@ -457,11 +457,6 @@ impl oio::BlockingRead for BlockingReader {
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
-
-    #[inline]
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        oio::BlockingRead::next(&mut self.inner)
-    }
 }
 
 impl io::Read for BlockingReader {
@@ -483,9 +478,10 @@ impl Iterator for BlockingReader {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .map(|v| v.map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err)))
+        todo!()
+        // self.inner
+        //     .next()
+        //     .map(|v| v.map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err)))
     }
 }
 

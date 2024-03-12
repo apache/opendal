@@ -17,7 +17,7 @@
 
 use async_trait::async_trait;
 use bytes;
-use bytes::{BufMut, Bytes};
+use bytes::BufMut;
 use futures::future::poll_fn;
 use tokio::runtime::Handle;
 
@@ -297,15 +297,6 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 
     fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
         self.handle.block_on(self.inner.seek(pos))
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let bs = self.handle.block_on(self.inner.read(4 * 1024 * 1024));
-        match bs {
-            Ok(bs) if bs.is_empty() => None,
-            Ok(bs) => Some(Ok(bs)),
-            Err(err) => Some(Err(err)),
-        }
     }
 }
 

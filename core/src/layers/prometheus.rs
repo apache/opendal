@@ -746,27 +746,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             err
         })
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let labels = self.stats.generate_metric_label(
-            self.scheme.into_static(),
-            Operation::BlockingRead.into_static(),
-            &self.path,
-        );
-        self.inner.next().map(|res| match res {
-            Ok(bytes) => {
-                self.stats
-                    .bytes_total
-                    .with_label_values(&labels)
-                    .observe(bytes.len() as f64);
-                Ok(bytes)
-            }
-            Err(e) => {
-                self.stats.increment_errors_total(self.op, e.kind());
-                Err(e)
-            }
-        })
-    }
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {

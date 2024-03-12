@@ -182,9 +182,6 @@ pub trait BlockingRead: Send + Sync {
     /// Seek synchronously.
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
 
-    /// Iterating [`Bytes`] from underlying reader.
-    fn next(&mut self) -> Option<Result<Bytes>>;
-
     /// Read all data of current reader to the end of buf.
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
         let start_len = buf.len();
@@ -248,13 +245,6 @@ impl BlockingRead for () {
             "output blocking reader doesn't support seeking",
         ))
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support iterating",
-        )))
-    }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
@@ -266,9 +256,5 @@ impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         (**self).seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        (**self).next()
     }
 }

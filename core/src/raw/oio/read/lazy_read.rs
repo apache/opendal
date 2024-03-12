@@ -106,13 +106,4 @@ where
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.blocking_reader()?.seek(pos)
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let r = match self.blocking_reader() {
-            Ok(r) => r,
-            Err(err) => return Some(Err(err)),
-        };
-
-        r.next()
-    }
 }

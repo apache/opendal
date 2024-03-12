@@ -817,19 +817,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
             err
         })
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next().map(|res| match res {
-            Ok(bytes) => {
-                self.bytes += bytes.len() as u64;
-                Ok(bytes)
-            }
-            Err(e) => {
-                self.handle.increment_errors_total(self.op, e.kind());
-                Err(e)
-            }
-        })
-    }
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {

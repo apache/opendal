@@ -412,49 +412,6 @@ where
         self.cur = seek_pos;
         Ok(self.cur)
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        // Sanity check for normal cases.
-        if self.cur >= self.size.unwrap_or(u64::MAX) {
-            return None;
-        }
-
-        if self.offset.is_none() {
-            let rp = match self.stat_action() {
-                Ok(rp) => rp,
-                Err(err) => return Some(Err(err)),
-            };
-            let length = rp.into_metadata().content_length();
-            if let Err(err) = self.ensure_offset(length) {
-                return Some(Err(err));
-            }
-        }
-        if self.reader.is_none() {
-            let (rp, r) = match self.read_action() {
-                Ok((rp, r)) => (rp, r),
-                Err(err) => return Some(Err(err)),
-            };
-
-            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-        match r.next() {
-            Some(Ok(bs)) => {
-                self.cur += bs.len() as u64;
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => {
-                self.reader = None;
-                Some(Err(err))
-            }
-            None => {
-                self.reader = None;
-                None
-            }
-        }
-    }
 }
 
 #[cfg(test)]

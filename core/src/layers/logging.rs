@@ -1121,40 +1121,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
             }
         }
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.inner.next() {
-            Some(Ok(bs)) => {
-                self.read += bs.len() as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read {}B",
-                    self.ctx.scheme,
-                    ReadOperation::BlockingNext,
-                    self.path,
-                    self.read,
-                    bs.len()
-                );
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::BlockingNext,
-                        self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Some(Err(err))
-            }
-            None => None,
-        }
-    }
 }
 
 pub struct LoggingWriter<W> {

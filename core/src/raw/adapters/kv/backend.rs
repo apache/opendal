@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
+
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;

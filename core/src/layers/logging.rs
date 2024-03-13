@@ -16,7 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::future::Future;
+
 use std::io;
 use std::task::ready;
 use std::task::Context;

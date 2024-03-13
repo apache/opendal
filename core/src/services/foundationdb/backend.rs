@@ -32,24 +32,36 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
+use serde::Deserialize;
+
 /// [foundationdb](https://www.foundationdb.org/) service support.
+///Config for FoundationDB.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct FoundationConfig {
+    ///root of the backend.
+    pub root: Option<String>,
+    ///config_path for the backend.
+    pub config_path: Option<String>,
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {
-    root: Option<String>,
-    config_path: Option<String>,
+    config: FoundationConfig,
 }
 
 impl FoundationdbBuilder {
     /// Set the root for Foundationdb.
     pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+        self.config.root = Some(path.into());
         self
     }
 
     /// Set the config path for Foundationdb. If not set, will fallback to use default
     pub fn config_path(&mut self, path: &str) -> &mut Self {
-        self.config_path = Some(path.into());
+        self.config.config_path = Some(path.into());
         self
     }
 }
@@ -59,18 +71,16 @@ impl Builder for FoundationdbBuilder {
     type Accessor = FoundationdbBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = FoundationdbBuilder::default();
+        let config = FoundationConfig::deserialize(ConfigDeserializer::new(map))
+            .expect("config deserialize must succeed");
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("config_path").map(|v| builder.config_path(v));
-
-        builder
+        self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let _network = Arc::new(unsafe { foundationdb::boot() });
         let db;
-        if let Some(cfg_path) = &self.config_path {
+        if let Some(cfg_path) = &self.config.config_path {
             db = Database::from_path(cfg_path).map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open foundation db")
                     .with_context("service", Scheme::Foundationdb)
@@ -87,7 +97,8 @@ impl Builder for FoundationdbBuilder {
         let db = Arc::new(db);
 
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),

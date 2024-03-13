@@ -46,6 +46,17 @@ pub struct FoundationConfig {
     pub config_path: Option<String>,
 }
 
+impl Debug for FoundationConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("FoundationConfig");
+
+        ds.field("root", &self.root);
+        ds.field("config_path", &self.config_path);
+
+        ds.finish()
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {

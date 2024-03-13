@@ -84,6 +84,8 @@ impl Builder for FoundationdbBuilder {
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = FoundationConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
+
+            Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

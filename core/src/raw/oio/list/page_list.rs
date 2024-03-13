@@ -24,7 +24,10 @@ use crate::*;
 /// PageList is the trait for lister that can fetch entries in pages.
 pub trait PageList: Send + Sync + Unpin + 'static {
     /// next_page is used to fetch next page of entries from underlying storage.
+    #[cfg(not(target_arch = "wasm32"))]
     fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>>;
 }
 
 /// PageContext is the context passing between `PageList`.

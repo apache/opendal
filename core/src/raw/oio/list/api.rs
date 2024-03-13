@@ -68,7 +68,10 @@ pub trait List: Unpin + Send + Sync {
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
+    #[cfg(not(target_arch = "wasm32"))]
     fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>>;
 }
 
 impl List for () {

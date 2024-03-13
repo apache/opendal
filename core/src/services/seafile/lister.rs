@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -44,7 +43,6 @@ impl SeafileLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for SeafileLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let path = build_rooted_abs_path(&self.core.root, &self.path);
@@ -103,9 +101,7 @@ impl oio::PageList for SeafileLister {
                 ctx.done = true;
                 Ok(())
             }
-            _ => {
-                return Err(parse_error(resp).await?);
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 }

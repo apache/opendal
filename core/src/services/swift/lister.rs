@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
@@ -43,7 +41,6 @@ impl SwiftLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self

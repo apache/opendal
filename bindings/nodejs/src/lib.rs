@@ -26,7 +26,6 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::raw::oio::BlockingRead;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -648,7 +647,10 @@ pub struct BlockingReader(opendal::BlockingReader);
 impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        self.0.read(buf.as_mut()).map_err(format_napi_error)
+        let buf = buf.as_mut();
+        let bs = self.0.read(buf.len()).map_err(format_napi_error)?;
+        buf[..bs.len()].copy_from_slice(&bs);
+        Ok(bs.len())
     }
 }
 

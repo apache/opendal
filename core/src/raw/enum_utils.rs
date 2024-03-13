@@ -74,10 +74,10 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(buf),
-            Self::Two(v) => v.read(buf),
+            Self::One(v) => v.read(limit),
+            Self::Two(v) => v.read(limit),
         }
     }
 
@@ -85,13 +85,6 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
         match self {
             Self::One(v) => v.seek(pos),
             Self::Two(v) => v.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
         }
     }
 }
@@ -152,11 +145,11 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(buf),
-            Self::Two(v) => v.read(buf),
-            Self::Three(v) => v.read(buf),
+            Self::One(v) => v.read(limit),
+            Self::Two(v) => v.read(limit),
+            Self::Three(v) => v.read(limit),
         }
     }
 
@@ -165,14 +158,6 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> o
             Self::One(v) => v.seek(pos),
             Self::Two(v) => v.seek(pos),
             Self::Three(v) => v.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-            Self::Three(v) => v.next(),
         }
     }
 }
@@ -252,12 +237,12 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self {
-            Self::One(v) => v.read(buf),
-            Self::Two(v) => v.read(buf),
-            Self::Three(v) => v.read(buf),
-            Self::Four(v) => v.read(buf),
+            Self::One(v) => v.read(limit),
+            Self::Two(v) => v.read(limit),
+            Self::Three(v) => v.read(limit),
+            Self::Four(v) => v.read(limit),
         }
     }
 
@@ -269,15 +254,6 @@ where
             Self::Four(v) => v.seek(pos),
         }
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-            Self::Three(v) => v.next(),
-            Self::Four(v) => v.next(),
-        }
-    }
 }
 
 impl<ONE, TWO, THREE, FOUR> oio::List for FourWays<ONE, TWO, THREE, FOUR>
@@ -287,12 +263,12 @@ where
     THREE: oio::List,
     FOUR: oio::List,
 {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self {
-            Self::One(v) => v.poll_next(cx),
-            Self::Two(v) => v.poll_next(cx),
-            Self::Three(v) => v.poll_next(cx),
-            Self::Four(v) => v.poll_next(cx),
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
+            Self::Four(v) => v.next().await,
         }
     }
 }

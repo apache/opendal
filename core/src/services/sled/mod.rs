@@ -18,3 +18,4 @@
 mod backend;
 
 pub use backend::SledBuilder as Sled;
+pub use backend::SledConfig;

@@ -179,16 +179,11 @@ impl ReadChecker {
         for action in actions {
             match action {
                 ReadAction::Read(size) => {
-                    use oio::BlockingRead;
-
-                    let mut buf = vec![0; *size];
-                    let n = r.read(&mut buf).expect("read must success");
-                    self.check_read(*size, &buf[..n]);
+                    let bs = r.read(*size).expect("read must success");
+                    self.check_read(*size, &bs);
                 }
 
                 ReadAction::Seek(pos) => {
-                    use oio::BlockingRead;
-
                     let res = r.seek(*pos);
                     self.check_seek(*pos, res);
                 }

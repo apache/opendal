@@ -16,7 +16,6 @@
 // under the License.
 
 use std::cmp::min;
-use std::io::Read;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -72,6 +71,18 @@ impl From<Vec<u8>> for Cursor {
 }
 
 impl oio::Read for Cursor {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        if self.is_empty() {
+            Ok(Bytes::new())
+        } else {
+            // The clone here is required as we don't want to change it.
+            let mut bs = self.inner.clone().split_off(self.pos as usize);
+            let bs = bs.split_to(min(bs.len(), limit));
+            self.pos += bs.len() as u64;
+            Ok(bs)
+        }
+    }
+
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, amt) = match pos {
             SeekFrom::Start(n) => (0, n as i64),
@@ -91,8 +102,10 @@ impl oio::Read for Cursor {
         self.pos = n;
         Ok(n)
     }
+}
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+impl oio::BlockingRead for Cursor {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.is_empty() {
             Ok(Bytes::new())
         } else {
@@ -102,18 +115,6 @@ impl oio::Read for Cursor {
             self.pos += bs.len() as u64;
             Ok(bs)
         }
-    }
-}
-
-impl oio::BlockingRead for Cursor {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read data from Cursor")
-                .with_context("source", "Cursor")
-                .set_source(err)
-        })?;
-        self.pos += n as u64;
-        Ok(n)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -134,17 +135,6 @@ impl oio::BlockingRead for Cursor {
         };
         self.pos = n;
         Ok(n)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.is_empty() {
-            None
-        } else {
-            // The clone here is required as we don't want to change it.
-            let bs = self.inner.clone().split_off(self.pos as usize);
-            self.pos += bs.len() as u64;
-            Some(Ok(bs))
-        }
     }
 }
 

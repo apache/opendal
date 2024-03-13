@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+
 use std::io;
 use std::task::ready;
 use std::task::Context;
@@ -1057,10 +1058,10 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self.inner.read(buf) {
-            Ok(n) => {
-                self.read += n as u64;
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        match self.inner.read(limit) {
+            Ok(bs) => {
+                self.read += bs.len() as u64;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read {}B",
@@ -1068,9 +1069,9 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     ReadOperation::BlockingRead,
                     self.path,
                     self.read,
-                    n
+                    bs.len()
                 );
-                Ok(n)
+                Ok(bs)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1119,40 +1120,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 }
                 Err(err)
             }
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.inner.next() {
-            Some(Ok(bs)) => {
-                self.read += bs.len() as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read {}B",
-                    self.ctx.scheme,
-                    ReadOperation::BlockingNext,
-                    self.path,
-                    self.read,
-                    bs.len()
-                );
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::BlockingNext,
-                        self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Some(Err(err))
-            }
-            None => None,
         }
     }
 }
@@ -1387,11 +1354,9 @@ impl<P> Drop for LoggingLister<P> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<P: oio::List> oio::List for LoggingLister<P> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let res = ready!(self.inner.poll_next(cx));
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let res = self.inner.next().await;
 
         match &res {
             Ok(Some(de)) => {
@@ -1429,7 +1394,7 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
             }
         };
 
-        Poll::Ready(res)
+        res
     }
 }
 

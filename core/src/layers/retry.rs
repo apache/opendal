@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -737,8 +738,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        { || self.inner.as_mut().unwrap().read(buf) }
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        { || self.inner.as_mut().unwrap().read(limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -771,25 +772,6 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
             })
             .call()
             .map_err(|e| e.set_persistent())
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        { || self.inner.as_mut().unwrap().next().transpose() }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::BlockingNext.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-            .transpose()
     }
 }
 
@@ -971,53 +953,37 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.as_mut().unwrap().poll_next(cx)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", ListOperation::Next.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_next(cx)
-                    }
-                }
+        let (inner, res) = {
+            |mut p: P| async move {
+                let res = p.next().await;
+
+                (p, res)
             }
         }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ListOperation::Next.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 }
 
@@ -1047,8 +1013,6 @@ mod tests {
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::task::Context;
-    use std::task::Poll;
 
     use async_trait::async_trait;
     use bytes::Bytes;
@@ -1227,9 +1191,9 @@ mod tests {
     }
 
     impl oio::List for MockLister {
-        fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
             self.attempt += 1;
-            let result = match self.attempt {
+            match self.attempt {
                 1 => Err(Error::new(
                     ErrorKind::RateLimited,
                     "retryable rate limited error from lister",
@@ -1259,9 +1223,7 @@ mod tests {
                 _ => {
                     unreachable!()
                 }
-            };
-
-            Poll::Ready(result)
+            }
         }
     }
 

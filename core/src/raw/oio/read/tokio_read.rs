@@ -47,14 +47,6 @@ impl<R> oio::Read for TokioReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await.map_err(|err| {
-            new_std_io_error(err)
-                .with_operation(oio::ReadOperation::Seek)
-                .with_context("source", "TokioReader")
-        })
-    }
-
     async fn read(&mut self, limit: usize) -> Result<Bytes> {
         // Make sure buf has enough space.
         if self.buf.capacity() < limit {
@@ -80,5 +72,13 @@ where
         read_buf.set_filled(n);
 
         Ok(Bytes::copy_from_slice(read_buf.filled()))
+    }
+
+    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).await.map_err(|err| {
+            new_std_io_error(err)
+                .with_operation(oio::ReadOperation::Seek)
+                .with_context("source", "TokioReader")
+        })
     }
 }

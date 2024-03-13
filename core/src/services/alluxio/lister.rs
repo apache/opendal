@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use super::core::AlluxioCore;
 use crate::raw::oio::Entry;
 use crate::raw::*;
@@ -40,7 +38,6 @@ impl AlluxioLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for AlluxioLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let result = self.core.list_status(&self.path).await;

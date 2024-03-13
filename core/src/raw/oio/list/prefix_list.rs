@@ -15,10 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
-
 use crate::raw::*;
 use crate::*;
 
@@ -66,11 +62,11 @@ impl<L> oio::List for PrefixLister<L>
 where
     L: oio::List,
 {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            match ready!(self.lister.poll_next(cx)) {
+            match self.lister.next().await {
                 Ok(Some(e)) if !starts_with_not_eq(&e, &self.prefix) => continue,
-                v => return Poll::Ready(v),
+                v => return v,
             }
         }
     }

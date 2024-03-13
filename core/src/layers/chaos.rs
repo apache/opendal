@@ -192,9 +192,9 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.i_feel_lucky() {
-            self.inner.read(buf)
+            self.inner.read(limit)
         } else {
             Err(Self::unexpected_eof())
         }
@@ -205,14 +205,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
             self.inner.seek(pos)
         } else {
             Err(Self::unexpected_eof())
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.i_feel_lucky() {
-            self.inner.next()
-        } else {
-            Some(Err(Self::unexpected_eof()))
         }
     }
 }

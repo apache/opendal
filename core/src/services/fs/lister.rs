@@ -15,15 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fs::FileType;
 use std::path::Path;
 use std::path::PathBuf;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
-
-use futures::future::BoxFuture;
-use futures::FutureExt;
 
 use crate::raw::*;
 use crate::EntryMode;
@@ -34,8 +27,6 @@ pub struct FsLister<P> {
     root: PathBuf,
 
     rd: P,
-
-    fut: Option<BoxFuture<'static, (tokio::fs::DirEntry, Result<FileType>)>>,
 }
 
 impl<P> FsLister<P> {
@@ -43,8 +34,6 @@ impl<P> FsLister<P> {
         Self {
             root: root.to_owned(),
             rd,
-
-            fut: None,
         }
     }
 }
@@ -55,57 +44,32 @@ impl<P> FsLister<P> {
 unsafe impl<P> Sync for FsLister<P> {}
 
 impl oio::List for FsLister<tokio::fs::ReadDir> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        if let Some(fut) = self.fut.as_mut() {
-            let (de, ft) = futures::ready!(fut.poll_unpin(cx));
-            let ft = match ft {
-                Ok(ft) => {
-                    self.fut = None;
-                    ft
-                }
-                Err(e) => {
-                    let fut = async move {
-                        let ft = de.file_type().await.map_err(new_std_io_error);
-                        (de, ft)
-                    };
-                    self.fut = Some(Box::pin(fut));
-                    return Poll::Ready(Err(e));
-                }
-            };
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let Some(de) = self.rd.next_entry().await.map_err(new_std_io_error)? else {
+            return Ok(None);
+        };
 
-            let entry_path = de.path();
-            let rel_path = normalize_path(
-                &entry_path
-                    .strip_prefix(&self.root)
-                    .expect("cannot fail because the prefix is iterated")
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-            );
+        let ft = de.file_type().await.map_err(new_std_io_error)?;
 
-            let d = if ft.is_file() {
-                oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-            } else if ft.is_dir() {
-                // Make sure we are returning the correct path.
-                oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
-            } else {
-                oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
-            };
+        let entry_path = de.path();
+        let rel_path = normalize_path(
+            &entry_path
+                .strip_prefix(&self.root)
+                .expect("cannot fail because the prefix is iterated")
+                .to_string_lossy()
+                .replace('\\', "/"),
+        );
 
-            return Poll::Ready(Ok(Some(d)));
-        }
+        let d = if ft.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
+        } else if ft.is_dir() {
+            // Make sure we are returning the correct path.
+            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+        };
 
-        let de = ready!(self.rd.poll_next_entry(cx)).map_err(new_std_io_error)?;
-        match de {
-            Some(de) => {
-                let fut = async move {
-                    let ft = de.file_type().await.map_err(new_std_io_error);
-                    (de, ft)
-                };
-                self.fut = Some(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            None => Poll::Ready(Ok(None)),
-        }
+        Ok(Some(d))
     }
 }
 

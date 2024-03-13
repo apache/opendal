@@ -99,20 +99,11 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.blocking_reader()?.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.blocking_reader()?.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.blocking_reader()?.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let r = match self.blocking_reader() {
-            Ok(r) => r,
-            Err(err) => return Some(Err(err)),
-        };
-
-        r.next()
     }
 }

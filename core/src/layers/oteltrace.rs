@@ -288,16 +288,12 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next()
     }
 }
 
@@ -325,11 +321,9 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx)
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
     }
 }
 

@@ -35,7 +35,11 @@ use self::raw::ConfigDeserializer;
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemoryConfig {
+<<<<<<< Updated upstream
     //root of the backend.
+=======
+    ///root of the backend.
+>>>>>>> Stashed changes
     pub root: Option<String>,
 }
 

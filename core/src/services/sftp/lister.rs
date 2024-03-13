@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -27,6 +28,7 @@ use openssh_sftp_client::fs::ReadDir;
 
 use super::error::parse_sftp_error;
 use crate::raw::oio;
+use crate::raw::oio::Entry;
 use crate::Result;
 
 pub struct SftpLister {
@@ -45,22 +47,26 @@ impl SftpLister {
     }
 }
 
-#[async_trait]
 impl oio::List for SftpLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let item = ready!(self.dir.poll_next_unpin(cx))
-            .transpose()
-            .map_err(parse_sftp_error)?;
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        loop {
+            let item = self
+                .dir
+                .next()
+                .await
+                .transpose()
+                .map_err(parse_sftp_error)?;
 
-        match item {
-            Some(e) => {
-                if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
-                    self.poll_next(cx)
-                } else {
-                    Poll::Ready(Ok(Some(map_entry(self.prefix.as_str(), e))))
+            match item {
+                Some(e) => {
+                    if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
+                        continue;
+                    } else {
+                        return Ok(Some(map_entry(self.prefix.as_str(), e)));
+                    }
                 }
+                None => return Ok(None),
             }
-            None => Poll::Ready(Ok(None)),
         }
     }
 }

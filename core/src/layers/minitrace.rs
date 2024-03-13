@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::Future;
 use std::io;
 use std::task::Context;
 use std::task::Poll;
@@ -357,10 +358,9 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
 }
 
 impl<R: oio::List> oio::List for MinitraceWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ListOperation::Next.into_static());
-        self.inner.poll_next(cx)
+    #[trace(enter_on_poll = true)]
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
     }
 }
 

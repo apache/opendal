@@ -48,7 +48,6 @@ impl ObsLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for ObsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

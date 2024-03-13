@@ -44,7 +44,6 @@ impl IpmfsLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for IpmfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.backend.ipmfs_ls(&self.path).await?;

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::str;
 use std::str::FromStr;
 use std::task::Context;
@@ -41,12 +42,12 @@ impl FtpLister {
 }
 
 impl oio::List for FtpLister {
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let de = match self.file_iter.next() {
             Some(file_str) => File::from_str(file_str.as_str()).map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e)
             })?,
-            None => return Poll::Ready(Ok(None)),
+            None => return Ok(None),
         };
 
         let path = self.path.to_string() + de.name();
@@ -64,6 +65,6 @@ impl oio::List for FtpLister {
             oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
         };
 
-        Poll::Ready(Ok(Some(entry)))
+        Ok(Some(entry))
     }
 }

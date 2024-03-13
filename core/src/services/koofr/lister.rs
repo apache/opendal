@@ -43,7 +43,6 @@ impl KoofrLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for KoofrLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.list(&self.path).await?;

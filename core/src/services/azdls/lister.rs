@@ -39,7 +39,6 @@ impl AzdlsLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for AzdlsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

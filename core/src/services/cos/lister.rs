@@ -47,7 +47,6 @@ impl CosLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for CosLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

@@ -17,6 +17,7 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
@@ -233,8 +234,8 @@ impl ImmutableDir {
 }
 
 impl oio::List for ImmutableDir {
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        Poll::Ready(Ok(self.inner_next()))
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 

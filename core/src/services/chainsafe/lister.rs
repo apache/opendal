@@ -43,7 +43,6 @@ impl ChainsafeLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for ChainsafeLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.list_objects(&self.path).await?;

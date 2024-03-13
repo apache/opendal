@@ -44,7 +44,6 @@ impl YandexDiskLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for YandexDiskLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let offset = if ctx.token.is_empty() {

@@ -40,7 +40,6 @@ impl AlluxioLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for AlluxioLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let result = self.core.list_status(&self.path).await;

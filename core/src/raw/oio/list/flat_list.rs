@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -23,9 +24,6 @@ use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
-
-/// ListFuture is the future returned while calling async list.
-type ListFuture<A, L> = BoxedStaticFuture<(A, oio::Entry, Result<(RpList, L)>)>;
 
 /// FlatLister will walk dir in bottom up way:
 ///
@@ -64,12 +62,11 @@ type ListFuture<A, L> = BoxedStaticFuture<(A, oio::Entry, Result<(RpList, L)>)>;
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
 pub struct FlatLister<A: Accessor, L> {
-    acc: Option<A>,
+    acc: A,
     root: String,
 
     next_dir: Option<oio::Entry>,
     active_lister: Vec<(Option<oio::Entry>, L)>,
-    list_future: Option<ListFuture<A, L>>,
 }
 
 /// # Safety
@@ -88,11 +85,10 @@ where
     /// Create a new flat lister
     pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
         FlatLister {
-            acc: Some(acc),
+            acc,
             root: path.to_string(),
             next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
             active_lister: vec![],
-            list_future: None,
         }
     }
 }
@@ -102,44 +98,30 @@ where
     A: Accessor<Lister = L>,
     L: oio::List,
 {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            if let Some(fut) = self.list_future.as_mut() {
-                let (acc, de, res) = ready!(fut.poll_unpin(cx));
-                self.acc = Some(acc);
-                self.list_future = None;
-
-                let (_, l) = res?;
-                self.active_lister.push((Some(de), l))
-            }
-
             if let Some(de) = self.next_dir.take() {
-                let acc = self.acc.take().expect("Accessor must be valid");
-                let fut = async move {
-                    let res = acc.list(de.path(), OpList::new()).await;
-                    (acc, de, res)
-                };
-                self.list_future = Some(Box::pin(fut));
-                continue;
+                let (_, l) = self.acc.list(de.path(), OpList::new()).await?;
+                self.active_lister.push((Some(de), l));
             }
 
             let (de, lister) = match self.active_lister.last_mut() {
                 Some((de, lister)) => (de, lister),
-                None => return Poll::Ready(Ok(None)),
+                None => return Ok(None),
             };
 
-            match ready!(lister.poll_next(cx))? {
+            match lister.next().await? {
                 Some(v) if v.mode().is_dir() => {
                     self.next_dir = Some(v);
                     continue;
                 }
-                Some(v) => return Poll::Ready(Ok(Some(v))),
+                Some(v) => return Ok(Some(v)),
                 None => {
                     match de.take() {
                         Some(de) => {
                             // Only push entry if it's not root dir
                             if de.path() != self.root {
-                                return Poll::Ready(Ok(Some(de)));
+                                return Ok(Some(de));
                             }
                             continue;
                         }
@@ -162,10 +144,8 @@ where
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let acc = self.acc.take().expect("Accessor must be valid");
-                let (_, l) = acc.blocking_list(de.path(), OpList::new())?;
+                let (_, l) = self.acc.blocking_list(de.path(), OpList::new())?;
 
-                self.acc = Some(acc);
                 self.active_lister.push((Some(de), l))
             }
 

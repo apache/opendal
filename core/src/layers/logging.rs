@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::Future;
 use std::io;
 use std::task::ready;
 use std::task::Context;
@@ -1353,11 +1354,9 @@ impl<P> Drop for LoggingLister<P> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<P: oio::List> oio::List for LoggingLister<P> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        let res = ready!(self.inner.poll_next(cx));
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let res = self.inner.next().await;
 
         match &res {
             Ok(Some(de)) => {
@@ -1395,7 +1394,7 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
             }
         };
 
-        Poll::Ready(res)
+        res
     }
 }
 

@@ -41,7 +41,6 @@ impl HuggingfaceLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for HuggingfaceLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self.core.hf_list(&self.path, self.recursive).await?;

@@ -42,7 +42,6 @@ impl VercelBlobLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for VercelBlobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let p = build_abs_path(&self.core.root, &self.path);

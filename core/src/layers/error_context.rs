@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -433,10 +434,9 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     }
 }
 
-#[async_trait::async_trait]
 impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx).map_err(|err| {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await.map_err(|err| {
             err.with_operation(ListOperation::Next)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

@@ -58,7 +58,6 @@ impl B2Lister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for B2Lister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

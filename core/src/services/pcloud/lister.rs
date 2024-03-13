@@ -41,7 +41,6 @@ impl PcloudLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for PcloudLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.list_folder(&self.path).await?;

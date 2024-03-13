@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::error::parse_error;

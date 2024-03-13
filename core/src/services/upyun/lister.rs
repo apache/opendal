@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
 use super::error::parse_error;

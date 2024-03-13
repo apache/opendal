@@ -15,10 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::sync::Arc;
-
-
 
 use crate::raw::oio;
 use crate::raw::oio::Entry;

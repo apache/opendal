@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-
 use http::StatusCode;
 use quick_xml::de::from_str;
 use serde::Deserialize;

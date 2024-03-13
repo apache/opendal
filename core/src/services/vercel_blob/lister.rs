@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::parse_blob;
 use super::core::VercelBlobCore;
 use crate::raw::oio::Entry;

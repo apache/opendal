@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-
 use serde::Deserialize;
 use serde_json::de;
 

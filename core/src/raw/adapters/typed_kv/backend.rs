@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;

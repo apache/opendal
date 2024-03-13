@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;

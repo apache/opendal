@@ -15,12 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::pin::Pin;
-
-
-
-
 
 use futures::StreamExt;
 use openssh_sftp_client::fs::DirEntry;

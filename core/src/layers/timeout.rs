@@ -371,8 +371,7 @@ mod tests {
     use std::future::{pending, Future};
     use std::io::SeekFrom;
     use std::sync::Arc;
-    
-    
+
     use std::time::Duration;
 
     use async_trait::async_trait;

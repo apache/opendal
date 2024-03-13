@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;

@@ -1013,8 +1013,6 @@ mod tests {
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
-    
-    
 
     use async_trait::async_trait;
     use bytes::Bytes;

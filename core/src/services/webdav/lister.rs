@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::*;
@@ -42,7 +41,6 @@ impl WebdavLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.webdav_list(&self.path, &self.args).await?;

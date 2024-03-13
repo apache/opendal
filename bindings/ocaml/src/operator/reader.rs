@@ -17,14 +17,14 @@
 
 use std::io;
 
-use opendal::raw::oio::BlockingRead;
-
 use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]
 pub fn reader_read(reader: &mut Reader, buf: &mut [u8]) -> Result<usize, String> {
-    map_res_error(reader.0.read(buf))
+    let bs = map_res_error(reader.0.read(buf.len()))?;
+    buf[..bs.len()].copy_from_slice(&bs);
+    Ok(bs.len())
 }
 
 #[ocaml::func]

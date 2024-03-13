@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -37,7 +36,6 @@ impl DbfsLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for DbfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self.core.dbfs_list(&self.path).await?;

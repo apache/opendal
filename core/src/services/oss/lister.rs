@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 
@@ -56,7 +55,6 @@ impl OssLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for OssLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

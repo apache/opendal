@@ -16,8 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use crate::raw::oio;
 use crate::raw::oio::Entry;
@@ -38,7 +36,7 @@ impl HdfsNativeLister {
 }
 
 impl oio::List for HdfsNativeLister {
-    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+    async fn next(&mut self) -> Result<Option<Entry>> {
         todo!()
     }
 }

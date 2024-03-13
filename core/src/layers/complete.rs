@@ -212,7 +212,7 @@ impl<A: Accessor> CompleteAccessor<A> {
                 )
                 .await?;
 
-            return if oio::ListExt::next(&mut l).await?.is_some() {
+            return if oio::List::next(&mut l).await?.is_some() {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             } else {
                 Err(Error::new(

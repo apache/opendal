@@ -22,7 +22,6 @@ use std::ops::DerefMut;
 
 use bytes::Bytes;
 use futures::Future;
-use tokio::io::ReadBuf;
 
 use crate::raw::BoxedFuture;
 use crate::*;
@@ -177,65 +176,15 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 /// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync {
     /// Read synchronously.
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+    fn read(&mut self, limit: usize) -> Result<Bytes>;
 
     /// Seek synchronously.
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
-
-    /// Iterating [`Bytes`] from underlying reader.
-    fn next(&mut self) -> Option<Result<Bytes>>;
-
-    /// Read all data of current reader to the end of buf.
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        let start_len = buf.len();
-        let start_cap = buf.capacity();
-
-        loop {
-            if buf.len() == buf.capacity() {
-                buf.reserve(32); // buf is full, need more space
-            }
-
-            let spare = buf.spare_capacity_mut();
-            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
-
-            // SAFETY: These bytes were initialized but not filled in the previous loop
-            unsafe {
-                read_buf.assume_init(read_buf.capacity());
-            }
-
-            match self.read(read_buf.initialize_unfilled()) {
-                Ok(0) => return Ok(buf.len() - start_len),
-                Ok(n) => {
-                    // SAFETY: Read API makes sure that returning `n` is correct.
-                    unsafe {
-                        buf.set_len(buf.len() + n);
-                    }
-                }
-                Err(e) => return Err(e),
-            }
-
-            // The buffer might be an exact fit. Let's read into a probe buffer
-            // and see if it returns `Ok(0)`. If so, we've avoided an
-            // unnecessary doubling of the capacity. But if not, append the
-            // probe buffer to the primary buffer and let its capacity grow.
-            if buf.len() == buf.capacity() && buf.capacity() == start_cap {
-                let mut probe = [0u8; 32];
-
-                match self.read(&mut probe) {
-                    Ok(0) => return Ok(buf.len() - start_len),
-                    Ok(n) => {
-                        buf.extend_from_slice(&probe[..n]);
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-    }
 }
 
 impl BlockingRead for () {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let _ = buf;
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        let _ = limit;
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
     }
@@ -248,27 +197,16 @@ impl BlockingRead for () {
             "output blocking reader doesn't support seeking",
         ))
     }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        Some(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support iterating",
-        )))
-    }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        (**self).read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        (**self).read(limit)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         (**self).seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        (**self).next()
     }
 }

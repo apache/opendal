@@ -18,7 +18,6 @@
 use bytes::Bytes;
 
 use super::operator_functions::*;
-use crate::raw::oio::BlockingRead;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
@@ -410,9 +409,10 @@ impl BlockingOperator {
                     (range.size().unwrap(), range)
                 };
 
-                let (_, mut s) = inner.blocking_read(&path, args.with_range(range))?;
+                let (_, r) = inner.blocking_read(&path, args.with_range(range))?;
+                let mut r = BlockingReader::new(r);
                 let mut buf = Vec::with_capacity(size_hint as usize);
-                s.read_to_end(&mut buf)?;
+                r.read_to_end(&mut buf)?;
 
                 Ok(buf)
             },

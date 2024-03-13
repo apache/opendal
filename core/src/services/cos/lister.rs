@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 
@@ -47,7 +46,6 @@ impl CosLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for CosLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

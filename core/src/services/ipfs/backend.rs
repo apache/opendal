@@ -423,7 +423,6 @@ impl DirStream {
     }
 }
 
-#[async_trait]
 impl oio::PageList for DirStream {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.backend.ipfs_list(&self.path).await?;

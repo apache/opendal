@@ -15,11 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::Context;
-use std::task::Poll;
-
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
@@ -41,12 +36,11 @@ impl HdfsLister {
     }
 }
 
-#[async_trait]
 impl oio::List for HdfsLister {
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let de = match self.rd.next() {
             Some(de) => de,
-            None => return Poll::Ready(Ok(None)),
+            None => return Ok(None),
         };
 
         let path = build_rel_path(&self.root, de.path());
@@ -63,7 +57,7 @@ impl oio::List for HdfsLister {
             oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
         };
 
-        Poll::Ready(Ok(Some(entry)))
+        Ok(Some(entry))
     }
 }
 

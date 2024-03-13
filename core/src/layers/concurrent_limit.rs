@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+
 use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::Context;
@@ -267,16 +268,12 @@ impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next()
     }
 }
 
@@ -305,8 +302,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx)
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
     }
 }
 

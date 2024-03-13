@@ -26,7 +26,6 @@ use flagset::FlagSet;
 use futures::Stream;
 use futures::StreamExt;
 
-use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
 
@@ -45,7 +44,11 @@ pub struct Lister {
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
+    fut: Option<BoxedStaticFuture<(oio::Lister, Result<Option<oio::Entry>>)>>,
+
     /// tasks is used to store tasks that are run in concurrent.
+    ///
+    /// TODO: maybe we should move logic inside?
     tasks: ConcurrentFutures<StatTask>,
     errored: bool,
 }
@@ -134,6 +137,7 @@ impl Lister {
             lister: Some(lister),
             required_metakey,
 
+            fut: None,
             tasks: ConcurrentFutures::new(concurrent),
             errored: false,
         })
@@ -151,31 +155,44 @@ impl Stream for Lister {
 
         // Trying to pull more tasks if there are more space.
         if self.tasks.has_remaining() {
-            if let Some(lister) = self.lister.as_mut() {
-                match lister.poll_next(cx) {
-                    Poll::Pending => {}
-                    Poll::Ready(Ok(Some(oe))) => {
-                        let (path, metadata) = oe.into_entry().into_parts();
-                        if metadata.contains_metakey(self.required_metakey) {
-                            self.tasks
-                                .push_back(StatTask::Known(Some((path, metadata))));
-                        } else {
-                            let acc = self.acc.clone();
-                            let fut = async move {
-                                let res = acc.stat(&path, OpStat::default()).await;
-                                (path, res.map(|rp| rp.into_metadata()))
-                            };
-                            self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
+            // Building future is we have a lister available.
+            if let Some(mut lister) = self.lister.take() {
+                let fut = async move {
+                    let res = lister.next_dyn().await;
+                    (lister, res)
+                };
+                self.fut = Some(Box::pin(fut));
+            }
+
+            if let Some(fut) = self.fut.as_mut() {
+                if let Poll::Ready((lister, entry)) = fut.as_mut().poll(cx) {
+                    self.lister = Some(lister);
+                    self.fut = None;
+
+                    match entry {
+                        Ok(Some(oe)) => {
+                            let (path, metadata) = oe.into_entry().into_parts();
+                            if metadata.contains_metakey(self.required_metakey) {
+                                self.tasks
+                                    .push_back(StatTask::Known(Some((path, metadata))));
+                            } else {
+                                let acc = self.acc.clone();
+                                let fut = async move {
+                                    let res = acc.stat(&path, OpStat::default()).await;
+                                    (path, res.map(|rp| rp.into_metadata()))
+                                };
+                                self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
+                            }
+                        }
+                        Ok(None) => {
+                            self.lister = None;
+                        }
+                        Err(err) => {
+                            self.errored = true;
+                            return Poll::Ready(Some(Err(err)));
                         }
                     }
-                    Poll::Ready(Ok(None)) => {
-                        self.lister = None;
-                    }
-                    Poll::Ready(Err(err)) => {
-                        self.errored = true;
-                        return Poll::Ready(Some(Err(err)));
-                    }
-                };
+                }
             }
         }
 
@@ -185,7 +202,7 @@ impl Stream for Lister {
             return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        if self.lister.is_some() {
+        if self.lister.is_some() || self.fut.is_some() {
             Poll::Pending
         } else {
             Poll::Ready(None)

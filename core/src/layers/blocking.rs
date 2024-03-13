@@ -17,7 +17,7 @@
 
 use async_trait::async_trait;
 use bytes;
-use bytes::{BufMut, Bytes};
+use bytes::Bytes;
 use futures::future::poll_fn;
 use tokio::runtime::Handle;
 
@@ -288,24 +288,12 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
-        let bs = self.handle.block_on(self.inner.read(buf.len()));
-        let bs = bs?;
-        buf.put_slice(&bs);
-        Ok(bs.len())
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.handle.block_on(self.inner.read(limit))
     }
 
     fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
         self.handle.block_on(self.inner.seek(pos))
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let bs = self.handle.block_on(self.inner.read(4 * 1024 * 1024));
-        match bs {
-            Ok(bs) if bs.is_empty() => None,
-            Ok(bs) => Some(Ok(bs)),
-            Err(err) => Some(Err(err)),
-        }
     }
 }
 
@@ -323,7 +311,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
 
 impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.handle.block_on(poll_fn(|cx| self.inner.poll_next(cx)))
+        self.handle.block_on(self.inner.next())
     }
 }
 

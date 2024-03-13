@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -367,12 +368,12 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf).map_err(|err| {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.inner.read(limit).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-                .with_context("read_buf", buf.len().to_string())
+                .with_context("limit", limit.to_string())
         })
     }
 
@@ -382,16 +383,6 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("seek", format!("{pos:?}"))
-        })
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next().map(|v| {
-            v.map_err(|err| {
-                err.with_operation(ReadOperation::BlockingNext)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-            })
         })
     }
 }
@@ -443,10 +434,9 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     }
 }
 
-#[async_trait::async_trait]
 impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx).map_err(|err| {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await.map_err(|err| {
             err.with_operation(ListOperation::Next)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

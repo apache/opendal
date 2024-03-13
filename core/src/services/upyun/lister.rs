@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
 use super::error::parse_error;
@@ -45,7 +43,6 @@ impl UpyunLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for UpyunLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

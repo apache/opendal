@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Read;
-
 use ::opendal as core;
 
 use super::*;
@@ -51,12 +49,15 @@ impl opendal_reader {
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
 
         let inner = unsafe { &mut *(*reader).inner };
-        let r = inner.read(buf);
+        let r = inner.read(buf.len());
         match r {
-            Ok(n) => opendal_result_reader_read {
-                size: n,
-                error: std::ptr::null_mut(),
-            },
+            Ok(bs) => {
+                buf[..bs.len()].copy_from_slice(&bs);
+                opendal_result_reader_read {
+                    size: bs.len(),
+                    error: std::ptr::null_mut(),
+                }
+            }
             Err(e) => opendal_result_reader_read {
                 size: 0,
                 error: opendal_error::new(

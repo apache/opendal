@@ -253,8 +253,8 @@ impl KvLister {
 }
 
 impl oio::List for KvLister {
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        Poll::Ready(Ok(self.inner_next()))
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::io::SeekFrom;
 use std::sync::Arc;
 
@@ -40,7 +39,6 @@ pub struct FileReader<A: Accessor, R> {
     cur: u64,
 
     reader: Option<R>,
-    buf: oio::AdaptiveBuf,
     /// Do we need to reset our cursor?
     seek_dirty: bool,
 }
@@ -63,7 +61,6 @@ where
             offset: None,
             size: None,
             cur: 0,
-            buf: oio::AdaptiveBuf::default(),
             reader: None,
             seek_dirty: false,
         }
@@ -213,6 +210,24 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        if self.reader.is_none() {
+            // FileReader doesn't support range, we will always use full range to open a file.
+            let op = self.op.clone().with_range(BytesRange::from(..));
+            let (_, r) = self.acc.read(&self.path, op).await?;
+            self.reader = Some(r);
+        }
+
+        let r = self.reader.as_mut().expect("reader must be valid");
+
+        // We should know where to start read the data.
+        if self.offset.is_none() {
+            (self.offset, self.size) = Self::offset(r, self.op.range()).await?;
+        }
+
+        r.read(limit).await
+    }
+
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         if self.reader.is_none() {
             // FileReader doesn't support range, we will always use full range to open a file.
@@ -245,24 +260,6 @@ where
         self.cur = pos - self.offset.unwrap();
         Ok(self.cur)
     }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        if self.reader.is_none() {
-            // FileReader doesn't support range, we will always use full range to open a file.
-            let op = self.op.clone().with_range(BytesRange::from(..));
-            let (_, r) = self.acc.read(&self.path, op).await?;
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-
-        // We should know where to start read the data.
-        if self.offset.is_none() {
-            (self.offset, self.size) = Self::offset(r, self.op.range()).await?;
-        }
-
-        r.read(limit).await
-    }
 }
 
 impl<A, R> oio::BlockingRead for FileReader<A, R>
@@ -270,7 +267,7 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         if self.reader.is_none() {
             // FileReader doesn't support range, we will always use full range to open a file.
             let op = self.op.clone().with_range(BytesRange::from(..));
@@ -285,25 +282,7 @@ where
             (self.offset, self.size) = Self::calculate_offset(r, self.op.range())?;
         }
 
-        let size = if let Some(size) = self.size {
-            // Sanity check.
-            if self.cur >= size {
-                return Ok(0);
-            }
-            cmp::min(buf.len(), (size - self.cur) as usize)
-        } else {
-            buf.len()
-        };
-
-        match r.read(&mut buf[..size]) {
-            Ok(0) => Ok(0),
-            Ok(n) => {
-                self.cur += n as u64;
-                Ok(n)
-            }
-            // We don't need to reset state here since it's ok to poll the same reader.
-            Err(err) => Err(err),
-        }
+        r.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -336,53 +315,5 @@ where
         let pos = Self::blocking_seek_inner(r, self.offset, self.size, self.cur, pos)?;
         self.cur = pos - self.offset.unwrap();
         Ok(self.cur)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.reader.is_none() {
-            // FileReader doesn't support range, we will always use full range to open a file.
-            let op = self.op.clone().with_range(BytesRange::from(..));
-            let (_, r) = match self.acc.blocking_read(&self.path, op) {
-                Ok(v) => v,
-                Err(err) => return Some(Err(err)),
-            };
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-
-        // We should know where to start read the data.
-        if self.offset.is_none() {
-            (self.offset, self.size) = match Self::calculate_offset(r, self.op.range()) {
-                Ok(v) => v,
-                Err(err) => return Some(Err(err)),
-            }
-        }
-
-        self.buf.reserve();
-
-        let mut buf = self.buf.initialized_mut();
-        let buf = buf.initialized_mut();
-
-        let size = if let Some(size) = self.size {
-            // Sanity check.
-            if self.cur >= size {
-                return None;
-            }
-            cmp::min(buf.len(), (size - self.cur) as usize)
-        } else {
-            buf.len()
-        };
-
-        match r.read(&mut buf[..size]) {
-            Ok(0) => None,
-            Ok(n) => {
-                self.cur += n as u64;
-                self.buf.record(n);
-                Some(Ok(self.buf.split(n)))
-            }
-            // We don't need to reset state here since it's ok to poll the same reader.
-            Err(err) => Some(Err(err)),
-        }
     }
 }

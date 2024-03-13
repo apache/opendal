@@ -252,6 +252,43 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
+    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        // Sanity check for normal cases.
+        if self.cur >= self.size.unwrap_or(u64::MAX) {
+            return Ok(Bytes::new());
+        }
+
+        if self.offset.is_none() {
+            let rp = match self.stat_future().await {
+                Ok(v) => v,
+                Err(err) => return Err(err),
+            };
+            let length = rp.into_metadata().content_length();
+            self.ensure_offset(length)?
+        }
+        if self.reader.is_none() {
+            let (rp, r) = match self.read_future().await {
+                Ok((rp, r)) => (rp, r),
+                Err(err) => return Err(err),
+            };
+
+            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
+            self.reader = Some(r);
+        }
+
+        let r = self.reader.as_mut().expect("reader must be valid");
+        match r.read(limit).await {
+            Ok(bs) => {
+                self.cur += bs.len() as u64;
+                Ok(bs)
+            }
+            Err(err) => {
+                self.reader = None;
+                Err(err)
+            }
+        }
+    }
+
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         // There is an optimization here that we can calculate if users trying to seek
         // the same position, for example, `reader.seek(SeekFrom::Current(0))`.
@@ -292,15 +329,21 @@ where
         self.cur = seek_pos;
         Ok(self.cur)
     }
+}
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+impl<A, R> oio::BlockingRead for RangeReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {
             return Ok(Bytes::new());
         }
 
         if self.offset.is_none() {
-            let rp = match self.stat_future().await {
+            let rp = match self.stat_action() {
                 Ok(v) => v,
                 Err(err) => return Err(err),
             };
@@ -308,7 +351,7 @@ where
             self.ensure_offset(length)?
         }
         if self.reader.is_none() {
-            let (rp, r) = match self.read_future().await {
+            let (rp, r) = match self.read_action() {
                 Ok((rp, r)) => (rp, r),
                 Err(err) => return Err(err),
             };
@@ -318,7 +361,7 @@ where
         }
 
         let r = self.reader.as_mut().expect("reader must be valid");
-        match r.read(limit).await {
+        match r.read(limit) {
             Ok(bs) => {
                 self.cur += bs.len() as u64;
                 Ok(bs)
@@ -326,48 +369,6 @@ where
             Err(err) => {
                 self.reader = None;
                 Err(err)
-            }
-        }
-    }
-}
-
-impl<A, R> oio::BlockingRead for RangeReader<A, R>
-where
-    A: Accessor<BlockingReader = R>,
-    R: oio::BlockingRead,
-{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // Sanity check for normal cases.
-        if buf.is_empty() || self.cur >= self.size.unwrap_or(u64::MAX) {
-            return Ok(0);
-        }
-
-        if self.offset.is_none() {
-            let rp = self.stat_action()?;
-            let length = rp.into_metadata().content_length();
-            self.ensure_offset(length)?;
-        }
-        if self.reader.is_none() {
-            let (rp, r) = self.read_action()?;
-
-            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-        match r.read(buf) {
-            Ok(0) => {
-                // Reset state to Idle after all data has been consumed.
-                self.reader = None;
-                Ok(0)
-            }
-            Ok(n) => {
-                self.cur += n as u64;
-                Ok(n)
-            }
-            Err(e) => {
-                self.reader = None;
-                Err(e)
             }
         }
     }
@@ -411,49 +412,6 @@ where
 
         self.cur = seek_pos;
         Ok(self.cur)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        // Sanity check for normal cases.
-        if self.cur >= self.size.unwrap_or(u64::MAX) {
-            return None;
-        }
-
-        if self.offset.is_none() {
-            let rp = match self.stat_action() {
-                Ok(rp) => rp,
-                Err(err) => return Some(Err(err)),
-            };
-            let length = rp.into_metadata().content_length();
-            if let Err(err) = self.ensure_offset(length) {
-                return Some(Err(err));
-            }
-        }
-        if self.reader.is_none() {
-            let (rp, r) = match self.read_action() {
-                Ok((rp, r)) => (rp, r),
-                Err(err) => return Some(Err(err)),
-            };
-
-            self.ensure_size(rp.range().unwrap_or_default().size(), rp.size());
-            self.reader = Some(r);
-        }
-
-        let r = self.reader.as_mut().expect("reader must be valid");
-        match r.next() {
-            Some(Ok(bs)) => {
-                self.cur += bs.len() as u64;
-                Some(Ok(bs))
-            }
-            Some(Err(err)) => {
-                self.reader = None;
-                Some(Err(err))
-            }
-            None => {
-                self.reader = None;
-                None
-            }
-        }
     }
 }
 

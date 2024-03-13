@@ -28,7 +28,6 @@ use crate::*;
 pub fn into_streamable_read<R>(r: R, capacity: usize) -> StreamableReader<R> {
     StreamableReader {
         r,
-        cap: capacity,
         buf: Vec::with_capacity(capacity),
     }
 }
@@ -36,7 +35,6 @@ pub fn into_streamable_read<R>(r: R, capacity: usize) -> StreamableReader<R> {
 /// Make given read streamable.
 pub struct StreamableReader<R> {
     r: R,
-    cap: usize,
     buf: Vec<u8>,
 }
 
@@ -63,27 +61,12 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.r.read(buf)
+    fn read(&mut self, limit: usize) -> Result<Bytes> {
+        self.r.read(limit)
     }
 
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.r.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        let dst = self.buf.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(self.cap) };
-
-        match self.r.read(buf.initialized_mut()) {
-            Err(err) => Some(Err(err)),
-            Ok(0) => None,
-            Ok(n) => {
-                buf.set_filled(n);
-                Some(Ok(Bytes::from(buf.filled().to_vec())))
-            }
-        }
     }
 }
 
@@ -135,10 +118,13 @@ mod tests {
         let r = oio::Cursor::from(content.clone());
         let mut s = into_streamable_read(Box::new(r) as oio::BlockingReader, cap);
 
-        let mut bs = BytesMut::new();
-        while let Some(b) = s.next() {
-            let b = b.expect("read must success");
-            bs.put_slice(&b);
+        let mut bs = BytesMut::with_capacity(size);
+        loop {
+            let buf = s.read(size).expect("read must success");
+            if buf.is_empty() {
+                break;
+            }
+            bs.put_slice(&buf)
         }
         assert_eq!(bs.freeze().to_vec(), content)
     }

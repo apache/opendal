@@ -21,7 +21,16 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// PageList is the trait for lister that can fetch entries in pages.
+/// PageList is used to implement [`List`] based on API supporting pagination. By implementing
+/// PageList, services don't need to care about the details of page list.
+///
+/// # Architecture
+///
+/// The architecture after adopting [`PageList`]:
+///
+/// - Services impl `PageList`
+/// - `PageLister` impl `List`
+/// - Expose `PageLister` as `Accessor::Lister`
 pub trait PageList: Send + Sync + Unpin + 'static {
     /// next_page is used to fetch next page of entries from underlying storage.
     #[cfg(not(target_arch = "wasm32"))]

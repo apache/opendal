@@ -25,6 +25,7 @@ use std::any::Any;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::future::Future;
 use std::io::Result;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
@@ -325,11 +326,11 @@ impl oio::Write for MadsimWriter {
 pub struct MadsimLister {}
 
 impl oio::List for MadsimLister {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Option<oio::Entry>>> {
-        Poll::Ready(Err(Error::new(
+    async fn next(&mut self) -> crate::Result<Option<oio::Entry>> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
-        )))
+        ))
     }
 }
 

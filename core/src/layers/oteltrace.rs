@@ -321,11 +321,9 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx)
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
     }
 }
 

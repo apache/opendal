@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 
 use super::core::parse_file_info;
@@ -58,7 +57,6 @@ impl B2Lister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for B2Lister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self

@@ -263,12 +263,12 @@ where
     THREE: oio::List,
     FOUR: oio::List,
 {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self {
-            Self::One(v) => v.poll_next(cx),
-            Self::Two(v) => v.poll_next(cx),
-            Self::Three(v) => v.poll_next(cx),
-            Self::Four(v) => v.poll_next(cx),
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
+            Self::Four(v) => v.next().await,
         }
     }
 }

@@ -19,7 +19,6 @@ mod api;
 pub use api::BlockingList;
 pub use api::BlockingLister;
 pub use api::List;
-pub use api::ListExt;
 pub use api::ListOperation;
 pub use api::Lister;
 

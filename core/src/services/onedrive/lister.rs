@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;
@@ -43,7 +41,6 @@ impl OnedriveLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for OnedriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let request_url = if ctx.token.is_empty() {

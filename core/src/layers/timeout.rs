@@ -360,12 +360,9 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.poll_timeout(cx, ListOperation::Next.into_static())?;
-
-        let v = ready!(self.inner.poll_next(cx));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let fut = self.inner.next();
+        Self::io_timeout(self.timeout, ListOperation::Next.into_static(), fut).await
     }
 }
 
@@ -374,8 +371,7 @@ mod tests {
     use std::future::{pending, Future};
     use std::io::SeekFrom;
     use std::sync::Arc;
-    use std::task::Context;
-    use std::task::Poll;
+
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -447,8 +443,8 @@ mod tests {
     struct MockLister;
 
     impl oio::List for MockLister {
-        fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-            Poll::Pending
+        fn next(&mut self) -> impl Future<Output = Result<Option<oio::Entry>>> {
+            pending()
         }
     }
 
@@ -506,6 +502,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_timeout_raw() {
+        use oio::List;
+
         let acc = MockService;
         let timeout_layer = TimeoutLayer::new()
             .with_timeout(Duration::from_secs(1))
@@ -516,7 +514,6 @@ mod tests {
             .await
             .unwrap();
 
-        use oio::ListExt;
         let res = lister.next().await;
         assert!(res.is_err());
         let err = res.unwrap_err();

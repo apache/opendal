@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+
 use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::Context;
@@ -301,8 +302,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<oio::Entry>>> {
-        self.inner.poll_next(cx)
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
     }
 }
 

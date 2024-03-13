@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
@@ -38,7 +37,6 @@ impl WebhdfsLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_status = if self.backend.disable_list_batch {

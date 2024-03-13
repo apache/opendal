@@ -18,18 +18,18 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
+
+use std::ops::DerefMut;
 
 use crate::raw::oio::Entry;
+use crate::raw::BoxedFuture;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ListOperation {
-    /// Operation for [`List::poll_next`]
+    /// Operation for [`List::next`]
     Next,
     /// Operation for [`BlockingList::next`]
     BlockingNext,
@@ -59,67 +59,54 @@ impl From<ListOperation> for &'static str {
     }
 }
 
+/// The boxed version of [`List`]
+pub type Lister = Box<dyn ListDyn>;
+
 /// Page trait is used by [`raw::Accessor`] to implement `list` operation.
-pub trait List: Unpin + Send + Sync + 'static {
+pub trait List: Unpin + Send + Sync {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>>;
-}
-
-/// The boxed version of [`List`]
-pub type Lister = Box<dyn List>;
-
-impl<P: List + ?Sized> List for Box<P> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        (**self).poll_next(cx)
-    }
+    #[cfg(not(target_arch = "wasm32"))]
+    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>>;
 }
 
 impl List for () {
-    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        Poll::Ready(Ok(None))
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        Ok(None)
     }
 }
 
 impl<P: List> List for Option<P> {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
+    async fn next(&mut self) -> Result<Option<Entry>> {
         match self {
-            Some(p) => p.poll_next(cx),
-            None => Poll::Ready(Ok(None)),
+            Some(p) => p.next().await,
+            None => Ok(None),
         }
     }
 }
 
-/// Impl ListExt for all T: List
-impl<T: List> ListExt for T {}
+pub trait ListDyn: Unpin + Send + Sync {
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<Entry>>>;
+}
 
-/// Extension of [`List`] to make it easier for use.
-pub trait ListExt: List {
-    /// Build a future for `poll_next`.
-    fn next(&mut self) -> NextFuture<Self> {
-        NextFuture { lister: self }
+impl<T: List + ?Sized> ListDyn for T {
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<Entry>>> {
+        Box::pin(self.next())
     }
 }
 
-pub struct NextFuture<'a, L: List + Unpin + ?Sized> {
-    lister: &'a mut L,
-}
-
-impl<L> Future for NextFuture<'_, L>
-where
-    L: List + Unpin + ?Sized,
-{
-    type Output = Result<Option<Entry>>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Option<Entry>>> {
-        self.lister.poll_next(cx)
+impl<T: ListDyn + ?Sized> List for Box<T> {
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        self.deref_mut().next_dyn().await
     }
 }
 
 /// BlockingList is the blocking version of [`List`].
-pub trait BlockingList: Send + 'static {
+pub trait BlockingList: Send {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call

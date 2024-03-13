@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use super::core::GithubCore;
 use crate::raw::oio::Entry;
 use crate::raw::*;
@@ -39,7 +37,6 @@ impl GithubLister {
     }
 }
 
-#[async_trait]
 impl oio::PageList for GithubLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let entries = self.core.list(&self.path).await?;

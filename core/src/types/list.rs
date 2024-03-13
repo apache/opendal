@@ -26,7 +26,6 @@ use flagset::FlagSet;
 use futures::Stream;
 use futures::StreamExt;
 
-use crate::raw::oio::List;
 use crate::raw::*;
 use crate::*;
 

@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -102,9 +101,7 @@ impl oio::PageList for SeafileLister {
                 ctx.done = true;
                 Ok(())
             }
-            _ => {
-                return Err(parse_error(resp).await?);
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 }

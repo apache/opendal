@@ -18,14 +18,10 @@
 use std::collections::VecDeque;
 use std::future::Future;
 
-
-
-
-
-
 use crate::raw::*;
 use crate::*;
 
+/// PageList is the trait for lister that can fetch entries in pages.
 pub trait PageList: Send + Sync + Unpin + 'static {
     /// next_page is used to fetch next page of entries from underlying storage.
     fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>> + Send;

@@ -155,6 +155,15 @@ impl Stream for Lister {
 
         // Trying to pull more tasks if there are more space.
         if self.tasks.has_remaining() {
+            // Building future is we have a lister available.
+            if let Some(mut lister) = self.lister.take() {
+                let fut = async move {
+                    let res = lister.next_dyn().await;
+                    (lister, res)
+                };
+                self.fut = Some(Box::pin(fut));
+            }
+
             if let Some(fut) = self.fut.as_mut() {
                 if let Poll::Ready((lister, entry)) = fut.as_mut().poll(cx) {
                     self.lister = Some(lister);
@@ -184,12 +193,6 @@ impl Stream for Lister {
                         }
                     }
                 }
-            } else if let Some(mut lister) = self.lister.take() {
-                let fut = async move {
-                    let res = lister.next_dyn().await;
-                    (lister, res)
-                };
-                self.fut = Some(Box::pin(fut));
             }
         }
 
@@ -199,7 +202,7 @@ impl Stream for Lister {
             return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        if self.lister.is_some() {
+        if self.lister.is_some() || self.fut.is_some() {
             Poll::Pending
         } else {
             Poll::Ready(None)

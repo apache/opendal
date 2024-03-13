@@ -156,31 +156,32 @@ impl Stream for Lister {
         // Trying to pull more tasks if there are more space.
         if self.tasks.has_remaining() {
             if let Some(fut) = self.fut.as_mut() {
-                let (lister, entry) = ready!(fut.as_mut().poll(cx));
-                self.lister = Some(lister);
-                self.fut = None;
+                if let Poll::Ready((lister, entry)) = fut.as_mut().poll(cx) {
+                    self.lister = Some(lister);
+                    self.fut = None;
 
-                match entry {
-                    Ok(Some(oe)) => {
-                        let (path, metadata) = oe.into_entry().into_parts();
-                        if metadata.contains_metakey(self.required_metakey) {
-                            self.tasks
-                                .push_back(StatTask::Known(Some((path, metadata))));
-                        } else {
-                            let acc = self.acc.clone();
-                            let fut = async move {
-                                let res = acc.stat(&path, OpStat::default()).await;
-                                (path, res.map(|rp| rp.into_metadata()))
-                            };
-                            self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
+                    match entry {
+                        Ok(Some(oe)) => {
+                            let (path, metadata) = oe.into_entry().into_parts();
+                            if metadata.contains_metakey(self.required_metakey) {
+                                self.tasks
+                                    .push_back(StatTask::Known(Some((path, metadata))));
+                            } else {
+                                let acc = self.acc.clone();
+                                let fut = async move {
+                                    let res = acc.stat(&path, OpStat::default()).await;
+                                    (path, res.map(|rp| rp.into_metadata()))
+                                };
+                                self.tasks.push_back(StatTask::Stating(Box::pin(fut)));
+                            }
                         }
-                    }
-                    Ok(None) => {
-                        self.lister = None;
-                    }
-                    Err(err) => {
-                        self.errored = true;
-                        return Poll::Ready(Some(Err(err)));
+                        Ok(None) => {
+                            self.lister = None;
+                        }
+                        Err(err) => {
+                            self.errored = true;
+                            return Poll::Ready(Some(Err(err)));
+                        }
                     }
                 }
             } else if let Some(mut lister) = self.lister.take() {

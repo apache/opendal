@@ -26,17 +26,30 @@ use async_trait::async_trait;
 use crate::raw::adapters::typed_kv;
 use crate::*;
 
+use serde::Deserialize;
+
+use self::raw::ConfigDeserializer;
+
+///Config for memory.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct MemoryConfig {
+    ///root of the backend.
+    pub root: Option<String>,
+}
+
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MemoryBuilder {
-    root: Option<String>,
+    config: MemoryConfig,
 }
 
 impl MemoryBuilder {
     /// Set the root for BTreeMap.
     pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+        self.config.root = Some(path.into());
         self
     }
 }
@@ -46,11 +59,10 @@ impl Builder for MemoryBuilder {
     type Accessor = MemoryBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("root").map(|v| builder.root(v));
-
-        builder
+        MemoryBuilder {
+            config: MemoryConfig::deserialize(ConfigDeserializer::new(map))
+                .expect("config deserialize must succeed"),
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -58,7 +70,7 @@ impl Builder for MemoryBuilder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(MemoryBackend::new(adapter).with_root(self.root.as_deref().unwrap_or_default()))
+        Ok(MemoryBackend::new(adapter).with_root(self.config.root.as_deref().unwrap_or_default()))
     }
 }
 

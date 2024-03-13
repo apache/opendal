@@ -135,15 +135,9 @@ pub use memcached::MemcachedConfig;
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]
-<<<<<<< Updated upstream
-pub use self::memory::MemoryConfig;
-#[cfg(feature= "services-memory")]
-pub use self::memory::Memory;
-=======
 pub use self::memory::Memory;
 #[cfg(feature = "services-memory")]
 pub use self::memory::MemoryConfig;
->>>>>>> Stashed changes
 
 #[cfg(feature = "services-mini-moka")]
 mod mini_moka;

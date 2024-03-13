@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
+
 use std::str;
 use std::str::FromStr;
-use std::task::Context;
-use std::task::Poll;
+
+
 use std::vec::IntoIter;
 
 use suppaftp::list::File;

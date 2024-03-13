@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use super::core::GithubCore;
 use crate::raw::oio::Entry;
 use crate::raw::*;

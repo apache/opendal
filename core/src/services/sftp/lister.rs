@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::pin::Pin;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
-use async_trait::async_trait;
+use std::pin::Pin;
+
+
+
+
+
 use futures::StreamExt;
 use openssh_sftp_client::fs::DirEntry;
 use openssh_sftp_client::fs::ReadDir;

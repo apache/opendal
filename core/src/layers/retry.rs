@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
+
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -1013,8 +1013,8 @@ mod tests {
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::task::Context;
-    use std::task::Poll;
+    
+    
 
     use async_trait::async_trait;
     use bytes::Bytes;

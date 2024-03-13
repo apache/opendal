@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
+
 use std::io;
 use std::task::Context;
 use std::task::Poll;

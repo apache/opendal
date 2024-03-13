@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+
 use bytes::Buf;
 
 use super::core::parse_file_info;

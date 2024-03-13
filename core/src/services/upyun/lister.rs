@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+
 
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;

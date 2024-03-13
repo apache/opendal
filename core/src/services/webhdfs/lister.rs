@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::backend::WebhdfsBackend;

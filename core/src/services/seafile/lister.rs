@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+
 use http::header;
 use http::Request;
 use http::StatusCode;

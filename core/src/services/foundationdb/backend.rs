@@ -25,7 +25,7 @@ use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
 
 use crate::raw::adapters::kv;
-use crate::raw::normalize_root;
+use crate::raw::*;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -84,8 +84,6 @@ impl Builder for FoundationdbBuilder {
     fn from_map(map: HashMap<String, String>) -> Self {
         let config = FoundationConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
-
-        self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

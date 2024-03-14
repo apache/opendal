@@ -53,6 +53,6 @@ fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime", "unprivileged"] }
 nix = { version = "0.27.1", features = ["user"] }
 
 [features]
-default = ["fs-backend", "s3-backend"]
-fs-backend = ["opendal/services-fs"]
-s3-backend = ["opendal/services-s3"]
+default = ["services-fs", "services-s3"]
+services-fs = ["opendal/services-fs"]
+services-s3 = ["opendal/services-s3"]

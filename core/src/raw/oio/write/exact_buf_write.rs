@@ -16,6 +16,7 @@
 // under the License.
 
 use bytes::Bytes;
+use std::cmp::min;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -57,19 +58,19 @@ impl<W: oio::Write> ExactBufWriter<W> {
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         if self.buffer.len() >= self.buffer_size {
-            let bs = self.buffer.bytes(self.buffer.len());
+            let bs = self.buffer.bytes(self.buffer.remaining());
             let written = ready!(self.inner.poll_write(cx, bs)?);
             self.buffer.advance(written);
         }
 
-        let remaining = self.buffer_size - self.buffer.len();
+        let remaining = min(self.buffer_size - self.buffer.len(), bs.len());
         self.buffer.push(bs.slice(0..remaining));
         Poll::Ready(Ok(remaining))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         while !self.buffer.is_empty() {
-            let bs = self.buffer.bytes(self.buffer.len());
+            let bs = self.buffer.bytes(self.buffer.remaining());
             let n = ready!(self.inner.poll_write(cx, bs))?;
             self.buffer.advance(n);
         }

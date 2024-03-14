@@ -94,7 +94,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
 /// WritePartResult is the result returned by [`WriteRangeFuture`].
 ///
 /// The error part will carries input `(offset, bytes, err)` so caller can retry them.
-type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
+type WriteRangeResult = std::result::Result<(), (u64, Bytes, Error)>;
 
 struct WriteRangeFuture(BoxedStaticFuture<WriteRangeResult>);
 
@@ -116,18 +116,13 @@ impl Future for WriteRangeFuture {
 }
 
 impl WriteRangeFuture {
-    pub fn new<W: RangeWrite>(
-        w: Arc<W>,
-        location: Arc<String>,
-        offset: u64,
-        bytes: oio::ChunkedBytes,
-    ) -> Self {
+    pub fn new<W: RangeWrite>(w: Arc<W>, location: Arc<String>, offset: u64, bytes: Bytes) -> Self {
         let fut = async move {
             w.write_range(
                 &location,
                 offset,
                 bytes.len() as u64,
-                AsyncBody::ChunkedBytes(bytes.clone()),
+                AsyncBody::Bytes(bytes.clone()),
             )
             .await
             .map_err(|err| (offset, bytes, err))
@@ -141,8 +136,7 @@ impl WriteRangeFuture {
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<Arc<String>>,
     next_offset: u64,
-    /// TODO: Use Bytes directly.
-    buffer: Option<oio::ChunkedBytes>,
+    buffer: Option<Bytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
 
     w: Arc<W>,
@@ -163,7 +157,6 @@ impl<W: RangeWrite> RangeWriter<W> {
 
     fn fill_cache(&mut self, bs: Bytes) -> usize {
         let size = bs.len();
-        let bs = oio::ChunkedBytes::from_vec(vec![bs]);
         assert!(self.buffer.is_none());
         self.buffer = Some(bs);
         size
@@ -219,7 +212,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
     async fn close(&mut self) -> Result<()> {
         let Some(location) = self.location.clone() else {
             let (size, body) = match self.buffer.clone() {
-                Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
+                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
                 None => (0, AsyncBody::Empty),
             };
             // Call write_once if there is no data in buffer and no location.
@@ -247,7 +240,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     &location,
                     offset,
                     buffer.len() as u64,
-                    AsyncBody::ChunkedBytes(buffer),
+                    AsyncBody::Bytes(buffer),
                 )
                 .await?;
             self.buffer = None;

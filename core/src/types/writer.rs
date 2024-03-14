@@ -92,7 +92,7 @@ impl Writer {
     /// Write into inner writer.
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
-        while bs.len() > 0 {
+        while !bs.is_empty() {
             let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
@@ -138,7 +138,7 @@ impl Writer {
         let mut written = 0;
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
-            while bs.len() > 0 {
+            while !bs.is_empty() {
                 let n = self.inner.write(bs.clone()).await?;
                 bs.advance(n);
                 written += n as u64;
@@ -277,7 +277,7 @@ impl BlockingWriter {
     /// Write into inner writer.
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
-        while bs.len() > 0 {
+        while !bs.is_empty() {
             let n = self.inner.write(bs.clone())?;
             bs.advance(n);
         }

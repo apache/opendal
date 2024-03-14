@@ -653,7 +653,7 @@ impl BlockingOperator {
                 }
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
-                while bs.len() > 0 {
+                while !bs.is_empty() {
                     let n = w.write(bs.clone())?;
                     bs.advance(n);
                 }

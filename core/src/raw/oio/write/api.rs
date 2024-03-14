@@ -136,7 +136,7 @@ impl<T: Write> WriteExt for T {}
 /// Extension of [`Read`] to make it easier for use.
 pub trait WriteExt: Write {
     /// Build a future for `poll_write`.
-    fn write<'a>(&'a mut self, buf: Bytes) -> WriteFuture<'a, Self> {
+    fn write(&mut self, buf: Bytes) -> WriteFuture<'_, Self> {
         WriteFuture { writer: self, buf }
     }
 

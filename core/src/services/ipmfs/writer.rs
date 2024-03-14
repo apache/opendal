@@ -37,7 +37,6 @@ impl IpmfsWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;

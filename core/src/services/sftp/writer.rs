@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -23,12 +24,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
-use tokio::io::AsyncWrite;
+use tokio::io::AsyncWriteExt;
 
-use crate::raw::oio;
+use crate::raw::{format_std_io_error, new_std_io_error, oio};
 use crate::*;
 
 pub struct SftpWriter {
+    /// TODO: maybe we can use `File` directly?
     file: Pin<Box<TokioCompatFile>>,
 }
 
@@ -40,30 +42,19 @@ impl SftpWriter {
     }
 }
 
-#[async_trait]
 impl oio::Write for SftpWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        self.file
-            .as_mut()
-            .poll_write(cx, &bs)
-            .map_err(new_std_io_error)
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        self.file.write(&bs).await.map_err(new_std_io_error)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.file
-            .as_mut()
-            .poll_shutdown(cx)
-            .map_err(new_std_io_error)
+    async fn close(&mut self) -> Result<()> {
+        self.file.shutdown().await.map_err(new_std_io_error)
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "SftpWriter doesn't support abort",
-        )))
+        ))
     }
-}
-
-fn new_std_io_error(err: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "read from sftp").set_source(err)
 }

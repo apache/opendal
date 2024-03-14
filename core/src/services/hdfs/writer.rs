@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -37,7 +38,6 @@ pub struct HdfsWriter<F> {
     tmp_path: Option<String>,
     f: Option<F>,
     client: Arc<hdrs::Client>,
-    fut: Option<BoxFuture<'static, (F, Result<()>)>>,
 }
 
 /// # Safety
@@ -57,62 +57,36 @@ impl<F> HdfsWriter<F> {
             tmp_path,
             f: Some(f),
             client,
-            fut: None,
         }
     }
 }
 
-#[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
-        Pin::new(f).poll_write(cx, &bs).map_err(new_std_io_error)
+        f.write(&bs).await.map_err(new_std_io_error)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            if let Some(fut) = self.fut.as_mut() {
-                let res = ready!(fut.poll_unpin(cx));
-                self.fut = None;
-                if let Err(e) = res.1 {
-                    self.f = Some(res.0);
-                    return Poll::Ready(Err(e));
-                }
-                return Poll::Ready(Ok(()));
-            }
+    async fn close(&mut self) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.close().await.map_err(new_std_io_error)?;
 
-            let mut f = self.f.take().expect("HdfsWriter must be initialized");
-            let tmp_path = self.tmp_path.clone();
-            let target_path = self.target_path.clone();
-            // Clone client to allow move into the future.
-            let client = self.client.clone();
-
-            self.fut = Some(Box::pin(async move {
-                if let Err(e) = f.close().await.map_err(new_std_io_error) {
-                    // Reserve the original file handle for retry.
-                    return (f, Err(e));
-                }
-
-                if let Some(tmp_path) = tmp_path {
-                    if let Err(e) = client
-                        .rename_file(&tmp_path, &target_path)
-                        .map_err(new_std_io_error)
-                    {
-                        return (f, Err(e));
-                    }
-                }
-
-                (f, Ok(()))
-            }));
+        // TODO: we need to make rename async.
+        if let Some(tmp_path) = &self.tmp_path {
+            self.client
+                .rename_file(&tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?
         }
+
+        Ok(())
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "HdfsWriter doesn't support abort",
-        )))
+        ))
     }
 }
 

@@ -48,7 +48,6 @@ impl FtpWriter {
 /// We will only take `&mut Self` reference for FtpWriter.
 unsafe impl Sync for FtpWriter {}
 
-#[async_trait]
 impl oio::OneShotWrite for FtpWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;

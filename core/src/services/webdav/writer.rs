@@ -40,7 +40,6 @@ impl WebdavWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for WebdavWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
 
@@ -27,16 +28,16 @@ use rand::RngCore;
 pub struct BlackHoleWriter;
 
 impl oio::Write for BlackHoleWriter {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<opendal::Result<usize>> {
-        Poll::Ready(Ok(bs.len()))
+    async fn write(&mut self, bs: Bytes) -> opendal::Result<usize> {
+        Ok(bs.len())
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
-        Poll::Ready(Ok(()))
+    async fn abort(&mut self) -> opendal::Result<()> {
+        Ok(())
     }
 
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
-        Poll::Ready(Ok(()))
+    async fn close(&mut self) -> opendal::Result<()> {
+        Ok(())
     }
 }
 

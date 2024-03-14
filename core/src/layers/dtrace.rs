@@ -18,6 +18,7 @@
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::io;
 use std::task::Context;
 use std::task::Poll;
@@ -408,12 +409,13 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
-            .poll_write(cx, bs)
-            .map_ok(|n| {
+            .write(bs)
+            .await
+            .map(|n| {
                 probe_lazy!(opendal, writer_write_ok, c_path.as_ptr(), n);
                 n
             })
@@ -423,12 +425,13 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             })
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn abort(&mut self) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_poll_abort_start, c_path.as_ptr());
         self.inner
-            .poll_abort(cx)
-            .map_ok(|_| {
+            .abort()
+            .await
+            .map(|_| {
                 probe_lazy!(opendal, writer_poll_abort_ok, c_path.as_ptr());
             })
             .map_err(|err| {
@@ -437,12 +440,13 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             })
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_close_start, c_path.as_ptr());
         self.inner
-            .poll_close(cx)
-            .map_ok(|_| {
+            .close()
+            .await
+            .map(|_| {
                 probe_lazy!(opendal, writer_close_ok, c_path.as_ptr());
             })
             .map_err(|err| {

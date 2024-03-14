@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::Future;
 
 use std::io::SeekFrom;
 use std::sync::Arc;
@@ -278,16 +279,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        self.inner.poll_write(cx, bs)
+    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+        self.inner.write(bs)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx)
+    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.close()
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx)
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.abort()
     }
 }
 

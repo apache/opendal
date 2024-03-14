@@ -40,7 +40,6 @@ impl YandexDiskWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for YandexDiskWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;

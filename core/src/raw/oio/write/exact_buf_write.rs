@@ -17,6 +17,7 @@
 
 use bytes::Bytes;
 use std::cmp::min;
+use std::future::Future;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -56,31 +57,31 @@ impl<W: oio::Write> ExactBufWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
             let bs = self.buffer.bytes(self.buffer.remaining());
-            let written = ready!(self.inner.poll_write(cx, bs)?);
+            let written = self.inner.write(bs).await?;
             self.buffer.advance(written);
         }
 
         let remaining = min(self.buffer_size - self.buffer.len(), bs.len());
         self.buffer.push(bs.slice(0..remaining));
-        Poll::Ready(Ok(remaining))
+        Ok(remaining)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         while !self.buffer.is_empty() {
             let bs = self.buffer.bytes(self.buffer.remaining());
-            let n = ready!(self.inner.poll_write(cx, bs))?;
+            let n = self.inner.write(bs).await?;
             self.buffer.advance(n);
         }
 
-        self.inner.poll_close(cx)
+        self.inner.close().await
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
-        self.inner.poll_abort(cx)
+        self.inner.abort().await
     }
 }
 
@@ -97,26 +98,25 @@ mod tests {
 
     use super::*;
     use crate::raw::oio::Write;
-    use crate::raw::oio::WriteExt;
 
     struct MockWriter {
         buf: Vec<u8>,
     }
 
     impl Write for MockWriter {
-        fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+        async fn write(&mut self, bs: Bytes) -> Result<usize> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
             self.buf.extend_from_slice(&bs);
-            Poll::Ready(Ok(bs.len()))
+            Ok(bs.len())
         }
 
-        fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-            Poll::Ready(Ok(()))
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
         }
 
-        fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-            Poll::Ready(Ok(()))
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 

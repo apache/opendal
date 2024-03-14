@@ -39,7 +39,6 @@ impl GithubWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for GithubWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self.core.upload(&self.path, bs).await?;

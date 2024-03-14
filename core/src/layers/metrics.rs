@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::io;
 use std::sync::Arc;
 use std::task::Context;
@@ -820,9 +821,9 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
         self.inner
-            .poll_write(cx, bs)
+            .write(bs)
             .map_ok(|n| {
                 self.bytes += n as u64;
                 n
@@ -833,15 +834,15 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx).map_err(|err| {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.abort().map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx).map_err(|err| {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.close().map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })

@@ -42,7 +42,6 @@ impl AzdlsWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req =
@@ -89,7 +88,6 @@ impl oio::OneShotWrite for AzdlsWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azdls_get_properties(&self.path).await?;

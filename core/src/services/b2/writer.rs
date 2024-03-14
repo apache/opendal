@@ -46,7 +46,6 @@ impl B2Writer {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for B2Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self

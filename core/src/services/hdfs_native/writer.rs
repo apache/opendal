@@ -16,6 +16,7 @@
 // under the License.
 
 use bytes::Bytes;
+use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
 
@@ -36,18 +37,18 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    fn poll_write(&mut self, _: &mut Context<'_>, _: Bytes) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         todo!()
     }
 
-    fn poll_close(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         todo!()
     }
 
-    fn poll_abort(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "HdfsNativeWriter doesn't support abort",
-        )))
+        ))
     }
 }

@@ -40,7 +40,6 @@ impl UpyunWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for UpyunWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let req = self

@@ -291,7 +291,7 @@ pub struct MadsimWriter {
 }
 
 impl oio::Write for MadsimWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<crate::Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> crate::Result<usize> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);
@@ -307,15 +307,15 @@ impl oio::Write for MadsimWriter {
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
-        Poll::Ready(Err(Error::new(
+    async fn abort(&mut self) -> crate::Result<()> {
+        Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
-        )))
+        ))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
-        Poll::Ready(Ok(()))
+    async fn close(&mut self) -> crate::Result<()> {
+        Ok(())
     }
 }
 

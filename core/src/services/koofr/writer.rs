@@ -39,7 +39,6 @@ impl KoofrWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for KoofrWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;

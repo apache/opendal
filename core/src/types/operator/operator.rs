@@ -27,7 +27,6 @@ use futures::TryStreamExt;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 
@@ -1258,7 +1257,7 @@ impl Operator {
             self.inner().clone(),
             path,
             (OpWrite::default(), bs),
-            |inner, path, (args, mut bs)| async move {
+            |inner, path, (args, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -1268,12 +1267,9 @@ impl Operator {
                     );
                 }
 
-                let (_, mut w) = inner.write(&path, args).await?;
-                while !bs.is_empty() {
-                    let n = w.write(bs.clone()).await?;
-                    bs.advance(n);
-                }
-
+                let (_, w) = inner.write(&path, args).await?;
+                let mut w = Writer::new(w);
+                w.write(bs.clone()).await?;
                 w.close().await?;
 
                 Ok(())

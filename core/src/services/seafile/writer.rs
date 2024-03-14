@@ -46,7 +46,6 @@ impl SeafileWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for SeafileWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let upload_url = self.core.get_upload_url().await?;

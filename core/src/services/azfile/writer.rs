@@ -40,7 +40,6 @@ impl AzfileWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for AzfileWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
@@ -77,7 +76,6 @@ impl oio::OneShotWrite for AzfileWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azfile_get_file_properties(&self.path).await?;

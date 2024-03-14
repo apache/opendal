@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::io;
 use std::task::Context;
 use std::task::Poll;
@@ -298,16 +299,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        self.inner.poll_write(cx, bs)
+    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+        self.inner.write(bs)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx)
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.abort()
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx)
+    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.close()
     }
 }
 

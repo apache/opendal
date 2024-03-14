@@ -45,7 +45,6 @@ impl ObsWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for ObsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self
@@ -168,7 +167,6 @@ impl oio::MultipartWrite for ObsWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for ObsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self

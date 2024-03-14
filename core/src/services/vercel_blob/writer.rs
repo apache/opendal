@@ -42,7 +42,6 @@ impl VercelBlobWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for VercelBlobWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let req = self

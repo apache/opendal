@@ -274,16 +274,11 @@ pub struct TimeoutWrapper<R> {
     inner: R,
 
     timeout: Duration,
-    sleep: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl<R> TimeoutWrapper<R> {
     fn new(inner: R, timeout: Duration) -> Self {
-        Self {
-            inner,
-            timeout,
-            sleep: None,
-        }
+        Self { inner, timeout }
     }
 
     #[inline]
@@ -298,26 +293,6 @@ impl<R> TimeoutWrapper<R> {
                 .with_context("timeout", timeout.as_secs_f64().to_string())
                 .set_temporary()
         })?
-    }
-
-    #[inline]
-    fn poll_timeout(&mut self, cx: &mut Context<'_>, op: &'static str) -> Result<()> {
-        let sleep = self
-            .sleep
-            .get_or_insert_with(|| Box::pin(tokio::time::sleep(self.timeout)));
-
-        match sleep.as_mut().poll(cx) {
-            Poll::Pending => Ok(()),
-            Poll::Ready(_) => {
-                self.sleep = None;
-                Err(
-                    Error::new(ErrorKind::Unexpected, "io operation timeout reached")
-                        .with_operation(op)
-                        .with_context("io_timeout", self.timeout.as_secs_f64().to_string())
-                        .set_temporary(),
-                )
-            }
-        }
     }
 }
 
@@ -334,28 +309,19 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        self.poll_timeout(cx, WriteOperation::Write.into_static())?;
-
-        let v = ready!(self.inner.poll_write(cx, bs));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let fut = self.inner.write(bs);
+        Self::io_timeout(self.timeout, WriteOperation::Write.into_static(), fut).await
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_timeout(cx, WriteOperation::Close.into_static())?;
-
-        let v = ready!(self.inner.poll_close(cx));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn close(&mut self) -> Result<()> {
+        let fut = self.inner.close();
+        Self::io_timeout(self.timeout, WriteOperation::Close.into_static(), fut).await
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_timeout(cx, WriteOperation::Abort.into_static())?;
-
-        let v = ready!(self.inner.poll_abort(cx));
-        self.sleep = None;
-        Poll::Ready(v)
+    async fn abort(&mut self) -> Result<()> {
+        let fut = self.inner.abort();
+        Self::io_timeout(self.timeout, WriteOperation::Abort.into_static(), fut).await
     }
 }
 

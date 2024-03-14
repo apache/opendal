@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -39,7 +38,6 @@ impl KoofrWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for KoofrWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;

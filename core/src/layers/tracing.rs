@@ -16,10 +16,9 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::Future;
 
 use std::io;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -309,24 +308,24 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        self.inner.poll_write(cx, bs)
+    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+        self.inner.write(bs)
     }
 
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx)
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.abort()
     }
 
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx)
+    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+        self.inner.close()
     }
 }
 

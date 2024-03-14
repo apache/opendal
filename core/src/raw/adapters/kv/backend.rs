@@ -16,16 +16,12 @@
 // under the License.
 
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
+
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use bytes::BytesMut;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 
 use super::Adapter;
 use crate::raw::oio::HierarchyLister;
@@ -265,7 +261,6 @@ pub struct KvWriter<S> {
     path: String,
 
     buffer: Buffer,
-    future: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<S> KvWriter<S> {
@@ -274,7 +269,6 @@ impl<S> KvWriter<S> {
             kv,
             path,
             buffer: Buffer::Active(BytesMut::new()),
-            future: None,
         }
     }
 }
@@ -290,62 +284,32 @@ enum Buffer {
 unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        if self.future.is_some() {
-            self.future = None;
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "there is a future on going, it's maybe a bug to go into this case",
-            )));
-        }
-
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         match &mut self.buffer {
             Buffer::Active(buf) => {
                 buf.extend_from_slice(&bs);
-                Poll::Ready(Ok(bs.len()))
+                Ok(bs.len())
             }
             Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match self.future.as_mut() {
-                Some(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
-                    self.future = None;
-                    return Poll::Ready(res);
-                }
-                None => {
-                    let kv = self.kv.clone();
-                    let path = self.path.clone();
-                    let buf = match &mut self.buffer {
-                        Buffer::Active(buf) => {
-                            let buf = buf.split().freeze();
-                            self.buffer = Buffer::Frozen(buf.clone());
-                            buf
-                        }
-                        Buffer::Frozen(buf) => buf.clone(),
-                    };
-
-                    let fut = async move { kv.set(&path, &buf).await };
-                    self.future = Some(Box::pin(fut));
-                }
+    async fn close(&mut self) -> Result<()> {
+        let buf = match &mut self.buffer {
+            Buffer::Active(buf) => {
+                let buf = buf.split().freeze();
+                self.buffer = Buffer::Frozen(buf.clone());
+                buf
             }
-        }
+            Buffer::Frozen(buf) => buf.clone(),
+        };
+
+        self.kv.set(&self.path, &buf).await
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        if self.future.is_some() {
-            self.future = None;
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "there is a future on going, it's maybe a bug to go into this case",
-            )));
-        }
-
+    async fn abort(&mut self) -> Result<()> {
         self.buffer = Buffer::Active(BytesMut::new());
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 }
 

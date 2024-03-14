@@ -18,7 +18,7 @@
 use async_trait::async_trait;
 use bytes;
 use bytes::Bytes;
-use futures::future::poll_fn;
+
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -299,13 +299,11 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Bytes) -> Result<usize> {
-        self.handle
-            .block_on(poll_fn(|cx| self.inner.poll_write(cx, bs.clone())))
+        self.handle.block_on(self.inner.write(bs))
     }
 
     fn close(&mut self) -> Result<()> {
-        self.handle
-            .block_on(poll_fn(|cx| self.inner.poll_close(cx)))
+        self.handle.block_on(self.inner.close())
     }
 }
 

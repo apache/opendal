@@ -18,8 +18,7 @@
 use std::io::SeekFrom;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
+
 use std::thread;
 
 use async_trait::async_trait;
@@ -207,13 +206,13 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
             match self.limiter.check_n(buf_length) {
                 Ok(res) => match res {
-                    Ok(_) => return self.inner.poll_write(cx, bs),
+                    Ok(_) => return self.inner.write(bs).await,
                     // the query is valid but the Decider can not accommodate them.
                     Err(not_until) => {
                         let _ = not_until.wait_time_from(DefaultClock::default().now());
@@ -224,20 +223,20 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                     }
                 },
                 // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                Err(_) => return Poll::Ready(Err(Error::new(
+                Err(_) => return Err(Error::new(
                     ErrorKind::RateLimited,
                     "InsufficientCapacity due to burst size being smaller than the request size",
-                ))),
+                )),
             }
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx)
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx)
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }
 

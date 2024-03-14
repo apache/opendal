@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -38,7 +37,6 @@ impl SwiftWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for SwiftWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self

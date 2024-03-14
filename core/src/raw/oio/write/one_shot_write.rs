@@ -20,6 +20,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -36,13 +37,13 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()>;
+    async fn write_once(&self, bs: Bytes) -> Result<()>;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
 pub struct OneShotWriter<W: OneShotWrite> {
     state: State<W>,
-    buffer: Option<oio::ChunkedBytes>,
+    buffer: Option<Bytes>,
 }
 
 enum State<W> {
@@ -71,7 +72,7 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 }
 
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         match &mut self.state {
             State::Idle(_) => match &self.buffer {
                 Some(_) => Poll::Ready(Err(Error::new(
@@ -79,9 +80,8 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
                     "OneShotWriter doesn't support multiple write",
                 ))),
                 None => {
-                    let size = bs.remaining();
-                    let bs = bs.vectored_bytes(size);
-                    self.buffer = Some(oio::ChunkedBytes::from_vec(bs));
+                    let size = bs.len();
+                    self.buffer = Some(bs);
                     Poll::Ready(Ok(size))
                 }
             },
@@ -100,7 +100,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
                     match self.buffer.clone() {
                         Some(bs) => {
                             let fut = Box::pin(async move {
-                                let res = w.write_once(&bs).await;
+                                let res = w.write_once(bs).await;
 
                                 (w, res)
                             });
@@ -108,7 +108,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
                         }
                         None => {
                             let fut = Box::pin(async move {
-                                let res = w.write_once(&"".as_bytes()).await;
+                                let res = w.write_once(Bytes::new()).await;
 
                                 (w, res)
                             });

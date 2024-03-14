@@ -23,6 +23,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
@@ -63,12 +64,10 @@ impl<F> HdfsWriter<F> {
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
-        Pin::new(f)
-            .poll_write(cx, bs.chunk())
-            .map_err(new_std_io_error)
+        Pin::new(f).poll_write(cx, &bs).map_err(new_std_io_error)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -118,9 +117,9 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        f.write(bs.chunk()).map_err(new_std_io_error)
+        f.write(&bs).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

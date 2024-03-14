@@ -312,7 +312,7 @@ impl<S> KvWriter<S> {
 }
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         if self.future.is_some() {
             self.future = None;
             return Poll::Ready(Err(Error::new(
@@ -321,10 +321,10 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
             )));
         }
 
-        let size = bs.chunk().len();
+        let size = bs.len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
+        buf.extend_from_slice(&bs);
 
         self.buf = Some(buf);
 
@@ -373,11 +373,11 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.chunk().len();
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let size = bs.len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
+        buf.extend_from_slice(&bs);
 
         self.buf = Some(buf);
 

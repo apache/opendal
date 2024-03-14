@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
@@ -49,10 +50,7 @@ unsafe impl Sync for FtpWriter {}
 
 #[async_trait]
 impl oio::OneShotWrite for FtpWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let size = bs.remaining();
-        let bs = bs.bytes(size);
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
         let mut data_stream = ftp_stream
             .append_with_stream(&self.path)

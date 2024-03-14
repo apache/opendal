@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::{Bytes, BytesMut};
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -54,20 +55,22 @@ impl<W: oio::Write> ExactBufWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         if self.buffer.len() >= self.buffer_size {
-            let written = ready!(self.inner.poll_write(cx, &self.buffer)?);
+            let bs = self.buffer.bytes(self.buffer.len());
+            let written = ready!(self.inner.poll_write(cx, bs)?);
             self.buffer.advance(written);
         }
 
         let remaining = self.buffer_size - self.buffer.len();
-        let written = self.buffer.extend_from_write_buf(remaining, bs);
-        Poll::Ready(Ok(written))
+        self.buffer.push(bs.slice(0..remaining));
+        Poll::Ready(Ok(remaining))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         while !self.buffer.is_empty() {
-            let n = ready!(self.inner.poll_write(cx, &self.buffer))?;
+            let bs = self.buffer.bytes(self.buffer.len());
+            let n = ready!(self.inner.poll_write(cx, bs))?;
             self.buffer.advance(n);
         }
 
@@ -100,14 +103,11 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
-            debug!(
-                "test_fuzz_exact_buf_writer: flush size: {}",
-                bs.chunk().len()
-            );
+        fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+            debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
-            self.buf.extend_from_slice(bs.chunk());
-            Poll::Ready(Ok(bs.chunk().len()))
+            self.buf.extend_from_slice(&bs);
+            Poll::Ready(Ok(bs.len()))
         }
 
         fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
@@ -135,7 +135,7 @@ mod tests {
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
-            let n = w.write(&bs).await?;
+            let n = w.write(bs.clone()).await?;
             bs.advance(n);
         }
 
@@ -174,7 +174,7 @@ mod tests {
 
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
-                let n = writer.write(&bs).await?;
+                let n = writer.write(bs.clone()).await?;
                 bs.advance(n);
             }
         }

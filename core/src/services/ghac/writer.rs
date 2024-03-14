@@ -20,6 +20,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 
 use super::backend::GhacBackend;
@@ -57,7 +58,7 @@ unsafe impl Sync for State {}
 
 #[async_trait]
 impl oio::Write for GhacWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         loop {
             match &mut self.state {
                 State::Idle(backend) => {
@@ -65,8 +66,8 @@ impl oio::Write for GhacWriter {
 
                     let cache_id = self.cache_id;
                     let offset = self.size;
-                    let size = bs.remaining();
-                    let bs = bs.bytes(size);
+                    let size = bs.len();
+                    let bs = bs.clone();
 
                     let fut = async move {
                         let res = async {

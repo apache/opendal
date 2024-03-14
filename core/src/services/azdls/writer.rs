@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdlsCore;
@@ -43,7 +44,7 @@ impl AzdlsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for AzdlsWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req =
             self.core
                 .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
@@ -64,12 +65,11 @@ impl oio::OneShotWrite for AzdlsWriter {
             }
         }
 
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
         let mut req = self.core.azdls_update_request(
             &self.path,
             Some(bs.len() as u64),
             0,
-            AsyncBody::ChunkedBytes(bs),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;

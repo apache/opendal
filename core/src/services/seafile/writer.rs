@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -47,9 +48,7 @@ impl SeafileWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for SeafileWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let upload_url = self.core.get_upload_url().await?;
 
         let req = Request::post(upload_url);
@@ -68,7 +67,7 @@ impl oio::OneShotWrite for SeafileWriter {
                     .parse()
                     .unwrap(),
             )
-            .stream(bs.len() as u64, Box::new(bs));
+            .content(bs);
 
         let multipart = Multipart::new()
             .part(FormDataPart::new("parent_dir").content("/"))

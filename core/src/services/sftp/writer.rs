@@ -20,6 +20,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWrite;
@@ -41,10 +42,10 @@ impl SftpWriter {
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         self.file
             .as_mut()
-            .poll_write(cx, bs.chunk())
+            .poll_write(cx, &bs)
             .map_err(new_std_io_error)
     }
 

@@ -298,9 +298,9 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         self.handle
-            .block_on(poll_fn(|cx| self.inner.poll_write(cx, bs)))
+            .block_on(poll_fn(|cx| self.inner.poll_write(cx, bs.clone())))
     }
 
     fn close(&mut self) -> Result<()> {

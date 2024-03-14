@@ -389,12 +389,12 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
 
 #[async_trait::async_trait]
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        self.inner.poll_write(cx, bs).map_err(|err| {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+        self.inner.poll_write(cx, bs.clone()).map_err(|err| {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-                .with_context("write_buf", bs.remaining().to_string())
+                .with_context("write_buf", bs.len().to_string())
         })
     }
 
@@ -416,12 +416,12 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.inner.write(bs).map_err(|err| {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        self.inner.write(bs.clone()).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-                .with_context("write_buf", bs.remaining().to_string())
+                .with_context("write_buf", bs.len().to_string())
         })
     }
 

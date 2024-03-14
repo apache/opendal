@@ -92,8 +92,8 @@ impl Writer {
     /// Write into inner writer.
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
-        while bs.remaining() > 0 {
-            let n = self.inner.write(&bs).await?;
+        while bs.len() > 0 {
+            let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
 
@@ -138,8 +138,8 @@ impl Writer {
         let mut written = 0;
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
-            while bs.remaining() > 0 {
-                let n = self.inner.write(&bs).await?;
+            while bs.len() > 0 {
+                let n = self.inner.write(bs.clone()).await?;
                 bs.advance(n);
                 written += n as u64;
             }
@@ -216,7 +216,7 @@ impl AsyncWrite for Writer {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         self.inner
-            .poll_write(cx, &buf)
+            .poll_write(cx, Bytes::copy_from_slice(buf))
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
@@ -239,7 +239,7 @@ impl tokio::io::AsyncWrite for Writer {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         self.inner
-            .poll_write(cx, &buf)
+            .poll_write(cx, Bytes::copy_from_slice(buf))
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
@@ -277,8 +277,8 @@ impl BlockingWriter {
     /// Write into inner writer.
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
-        while bs.remaining() > 0 {
-            let n = self.inner.write(&bs)?;
+        while bs.len() > 0 {
+            let n = self.inner.write(bs.clone())?;
             bs.advance(n);
         }
 
@@ -294,7 +294,7 @@ impl BlockingWriter {
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner
-            .write(&buf)
+            .write(Bytes::copy_from_slice(buf))
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 

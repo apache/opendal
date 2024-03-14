@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -56,12 +57,10 @@ impl<F> FsWriter<F> {
 unsafe impl<F> Sync for FsWriter<F> {}
 
 impl oio::Write for FsWriter<tokio::fs::File> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        Pin::new(f)
-            .poll_write_vectored(cx, &bs.vectored_chunk())
-            .map_err(new_std_io_error)
+        Pin::new(f).poll_write(cx, &bs).map_err(new_std_io_error)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -117,11 +116,10 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        f.write_vectored(&bs.vectored_chunk())
-            .map_err(new_std_io_error)
+        f.write(&bs).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

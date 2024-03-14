@@ -290,7 +290,7 @@ enum Buffer {
 unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         if self.future.is_some() {
             self.future = None;
             return Poll::Ready(Err(Error::new(
@@ -301,8 +301,8 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
         match &mut self.buffer {
             Buffer::Active(buf) => {
-                buf.extend_from_slice(bs.chunk());
-                Poll::Ready(Ok(bs.chunk().len()))
+                buf.extend_from_slice(&bs);
+                Poll::Ready(Ok(bs.len()))
             }
             Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
         }
@@ -350,11 +350,11 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         match &mut self.buffer {
             Buffer::Active(buf) => {
-                buf.extend_from_slice(bs.chunk());
-                Ok(bs.chunk().len())
+                buf.extend_from_slice(&bs);
+                Ok(bs.len())
             }
             Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
         }

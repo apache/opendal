@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::GithubCore;
@@ -40,9 +41,7 @@ impl GithubWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for GithubWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let bs = bs.bytes(bs.remaining());
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self.core.upload(&self.path, bs).await?;
 
         let status = resp.status();

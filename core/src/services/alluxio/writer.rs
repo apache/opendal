@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 
 use super::core::AlluxioCore;
@@ -63,13 +64,12 @@ unsafe impl Sync for State {}
 
 #[async_trait]
 impl oio::Write for AlluxioWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         loop {
             match &mut self.state {
                 State::Idle(w) => match self.stream_id.as_ref() {
                     Some(stream_id) => {
-                        let size = bs.remaining();
-                        let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size)).clone();
+                        let cb = oio::ChunkedBytes::from_vec(vec![bs.clone()]);
 
                         let stream_id = *stream_id;
 

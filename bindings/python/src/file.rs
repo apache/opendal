@@ -90,7 +90,7 @@ impl File {
             }
         };
 
-        Buffer::new(buffer).into_memory_view_ref(py)
+        Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into the file.
@@ -256,7 +256,7 @@ impl AsyncFile {
                 }
             };
 
-            Python::with_gil(|py| Buffer::new(buffer).into_memory_view(py))
+            Python::with_gil(|py| Buffer::new(buffer).into_bytes(py))
         })
     }
 

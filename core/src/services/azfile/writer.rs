@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -64,7 +63,7 @@ impl oio::OneShotWrite for AzfileWriter {
             .azfile_update(&self.path, bs.len() as u64, 0, AsyncBody::Bytes(bs))
             .await?;
         let status = resp.status();
-        return match status {
+        match status {
             StatusCode::OK | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(())
@@ -72,7 +71,7 @@ impl oio::OneShotWrite for AzfileWriter {
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azfile_update")),
-        };
+        }
     }
 }
 

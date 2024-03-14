@@ -15,20 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::io::Write;
 
 use std::sync::Arc;
 
-
-
-
-
 use bytes::Bytes;
 
-
 use futures::AsyncWriteExt;
-
 
 use crate::raw::*;
 use crate::*;
@@ -75,7 +68,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
         // TODO: we need to make rename async.
         if let Some(tmp_path) = &self.tmp_path {
             self.client
-                .rename_file(&tmp_path, &self.target_path)
+                .rename_file(tmp_path, &self.target_path)
                 .map_err(new_std_io_error)?
         }
 

@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -44,7 +43,6 @@ impl SupabaseWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for SupabaseWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.supabase_upload_object_request(

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -43,7 +42,6 @@ impl OneDriveWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for OneDriveWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

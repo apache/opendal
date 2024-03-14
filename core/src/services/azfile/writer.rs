@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -40,7 +39,6 @@ impl AzfileWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for AzfileWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
@@ -65,7 +63,7 @@ impl oio::OneShotWrite for AzfileWriter {
             .azfile_update(&self.path, bs.len() as u64, 0, AsyncBody::Bytes(bs))
             .await?;
         let status = resp.status();
-        return match status {
+        match status {
             StatusCode::OK | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(())
@@ -73,11 +71,10 @@ impl oio::OneShotWrite for AzfileWriter {
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azfile_update")),
-        };
+        }
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azfile_get_file_properties(&self.path).await?;

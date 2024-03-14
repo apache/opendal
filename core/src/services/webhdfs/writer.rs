@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use http::StatusCode;
 use uuid::Uuid;
 
@@ -40,7 +39,6 @@ impl WebhdfsWriter {
     }
 }
 
-#[async_trait]
 impl oio::BlockWrite for WebhdfsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let req = self
@@ -153,7 +151,6 @@ impl oio::BlockWrite for WebhdfsWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for WebhdfsWriter {
     async fn offset(&self) -> Result<u64> {
         Ok(0)

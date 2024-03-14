@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -41,7 +40,6 @@ impl VercelArtifactsWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self

@@ -19,17 +19,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use std::io;
-use std::pin::Pin;
+
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
+
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backon::BackoffBuilder;
 use backon::BlockingRetryable;
-use backon::ExponentialBackoff;
+
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
@@ -653,8 +650,6 @@ pub struct RetryWrapper<R, I> {
 
     path: String,
     builder: ExponentialBuilder,
-    current_backoff: Option<ExponentialBackoff>,
-    sleep: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl<R, I> RetryWrapper<R, I> {
@@ -665,8 +660,6 @@ impl<R, I> RetryWrapper<R, I> {
 
             path: path.to_string(),
             builder: backoff,
-            current_backoff: None,
-            sleep: None,
         }
     }
 }
@@ -776,142 +769,100 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 }
 
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.as_mut().unwrap().poll_write(cx, bs.clone())) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", WriteOperation::Write.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_write(cx, bs.clone())
-                    }
-                }
+        let ((inner, _), res) = {
+            |(mut r, bs): (R, Bytes)| async move {
+                let res = r.write(bs.clone()).await;
+
+                ((r, bs), res)
             }
         }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context((inner, bs))
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", WriteOperation::Write.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn abort(&mut self) -> Result<()> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.as_mut().unwrap().poll_abort(cx)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", WriteOperation::Abort.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_abort(cx)
-                    }
-                }
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.abort().await;
+
+                (r, res)
             }
         }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", WriteOperation::Abort.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if let Some(sleep) = self.sleep.as_mut() {
-            ready!(sleep.poll_unpin(cx));
-            self.sleep = None;
-        }
+    async fn close(&mut self) -> Result<()> {
+        use backon::RetryableWithContext;
 
-        match ready!(self.inner.as_mut().unwrap().poll_close(cx)) {
-            Ok(v) => {
-                self.current_backoff = None;
-                Poll::Ready(Ok(v))
-            }
-            Err(err) if !err.is_temporary() => {
-                self.current_backoff = None;
-                Poll::Ready(Err(err))
-            }
-            Err(err) => {
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(backoff) => backoff,
-                    None => {
-                        self.current_backoff = Some(self.builder.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
+        let inner = self.inner.take().expect("inner must be valid");
 
-                match backoff.next() {
-                    None => {
-                        self.current_backoff = None;
-                        Poll::Ready(Err(err))
-                    }
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &err,
-                            dur,
-                            &[
-                                ("operation", WriteOperation::Close.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_close(cx)
-                    }
-                }
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.close().await;
+
+                (r, res)
             }
         }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", WriteOperation::Close.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .await;
+
+        self.inner = Some(inner);
+        res
     }
 }
 

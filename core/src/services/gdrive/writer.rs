@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -46,8 +45,6 @@ impl GdriveWriter {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

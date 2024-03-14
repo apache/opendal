@@ -55,15 +55,15 @@ impl<W: oio::Write> ExactBufWriter<W> {
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<usize> {
-        if let Some(bs) = self.frozen.as_mut() {
-            let written = self.inner.write(bs.clone()).await?;
-            bs.advance(written);
-            if bs.is_empty() {
-                self.frozen = None;
-            } else {
+        if let Some(frozen) = self.frozen.as_mut() {
+            let written = self.inner.write(frozen.clone()).await?;
+            frozen.advance(written);
+            if !frozen.is_empty() {
                 // Return remaining bytes back to buffer
-                self.buffer = bs.to_vec();
+                self.buffer = frozen.to_vec();
             }
+            // Clean up the frozen.
+            self.frozen = None;
         }
 
         // Quick Path
@@ -94,11 +94,15 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 if bs.is_empty() {
                     self.frozen = None;
                 }
-            } else if !self.buffer.is_empty() {
-                // freeze the remaining buffer
-                self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
-            } else {
-                break;
+            }
+
+            if self.frozen.is_none() {
+                if !self.buffer.is_empty() {
+                    // freeze the remaining buffer
+                    self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
+                } else {
+                    break;
+                }
             }
         }
 

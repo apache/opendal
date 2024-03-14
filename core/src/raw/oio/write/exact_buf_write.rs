@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes};
+use bytes::Bytes;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;

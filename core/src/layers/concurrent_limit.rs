@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::future::Future;
 
 use std::io::SeekFrom;
 use std::sync::Arc;

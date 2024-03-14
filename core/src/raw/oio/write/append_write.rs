@@ -42,15 +42,21 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
     /// Returns `0` if the object is not exist.
+    #[cfg(not(target_arch = "wasm32"))]
     fn offset(&self) -> impl Future<Output = Result<u64>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn offset(&self) -> impl Future<Output = Result<u64>>;
 
     /// Append the data to the end of this object.
+    #[cfg(not(target_arch = "wasm32"))]
     fn append(
         &self,
         offset: u64,
         size: u64,
         body: AsyncBody,
     ) -> impl Future<Output = Result<()>> + Send;
+    #[cfg(target_arch = "wasm32")]
+    fn append(&self, offset: u64, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
 }
 
 /// AppendWriter will implements [`Write`] based on append object.

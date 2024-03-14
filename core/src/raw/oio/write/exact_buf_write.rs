@@ -70,11 +70,9 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         //
         // if buffer is empty and bs is larger than buffer_size, we can directly
         // freeze the first buffer_size bytes.
-        if self.buffer.is_empty() {
-            if bs.len() >= self.buffer_size {
-                self.frozen = Some(bs.slice(0..self.buffer_size));
-                return Ok(self.buffer_size);
-            }
+        if self.buffer.is_empty() && bs.len() >= self.buffer_size {
+            self.frozen = Some(bs.slice(0..self.buffer_size));
+            return Ok(self.buffer_size);
         }
 
         let remaining = self.buffer_size - self.buffer.len();

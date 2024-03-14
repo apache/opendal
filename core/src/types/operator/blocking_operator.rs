@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 
 use super::operator_functions::*;
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 

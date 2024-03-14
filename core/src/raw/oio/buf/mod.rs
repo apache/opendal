@@ -15,8 +15,5 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod write_buf;
-pub use write_buf::WriteBuf;
-
 mod adaptive;
 pub use adaptive::AdaptiveBuf;

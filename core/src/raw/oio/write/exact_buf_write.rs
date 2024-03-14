@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-use std::cmp::min;
+use bytes::{Buf, BufMut, Bytes};
+use std::mem;
 
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -38,7 +37,8 @@ pub struct ExactBufWriter<W: oio::Write> {
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: oio::ChunkedBytes,
+    buffer: Vec<u8>,
+    frozen: Option<Bytes>,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -47,35 +47,70 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: oio::ChunkedBytes::default(),
+            buffer: Vec::new(),
+            frozen: None,
         }
     }
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<usize> {
-        if self.buffer.len() >= self.buffer_size {
-            let bs = self.buffer.bytes(self.buffer.remaining());
-            let written = self.inner.write(bs).await?;
-            self.buffer.advance(written);
+        if let Some(frozen) = self.frozen.as_mut() {
+            let written = self.inner.write(frozen.clone()).await?;
+            frozen.advance(written);
+            if !frozen.is_empty() {
+                // Return remaining bytes back to buffer
+                self.buffer = frozen.to_vec();
+            }
+            // Clean up the frozen.
+            self.frozen = None;
         }
 
-        let remaining = min(self.buffer_size - self.buffer.len(), bs.len());
-        self.buffer.push(bs.slice(0..remaining));
-        Ok(remaining)
+        // Quick Path
+        //
+        // if buffer is empty and bs is larger than buffer_size, we can directly
+        // freeze the first buffer_size bytes.
+        if self.buffer.is_empty() && bs.len() >= self.buffer_size {
+            self.frozen = Some(bs.slice(0..self.buffer_size));
+            return Ok(self.buffer_size);
+        }
+
+        let remaining = self.buffer_size - self.buffer.len();
+        if bs.len() >= remaining {
+            self.buffer.put_slice(&bs[0..remaining]);
+            self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
+            Ok(remaining)
+        } else {
+            self.buffer.put_slice(&bs);
+            Ok(bs.len())
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
-        while !self.buffer.is_empty() {
-            let bs = self.buffer.bytes(self.buffer.remaining());
-            let n = self.inner.write(bs).await?;
-            self.buffer.advance(n);
+        loop {
+            if let Some(bs) = self.frozen.as_mut() {
+                let written = self.inner.write(bs.clone()).await?;
+                bs.advance(written);
+                if bs.is_empty() {
+                    self.frozen = None;
+                }
+            }
+
+            if self.frozen.is_none() {
+                if !self.buffer.is_empty() {
+                    // freeze the remaining buffer
+                    self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
+                } else {
+                    break;
+                }
+            }
         }
 
         self.inner.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.frozen = None;
         self.buffer.clear();
         self.inner.abort().await
     }

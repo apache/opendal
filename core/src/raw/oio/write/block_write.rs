@@ -111,7 +111,7 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
 /// WriteBlockResult is the result returned by [`WriteBlockFuture`].
 ///
 /// The error part will carries input `(block_id, bytes, err)` so caller can retry them.
-type WriteBlockResult = std::result::Result<Uuid, (Uuid, oio::ChunkedBytes, Error)>;
+type WriteBlockResult = std::result::Result<Uuid, (Uuid, Bytes, Error)>;
 
 struct WriteBlockFuture(BoxedStaticFuture<WriteBlockResult>);
 
@@ -133,12 +133,12 @@ impl Future for WriteBlockFuture {
 }
 
 impl WriteBlockFuture {
-    pub fn new<W: BlockWrite>(w: Arc<W>, block_id: Uuid, bytes: oio::ChunkedBytes) -> Self {
+    pub fn new<W: BlockWrite>(w: Arc<W>, block_id: Uuid, bytes: Bytes) -> Self {
         let fut = async move {
             w.write_block(
                 block_id,
                 bytes.len() as u64,
-                AsyncBody::ChunkedBytes(bytes.clone()),
+                AsyncBody::Bytes(bytes.clone()),
             )
             .await
             // Return bytes while we got an error to allow retry.
@@ -157,14 +157,9 @@ pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,
 
     block_ids: Vec<Uuid>,
-    /// TODO: use Bytes directly.
-    cache: Option<oio::ChunkedBytes>,
+    cache: Option<Bytes>,
     futures: ConcurrentFutures<WriteBlockFuture>,
 }
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this state.
 
 impl<W: BlockWrite> BlockWriter<W> {
     /// Create a new BlockWriter.
@@ -179,7 +174,6 @@ impl<W: BlockWrite> BlockWriter<W> {
 
     fn fill_cache(&mut self, bs: Bytes) -> usize {
         let size = bs.len();
-        let bs = oio::ChunkedBytes::from_vec(vec![bs]);
         assert!(self.cache.is_none());
         self.cache = Some(bs);
         size
@@ -231,7 +225,7 @@ where
         // No write block has been sent.
         if self.futures.is_empty() && self.block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
-                Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
+                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
                 None => (0, AsyncBody::Empty),
             };
             self.w.write_once(size as u64, body).await?;
@@ -293,7 +287,6 @@ mod tests {
     use super::*;
     use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
-    use crate::raw::oio::WriteBuf;
 
     struct TestWrite {
         length: u64,
@@ -327,7 +320,6 @@ mod tests {
             let bs = match body {
                 AsyncBody::Empty => Bytes::new(),
                 AsyncBody::Bytes(bs) => bs,
-                AsyncBody::ChunkedBytes(cb) => cb.bytes(cb.remaining()),
                 AsyncBody::Stream(s) => s.collect().await.unwrap(),
             };
 

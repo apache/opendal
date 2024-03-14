@@ -288,9 +288,6 @@ impl GcsCore {
                 AsyncBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
                 }
-                AsyncBody::ChunkedBytes(bs) => {
-                    media_part = media_part.stream(bs.len() as u64, Box::new(bs));
-                }
                 AsyncBody::Stream(stream) => {
                     media_part = media_part.stream(size.unwrap(), stream);
                 }

@@ -146,7 +146,7 @@ pub struct MultipartPart {
 /// WritePartResult is the result returned by [`WritePartFuture`].
 ///
 /// The error part will carries input `(part_number, bytes, err)` so caller can retry them.
-type WritePartResult = std::result::Result<MultipartPart, (usize, oio::ChunkedBytes, Error)>;
+type WritePartResult = std::result::Result<MultipartPart, (usize, Bytes, Error)>;
 
 struct WritePartFuture(BoxedStaticFuture<WritePartResult>);
 
@@ -172,14 +172,14 @@ impl WritePartFuture {
         w: Arc<W>,
         upload_id: Arc<String>,
         part_number: usize,
-        bytes: oio::ChunkedBytes,
+        bytes: Bytes,
     ) -> Self {
         let fut = async move {
             w.write_part(
                 &upload_id,
                 part_number,
                 bytes.len() as u64,
-                AsyncBody::ChunkedBytes(bytes.clone()),
+                AsyncBody::Bytes(bytes.clone()),
             )
             .await
             .map_err(|err| (part_number, bytes, err))
@@ -196,7 +196,7 @@ pub struct MultipartWriter<W: MultipartWrite> {
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
-    cache: Option<oio::ChunkedBytes>,
+    cache: Option<Bytes>,
     futures: ConcurrentFutures<WritePartFuture>,
     next_part_number: usize,
 }
@@ -220,7 +220,6 @@ impl<W: MultipartWrite> MultipartWriter<W> {
 
     fn fill_cache(&mut self, bs: Bytes) -> usize {
         let size = bs.len();
-        let bs = oio::ChunkedBytes::from_vec(vec![bs]);
         assert!(self.cache.is_none());
         self.cache = Some(bs);
         size
@@ -289,7 +288,7 @@ where
             Some(v) => v,
             None => {
                 let (size, body) = match self.cache.clone() {
-                    Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
+                    Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
                     None => (0, AsyncBody::Empty),
                 };
                 // Call write_once if there is no upload_id.

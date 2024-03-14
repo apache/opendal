@@ -15,14 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
-
-use async_trait::async_trait;
 use bytes::Bytes;
-use futures::future::BoxFuture;
 
 use super::backend::GhacBackend;
 use super::error::parse_error;

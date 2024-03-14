@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+
 use http::StatusCode;
 
 use super::core::constants::X_UPYUN_MULTI_UUID;

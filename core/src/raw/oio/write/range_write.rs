@@ -17,11 +17,10 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
+
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
@@ -147,31 +146,12 @@ pub struct RangeWriter<W: RangeWrite> {
     futures: ConcurrentFutures<WriteRangeFuture>,
 
     w: Arc<W>,
-    state: State,
 }
-
-enum State {
-    Idle,
-    Init(BoxedStaticFuture<Result<String>>),
-    Complete(BoxedStaticFuture<Result<()>>),
-    Abort(BoxedStaticFuture<Result<()>>),
-}
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this state.
-unsafe impl Send for State {}
-
-/// # Safety
-///
-/// We will only take `&mut Self` reference for State.
-unsafe impl Sync for State {}
 
 impl<W: RangeWrite> RangeWriter<W> {
     /// Create a new MultipartWriter.
     pub fn new(inner: W, concurrent: usize) -> Self {
         Self {
-            state: State::Idle,
             w: Arc::new(inner),
 
             futures: ConcurrentFutures::new(1.max(concurrent)),

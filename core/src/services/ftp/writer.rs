@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
+
 use bytes::Bytes;
 use futures::AsyncWriteExt;
 

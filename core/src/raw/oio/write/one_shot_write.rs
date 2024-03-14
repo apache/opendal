@@ -16,16 +16,18 @@
 // under the License.
 
 use std::future::Future;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
 
+/// OneShotWrite is used to implement [`Write`] based on one shot operation.
+/// By implementing OneShotWrite, services don't need to care about the details.
+///
+/// For example, S3 `PUT Object` and fs `write_all`.
+///
+/// The layout after adopting [`OneShotWrite`]:
 pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///

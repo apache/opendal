@@ -16,17 +16,10 @@
 // under the License.
 
 use bytes::Bytes;
-use std::future::Future;
+
 use std::io::Write;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;
@@ -37,7 +30,6 @@ pub struct FsWriter<F> {
     tmp_path: Option<PathBuf>,
 
     f: Option<F>,
-    fut: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<F> FsWriter<F> {
@@ -47,7 +39,6 @@ impl<F> FsWriter<F> {
             tmp_path,
 
             f: Some(f),
-            fut: None,
         }
     }
 }

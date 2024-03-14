@@ -15,18 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
+
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use bytes::BytesMut;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 
 use super::Adapter;
 use crate::raw::oio::HierarchyLister;

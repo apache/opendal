@@ -16,16 +16,28 @@
 // under the License.
 
 use std::future::Future;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
 
+/// AppendWrite is used to implement [`Write`] based on append
+/// object. By implementing AppendWrite, services don't need to
+/// care about the details of buffering and uploading parts.
+///
+/// The layout after adopting [`AppendWrite`]:
+///
+/// - Services impl `AppendWrite`
+/// - `AppendWriter` impl `Write`
+/// - Expose `AppendWriter` as `Accessor::Writer`
+///
+/// ## Requirements
+///
+/// Services that implement `AppendWrite` must fulfill the following requirements:
+///
+/// - Must be a http service that could accept `AsyncBody`.
+/// - Provide a way to get the current offset of the append object.
 pub trait AppendWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///

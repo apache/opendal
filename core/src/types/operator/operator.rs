@@ -18,7 +18,7 @@
 use std::future::Future;
 use std::time::Duration;
 
-use bytes::Buf;
+
 use bytes::Bytes;
 use futures::stream;
 use futures::Stream;

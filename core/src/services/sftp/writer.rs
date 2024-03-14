@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
-use async_trait::async_trait;
+use std::pin::Pin;
+
+
+
+
 use bytes::Bytes;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;
 
-use crate::raw::{format_std_io_error, new_std_io_error, oio};
+use crate::raw::{new_std_io_error, oio};
 use crate::*;
 
 pub struct SftpWriter {

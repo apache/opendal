@@ -18,7 +18,7 @@
 use async_trait::async_trait;
 use bytes;
 use bytes::Bytes;
-use futures::future::poll_fn;
+
 use tokio::runtime::Handle;
 
 use crate::raw::*;

@@ -38,10 +38,10 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-use std::future::Future;
+
 use std::io::SeekFrom;
-use std::task::Context;
-use std::task::Poll;
+
+
 
 use bytes::Bytes;
 

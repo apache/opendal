@@ -16,9 +16,9 @@
 // under the License.
 
 use bytes::Bytes;
-use std::future::Future;
-use std::task::Context;
-use std::task::Poll;
+
+
+
 
 use hdfs_native::file::FileWriter;
 
@@ -37,7 +37,7 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, _bs: Bytes) -> Result<usize> {
         todo!()
     }
 

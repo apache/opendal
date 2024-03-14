@@ -22,11 +22,11 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
 use bytes::Bytes;
 use futures::TryStreamExt;
 
 use crate::raw::oio::Write;
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -238,7 +238,6 @@ enum State {
     Idle(Option<oio::Writer>),
     Writing(BoxedStaticFuture<(oio::Writer, Result<usize>)>),
     Closing(BoxedStaticFuture<(oio::Writer, Result<()>)>),
-    Aborting(BoxedStaticFuture<(oio::Writer, Result<()>)>),
 }
 
 unsafe impl Sync for State {}
@@ -249,8 +248,6 @@ impl futures::AsyncWrite for Writer {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        use oio::Write;
-
         match &mut self.state {
             State::Idle(w) => {
                 let mut w = w.take().expect("writer must be valid");
@@ -280,8 +277,6 @@ impl futures::AsyncWrite for Writer {
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        use oio::Write;
-
         match &mut self.state {
             State::Idle(w) => {
                 let mut w = w.take().expect("writer must be valid");
@@ -311,8 +306,6 @@ impl tokio::io::AsyncWrite for Writer {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        use oio::Write;
-
         match &mut self.state {
             State::Idle(w) => {
                 let mut w = w.take().expect("writer must be valid");
@@ -341,8 +334,6 @@ impl tokio::io::AsyncWrite for Writer {
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        use oio::Write;
-
         match &mut self.state {
             State::Idle(w) => {
                 let mut w = w.take().expect("writer must be valid");

@@ -277,16 +277,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
-        self.inner.write(bs)
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        self.inner.write(bs).await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.close()
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.abort()
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 

@@ -22,7 +22,7 @@ use std::task::Poll;
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;
-use crate::raw::oio::WriteBuf;
+
 use crate::*;
 
 pub struct HdfsNativeWriter {

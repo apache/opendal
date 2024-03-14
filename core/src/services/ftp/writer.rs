@@ -20,7 +20,7 @@ use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::services::ftp::err::parse_error;
 use crate::*;

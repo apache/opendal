@@ -23,7 +23,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.

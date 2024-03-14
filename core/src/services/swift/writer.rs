@@ -23,7 +23,7 @@ use http::StatusCode;
 
 use super::core::SwiftCore;
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::*;
 

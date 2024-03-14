@@ -23,7 +23,6 @@ use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 

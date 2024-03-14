@@ -15,11 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::pin::Pin;
-
-
-
 
 use bytes::Bytes;
 use openssh_sftp_client::file::File;

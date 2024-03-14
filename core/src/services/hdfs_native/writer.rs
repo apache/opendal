@@ -17,9 +17,6 @@
 
 use bytes::Bytes;
 
-
-
-
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;

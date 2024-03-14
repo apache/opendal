@@ -15,10 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
-
-
 use bytes::Bytes;
 use opendal::raw::oio;
 use rand::prelude::ThreadRng;

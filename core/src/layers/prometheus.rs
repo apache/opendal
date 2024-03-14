@@ -21,8 +21,6 @@ use std::fmt::Formatter;
 use std::io;
 use std::sync::Arc;
 
-
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;

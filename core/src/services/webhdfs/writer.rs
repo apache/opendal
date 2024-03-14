@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use http::StatusCode;
 use uuid::Uuid;
 

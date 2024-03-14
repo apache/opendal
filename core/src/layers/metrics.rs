@@ -21,7 +21,6 @@ use std::future::Future;
 use std::io;
 use std::sync::Arc;
 
-
 use std::time::Instant;
 
 use async_trait::async_trait;

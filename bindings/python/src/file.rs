@@ -57,7 +57,7 @@ impl File {
 
 #[pymethods]
 impl File {
-    /// Read and return size bytes, or if size is not given, until EOF.
+    /// Read and return at most size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None,))]
     pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
         let reader = match &mut self.0 {
@@ -77,7 +77,7 @@ impl File {
         let buffer = match size {
             Some(size) => {
                 let bs = reader
-                    .read_exact(size)
+                    .read(size)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 bs.to_vec()
             }
@@ -218,7 +218,7 @@ impl AsyncFile {
 
 #[pymethods]
 impl AsyncFile {
-    /// Read and return size bytes, or if size is not given, until EOF.
+    /// Read and return at most size bytes, or if size is not given, until EOF.
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
         let state = self.0.clone();
 
@@ -241,7 +241,7 @@ impl AsyncFile {
             let buffer = match size {
                 Some(size) => {
                     let buffer = reader
-                        .read_exact(size)
+                        .read(size)
                         .await
                         .map_err(|err| PyIOError::new_err(err.to_string()))?;
                     buffer.to_vec()

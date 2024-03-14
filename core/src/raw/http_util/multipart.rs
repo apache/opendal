@@ -404,7 +404,6 @@ impl MixedPart {
                 bs.len() as u64,
                 Some(Box::new(oio::Cursor::from(bs)) as Streamer),
             ),
-            AsyncBody::ChunkedBytes(bs) => (bs.len() as u64, Some(Box::new(bs) as Streamer)),
             AsyncBody::Stream(stream) => {
                 let len = parts
                     .headers

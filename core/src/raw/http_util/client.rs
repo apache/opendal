@@ -118,17 +118,6 @@ impl HttpClient {
         req_builder = match body {
             AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
             AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::ChunkedBytes(bs) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    req_builder.body(reqwest::Body::wrap_stream(bs))
-                }
-                #[cfg(target_arch = "wasm32")]
-                {
-                    let bs = oio::WriteBuf::bytes(&bs, bs.len());
-                    req_builder.body(reqwest::Body::from(bs))
-                }
-            }
             AsyncBody::Stream(s) => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {

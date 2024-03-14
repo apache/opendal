@@ -287,7 +287,6 @@ mod tests {
     use super::*;
     use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
-    use crate::raw::oio::WriteBuf;
 
     struct TestWrite {
         length: u64,
@@ -321,7 +320,6 @@ mod tests {
             let bs = match body {
                 AsyncBody::Empty => Bytes::new(),
                 AsyncBody::Bytes(bs) => bs,
-                AsyncBody::ChunkedBytes(cb) => cb.bytes(cb.remaining()),
                 AsyncBody::Stream(s) => s.collect().await.unwrap(),
             };
 

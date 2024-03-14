@@ -291,11 +291,7 @@ pub struct MadsimWriter {
 }
 
 impl oio::Write for MadsimWriter {
-    fn poll_write(
-        &mut self,
-        cx: &mut Context<'_>,
-        bs: &dyn oio::WriteBuf,
-    ) -> Poll<crate::Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<crate::Result<usize>> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);

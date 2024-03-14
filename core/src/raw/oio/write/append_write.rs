@@ -20,6 +20,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -93,16 +94,15 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         loop {
             match &mut self.state {
                 State::Idle(w) => {
                     let w = w.take().expect("writer must be valid");
                     match self.offset {
                         Some(offset) => {
-                            let size = bs.remaining();
-                            let bs = bs.bytes(size);
-
+                            let size = bs.len();
+                            let bs = bs.clone();
                             self.state = State::Append(Box::pin(async move {
                                 let res = w.append(offset, size as u64, AsyncBody::Bytes(bs)).await;
 

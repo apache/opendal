@@ -590,7 +590,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         self.inner
             .poll_write(cx, bs)
             .map_ok(|n| {
@@ -622,7 +622,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

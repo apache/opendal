@@ -18,11 +18,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::SwiftCore;
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::*;
 
@@ -39,9 +40,7 @@ impl SwiftWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for SwiftWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = bs.bytes(bs.remaining());
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
             .swift_create_object(&self.path, bs.len() as u64, AsyncBody::Bytes(bs))

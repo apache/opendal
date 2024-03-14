@@ -18,12 +18,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -49,8 +49,7 @@ impl GdriveWriter {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::OneShotWrite for GdriveWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = bs.bytes(bs.remaining());
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();
 
         let resp = if let Some(file_id) = &self.file_id {

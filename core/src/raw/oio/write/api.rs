@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
@@ -22,7 +23,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.
@@ -84,7 +84,7 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>>;
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>>;
 
     /// Close the writer and make sure all data has been flushed.
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
@@ -94,7 +94,7 @@ pub trait Write: Unpin + Send + Sync {
 }
 
 impl Write for () {
-    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, _: Bytes) -> Poll<Result<usize>> {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
@@ -117,7 +117,7 @@ impl Write for () {
 ///
 /// To make Writer work as expected, we must add this impl.
 impl<T: Write + ?Sized> Write for Box<T> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         (**self).poll_write(cx, bs)
     }
 
@@ -136,7 +136,7 @@ impl<T: Write> WriteExt for T {}
 /// Extension of [`Read`] to make it easier for use.
 pub trait WriteExt: Write {
     /// Build a future for `poll_write`.
-    fn write<'a>(&'a mut self, buf: &'a dyn oio::WriteBuf) -> WriteFuture<'a, Self> {
+    fn write(&mut self, buf: Bytes) -> WriteFuture<'_, Self> {
         WriteFuture { writer: self, buf }
     }
 
@@ -153,7 +153,7 @@ pub trait WriteExt: Write {
 
 pub struct WriteFuture<'a, W: Write + Unpin + ?Sized> {
     writer: &'a mut W,
-    buf: &'a dyn oio::WriteBuf,
+    buf: Bytes,
 }
 
 impl<W> Future for WriteFuture<'_, W>
@@ -164,7 +164,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
         let this = self.get_mut();
-        this.writer.poll_write(cx, this.buf)
+        this.writer.poll_write(cx, this.buf.clone())
     }
 }
 
@@ -204,14 +204,14 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize>;
+    fn write(&mut self, bs: Bytes) -> Result<usize>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -229,7 +229,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         (**self).write(bs)
     }
 

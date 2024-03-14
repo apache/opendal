@@ -1147,8 +1147,8 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        match ready!(self.inner.poll_write(cx, bs)) {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
+        match ready!(self.inner.poll_write(cx, bs.clone())) {
             Ok(n) => {
                 self.written += n as u64;
                 trace!(
@@ -1158,7 +1158,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    bs.remaining(),
+                    bs.len(),
                     n,
                 );
                 Poll::Ready(Ok(n))
@@ -1245,8 +1245,8 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        match self.inner.write(bs) {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;
                 trace!(
@@ -1256,7 +1256,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
-                    bs.remaining(),
+                    bs.len(),
                     n
                 );
                 Ok(n)

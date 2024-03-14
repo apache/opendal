@@ -22,6 +22,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -206,9 +207,9 @@ impl<W: MultipartWrite> MultipartWriter<W> {
         }
     }
 
-    fn fill_cache(&mut self, bs: &dyn oio::WriteBuf) -> usize {
-        let size = bs.remaining();
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+    fn fill_cache(&mut self, bs: Bytes) -> usize {
+        let size = bs.len();
+        let bs = oio::ChunkedBytes::from_vec(vec![bs]);
         assert!(self.cache.is_none());
         self.cache = Some(bs);
         size
@@ -219,7 +220,7 @@ impl<W> oio::Write for MultipartWriter<W>
 where
     W: MultipartWrite,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         loop {
             match &mut self.state {
                 State::Idle => {
@@ -500,7 +501,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(&bs.as_slice()).await {
+                match w.write(Bytes::copy_from_slice(&bs)).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

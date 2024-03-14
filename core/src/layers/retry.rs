@@ -776,13 +776,13 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 }
 
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
             self.sleep = None;
         }
 
-        match ready!(self.inner.as_mut().unwrap().poll_write(cx, bs)) {
+        match ready!(self.inner.as_mut().unwrap().poll_write(cx, bs.clone())) {
             Ok(v) => {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
@@ -815,7 +815,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
                             ],
                         );
                         self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
-                        self.poll_write(cx, bs)
+                        self.poll_write(cx, bs.clone())
                     }
                 }
             }
@@ -916,8 +916,8 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        { || self.inner.as_mut().unwrap().write(bs) }
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        { || self.inner.as_mut().unwrap().write(bs.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {

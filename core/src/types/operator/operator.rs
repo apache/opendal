@@ -1269,8 +1269,8 @@ impl Operator {
                 }
 
                 let (_, mut w) = inner.write(&path, args).await?;
-                while bs.remaining() > 0 {
-                    let n = w.write(&bs).await?;
+                while !bs.is_empty() {
+                    let n = w.write(bs.clone()).await?;
                     bs.advance(n);
                 }
 

@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use std::task::Context;
 use std::task::Poll;
 
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;
-use crate::raw::oio::WriteBuf;
+
 use crate::*;
 
 pub struct HdfsNativeWriter {
@@ -35,7 +36,7 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    fn poll_write(&mut self, _cx: &mut Context<'_>, _bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, _: Bytes) -> Poll<Result<usize>> {
         todo!()
     }
 

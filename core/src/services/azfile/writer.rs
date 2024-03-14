@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzfileCore;
@@ -41,9 +42,7 @@ impl AzfileWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for AzfileWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
             .azfile_create_file(&self.path, bs.len(), &self.op)
@@ -63,7 +62,7 @@ impl oio::OneShotWrite for AzfileWriter {
 
         let resp = self
             .core
-            .azfile_update(&self.path, bs.len() as u64, 0, AsyncBody::ChunkedBytes(bs))
+            .azfile_update(&self.path, bs.len() as u64, 0, AsyncBody::Bytes(bs))
             .await?;
         let status = resp.status();
         return match status {

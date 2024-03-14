@@ -334,7 +334,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: Bytes) -> Poll<Result<usize>> {
         self.poll_timeout(cx, WriteOperation::Write.into_static())?;
 
         let v = ready!(self.inner.poll_write(cx, bs));

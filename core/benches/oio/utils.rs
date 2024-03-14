@@ -27,12 +27,8 @@ use rand::RngCore;
 pub struct BlackHoleWriter;
 
 impl oio::Write for BlackHoleWriter {
-    fn poll_write(
-        &mut self,
-        _: &mut Context<'_>,
-        bs: &dyn oio::WriteBuf,
-    ) -> Poll<opendal::Result<usize>> {
-        Poll::Ready(Ok(bs.remaining()))
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: Bytes) -> Poll<opendal::Result<usize>> {
+        Poll::Ready(Ok(bs.len()))
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {

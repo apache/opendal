@@ -1,8 +1,16 @@
 # Upgrade to v0.46
 
-## Services Feature Flag
+## Public API
 
-Starting from v0.46, OpenDAL does not include any services except memory service in default features to avoid compiling unneeded services' code. Please enable each service's feature flag to use it.
+### Services Feature Flag
+
+Starting with version 0.46, OpenDAL only includes the memory service by default to prevent compiling unnecessary service code. To use other services, please activate their respective feature flags.
+
+Additionally, we have removed all `reqwest`-related feature flags:
+
+- Users must now directly use `reqwest`'s feature flags for options like `rustls`, `native-tls`, etc.
+- The `rustls` feature is no longer enabled by default; it must be activated manually.
+- OpenDAL no longer offers the `trust-dns` option; users should configure the client builder directly.
 
 # Upgrade to v0.45
 

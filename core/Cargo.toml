@@ -39,7 +39,7 @@ default-members = ["."]
 members = [".", "fuzz", "edge/*", "benches/vs_*"]
 
 [features]
-default = ["rustls", "services-memory"]
+default = ["services-memory"]
 
 # Build test utils or not.
 #
@@ -58,17 +58,6 @@ tests = [
   "services-memory",
   "services-s3",
 ]
-
-# Enable trust-dns for pure rust dns cache.
-trust-dns = ["reqwest/trust-dns"]
-
-# Enable rustls for TLS support
-rustls = ["reqwest/rustls-tls-native-roots"]
-rustls-webpki = ["reqwest/rustls-tls-webpki-roots"]
-# Enable native-tls for TLS support
-native-tls = ["reqwest/native-tls"]
-# Enable vendored native-tls for TLS support
-native-tls-vendored = ["reqwest/native-tls-vendored"]
 
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
@@ -388,3 +377,6 @@ tracing-subscriber = { version = "0.3", features = [
   "tracing-log",
 ] }
 wiremock = "0.5"
+reqwest = { version = "0.11.18", features = [
+  "stream", "rustls"
+], default-features = false }

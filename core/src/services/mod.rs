@@ -397,3 +397,10 @@ mod vercel_blob;
 pub use vercel_blob::VercelBlob;
 #[cfg(feature = "services-vercel-blob")]
 pub use vercel_blob::VercelBlobConfig;
+
+#[cfg(feature = "services-surrealdb")]
+mod surrealdb;
+#[cfg(feature = "services-surrealdb")]
+pub use surrealdb::Surrealdb;
+#[cfg(feature = "services-surrealdb")]
+pub use surrealdb::SurrealdbConfig;

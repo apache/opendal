@@ -15,37 +15,54 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::io::SeekFrom;
 
 use bytes::Bytes;
-use dav_server::davpath::DavPath;
 use dav_server::fs::DavFile;
 use dav_server::fs::DavMetaData;
 use dav_server::fs::FsFuture;
 use futures::FutureExt;
 use opendal::Operator;
+use opendal::Reader;
+use opendal::Writer;
 
 use super::metadata::WebdavMetaData;
 
 #[derive(Debug)]
 pub struct WebdavFile {
     op: Operator,
-    path: DavPath,
+    path: String,
+    state: WebdavFileState,
+}
+
+struct WebdavFileState {
+    reader: Reader,
+    writer: Writer,
+}
+
+impl fmt::Debug for WebdavFileState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WebdavFileState").finish()
+    }
 }
 
 impl WebdavFile {
-    pub fn new(op: Operator, path: DavPath) -> Self {
-        Self { op, path }
+    pub fn new(op: Operator, reader: Reader, writer: Writer, path: String) -> Self {
+        Self {
+            op,
+            path,
+            state: WebdavFileState { reader, writer },
+        }
     }
 }
 
 impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
-            let file_path = self.path.as_url_string();
-            self.op
-                .read_with(&file_path)
-                .range(0..count as u64)
+            self.state
+                .reader
+                .read(count)
                 .await
                 .map(Bytes::from)
                 .map_err(convert_error)
@@ -56,7 +73,7 @@ impl DavFile for WebdavFile {
     fn metadata(&mut self) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
             self.op
-                .stat(self.path.as_url_string().as_str())
+                .stat(&self.path)
                 .await
                 .map(|opendal_metadata| {
                     Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>
@@ -71,11 +88,7 @@ impl DavFile for WebdavFile {
     }
 
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
-        async move {
-            let file_path = self.path.as_url_string();
-            self.op.write(&file_path, buf).await.map_err(convert_error)
-        }
-        .boxed()
+        async move { self.state.writer.write(buf).await.map_err(convert_error) }.boxed()
     }
 
     fn seek(&mut self, _pos: SeekFrom) -> FsFuture<u64> {

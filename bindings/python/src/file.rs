@@ -94,7 +94,7 @@ impl File {
     }
 
     /// Write bytes into the file.
-    pub fn write(&mut self, bs: &[u8]) -> PyResult<()> {
+    pub fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
         let writer = match &mut self.0 {
             FileState::Reader(_) => {
                 return Err(PyIOError::new_err(
@@ -111,6 +111,7 @@ impl File {
 
         writer
             .write_all(bs)
+            .map(|_| bs.len())
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
@@ -286,6 +287,7 @@ impl AsyncFile {
             writer
                 .write_all(&bs)
                 .await
+                .map(|_| bs.len())
                 .map_err(|err| PyIOError::new_err(err.to_string()))
         })
     }

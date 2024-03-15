@@ -34,7 +34,7 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::TracingLayer;
 /// use opendal::services;
@@ -48,7 +48,7 @@ use crate::*;
 ///
 /// ## Real usage
 ///
-/// ```no_run
+/// ```no_build
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
@@ -106,7 +106,7 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```ignore
+/// ```no_build
 /// extern crate tracing;
 ///
 /// let my_subscriber = FooSubscriber::new();

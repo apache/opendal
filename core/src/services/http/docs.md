@@ -30,7 +30,7 @@ You can refer to [`HttpBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Http;
 use opendal::Operator;

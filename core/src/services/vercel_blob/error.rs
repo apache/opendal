@@ -27,13 +27,13 @@ use crate::Result;
 
 /// VercelBlobError is the error returned by VercelBlob service.
 #[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(default)]
 struct VercelBlobError {
     error: VercelBlobErrorDetail,
 }
 
 #[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(default)]
 struct VercelBlobErrorDetail {
     code: String,
     message: Option<String>,

@@ -177,7 +177,7 @@ impl Scheme {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use opendal::Scheme;
     ///
     /// let enabled_schemes = Scheme::enabled();

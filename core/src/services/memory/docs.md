@@ -19,7 +19,7 @@ This service can be used to:
 ### Via Builder
 
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;

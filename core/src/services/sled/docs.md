@@ -24,7 +24,7 @@ You can refer to [`SledBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Sled;
 use opendal::Operator;

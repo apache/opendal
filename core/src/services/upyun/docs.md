@@ -27,7 +27,7 @@ You can refer to [`UpyunBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Upyun;
 use opendal::Operator;

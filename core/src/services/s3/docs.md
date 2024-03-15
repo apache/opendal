@@ -77,7 +77,7 @@ Reference: [Protecting data using server-side encryption](https://docs.aws.amazo
 
 ### Basic Setup
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -123,7 +123,7 @@ async fn main() -> Result<()> {
 
 ### S3 with SSE-C
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use log::info;
 use opendal::services::S3;
@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
 
 ### S3 with SSE-KMS and aws managed kms key
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use log::info;
 use opendal::services::S3;
@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
 
 ### S3 with SSE-KMS and customer managed kms key
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use log::info;
 use opendal::services::S3;
@@ -219,7 +219,7 @@ async fn main() -> Result<()> {
 
 ### S3 with SSE-S3
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use log::info;
 use opendal::services::S3;

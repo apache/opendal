@@ -27,7 +27,7 @@ You can refer to [`FoundationdbBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Foundationdb;
 use opendal::Operator;

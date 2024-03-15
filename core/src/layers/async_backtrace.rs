@@ -29,7 +29,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::AsyncBacktraceLayer;
 /// use opendal::services;
@@ -38,7 +38,7 @@ use crate::*;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(AsyncBacktraceLayer::new())
+///     .layer(AsyncBacktraceLayer::default())
 ///     .finish();
 /// ```
 

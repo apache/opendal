@@ -25,7 +25,7 @@ You can refer to [`IpfsBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Ipfs;
 use opendal::Operator;

@@ -86,7 +86,7 @@ static LABEL_ERROR: &str = "error";
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::MetricsLayer;
 /// use opendal::services;

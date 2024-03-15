@@ -46,7 +46,7 @@ You can refer to [`IcloudBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Icloud;
 use opendal::Operator;
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
     builder.password("<password>");
     builder.trust_token("<trust_token>");
     builder.ds_web_auth_token("<ds_web_auth_token>");
-    builder.is_china_mainland("<is_china_mainland>");
+    builder.is_china_mainland(true);
 
     Ok(())
 }

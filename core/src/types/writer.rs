@@ -126,14 +126,13 @@ impl Writer {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::io::Result;
+    /// use opendal::Result;
     ///
     /// use bytes::Bytes;
     /// use futures::stream;
     /// use futures::StreamExt;
     /// use opendal::Operator;
     ///
-    /// #[tokio::main]
     /// async fn sink_example(op: Operator) -> Result<()> {
     ///     let mut w = op.writer_with("path/to/file").await?;
     ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
@@ -177,7 +176,7 @@ impl Writer {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::io::Result;
+    /// use opendal::Result;
     ///
     /// use bytes::Bytes;
     /// use futures::io::Cursor;
@@ -185,7 +184,6 @@ impl Writer {
     /// use futures::StreamExt;
     /// use opendal::Operator;
     ///
-    /// #[tokio::main]
     /// async fn copy_example(op: Operator) -> Result<()> {
     ///     let mut w = op.writer_with("path/to/file").await?;
     ///     let reader = Cursor::new(vec![0; 4096]);

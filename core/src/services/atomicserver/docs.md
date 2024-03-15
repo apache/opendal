@@ -29,7 +29,7 @@ You can refer to [`AtomicserverBuilder`]'s docs for more information.
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Atomicserver;
 use opendal::Operator;

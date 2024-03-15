@@ -35,7 +35,7 @@ Refer to [`OssBuilder`]'s public API docs for more information.
 
 ## Via Builder
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;

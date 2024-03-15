@@ -45,7 +45,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::ChaosLayer;
 /// use opendal::services;

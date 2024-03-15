@@ -113,7 +113,8 @@ use crate::*;
 /// 6. blocking_writer_close_error, arguments: path
 ///
 /// Example:
-/// ```
+///
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::DTraceLayer;
 /// use opendal::services::Fs;

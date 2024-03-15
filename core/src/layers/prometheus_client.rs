@@ -42,7 +42,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_build
 /// use log::debug;
 /// use log::info;
 /// use opendal::layers::PrometheusClientLayer;

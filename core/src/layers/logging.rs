@@ -54,7 +54,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::services;

@@ -34,7 +34,7 @@ use crate::raw::*;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
-
+///
 /// Config for Hdfs services support.
 #[derive(Default, Deserialize, Clone)]
 #[serde(default)]

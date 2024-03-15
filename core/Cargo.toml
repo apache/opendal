@@ -39,7 +39,7 @@ default-members = ["."]
 members = [".", "fuzz", "edge/*", "benches/vs_*"]
 
 [features]
-default = ["rustls", "services-memory"]
+default = ["reqwest/rustls-tls", "services-memory"]
 
 # Build test utils or not.
 #
@@ -59,33 +59,12 @@ tests = [
   "services-s3",
 ]
 
-# Enable trust-dns for pure rust dns cache.
-trust-dns = ["reqwest/trust-dns"]
-
-# Enable rustls for TLS support
-rustls = ["reqwest/rustls-tls-native-roots"]
-rustls-webpki = ["reqwest/rustls-tls-webpki-roots"]
-# Enable native-tls for TLS support
-native-tls = ["reqwest/native-tls"]
-# Enable vendored native-tls for TLS support
-native-tls-vendored = ["reqwest/native-tls-vendored"]
-
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
 internal-path-cache = ["dep:moka"]
+# Enable tokio runtime.
+internal-tokio-rt = ["tokio/rt-multi-thread"]
 
-# Enable all layers.
-layers-all = [
-  "layers-chaos",
-  "layers-metrics",
-  "layers-prometheus",
-  "layers-tracing",
-  "layers-minitrace",
-  "layers-throttle",
-  "layers-await-tree",
-  "layers-async-backtrace",
-  "layers-blocking",
-]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
@@ -199,16 +178,12 @@ services-tikv = ["tikv-client"]
 services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 services-vercel-blob = []
-# Deprecated
-# wasabi services support has been removed.
-# We will remove this feature in the next version.
 services-hdfs-native = ["hdfs-native"]
 services-wasabi = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
 
-internal-tokio-rt = ["tokio/rt-multi-thread"]
 
 [lib]
 bench = false

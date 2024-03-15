@@ -252,11 +252,9 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          need-nextest: true
 
       - name: Test
         working-directory: core
-        run: cargo nextest run --no-fail-fast --features layers-all,tests && cargo test --doc --features tests
+        run: cargo test --no-fail-fast --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

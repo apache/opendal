@@ -26,7 +26,7 @@ on:
       - main
     paths:
       - "core/**"
-      - ".github/workflows/core.yml"
+      - ".github/workflows/ci_core.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -255,6 +255,7 @@ jobs:
         with:
           need-protoc: true
           need-rocksdb: true
+          need-foundationdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test

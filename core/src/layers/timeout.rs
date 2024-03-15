@@ -54,7 +54,7 @@ use crate::*;
 /// The following examples will create a timeout layer with 10 seconds timeout for all non-io
 /// operations, 3 seconds timeout for all io operations.
 ///
-/// ```
+/// ```no_run
 /// use std::time::Duration;
 ///
 /// use anyhow::Result;

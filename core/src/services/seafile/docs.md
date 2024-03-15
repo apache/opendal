@@ -28,7 +28,7 @@ You can refer to [`SeafileBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Seafile;
 use opendal::Operator;

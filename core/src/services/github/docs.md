@@ -27,7 +27,7 @@ You can refer to [`GithubBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Github;
 use opendal::Operator;
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     // set the access token for Github API
     builder.token("your_access_token");
     // set the owner for Github
-    builder.owner("your_owner")
+    builder.owner("your_owner");
     // set the repository for Github
     builder.repo("your_repo");
 

@@ -28,7 +28,7 @@ You can refer to [`TiKVBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Tikv;
 use opendal::Operator;
@@ -36,7 +36,7 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = Tikv::default();
-    builder.endpoints("127.0.0.1:2379");
+    builder.endpoints(vec!["127.0.0.1:2379".to_string()]);
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

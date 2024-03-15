@@ -51,7 +51,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services;
@@ -69,7 +69,7 @@ use crate::*;
 /// RetryLayer accepts [`RetryInterceptor`] to allow users to customize
 /// their own retry interceptor logic.
 ///
-/// ```
+/// ```no_run
 /// use std::time::Duration;
 ///
 /// use anyhow::Result;
@@ -120,7 +120,7 @@ impl RetryLayer {
     /// Create a new retry layer.
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use anyhow::Result;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
@@ -137,7 +137,7 @@ impl RetryLayer {
 
     /// Set the retry interceptor as new notify.
     ///
-    /// ```
+    /// ```no_run
     /// use std::time::Duration;
     ///
     /// use anyhow::Result;

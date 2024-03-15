@@ -30,7 +30,7 @@ You can refer to [`WebdavBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Webdav;
 use opendal::Operator;

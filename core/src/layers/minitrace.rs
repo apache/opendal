@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::MinitraceLayer;
 /// use opendal::services;
@@ -51,7 +51,7 @@ use crate::*;
 ///
 /// ## Real usage
 ///
-/// ```no_run
+/// ```no_build
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
@@ -102,7 +102,7 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```no_run
+/// ```no_build
 /// extern crate minitrace_jaeger;
 ///
 /// use minitrace::collector::Config;

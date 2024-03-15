@@ -28,7 +28,7 @@ You can refer to [`B2Builder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::B2;
 use opendal::Operator;
@@ -41,10 +41,10 @@ async fn main() -> Result<()> {
     // set the storage bucket for OpenDAL
     builder.root("/");
     // set the key_id for OpenDAL
-    builder.key_id("xxxxxxxxxx");
+    builder.application_key_id("xxxxxxxxxx");
     // set the key_id for OpenDAL
     builder.application_key("xxxxxxxxxx");
-    // set the bucket name for OpenDAL
+    // set the     bucket name for OpenDAL
     builder.bucket("opendal");
     // set the bucket_id for OpenDAL
     builder.bucket_id("xxxxxxxxxxxxx");

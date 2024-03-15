@@ -39,7 +39,7 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::OtelTraceLayer;
 /// use opendal::services;

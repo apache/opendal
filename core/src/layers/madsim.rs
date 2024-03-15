@@ -53,7 +53,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_build
 /// use std::time::Duration;
 ///
 /// use madsim::net::NetSim;

@@ -46,8 +46,7 @@ use crate::*;
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
 /// use opendal::Operator;
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let mut builder = Fs::default();
 ///     // Set the root for fs, all operations will happen under this root.
@@ -113,7 +112,6 @@ impl Operator {
     /// # use anyhow::Result;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let info = op.info();
     /// # Ok(())
@@ -142,7 +140,6 @@ impl Operator {
     /// # use anyhow::Result;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.check().await?;
     /// # Ok(())
@@ -182,7 +179,6 @@ impl Operator {
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test").await {
     ///     if e.kind() == ErrorKind::NotFound {
@@ -220,7 +216,7 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
+    ///
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.stat_with("path/to/file").if_match(etag).await?;
     /// # Ok(())
@@ -239,7 +235,7 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
+    ///
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.stat_with("path/to/file").if_none_match(etag).await?;
     /// # Ok(())
@@ -263,7 +259,6 @@ impl Operator {
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat_with("test").if_match("<etag>").await {
     ///     if e.kind() == ErrorKind::ConditionNotMatch {
@@ -327,7 +322,6 @@ impl Operator {
     /// use futures::io;
     /// use opendal::Operator;
     ///
-    /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let _ = op.is_exist("test").await?;
     ///
@@ -361,10 +355,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.create_dir("path/to/dir/").await?;
     /// # Ok(())
@@ -404,11 +396,10 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read("path/to/file").await?;
     /// # Ok(())
@@ -443,11 +434,10 @@ impl Operator {
     /// - `1024..` means read bytes in range `[1024, n)` of file
     /// - `..1024` means read bytes in range `(n - 1024, n)` of file
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").range(0..1024).await?;
     /// # Ok(())
@@ -466,7 +456,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_match(etag).await?;
     /// # Ok(())
@@ -485,7 +474,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_none_match(etag).await?;
     /// # Ok(())
@@ -496,11 +484,10 @@ impl Operator {
     ///
     /// Read the whole path into a bytes.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").await?;
     /// let bs = op.read_with("path/to/file").range(0..10).await?;
@@ -559,11 +546,10 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader("path/to/file").await?;
     /// # Ok(())
@@ -595,11 +581,10 @@ impl Operator {
     /// - `1024..` means read bytes in range `[1024, n)` of file
     /// - `..1024` means read bytes in range `(n - 1024, n)` of file
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.reader_with("path/to/file").range(0..1024).await?;
     /// # Ok(())
@@ -616,11 +601,10 @@ impl Operator {
     /// The following example will create a reader with 4 MiB buffer internally. All seek operations
     /// happened in buffered data will be zero cost.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op
     ///     .reader_with("path/to/file")
@@ -642,7 +626,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.reader_with("path/to/file").if_match(etag).await?;
     /// # Ok(())
@@ -661,7 +644,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.reader_with("path/to/file").if_none_match(etag).await?;
     /// # Ok(())
@@ -671,11 +653,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader_with("path/to/file").range(0..10).await?;
     /// # Ok(())
@@ -726,14 +706,13 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.write("path/to/file", vec![0; 4096]).await?;
     /// # Ok(())
@@ -755,11 +734,10 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.copy("path/to/file", "path/to/file2").await?;
     /// # Ok(())
@@ -813,11 +791,10 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.rename("path/to/file", "path/to/file2").await?;
     /// # Ok(())
@@ -884,14 +861,11 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op.writer("path/to/file").await?;
     /// w.write(vec![0; 4096]).await?;
@@ -917,14 +891,13 @@ impl Operator {
     ///
     /// The following example will append data to existing file instead.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op.writer_with("path/to/file").append(true).await?;
     /// w.write(vec![0; 4096]).await?;
@@ -950,14 +923,13 @@ impl Operator {
     /// The following example will set the writer buffer to 8MiB. Only one API call will be sent at
     /// `close` instead.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
@@ -984,14 +956,13 @@ impl Operator {
     /// - The second write will start and return immediately.
     /// - The close will make sure all writes are done in order and return result.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op.writer_with("path/to/file").concurrent(8).await?;
     /// w.write(vec![0; 4096]).await?; // Start the first write
@@ -1007,14 +978,13 @@ impl Operator {
     ///
     /// Some storage services support setting `cache_control` as system metadata.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
@@ -1033,14 +1003,11 @@ impl Operator {
     ///
     /// Some storage services support setting `content_type` as system metadata.
     ///
-    /// ```
-    /// # use std::io::Result;
+    /// ```no_run
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
@@ -1060,13 +1027,12 @@ impl Operator {
     /// Some storage services support setting `content_disposition` as system metadata.
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
@@ -1082,13 +1048,12 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
@@ -1149,11 +1114,10 @@ impl Operator {
     /// The following example will append data to existing file instead.
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op.write_with("path/to/file", bs).append(true).await?;
@@ -1168,11 +1132,10 @@ impl Operator {
     /// Some storage services support setting `cache_control` as system metadata.
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
@@ -1190,11 +1153,10 @@ impl Operator {
     /// Some storage services support setting `content_type` as system metadata.
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
@@ -1212,11 +1174,10 @@ impl Operator {
     /// Some storage services support setting `content_disposition` as system metadata.
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
@@ -1230,11 +1191,10 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
@@ -1288,7 +1248,6 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.delete("test").await?;
     /// # Ok(())
@@ -1311,7 +1270,6 @@ impl Operator {
     /// # use futures::io;
     /// # use opendal::Operator;
     ///
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.delete_with("test").await?;
     /// # Ok(())
@@ -1344,7 +1302,6 @@ impl Operator {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// #
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.remove(vec!["abc".to_string(), "def".to_string()])
     ///     .await?;
@@ -1374,7 +1331,6 @@ impl Operator {
     /// # use opendal::Operator;
     /// use futures::stream;
     /// #
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
     /// op.remove_via(stream).await?;
@@ -1428,7 +1384,6 @@ impl Operator {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// #
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.remove_all("path/to/dir").await?;
     /// # Ok(())
@@ -1519,7 +1474,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/").await?;
     /// for entry in entries {
@@ -1550,7 +1504,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/prefix").await?;
     /// for entry in entries {
@@ -1597,7 +1550,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_with("path/to/dir/")
@@ -1617,7 +1569,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/dir/").recursive(true).await?;
     /// # Ok(())
@@ -1643,7 +1594,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_with("dir/")
@@ -1681,7 +1631,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/dir/").recursive(true).await?;
     /// for entry in entries {
@@ -1708,7 +1657,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/prefix").recursive(true).await?;
     /// for entry in entries {
@@ -1767,7 +1715,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
@@ -1806,7 +1753,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op
     ///     .lister_with("path/to/dir/")
@@ -1826,7 +1772,6 @@ impl Operator {
     /// ```no_run
     /// # use opendal::Result;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
     /// # Ok(())
@@ -1853,7 +1798,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op
     ///     .lister_with("dir/")
@@ -1890,7 +1834,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
     /// while let Some(mut entry) = lister.try_next().await? {
@@ -1917,7 +1860,6 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op
     ///     .lister_with("path/to/dir/")
@@ -1966,7 +1908,6 @@ impl Operator {
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.presign_stat("test",Duration::from_secs(3600)).await?;
     ///     let req = http::Request::builder()
@@ -1996,7 +1937,6 @@ impl Operator {
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.presign_stat_with("test",Duration::from_secs(3600)).override_content_disposition("attachment; filename=\"othertext.txt\"").await?;
     /// #    Ok(())
@@ -2039,7 +1979,6 @@ impl Operator {
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
-    /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.presign_read("test.txt", Duration::from_secs(3600)).await?;
     /// #    Ok(())

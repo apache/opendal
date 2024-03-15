@@ -25,7 +25,7 @@ You can refer to [`YandexDiskBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::YandexDisk;
 use opendal::Operator;

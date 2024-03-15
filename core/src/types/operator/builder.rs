@@ -30,8 +30,7 @@ use crate::*;
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
 /// use opendal::Operator;
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let mut builder = Fs::default();
 ///     // Set the root for fs, all operations will happen under this root.
@@ -59,8 +58,7 @@ impl Operator {
     /// # use anyhow::Result;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     // Create fs backend builder.
     ///     let mut builder = Fs::default();
     ///     // Set the root for fs, all operations will happen under this root.
@@ -97,8 +95,7 @@ impl Operator {
     ///
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     let map = HashMap::from([
     ///         // Set the root for fs, all operations will happen under this root.
     ///         //
@@ -136,8 +133,7 @@ impl Operator {
     ///
     /// use opendal::Operator;
     /// use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     let map = HashMap::from([
     ///         // Set the root for fs, all operations will happen under this root.
     ///         //
@@ -304,8 +300,7 @@ impl Operator {
     /// use opendal::services::Fs;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Fs::default())?.finish();
     /// let op = op.layer(LoggingLayer::default());
     /// // All operations will go through the new_layer
@@ -399,8 +394,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// use opendal::services::Fs;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Fs::default())?
     ///     .layer(LoggingLayer::default())
     ///     .finish();

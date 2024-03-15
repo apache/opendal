@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::ConcurrentLimitLayer;
 /// use opendal::services;

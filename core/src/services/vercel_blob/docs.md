@@ -25,7 +25,7 @@ You can refer to [`VercelBlobBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::VercelBlob;
 use opendal::Operator;

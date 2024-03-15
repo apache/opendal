@@ -33,7 +33,6 @@ use crate::*;
 /// use opendal::EntryMode;
 /// use opendal::Metakey;
 /// use opendal::Operator;
-/// # #[tokio::main]
 /// # async fn test(op: Operator) -> Result<()> {
 /// let mut entries = op
 ///     .list_with("dir/")
@@ -116,7 +115,6 @@ impl Entry {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_with("dir/")
@@ -165,7 +163,6 @@ impl Entry {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_with("dir/")

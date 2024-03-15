@@ -53,7 +53,8 @@ use crate::*;
 /// # Examples
 ///
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
-/// ```
+///
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::ThrottleLayer;
 /// use opendal::services;

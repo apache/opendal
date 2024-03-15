@@ -31,7 +31,7 @@ inputs:
   github-token:
     description: "Github Token"
     default: ""
-
+  
 runs:
   using: "composite"
   steps:

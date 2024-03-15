@@ -601,6 +601,7 @@ struct IcloudError {
 }
 
 #[derive(Default, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct IcloudWebservicesResponse {
     #[serde(default)]
     pub hsa_challenge_required: bool,
@@ -616,16 +617,16 @@ pub struct Webservices {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Drivews {
-    #[serde(rename = "pcsRequired")]
     pub pcs_required: bool,
     pub status: String,
     pub url: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Docws {
-    #[serde(rename = "pcsRequired")]
     pub pcs_required: bool,
     pub status: String,
     pub url: Option<String>,
@@ -712,6 +713,7 @@ pub struct IcloudCreateFolder {
 mod tests {
     use super::IcloudRoot;
     use super::IcloudWebservicesResponse;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_icloud_drive_root_json() {
@@ -799,7 +801,6 @@ mod tests {
           "etag": "w9",
           "fileCount": 22,
           "items": [
-            {
             {
               "dateChanged": "2021-02-18T14:10:46Z",
               "dateCreated": "2021-02-10T07:01:34Z",

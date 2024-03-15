@@ -260,6 +260,9 @@ jobs:
 
       - name: Test
         working-directory: core
-        run: cargo test --no-fail-fast --all-features
+        run: |
+          cargo nextest run --no-fail-fast --all-features
+          cargo test --doc --all-features
         env:
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          # Add rocksdb and java lib path to LD_LIBRARY_PATH
+          LD_LIBRARY_PATH: /tmp/rocksdb/lib:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

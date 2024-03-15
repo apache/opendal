@@ -39,7 +39,7 @@ default-members = ["."]
 members = [".", "fuzz", "edge/*", "benches/vs_*"]
 
 [features]
-default = ["reqwest/rustls", "services-memory"]
+default = ["reqwest/rustls-tls", "services-memory"]
 
 # Build test utils or not.
 #

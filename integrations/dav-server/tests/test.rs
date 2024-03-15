@@ -36,7 +36,7 @@ async fn test_metadata() -> Result<()> {
         .metadata(&DavPath::new("/").unwrap())
         .await
         .unwrap();
-    assert_eq!(true, metadata.is_dir());
+    assert!(metadata.is_dir());
 
     Ok(())
 }

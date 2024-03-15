@@ -108,7 +108,8 @@ async def test_async_writer(service_name, operator, async_operator):
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = await async_operator.open(filename, "wb")
-    await f.write(content)
+    written_bytes = await f.write(content)
+    assert written_bytes == size
     await f.close()
     await async_operator.delete(filename)
     with pytest.raises(NotFound):
@@ -120,7 +121,8 @@ def test_sync_writer(service_name, operator, async_operator):
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = operator.open(filename, "wb")
-    f.write(content)
+    written_bytes = f.write(content)
+    assert written_bytes == size
     f.close()
     operator.delete(filename)
     with pytest.raises(NotFound):

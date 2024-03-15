@@ -95,7 +95,7 @@ typedef struct BlockingLister BlockingLister;
  *
  * Read more backend init examples in [`services`]
  *
- * ```rust
+ * ```rust,no_run
  * # use anyhow::Result;
  * use opendal::services::Fs;
  * use opendal::BlockingOperator;
@@ -126,8 +126,7 @@ typedef struct BlockingLister BlockingLister;
  * use opendal::BlockingOperator;
  * use opendal::Operator;
  *
- * #[tokio::main]
- * async fn main() -> Result<()> {
+ * async fn test() -> Result<()> {
  *     // Create fs backend builder.
  *     let mut builder = S3::default();
  *     builder.bucket("test");
@@ -167,7 +166,6 @@ typedef struct BlockingReader BlockingReader;
  * use opendal::EntryMode;
  * use opendal::Metakey;
  * use opendal::Operator;
- * # #[tokio::main]
  * # async fn test(op: Operator) -> Result<()> {
  * let mut entries = op
  *     .list_with("dir/")

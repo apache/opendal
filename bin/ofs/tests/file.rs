@@ -32,7 +32,7 @@ static TEST_TEXT: &'static str = include_str!("../Cargo.toml");
 #[test_context(OfsTestContext)]
 #[tokio::test]
 async fn test_file(ctx: &mut OfsTestContext) {
-    let path = ctx.root.path().join("test_file.txt");
+    let path = ctx.mount_point.path().join("test_file.txt");
     let mut file = File::create(&path).await.unwrap();
 
     file.write(TEST_TEXT.as_bytes()).await.unwrap();
@@ -50,7 +50,7 @@ async fn test_file(ctx: &mut OfsTestContext) {
 #[test_context(OfsTestContext)]
 #[tokio::test]
 async fn test_file_append(ctx: &mut OfsTestContext) {
-    let path = ctx.root.path().join("test_file_append.txt");
+    let path = ctx.mount_point.path().join("test_file_append.txt");
     let mut file = File::create(&path).await.unwrap();
 
     file.write(TEST_TEXT.as_bytes()).await.unwrap();
@@ -72,7 +72,7 @@ async fn test_file_append(ctx: &mut OfsTestContext) {
 #[test_context(OfsTestContext)]
 #[tokio::test]
 async fn test_file_seek(ctx: &mut OfsTestContext) {
-    let path = ctx.root.path().join("test_file_seek.txt");
+    let path = ctx.mount_point.path().join("test_file_seek.txt");
     let mut file = File::create(&path).await.unwrap();
 
     file.write(TEST_TEXT.as_bytes()).await.unwrap();

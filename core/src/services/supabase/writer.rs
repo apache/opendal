@@ -17,12 +17,12 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::*;
 
@@ -43,16 +43,13 @@ impl SupabaseWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for SupabaseWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
-            AsyncBody::ChunkedBytes(bs),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req)?;

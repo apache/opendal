@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::*;
@@ -44,7 +43,6 @@ impl CosWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for CosWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self
@@ -167,7 +165,6 @@ impl oio::MultipartWrite for CosWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for CosWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self

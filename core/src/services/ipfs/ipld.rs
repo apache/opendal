@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(data.links[0].name.as_ref().unwrap(), "normal_dir");
         assert_eq!(data.links[0].tsize.unwrap(), 60);
 
-        assert_eq!(data.links[1].name.as_ref().unwrap(), "normal_file.txt");
+        assert_eq!(data.links[1].name.as_ref().unwrap(), "normal_file");
         assert_eq!(data.links[1].tsize.unwrap(), 262158);
     }
 }

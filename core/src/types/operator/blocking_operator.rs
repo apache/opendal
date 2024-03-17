@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 
 use super::operator_functions::*;
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -32,7 +31,7 @@ use crate::*;
 ///
 /// Read more backend init examples in [`services`]
 ///
-/// ```rust
+/// ```rust,no_run
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
 /// use opendal::BlockingOperator;
@@ -65,8 +64,7 @@ use crate::*;
 /// use opendal::BlockingOperator;
 /// use opendal::Operator;
 ///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let mut builder = S3::default();
 ///     builder.bucket("test");
@@ -316,7 +314,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -351,7 +349,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// #
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -424,7 +422,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -481,7 +479,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -508,7 +506,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -565,7 +563,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -653,8 +651,8 @@ impl BlockingOperator {
                 }
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
-                while bs.remaining() > 0 {
-                    let n = w.write(&bs)?;
+                while !bs.is_empty() {
+                    let n = w.write(bs.clone())?;
                     bs.advance(n);
                 }
                 w.close()?;
@@ -673,7 +671,7 @@ impl BlockingOperator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;

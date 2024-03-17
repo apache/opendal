@@ -39,8 +39,6 @@
 //! type_alias_impl_trait has been stabilized.
 
 use std::io::SeekFrom;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Bytes;
 
@@ -90,24 +88,24 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
 }
 
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         match self {
-            Self::One(v) => v.poll_write(cx, bs),
-            Self::Two(v) => v.poll_write(cx, bs),
+            Self::One(v) => v.write(bs).await,
+            Self::Two(v) => v.write(bs).await,
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         match self {
-            Self::One(v) => v.poll_close(cx),
-            Self::Two(v) => v.poll_close(cx),
+            Self::One(v) => v.close().await,
+            Self::Two(v) => v.close().await,
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn abort(&mut self) -> Result<()> {
         match self {
-            Self::One(v) => v.poll_abort(cx),
-            Self::Two(v) => v.poll_abort(cx),
+            Self::One(v) => v.abort().await,
+            Self::Two(v) => v.abort().await,
         }
     }
 }
@@ -165,27 +163,27 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> o
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         match self {
-            Self::One(v) => v.poll_write(cx, bs),
-            Self::Two(v) => v.poll_write(cx, bs),
-            Self::Three(v) => v.poll_write(cx, bs),
+            Self::One(v) => v.write(bs).await,
+            Self::Two(v) => v.write(bs).await,
+            Self::Three(v) => v.write(bs).await,
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         match self {
-            Self::One(v) => v.poll_close(cx),
-            Self::Two(v) => v.poll_close(cx),
-            Self::Three(v) => v.poll_close(cx),
+            Self::One(v) => v.close().await,
+            Self::Two(v) => v.close().await,
+            Self::Three(v) => v.close().await,
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn abort(&mut self) -> Result<()> {
         match self {
-            Self::One(v) => v.poll_abort(cx),
-            Self::Two(v) => v.poll_abort(cx),
-            Self::Three(v) => v.poll_abort(cx),
+            Self::One(v) => v.abort().await,
+            Self::Two(v) => v.abort().await,
+            Self::Three(v) => v.abort().await,
         }
     }
 }

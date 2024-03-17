@@ -209,7 +209,7 @@ fn test_parse_one_drive_json() {
                     "path": "/drive/root:"
                 },
                 "file": {
-                    "mimeType": "application/pdf",
+                    "mimeType": "application/pdf"
                 },
                 "fileSystemInfo": {
                     "createdDateTime": "2018-12-30T05:32:55.46Z",

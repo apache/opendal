@@ -28,7 +28,7 @@ You can refer to [`MemcachedBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Memcached;
 use opendal::Operator;

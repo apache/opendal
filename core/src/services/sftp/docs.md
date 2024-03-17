@@ -32,7 +32,7 @@ You can refer to [`SftpBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Sftp;
 use opendal::Operator;

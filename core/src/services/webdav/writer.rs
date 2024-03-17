@@ -17,12 +17,12 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::*;
 
@@ -39,18 +39,15 @@ impl WebdavWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for WebdavWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
             .webdav_put(
                 &self.path,
                 Some(bs.len() as u64),
                 &self.op,
-                AsyncBody::ChunkedBytes(bs),
+                AsyncBody::Bytes(bs),
             )
             .await?;
 

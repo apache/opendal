@@ -19,7 +19,8 @@ This service can be used to:
 - `root`: Set the work directory for backend
 - `bucket`: Set the container name for backend
 - `endpoint`: Customizable endpoint setting
-- `credentials`: Credential string for GCS OAuth2
+- `credential`: Credentials string for GCS service OAuth2 authentication
+- `credential_path`: Local path to credentials file for GCS service OAuth2 authentication
 - `predefined_acl`: Predefined ACL for GCS
 - `default_storage_class`: Default storage class for GCS
 
@@ -29,7 +30,7 @@ Refer to public API docs for more information.
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Gcs;
 use opendal::Operator;
@@ -44,7 +45,7 @@ async fn main() -> Result<()> {
     // set the working directory root for GCS
     // all operations will happen within it
     builder.root("/path/to/dir");
-    // set the credential of service account.
+    // set the credentials string of service account
     builder.credential("service account credential");
     // set the predefined ACL for GCS
     builder.predefined_acl("publicRead");

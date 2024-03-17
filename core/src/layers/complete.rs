@@ -18,12 +18,11 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use crate::raw::oio::BufferReader;
 use crate::raw::oio::FileReader;
@@ -157,7 +156,7 @@ impl<A: Accessor> CompleteAccessor<A> {
         }
         if capability.write_can_empty && capability.list {
             let (_, mut w) = self.inner.write(path, OpWrite::default()).await?;
-            oio::WriteExt::close(&mut w).await?;
+            oio::Write::close(&mut w).await?;
             return Ok(RpCreateDir::default());
         }
 
@@ -711,35 +710,34 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        let n = ready!(w.poll_write(cx, bs))?;
 
-        Poll::Ready(Ok(n))
+        w.write(bs).await
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn close(&mut self) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        ready!(w.poll_close(cx))?;
+        w.close().await?;
         self.inner = None;
 
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    async fn abort(&mut self) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        ready!(w.poll_abort(cx))?;
+        w.abort().await?;
         self.inner = None;
 
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 }
 
@@ -747,7 +745,7 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;

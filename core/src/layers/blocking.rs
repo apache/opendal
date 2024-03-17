@@ -18,7 +18,7 @@
 use async_trait::async_trait;
 use bytes;
 use bytes::Bytes;
-use futures::future::poll_fn;
+
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -36,7 +36,7 @@ use crate::*;
 ///
 /// BlockingLayer will use current async context's runtime to handle the async calls.
 ///
-/// ```rust
+/// ```rust,no_run
 /// # use anyhow::Result;
 /// use opendal::layers::BlockingLayer;
 /// use opendal::services::S3;
@@ -66,7 +66,7 @@ use crate::*;
 /// first. You can use [`Handle::try_current`] first to get the handle and than call [`Handle::enter`].
 /// This often happens in the case that async function calls blocking function.
 ///
-/// ```rust
+/// ```rust,no_run
 /// use opendal::layers::BlockingLayer;
 /// use opendal::services::S3;
 /// use opendal::BlockingOperator;
@@ -103,7 +103,7 @@ use crate::*;
 /// > The following code uses a global statically created runtime as an example, please manage the
 /// runtime on demand.
 ///
-/// ```rust
+/// ```rust,no_run
 /// use once_cell::sync::Lazy;
 /// use opendal::layers::BlockingLayer;
 /// use opendal::services::S3;
@@ -298,14 +298,12 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.handle
-            .block_on(poll_fn(|cx| self.inner.poll_write(cx, bs)))
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        self.handle.block_on(self.inner.write(bs))
     }
 
     fn close(&mut self) -> Result<()> {
-        self.handle
-            .block_on(poll_fn(|cx| self.inner.poll_close(cx)))
+        self.handle.block_on(self.inner.close())
     }
 }
 

@@ -31,7 +31,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::AwaitTreeLayer;
 /// use opendal::services;

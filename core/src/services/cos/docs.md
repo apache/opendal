@@ -28,7 +28,7 @@ You can refer to [`CosBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Cos;
 use opendal::Operator;

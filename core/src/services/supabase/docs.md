@@ -29,7 +29,7 @@ can access all resources. Note that if you want to read public resources, do not
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Supabase;
 use opendal::Operator;

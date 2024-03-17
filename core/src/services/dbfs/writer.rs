@@ -17,11 +17,11 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::error::parse_error;
-use crate::raw::oio::WriteBuf;
+
 use crate::raw::*;
 use crate::services::dbfs::core::DbfsCore;
 use crate::*;
@@ -39,10 +39,8 @@ impl DbfsWriter {
     }
 }
 
-#[async_trait]
 impl oio::OneShotWrite for DbfsWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = bs.bytes(bs.remaining());
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();
 
         // MAX_BLOCK_SIZE_EXCEEDED will be thrown if this limit(1MB) is exceeded.

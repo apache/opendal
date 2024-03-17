@@ -18,9 +18,6 @@
 use std::fmt::Debug;
 
 use std::io;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -57,7 +54,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::services;
@@ -1147,8 +1144,8 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        match ready!(self.inner.poll_write(cx, bs)) {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        match self.inner.write(bs.clone()).await {
             Ok(n) => {
                 self.written += n as u64;
                 trace!(
@@ -1158,10 +1155,10 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    bs.remaining(),
+                    bs.len(),
                     n,
                 );
-                Poll::Ready(Ok(n))
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1176,13 +1173,13 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Poll::Ready(Err(err))
+                Err(err)
             }
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match ready!(self.inner.poll_abort(cx)) {
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
             Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
@@ -1192,7 +1189,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     self.path,
                     self.written,
                 );
-                Poll::Ready(Ok(()))
+                Ok(())
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1207,13 +1204,13 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Poll::Ready(Err(err))
+                Err(err)
             }
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match ready!(self.inner.poll_close(cx)) {
+    async fn close(&mut self) -> Result<()> {
+        match self.inner.close().await {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
@@ -1223,7 +1220,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     self.path,
                     self.written
                 );
-                Poll::Ready(Ok(()))
+                Ok(())
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1238,15 +1235,15 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Poll::Ready(Err(err))
+                Err(err)
             }
         }
     }
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        match self.inner.write(bs) {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;
                 trace!(
@@ -1256,7 +1253,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
-                    bs.remaining(),
+                    bs.len(),
                     n
                 );
                 Ok(n)

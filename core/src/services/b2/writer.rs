@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::B2Core;
@@ -46,7 +45,6 @@ impl B2Writer {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for B2Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self

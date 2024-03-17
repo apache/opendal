@@ -19,8 +19,6 @@ use std::fmt::Debug;
 
 use std::io::SeekFrom;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -39,7 +37,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use anyhow::Result;
 /// use opendal::layers::ConcurrentLimitLayer;
 /// use opendal::services;
@@ -278,21 +276,21 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        self.inner.poll_write(cx, bs)
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        self.inner.write(bs).await
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_close(cx)
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.poll_abort(cx)
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         self.inner.write(bs)
     }
 

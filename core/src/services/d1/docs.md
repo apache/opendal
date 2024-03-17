@@ -28,7 +28,7 @@ This service can be used to:
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::D1;
 use opendal::Operator;

@@ -16,15 +16,11 @@
 // under the License.
 
 use std::sync::Arc;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
+
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 
 use super::Adapter;
 use super::Value;
@@ -271,7 +267,6 @@ pub struct KvWriter<S> {
     op: OpWrite,
     buf: Option<Vec<u8>>,
     value: Option<Value>,
-    future: Option<BoxFuture<'static, Result<()>>>,
 }
 
 /// # Safety
@@ -287,7 +282,6 @@ impl<S> KvWriter<S> {
             op,
             buf: None,
             value: None,
-            future: None,
         }
     }
 
@@ -312,72 +306,41 @@ impl<S> KvWriter<S> {
 }
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        if self.future.is_some() {
-            self.future = None;
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "there is a future on going, it's maybe a bug to go into this case",
-            )));
-        }
-
-        let size = bs.chunk().len();
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let size = bs.len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
+        buf.extend_from_slice(&bs);
 
         self.buf = Some(buf);
-
-        Poll::Ready(Ok(size))
+        Ok(size)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match self.future.as_mut() {
-                Some(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
-                    self.future = None;
-                    return Poll::Ready(res);
-                }
-                None => {
-                    let kv = self.kv.clone();
-                    let path = self.path.clone();
-                    let value = match &self.value {
-                        Some(value) => value.clone(),
-                        None => {
-                            let value = self.build();
-                            self.value = Some(value.clone());
-                            value
-                        }
-                    };
-
-                    let fut = async move { kv.set(&path, value).await };
-                    self.future = Some(Box::pin(fut));
-                }
+    async fn close(&mut self) -> Result<()> {
+        let value = match &self.value {
+            Some(value) => value.clone(),
+            None => {
+                let value = self.build();
+                self.value = Some(value.clone());
+                value
             }
-        }
+        };
+        self.kv.set(&self.path, value).await?;
+        Ok(())
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        if self.future.is_some() {
-            self.future = None;
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "there is a future on going, it's maybe a bug to go into this case",
-            )));
-        }
-
+    async fn abort(&mut self) -> Result<()> {
         self.buf = None;
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.chunk().len();
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let size = bs.len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
+        buf.extend_from_slice(&bs);
 
         self.buf = Some(buf);
 

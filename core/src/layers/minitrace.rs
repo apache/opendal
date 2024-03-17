@@ -16,10 +16,9 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::Future;
 
 use std::io;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -38,7 +37,7 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```
+/// ```no_build
 /// use anyhow::Result;
 /// use opendal::layers::MinitraceLayer;
 /// use opendal::services;
@@ -52,7 +51,7 @@ use crate::*;
 ///
 /// ## Real usage
 ///
-/// ```no_run
+/// ```no_build
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
@@ -103,7 +102,7 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```no_run
+/// ```no_build
 /// extern crate minitrace_jaeger;
 ///
 /// use minitrace::collector::Config;
@@ -324,27 +323,27 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
-        self.inner.poll_write(cx, bs)
+        self.inner.write(bs)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
-        self.inner.poll_abort(cx)
+        self.inner.abort()
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
-        self.inner.poll_close(cx)
+        self.inner.close()
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
-    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn write(&mut self, bs: Bytes) -> Result<usize> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
         self.inner.write(bs)

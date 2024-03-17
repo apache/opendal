@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::*;
@@ -44,7 +43,6 @@ impl OssWriter {
     }
 }
 
-#[async_trait]
 impl oio::MultipartWrite for OssWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req =
@@ -172,7 +170,6 @@ impl oio::MultipartWrite for OssWriter {
     }
 }
 
-#[async_trait]
 impl oio::AppendWrite for OssWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.oss_head_object(&self.path, None, None).await?;

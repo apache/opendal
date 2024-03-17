@@ -29,7 +29,7 @@ You can refer to [`RedisBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Redis;
 use opendal::Operator;

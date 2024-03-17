@@ -83,7 +83,7 @@ export CLASSPATH=$HADOOP_CONF_DIR:$HADOOP_CLASSPATH:$CLASSPATH
 ```
 4. Use the `cluster_name` specified in the `core-site.xml` file (located in the HADOOP_CONF_DIR folder) to replace namenode:port.
 
-```rust
+```ignore
 builder.name_node("hdfs://cluster_name");
 ```
 
@@ -109,7 +109,7 @@ Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.s
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;

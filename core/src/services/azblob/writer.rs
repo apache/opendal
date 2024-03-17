@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use uuid::Uuid;
 
@@ -43,8 +42,6 @@ impl AzblobWriter {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::AppendWrite for AzblobWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
@@ -111,9 +108,6 @@ impl oio::AppendWrite for AzblobWriter {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-#[async_trait]
 impl oio::BlockWrite for AzblobWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req: http::Request<AsyncBody> =

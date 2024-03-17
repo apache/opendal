@@ -24,7 +24,7 @@ You can refer to [`CacacheBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Cacache;
 use opendal::Operator;

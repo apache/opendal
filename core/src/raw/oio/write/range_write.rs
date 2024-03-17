@@ -17,16 +17,15 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
+
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
+use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;
 
-use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -59,45 +58,43 @@ use crate::*;
 /// - Must be a http service that could accept `AsyncBody`.
 /// - Need initialization before writing.
 /// - Writing data based on range: `offset`, `size`.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait RangeWrite: Send + Sync + Unpin + 'static {
     /// write_once is used to write the data to underlying storage at once.
     ///
     /// RangeWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()>;
+    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
 
     /// Initiate range the range write, the returning value is the location.
-    async fn initiate_range(&self) -> Result<String>;
+    fn initiate_range(&self) -> impl Future<Output = Result<String>> + Send;
 
     /// write_range will write a range of data.
-    async fn write_range(
+    fn write_range(
         &self,
         location: &str,
         offset: u64,
         size: u64,
         body: AsyncBody,
-    ) -> Result<()>;
+    ) -> impl Future<Output = Result<()>> + Send;
 
     /// complete_range will complete the range write by uploading the last chunk.
-    async fn complete_range(
+    fn complete_range(
         &self,
         location: &str,
         offset: u64,
         size: u64,
         body: AsyncBody,
-    ) -> Result<()>;
+    ) -> impl Future<Output = Result<()>> + Send;
 
     /// abort_range will abort the range write by abort all already uploaded data.
-    async fn abort_range(&self, location: &str) -> Result<()>;
+    fn abort_range(&self, location: &str) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// WritePartResult is the result returned by [`WriteRangeFuture`].
 ///
 /// The error part will carries input `(offset, bytes, err)` so caller can retry them.
-type WriteRangeResult = std::result::Result<(), (u64, oio::ChunkedBytes, Error)>;
+type WriteRangeResult = std::result::Result<(), (u64, Bytes, Error)>;
 
 struct WriteRangeFuture(BoxedStaticFuture<WriteRangeResult>);
 
@@ -119,18 +116,13 @@ impl Future for WriteRangeFuture {
 }
 
 impl WriteRangeFuture {
-    pub fn new<W: RangeWrite>(
-        w: Arc<W>,
-        location: Arc<String>,
-        offset: u64,
-        bytes: oio::ChunkedBytes,
-    ) -> Self {
+    pub fn new<W: RangeWrite>(w: Arc<W>, location: Arc<String>, offset: u64, bytes: Bytes) -> Self {
         let fut = async move {
             w.write_range(
                 &location,
                 offset,
                 bytes.len() as u64,
-                AsyncBody::ChunkedBytes(bytes.clone()),
+                AsyncBody::Bytes(bytes.clone()),
             )
             .await
             .map_err(|err| (offset, bytes, err))
@@ -144,35 +136,16 @@ impl WriteRangeFuture {
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<Arc<String>>,
     next_offset: u64,
-    buffer: Option<oio::ChunkedBytes>,
+    buffer: Option<Bytes>,
     futures: ConcurrentFutures<WriteRangeFuture>,
 
     w: Arc<W>,
-    state: State,
 }
-
-enum State {
-    Idle,
-    Init(BoxedStaticFuture<Result<String>>),
-    Complete(BoxedStaticFuture<Result<()>>),
-    Abort(BoxedStaticFuture<Result<()>>),
-}
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this state.
-unsafe impl Send for State {}
-
-/// # Safety
-///
-/// We will only take `&mut Self` reference for State.
-unsafe impl Sync for State {}
 
 impl<W: RangeWrite> RangeWriter<W> {
     /// Create a new MultipartWriter.
     pub fn new(inner: W, concurrent: usize) -> Self {
         Self {
-            state: State::Idle,
             w: Arc::new(inner),
 
             futures: ConcurrentFutures::new(1.max(concurrent)),
@@ -182,9 +155,8 @@ impl<W: RangeWrite> RangeWriter<W> {
         }
     }
 
-    fn fill_cache(&mut self, bs: &dyn WriteBuf) -> usize {
-        let size = bs.remaining();
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+    fn fill_cache(&mut self, bs: Bytes) -> usize {
+        let size = bs.len();
         assert!(self.buffer.is_none());
         self.buffer = Some(bs);
         size
@@ -192,163 +164,101 @@ impl<W: RangeWrite> RangeWriter<W> {
 }
 
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let location = match self.location.clone() {
+            Some(location) => location,
+            None => {
+                // Fill cache with the first write.
+                if self.buffer.is_none() {
+                    let size = self.fill_cache(bs);
+                    return Ok(size);
+                }
+
+                let location = self.w.initiate_range().await?;
+                let location = Arc::new(location);
+                self.location = Some(location.clone());
+                location
+            }
+        };
+
         loop {
-            match &mut self.state {
-                State::Idle => {
-                    match self.location.clone() {
-                        Some(location) => {
-                            if self.futures.has_remaining() {
-                                let cache = self.buffer.take().expect("cache must be valid");
-                                let offset = self.next_offset;
-                                self.next_offset += cache.len() as u64;
-                                self.futures.push_back(WriteRangeFuture::new(
-                                    self.w.clone(),
-                                    location,
-                                    offset,
-                                    cache,
-                                ));
+            if self.futures.has_remaining() {
+                let cache = self.buffer.take().expect("cache must be valid");
+                let offset = self.next_offset;
+                self.next_offset += cache.len() as u64;
+                self.futures.push_back(WriteRangeFuture::new(
+                    self.w.clone(),
+                    location,
+                    offset,
+                    cache,
+                ));
 
-                                let size = self.fill_cache(bs);
-                                return Poll::Ready(Ok(size));
-                            }
+                let size = self.fill_cache(bs);
+                return Ok(size);
+            }
 
-                            if let Some(Err((offset, bytes, err))) =
-                                ready!(self.futures.poll_next_unpin(cx))
-                            {
-                                self.futures.push_front(WriteRangeFuture::new(
-                                    self.w.clone(),
-                                    location,
-                                    offset,
-                                    bytes,
-                                ));
-                                return Poll::Ready(Err(err));
-                            }
-                        }
-                        None => {
-                            // Fill cache with the first write.
-                            if self.buffer.is_none() {
-                                let size = self.fill_cache(bs);
-                                return Poll::Ready(Ok(size));
-                            }
-
-                            let w = self.w.clone();
-                            self.state =
-                                State::Init(Box::pin(async move { w.initiate_range().await }));
-                        }
-                    }
-                }
-                State::Init(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
-                    self.state = State::Idle;
-                    self.location = Some(Arc::new(res?));
-                }
-                State::Complete(_) => {
-                    unreachable!("RangeWriter must not go into State::Complete during poll_write")
-                }
-                State::Abort(_) => {
-                    unreachable!("RangeWriter must not go into State::Abort during poll_write")
-                }
+            if let Some(Err((offset, bytes, err))) = self.futures.next().await {
+                self.futures.push_front(WriteRangeFuture::new(
+                    self.w.clone(),
+                    location,
+                    offset,
+                    bytes,
+                ));
+                return Err(err);
             }
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match &mut self.state {
-                State::Idle => {
-                    let w = self.w.clone();
-                    match self.location.clone() {
-                        Some(location) => {
-                            if !self.futures.is_empty() {
-                                while let Some(result) = ready!(self.futures.poll_next_unpin(cx)) {
-                                    if let Err((offset, bytes, err)) = result {
-                                        self.futures.push_front(WriteRangeFuture::new(
-                                            self.w.clone(),
-                                            location,
-                                            offset,
-                                            bytes,
-                                        ));
-                                        return Poll::Ready(Err(err));
-                                    };
-                                }
-                            }
-                            match self.buffer.take() {
-                                Some(bs) => {
-                                    let offset = self.next_offset;
-                                    self.state = State::Complete(Box::pin(async move {
-                                        w.complete_range(
-                                            &location,
-                                            offset,
-                                            bs.len() as u64,
-                                            AsyncBody::ChunkedBytes(bs),
-                                        )
-                                        .await
-                                    }));
-                                }
-                                None => {
-                                    unreachable!("It's must be bug that RangeWrite is in State::Idle with no cache but has location")
-                                }
-                            }
-                        }
-                        None => {
-                            let w = self.w.clone();
-                            let (size, body) = match self.buffer.clone() {
-                                Some(cache) => (cache.len(), AsyncBody::ChunkedBytes(cache)),
-                                None => (0, AsyncBody::Empty),
-                            };
-                            // Call write_once if there is no data in buffer and no location.
+    async fn close(&mut self) -> Result<()> {
+        let Some(location) = self.location.clone() else {
+            let (size, body) = match self.buffer.clone() {
+                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
+                None => (0, AsyncBody::Empty),
+            };
+            // Call write_once if there is no data in buffer and no location.
+            return self.w.write_once(size as u64, body).await;
+        };
 
-                            self.state = State::Complete(Box::pin(async move {
-                                w.write_once(size as u64, body).await
-                            }));
-                        }
-                    }
-                }
-                State::Init(_) => {
-                    unreachable!("RangeWriter must not go into State::Init during poll_close")
-                }
-                State::Complete(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
-                    self.state = State::Idle;
-                    return Poll::Ready(res);
-                }
-                State::Abort(_) => {
-                    unreachable!("RangeWriter must not go into State::Abort during poll_close")
-                }
+        if !self.futures.is_empty() {
+            while let Some(result) = self.futures.next().await {
+                if let Err((offset, bytes, err)) = result {
+                    self.futures.push_front(WriteRangeFuture::new(
+                        self.w.clone(),
+                        location,
+                        offset,
+                        bytes,
+                    ));
+                    return Err(err);
+                };
             }
         }
+
+        if let Some(buffer) = self.buffer.clone() {
+            let offset = self.next_offset;
+            self.w
+                .complete_range(
+                    &location,
+                    offset,
+                    buffer.len() as u64,
+                    AsyncBody::Bytes(buffer),
+                )
+                .await?;
+            self.buffer = None;
+        }
+
+        Ok(())
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match &mut self.state {
-                State::Idle => match self.location.clone() {
-                    Some(location) => {
-                        let w = self.w.clone();
-                        self.futures.clear();
-                        self.state =
-                            State::Abort(Box::pin(async move { w.abort_range(&location).await }));
-                    }
-                    None => return Poll::Ready(Ok(())),
-                },
-                State::Init(_) => {
-                    unreachable!("RangeWriter must not go into State::Init during poll_close")
-                }
-                State::Complete(_) => {
-                    unreachable!("RangeWriter must not go into State::Complete during poll_close")
-                }
-                State::Abort(fut) => {
-                    let res = ready!(fut.poll_unpin(cx));
-                    self.state = State::Idle;
-                    // We should check res first before clean up cache.
-                    res?;
+    async fn abort(&mut self) -> Result<()> {
+        let Some(location) = self.location.clone() else {
+            return Ok(());
+        };
 
-                    self.buffer = None;
-                    return Poll::Ready(Ok(()));
-                }
-            }
-        }
+        self.futures.clear();
+        self.w.abort_range(&location).await?;
+        // Clean cache when abort_range returns success.
+        self.buffer = None;
+        Ok(())
     }
 }
 
@@ -363,7 +273,7 @@ mod tests {
     use rand::RngCore;
 
     use super::*;
-    use crate::raw::oio::WriteExt;
+    use crate::raw::oio::Write;
 
     struct TestWrite {
         length: u64,
@@ -381,8 +291,6 @@ mod tests {
         }
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl RangeWrite for Arc<Mutex<TestWrite>> {
         async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
             let mut test = self.lock().unwrap();
@@ -456,7 +364,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(&bs.as_slice()).await {
+                match w.write(Bytes::copy_from_slice(&bs)).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

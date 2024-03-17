@@ -19,7 +19,7 @@ use bytes::Buf;
 use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::oio::ExactBufWriter;
-use opendal::raw::oio::WriteExt;
+use opendal::raw::oio::Write;
 use rand::thread_rng;
 use size::Size;
 
@@ -48,7 +48,7 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
 
                 let mut bs = content.clone();
                 while !bs.is_empty() {
-                    let n = w.write(&bs).await.unwrap();
+                    let n = w.write(bs.clone()).await.unwrap();
                     bs.advance(n);
                 }
                 w.close().await.unwrap();

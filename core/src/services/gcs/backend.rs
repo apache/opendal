@@ -57,9 +57,9 @@ pub struct GcsConfig {
     scope: Option<String>,
     /// Service Account for gcs.
     service_account: Option<String>,
-    /// credential string for GCS service
+    /// Credentials string for GCS service OAuth2 authentication.
     credential: Option<String>,
-    /// credential path for GCS service.
+    /// Local path to credentials file for GCS service OAuth2 authentication.
     credential_path: Option<String>,
     /// The predefined acl for GCS.
     predefined_acl: Option<String>,
@@ -150,7 +150,13 @@ impl GcsBuilder {
         self
     }
 
-    /// set the base64 hashed credentials string used for OAuth2
+    /// set the base64 hashed credentials string used for OAuth2 authentication.
+    ///
+    /// this method allows to specify the credentials directly as a base64 hashed string.
+    /// alternatively, you can use `credential_path()` to provide the local path to a credentials file.
+    /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
+    ///
+    /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
     pub fn credential(&mut self, credential: &str) -> &mut Self {
         if !credential.is_empty() {
             self.config.credential = Some(credential.to_string())
@@ -158,7 +164,12 @@ impl GcsBuilder {
         self
     }
 
-    /// set the credentials path of GCS.
+    /// set the local path to credentials file which is used for OAuth2 authentication.
+    ///
+    /// credentials file contains the original credentials that have not been base64 hashed.
+    /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
+    ///
+    /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
     pub fn credential_path(&mut self, path: &str) -> &mut Self {
         if !path.is_empty() {
             self.config.credential_path = Some(path.to_string())

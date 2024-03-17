@@ -40,7 +40,7 @@ az storage container create --name test --connection-string "DefaultEndpointsPro
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;

@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 
 use super::core::*;
@@ -44,8 +43,6 @@ impl S3Writer {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl oio::MultipartWrite for S3Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self

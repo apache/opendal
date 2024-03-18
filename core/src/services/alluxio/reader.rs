@@ -19,7 +19,6 @@ use std::future::Future;
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::services::alluxio::error::parse_error;
 use crate::*;
@@ -44,7 +43,7 @@ impl AlluxioReader {
 }
 
 impl oio::Read for AlluxioReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
             return Ok(oio::Buffer::new());
         };

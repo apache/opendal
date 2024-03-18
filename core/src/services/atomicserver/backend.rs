@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use atomic_lib::agents::Agent;
 use atomic_lib::client::get_authentication_headers;
 use atomic_lib::commit::sign_message;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -375,9 +375,9 @@ impl Adapter {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
-        let bytes_file = resp.into_body().bytes().await?;
+        let mut bytes_file = resp.into_body();
 
-        Ok(bytes_file)
+        Ok(bytes_file.copy_to_bytes(bytes_file.remaining()))
     }
 }
 
@@ -389,10 +389,9 @@ impl Adapter {
         for _i in 0..1000 {
             let req = self.atomic_get_object_request(path)?;
             let resp = self.client.send(req).await?;
-            let bytes = resp.into_body().bytes().await?;
+            let bytes = resp.into_body();
             let query_result: QueryResultStruct =
-                serde_json::from_str(std::str::from_utf8(&bytes).unwrap())
-                    .map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
             if !expect_exist && query_result.results.is_empty() {
                 break;
             }
@@ -424,11 +423,10 @@ impl kv::Adapter for Adapter {
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let req = self.atomic_get_object_request(path)?;
         let resp = self.client.send(req).await?;
-        let bytes = resp.into_body().bytes().await?;
+        let bytes = resp.into_body();
 
         let query_result: QueryResultStruct =
-            serde_json::from_str(std::str::from_utf8(&bytes).unwrap())
-                .map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if query_result.results.is_empty() {
             return Err(Error::new(
@@ -447,11 +445,10 @@ impl kv::Adapter for Adapter {
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let req = self.atomic_get_object_request(path)?;
         let res = self.client.send(req).await?;
-        let bytes = res.into_body().bytes().await?;
+        let bytes = res.into_body();
 
         let query_result: QueryResultStruct =
-            serde_json::from_str(std::str::from_utf8(&bytes).unwrap())
-                .map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         for result in query_result.results {
             let req = self.atomic_delete_object_request(&result.id)?;
@@ -470,11 +467,10 @@ impl kv::Adapter for Adapter {
     async fn delete(&self, path: &str) -> Result<()> {
         let req = self.atomic_get_object_request(path)?;
         let res = self.client.send(req).await?;
-        let bytes = res.into_body().bytes().await?;
+        let bytes = res.into_body();
 
         let query_result: QueryResultStruct =
-            serde_json::from_str(std::str::from_utf8(&bytes).unwrap())
-                .map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         for result in query_result.results {
             let req = self.atomic_delete_object_request(&result.id)?;

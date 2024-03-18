@@ -68,7 +68,7 @@ fn intern_constructor(
     let mut op = Operator::via_map(scheme, map)?;
     if !op.info().full_capability().blocking {
         let layer =
-            unsafe { executor_or_default(env, executor) }.enter_with(|| BlockingLayer::create())?;
+            unsafe { executor_or_default(env, executor) }.enter_with(BlockingLayer::create)?;
         op = op.layer(layer);
     }
     Ok(Box::into_raw(Box::new(op)) as jlong)

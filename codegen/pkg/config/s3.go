@@ -20,9 +20,9 @@
 package config
 
 var S3 = Config{
-	ModCfg: `#[cfg(feature = "services-s3")]`,
-	Name:   "s3",
-	Desc:   "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
+	Cond: `#[cfg(feature = "services-s3")]`,
+	Name: "s3",
+	Desc: "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
 	Fields: []Field{
 		{
 			Name: "root",

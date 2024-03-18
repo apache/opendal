@@ -19,12 +19,12 @@
 //! DO NOT MODIFY MANUALLY
 
 {{ range . }}
-{{ .ModCfg }}
+{{ .Cond }}
 pub use {{ .Name }}::{{ .RustStructName }};
 {{- end }}
 
 {{ range . }}
-{{ .ModCfg }}
+{{ .Cond }}
 pub mod {{ .Name }} {
     use crate::raw::*;
     use serde::Deserialize;

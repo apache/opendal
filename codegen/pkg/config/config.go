@@ -20,7 +20,7 @@
 package config
 
 type Config struct {
-	ModCfg string
+	Cond   string
 	Name   string
 	Desc   string
 	Fields []Field

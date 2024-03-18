@@ -85,7 +85,7 @@ impl Builder for FoundationdbBuilder {
         let config = FoundationConfig::deserialize(ConfigDeserializer::new(map))
             .expect("config deserialize must succeed");
 
-            Self { config }
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

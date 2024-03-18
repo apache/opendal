@@ -269,9 +269,9 @@ pub use self::tikv::TikvConfig;
 #[cfg(feature = "services-foundationdb")]
 mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
-pub use self::foundationdb::Foundationdb;
-#[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::FoundationConfig;
+#[cfg(feature = "services-foundationdb")]
+pub use self::foundationdb::Foundationdb;
 
 #[cfg(feature = "services-postgresql")]
 mod postgresql;

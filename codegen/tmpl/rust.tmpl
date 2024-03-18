@@ -26,7 +26,8 @@ use crate::raw::*;
 #[non_exhaustive]
 pub struct {{ .Name }}Config {
     {{- range .Fields }}
-    {{ .RustComment }}
+
+    {{ .RustComment -}}
     pub {{ .Name }}: {{ .RustType }},
     {{- end }}
 }

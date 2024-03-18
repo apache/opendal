@@ -47,6 +47,14 @@ const (
 )
 
 func (f Field) RustType() string {
+	typ := f.rustType()
+	if f.Required {
+		return typ
+	}
+	return fmt.Sprintf("Option<%s>", typ)
+}
+
+func (f Field) rustType() string {
 	switch f.RefinedType {
 	case refinedTypeNone:
 		break
@@ -83,13 +91,18 @@ func (f Field) RustComment() string {
 		if scanner.Text() != "" {
 			res += fmt.Sprintf("/// %s\n", scanner.Text())
 		} else {
-			res += fmt.Sprintf("///\n")
+			res += fmt.Sprintln("///")
 		}
 	}
 
 	if f.Default != "" {
-		res += fmt.Sprintf("///\n")
-		res += fmt.Sprintf("/// default to `%s` if not set.\n", f.Default)
+		res += fmt.Sprintln("///")
+		res += fmt.Sprintf("/// Default to `%s` if not set.\n", f.Default)
+	}
+
+	if f.Required {
+		res += fmt.Sprintln("///")
+		res += fmt.Sprintln("/// Required.")
 	}
 
 	return res
@@ -100,14 +113,17 @@ var S3 = Config{
 	Desc: "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
 	Fields: []Field{
 		{
-			Name: "",
-			Desc: `
-root of this backend.
-
-All operations will happen under this root.
-`,
+			Name: "root",
+			Desc: "root of this backend.\n\n" +
+				"All operations will happen under this root.",
 			Type:    fileTypeString,
 			Default: "/",
+		},
+		{
+			Name:     "bucket",
+			Desc:     "bucket name of this backend.",
+			Type:     fileTypeString,
+			Required: true,
 		},
 	},
 }

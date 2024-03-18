@@ -15,12 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::AlluxioBuilder as Alluxio;
-pub use backend::AlluxioConfig;
+use std::sync::Arc;
 
-mod core;
-mod error;
-mod lister;
-mod writer;
-mod reader;
+use bytes::Bytes;
+
+use crate::raw::*;
+use crate::*;
+
+pub struct AlluxioReader {
+    core: Arc<AlluxioCore>,
+
+    _op: OpWrite,
+    path: String,
+    stream_id: Option<u64>,
+}

@@ -34,7 +34,7 @@ public class AsyncExecutorTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
         final int cores = Runtime.getRuntime().availableProcessors();
-        final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
+        @Cleanup final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
         @Cleanup final Operator op = Operator.of("memory", conf, executor);
         assertThat(op.info).isNotNull();
 
@@ -49,5 +49,7 @@ public class AsyncExecutorTest {
         assertThat(executor.isDisposed()).isFalse();
         executor.close();
         assertThat(executor.isDisposed()).isTrue();
+
+        // @Cleanup will close executor once more, but we don't crash with the guard.
     }
 }

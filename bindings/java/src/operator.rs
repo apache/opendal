@@ -61,8 +61,8 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
     let map = jmap_to_hashmap(env, &map)?;
     let mut op = Operator::via_map(scheme, map)?;
     if !op.info().full_capability().blocking {
-        let _guard = unsafe { get_global_runtime() }.enter();
-        op = op.layer(BlockingLayer::create()?);
+        let layer = unsafe { get_global_runtime(env) }.enter_with(|| BlockingLayer::create())?;
+        op = op.layer(layer);
     }
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
@@ -121,7 +121,7 @@ fn intern_write(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_write(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -162,7 +162,7 @@ fn intern_append(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_append(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -196,7 +196,7 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_stat(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -232,7 +232,7 @@ fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_read(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -270,7 +270,7 @@ fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<j
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_delete(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -337,7 +337,7 @@ fn intern_create_dir(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Resu
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_create_dir(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -378,7 +378,7 @@ fn intern_copy(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_copy(op, source_path, target_path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -419,7 +419,7 @@ fn intern_rename(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_rename(op, source_path, target_path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -453,7 +453,7 @@ fn intern_remove_all(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Resu
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_remove_all(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -487,7 +487,7 @@ fn intern_list(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_list(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -542,7 +542,7 @@ fn intern_presign_read(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_presign_read(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
@@ -589,7 +589,7 @@ fn intern_presign_write(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_presign_write(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
@@ -636,7 +636,7 @@ fn intern_presign_stat(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { get_global_runtime() }.spawn(async move {
+    unsafe { get_global_runtime(env) }.spawn(async move {
         let result = do_presign_stat(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));

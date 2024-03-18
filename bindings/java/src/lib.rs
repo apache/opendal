@@ -19,7 +19,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use crate::executor::{make_tokio_executor, Executor};
+use crate::executor::Executor;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::jboolean;
@@ -67,18 +67,6 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
 unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
     let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
     JNIEnv::from_raw(env).unwrap()
-}
-
-/// # Safety
-///
-/// This function could be only when the lib is loaded.
-unsafe fn get_global_runtime<'a>(env: &mut JNIEnv<'a>) -> &'a Executor {
-    RUNTIME
-        .get_or_try_init(|| {
-            let vm = env.get_java_vm().unwrap();
-            make_tokio_executor(num_cpus::get(), vm)
-        })
-        .unwrap()
 }
 
 fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Result<JObject<'a>> {

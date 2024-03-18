@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use serde::Deserialize;
 use crate::raw::*;
 
+{{- range . }}
 /// Config for {{ .Desc }}
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -43,3 +44,4 @@ impl Debug for {{ .Name }}Config {
         d.finish_non_exhaustive()
     }
 }
+{{- end }}

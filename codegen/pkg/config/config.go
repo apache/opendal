@@ -22,10 +22,12 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"github.com/iancoleman/strcase"
 	"strings"
 )
 
 type Config struct {
+	ModCfg string
 	Name   string
 	Desc   string
 	Fields []Field
@@ -64,6 +66,10 @@ const (
 	refinedTypeNone RefinedFieldType = iota
 	refinedTypeRustUsize
 )
+
+func (c Config) RustStructName() string {
+	return fmt.Sprintf("%sConfig", strcase.ToCamel(c.Name))
+}
 
 func (f Field) RustType() string {
 	typ := f.rustType()
@@ -156,8 +162,9 @@ func (f Field) RustDebugField() string {
 }
 
 var S3 = Config{
-	Name: "S3",
-	Desc: "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
+	ModCfg: `#[cfg(feature = "services-s3")]`,
+	Name:   "s3",
+	Desc:   "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
 	Fields: []Field{
 		{
 			Name: "root",

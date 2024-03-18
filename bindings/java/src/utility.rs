@@ -27,7 +27,7 @@ use crate::Result;
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledServices(
     mut env: JNIEnv,

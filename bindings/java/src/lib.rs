@@ -15,19 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ffi::c_void;
 
-use crate::executor::Executor;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::jboolean;
 use jni::sys::jint;
 use jni::sys::jlong;
 use jni::JNIEnv;
-use jni::JavaVM;
-use once_cell::sync::OnceCell;
+
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
 use opendal::Entry;
@@ -45,27 +41,6 @@ mod operator;
 mod utility;
 
 pub(crate) type Result<T> = std::result::Result<T, error::Error>;
-
-static mut RUNTIME: OnceCell<Executor> = OnceCell::new();
-thread_local! {
-    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
-}
-
-/// # Safety
-///
-/// This function could be only called by java vm when unload this lib.
-#[no_mangle]
-pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    let _ = RUNTIME.take();
-}
-
-/// # Safety
-///
-/// This function could be only when the lib is loaded and within a RUNTIME-spawned thread.
-unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
-    let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
-    JNIEnv::from_raw(env).unwrap()
-}
 
 fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Result<JObject<'a>> {
     let method = env.new_string(req.method().as_str())?;

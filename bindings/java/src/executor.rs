@@ -15,15 +15,40 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::RefCell;
+use std::ffi::c_void;
 use std::future::Future;
 
 use jni::objects::{JClass, JObject};
 use jni::sys::jlong;
-use jni::JNIEnv;
+use jni::{JNIEnv, JavaVM};
+use once_cell::sync::OnceCell;
 use tokio::task::JoinHandle;
 
 use crate::Result;
-use crate::{ENV, RUNTIME};
+
+static mut RUNTIME: OnceCell<Executor> = OnceCell::new();
+thread_local! {
+    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
+}
+
+/// # Safety
+///
+/// This function could be only called by java vm when unload this lib.
+#[no_mangle]
+pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
+    let _ = RUNTIME.take();
+}
+
+/// # Safety
+///
+/// This function could be only called when the lib is loaded and within an executor thread.
+pub(crate) unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
+    let env = ENV
+        .with(|cell| *cell.borrow_mut())
+        .expect("env must be available");
+    JNIEnv::from_raw(env).expect("env must be valid")
+}
 
 pub enum Executor {
     Tokio(tokio::runtime::Runtime),
@@ -53,9 +78,6 @@ impl Executor {
     }
 }
 
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
     mut env: JNIEnv,
@@ -72,7 +94,7 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the AsyncExecutor is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal(
     _: JNIEnv,
@@ -126,5 +148,5 @@ pub(crate) unsafe fn executor_or_default<'a>(
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> &'a Executor {
     RUNTIME
         .get_or_try_init(|| make_tokio_executor(env, num_cpus::get()))
-        .unwrap()
+        .expect("default executor must be able to initialize")
 }

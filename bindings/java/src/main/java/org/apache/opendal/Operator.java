@@ -120,6 +120,17 @@ public class Operator extends NativeObject {
         return of(schema, map, null);
     }
 
+    /**
+     * Construct an OpenDAL operator:
+     *
+     * <p>
+     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * and see what config options each service supports.
+     *
+     * @param schema   the name of the underneath service to access data from.
+     * @param map      a map of properties to construct the underneath operator.
+     * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
+     */
     public static Operator of(String schema, Map<String, String> map, AsyncExecutor executor) {
         final long executorHandle = executor != null ? executor.nativeHandle : 0;
         final long nativeHandle = constructor(executorHandle, schema, map);

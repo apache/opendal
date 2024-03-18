@@ -87,63 +87,30 @@ pub type Reader = Box<dyn ReadDyn>;
 /// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
-    /// Fetch more bytes from underlying reader.
-    ///
-    /// `limit` is used to hint the data that user want to read at most. Implementer
-    /// MUST NOT return more than `limit` bytes. However, implementer can decide
-    /// whether to split or merge the read requests underground.
-    ///
-    /// Returning `bytes`'s `length == 0` means:
-    ///
-    /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
-    /// - The `limit` specified was `0`.
     #[cfg(not(target_arch = "wasm32"))]
-    fn read(&mut self, limit: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Bytes>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>>;
-
-    /// Seek asynchronously.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>>;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Bytes>>;
 }
 
 impl Read for () {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
+    async fn read_at(&mut self, offset: u64, limit: usize) -> Result<Bytes> {
+        let (_, _) = (offset, limit);
 
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support streaming",
         ))
     }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
-    }
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>>;
-
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Bytes>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>> {
-        Box::pin(self.read(limit))
-    }
-
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
-        Box::pin(self.seek(pos))
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Bytes>> {
+        Box::pin(self.read_at(offset, limit))
     }
 }
 
@@ -152,12 +119,8 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.deref_mut().read_dyn(limit).await
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.deref_mut().seek_dyn(pos).await
+    async fn read_at(&mut self, offset: u64, limit: usize) -> Result<Bytes> {
+        self.deref_mut().read_at_dyn(offset, limit).await
     }
 }
 

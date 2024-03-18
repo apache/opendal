@@ -159,37 +159,37 @@ impl IncomingAsyncBody {
     }
 }
 
-impl oio::Read for IncomingAsyncBody {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        if self.size == Some(0) {
-            return Ok(Bytes::new());
-        }
-
-        if self.chunk.is_empty() {
-            self.chunk = match self.inner.next().await.transpose()? {
-                Some(bs) => bs,
-                None => {
-                    if let Some(size) = self.size {
-                        Self::check(size, self.consumed)?
-                    }
-
-                    return Ok(Bytes::new());
-                }
-            };
-        }
-
-        let size = min(limit, self.chunk.len());
-        self.consumed += size as u64;
-        let bs = self.chunk.split_to(size);
-        Ok(bs)
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
-    }
-}
+// impl oio::Read for IncomingAsyncBody {
+//     async fn read(&mut self, limit: usize) -> Result<Bytes> {
+//         if self.size == Some(0) {
+//             return Ok(Bytes::new());
+//         }
+//
+//         if self.chunk.is_empty() {
+//             self.chunk = match self.inner.next().await.transpose()? {
+//                 Some(bs) => bs,
+//                 None => {
+//                     if let Some(size) = self.size {
+//                         Self::check(size, self.consumed)?
+//                     }
+//
+//                     return Ok(Bytes::new());
+//                 }
+//             };
+//         }
+//
+//         let size = min(limit, self.chunk.len());
+//         self.consumed += size as u64;
+//         let bs = self.chunk.split_to(size);
+//         Ok(bs)
+//     }
+//
+//     async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+//         let _ = pos;
+//
+//         Err(Error::new(
+//             ErrorKind::Unsupported,
+//             "output reader doesn't support seeking",
+//         ))
+//     }
+// }

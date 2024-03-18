@@ -104,7 +104,7 @@ public class Operator extends NativeObject {
 
     public final OperatorInfo info;
 
-    private final AsyncExecutor executor;
+    private final long executorHandle;
 
     /**
      * Construct an OpenDAL operator:
@@ -121,15 +121,16 @@ public class Operator extends NativeObject {
     }
 
     public static Operator of(String schema, Map<String, String> map, AsyncExecutor executor) {
-        final long nativeHandle = constructor(schema, map);
+        final long executorHandle = executor != null ? executor.nativeHandle : 0;
+        final long nativeHandle = constructor(executorHandle, schema, map);
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new Operator(nativeHandle, info, executor);
+        return new Operator(nativeHandle, executorHandle, info);
     }
 
-    private Operator(long nativeHandle, OperatorInfo info, AsyncExecutor executor) {
+    private Operator(long nativeHandle, long executorHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
-        this.executor = executor;
+        this.executorHandle = executorHandle;
     }
 
     /**
@@ -143,12 +144,12 @@ public class Operator extends NativeObject {
      */
     public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
-        return new Operator(nativeHandle, this.info, this.executor);
+        return new Operator(nativeHandle, this.executorHandle, this.info);
     }
 
     public Operator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
-        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle), this.executor);
+        return new Operator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {
@@ -162,7 +163,7 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
-        final long requestId = write(nativeHandle, executorHandle(), path, content);
+        final long requestId = write(nativeHandle, executorHandle, path, content);
         return AsyncRegistry.take(requestId);
     }
 
@@ -171,68 +172,64 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> append(String path, byte[] content) {
-        final long requestId = append(nativeHandle, executorHandle(), path, content);
+        final long requestId = append(nativeHandle, executorHandle, path, content);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Metadata> stat(String path) {
-        final long requestId = stat(nativeHandle, executorHandle(), path);
+        final long requestId = stat(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<byte[]> read(String path) {
-        final long requestId = read(nativeHandle, executorHandle(), path);
+        final long requestId = read(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
-        final long requestId = presignRead(nativeHandle, executorHandle(), path, duration.toNanos());
+        final long requestId = presignRead(nativeHandle, executorHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration) {
-        final long requestId = presignWrite(nativeHandle, executorHandle(), path, duration.toNanos());
+        final long requestId = presignWrite(nativeHandle, executorHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration) {
-        final long requestId = presignStat(nativeHandle, executorHandle(), path, duration.toNanos());
+        final long requestId = presignStat(nativeHandle, executorHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> delete(String path) {
-        final long requestId = delete(nativeHandle, executorHandle(), path);
+        final long requestId = delete(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> createDir(String path) {
-        final long requestId = createDir(nativeHandle, executorHandle(), path);
+        final long requestId = createDir(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
-        final long requestId = copy(nativeHandle, executorHandle(), sourcePath, targetPath);
+        final long requestId = copy(nativeHandle, executorHandle, sourcePath, targetPath);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
-        final long requestId = rename(nativeHandle, executorHandle(), sourcePath, targetPath);
+        final long requestId = rename(nativeHandle, executorHandle, sourcePath, targetPath);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> removeAll(String path) {
-        final long requestId = removeAll(nativeHandle, executorHandle(), path);
+        final long requestId = removeAll(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        final long requestid = list(nativeHandle, executorHandle(), path);
-        final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
+        final long requestId = list(nativeHandle, executorHandle, path);
+        final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
-    }
-
-    private long executorHandle() {
-        return this.executor != null ? this.executor.nativeHandle : 0;
     }
 
     @Override
@@ -240,7 +237,7 @@ public class Operator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(String schema, Map<String, String> map);
+    private static native long constructor(long executorHandle, String schema, Map<String, String> map);
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 

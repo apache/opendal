@@ -30,11 +30,11 @@ import org.junit.jupiter.api.Test;
 
 public class AsyncExecutorTest {
     @Test
-    void testOperatorWithRetryLayer() {
+    void testDedicatedTokioExecutor() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
         final int cores = Runtime.getRuntime().availableProcessors();
-        @Cleanup final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
+        final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
         @Cleanup final Operator op = Operator.of("memory", conf, executor);
         assertThat(op.info).isNotNull();
 
@@ -45,5 +45,9 @@ public class AsyncExecutorTest {
         assertThat(op.read(key).join()).isEqualTo(v0);
         op.write(key, v1).join();
         assertThat(op.read(key).join()).isEqualTo(v1);
+
+        assertThat(executor.isDisposed()).isFalse();
+        executor.close();
+        assertThat(executor.isDisposed()).isTrue();
     }
 }

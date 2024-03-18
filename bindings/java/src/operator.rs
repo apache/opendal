@@ -66,8 +66,7 @@ fn intern_constructor(
     let map = jmap_to_hashmap(env, &map)?;
     let mut op = Operator::via_map(scheme, map)?;
     if !op.info().full_capability().blocking {
-        let layer =
-            unsafe { executor_or_default(env, executor) }.enter_with(BlockingLayer::create)?;
+        let layer = executor_or_default(env, executor)?.enter_with(BlockingLayer::create)?;
         op = op.layer(layer);
     }
     Ok(Box::into_raw(Box::new(op)) as jlong)
@@ -129,7 +128,7 @@ fn intern_write(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_write(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -172,7 +171,7 @@ fn intern_append(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_append(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -212,7 +211,7 @@ fn intern_stat(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_stat(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -254,7 +253,7 @@ fn intern_read(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_read(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -298,7 +297,7 @@ fn intern_delete(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_delete(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -371,7 +370,7 @@ fn intern_create_dir(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_create_dir(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -414,7 +413,7 @@ fn intern_copy(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_copy(op, source_path, target_path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -457,7 +456,7 @@ fn intern_rename(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_rename(op, source_path, target_path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -497,7 +496,7 @@ fn intern_remove_all(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_remove_all(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -537,7 +536,7 @@ fn intern_list(
 
     let path = jstring_to_string(env, &path)?;
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_list(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -594,7 +593,7 @@ fn intern_presign_read(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_presign_read(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
@@ -643,7 +642,7 @@ fn intern_presign_write(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_presign_write(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
@@ -692,7 +691,7 @@ fn intern_presign_stat(
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    unsafe { executor_or_default(env, executor) }.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = do_presign_stat(op, path, expire).await;
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));

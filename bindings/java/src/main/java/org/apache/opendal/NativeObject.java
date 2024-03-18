@@ -76,6 +76,15 @@ public abstract class NativeObject implements AutoCloseable {
     }
 
     /**
+     * Check if the object has been disposed. Useful for defensive programming.
+     *
+     * @return if the object has been disposed.
+     */
+    public boolean isDisposed() {
+        return disposed.get();
+    }
+
+    /**
      * Deletes underlying native object pointer.
      *
      * @param handle to the native object pointer

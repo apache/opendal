@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"github.com/apache/opendal/codegen/pkg/config"
+	"github.com/cli/safeexec"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/template"
 )
@@ -44,6 +46,16 @@ func generateRustFiles(templates string, output string) error {
 
 	if err = tmpl.Execute(w, []config.Config{config.S3}); err != nil {
 		return err
+	}
+
+	if output != "" {
+		rustfmt, err := safeexec.LookPath("rustfmt")
+		if err != nil {
+			return err
+		}
+		if err := exec.Command(rustfmt, output).Run(); err != nil {
+			return err
+		}
 	}
 
 	return nil

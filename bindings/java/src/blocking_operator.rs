@@ -34,7 +34,7 @@ use crate::Result;
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeInternal(
     _: JNIEnv,
@@ -46,7 +46,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeIn
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_duplicate(
     _: JNIEnv,
@@ -59,7 +59,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_duplicate
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
     mut env: JNIEnv,
@@ -82,7 +82,7 @@ fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_write(
     mut env: JNIEnv,
@@ -109,7 +109,7 @@ fn intern_write(
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
     mut env: JNIEnv,
@@ -131,7 +131,7 @@ fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
     mut env: JNIEnv,
@@ -151,7 +151,7 @@ fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> 
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_createDir(
     mut env: JNIEnv,
@@ -171,7 +171,7 @@ fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_copy(
     mut env: JNIEnv,
@@ -199,7 +199,7 @@ fn intern_copy(
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_rename(
     mut env: JNIEnv,
@@ -227,7 +227,7 @@ fn intern_rename(
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_removeAll(
     mut env: JNIEnv,
@@ -248,7 +248,7 @@ fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
 
 /// # Safety
 ///
-/// This function should not be called before the Operator are ready.
+/// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_list(
     mut env: JNIEnv,

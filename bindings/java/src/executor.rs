@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use jni::objects::JClass;
+use jni::objects::{JClass, JObject};
 use jni::sys::jlong;
 use jni::JNIEnv;
 use tokio::task::JoinHandle;
@@ -13,9 +13,15 @@ pub enum Executor {
 }
 
 impl Executor {
-    pub fn shutdown_background(self) {
+    pub fn enter_with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
         match self {
-            Executor::Tokio(e) => e.shutdown_background(),
+            Executor::Tokio(e) => {
+                let _guard = e.enter();
+                f()
+            }
         }
     }
 
@@ -28,20 +34,11 @@ impl Executor {
             Executor::Tokio(e) => e.spawn(future),
         }
     }
-
-    pub fn enter_with<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        match self {
-            Executor::Tokio(e) => {
-                let _guard = e.enter();
-                f()
-            }
-        }
-    }
 }
 
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
     mut env: JNIEnv,
@@ -54,6 +51,18 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
             e.throw(&mut env);
             0
         })
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal(
+    _: JNIEnv,
+    _: JObject,
+    executor: *mut Executor,
+) {
+    drop(Box::from_raw(executor));
 }
 
 pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {

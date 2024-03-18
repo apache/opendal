@@ -56,9 +56,7 @@ thread_local! {
 /// This function could be only called by java vm when unload this lib.
 #[no_mangle]
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    if let Some(r) = RUNTIME.take() {
-        r.shutdown_background()
-    }
+    let _ = RUNTIME.take();
 }
 
 /// # Safety

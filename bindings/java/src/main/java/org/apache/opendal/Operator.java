@@ -104,6 +104,8 @@ public class Operator extends NativeObject {
 
     public final OperatorInfo info;
 
+    private final AsyncExecutor executor;
+
     /**
      * Construct an OpenDAL operator:
      *
@@ -115,14 +117,19 @@ public class Operator extends NativeObject {
      * @param map    a map of properties to construct the underneath operator.
      */
     public static Operator of(String schema, Map<String, String> map) {
-        final long nativeHandle = constructor(schema, map);
-        final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new Operator(nativeHandle, info);
+        return of(schema, map, null);
     }
 
-    private Operator(long nativeHandle, OperatorInfo info) {
+    public static Operator of(String schema, Map<String, String> map, AsyncExecutor executor) {
+        final long nativeHandle = constructor(schema, map);
+        final OperatorInfo info = makeOperatorInfo(nativeHandle);
+        return new Operator(nativeHandle, info, executor);
+    }
+
+    private Operator(long nativeHandle, OperatorInfo info, AsyncExecutor executor) {
         super(nativeHandle);
         this.info = info;
+        this.executor = executor;
     }
 
     /**
@@ -136,12 +143,12 @@ public class Operator extends NativeObject {
      */
     public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
-        return new Operator(nativeHandle, this.info);
+        return new Operator(nativeHandle, this.info, this.executor);
     }
 
     public Operator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
-        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle));
+        return new Operator(nativeHandle, makeOperatorInfo(nativeHandle), this.executor);
     }
 
     public BlockingOperator blocking() {
@@ -155,7 +162,7 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
-        final long requestId = write(nativeHandle, path, content);
+        final long requestId = write(nativeHandle, executorHandle(), path, content);
         return AsyncRegistry.take(requestId);
     }
 
@@ -164,64 +171,68 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> append(String path, byte[] content) {
-        final long requestId = append(nativeHandle, path, content);
+        final long requestId = append(nativeHandle, executorHandle(), path, content);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Metadata> stat(String path) {
-        final long requestId = stat(nativeHandle, path);
+        final long requestId = stat(nativeHandle, executorHandle(), path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<byte[]> read(String path) {
-        final long requestId = read(nativeHandle, path);
+        final long requestId = read(nativeHandle, executorHandle(), path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
-        final long requestId = presignRead(nativeHandle, path, duration.toNanos());
+        final long requestId = presignRead(nativeHandle, executorHandle(), path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration) {
-        final long requestId = presignWrite(nativeHandle, path, duration.toNanos());
+        final long requestId = presignWrite(nativeHandle, executorHandle(), path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration) {
-        final long requestId = presignStat(nativeHandle, path, duration.toNanos());
+        final long requestId = presignStat(nativeHandle, executorHandle(), path, duration.toNanos());
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> delete(String path) {
-        final long requestId = delete(nativeHandle, path);
+        final long requestId = delete(nativeHandle, executorHandle(), path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> createDir(String path) {
-        final long requestId = createDir(nativeHandle, path);
+        final long requestId = createDir(nativeHandle, executorHandle(), path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
-        final long requestId = copy(nativeHandle, sourcePath, targetPath);
+        final long requestId = copy(nativeHandle, executorHandle(), sourcePath, targetPath);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
-        final long requestId = rename(nativeHandle, sourcePath, targetPath);
+        final long requestId = rename(nativeHandle, executorHandle(), sourcePath, targetPath);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> removeAll(String path) {
-        final long requestId = removeAll(nativeHandle, path);
+        final long requestId = removeAll(nativeHandle, executorHandle(), path);
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        final long requestid = list(nativeHandle, path);
+        final long requestid = list(nativeHandle, executorHandle(), path);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
+    }
+
+    private long executorHandle() {
+        return this.executor != null ? this.executor.nativeHandle : 0;
     }
 
     @Override
@@ -231,33 +242,33 @@ public class Operator extends NativeObject {
 
     private static native long constructor(String schema, Map<String, String> map);
 
-    private static native long read(long nativeHandle, String path);
+    private static native long read(long nativeHandle, long executorHandle, String path);
 
-    private static native long write(long nativeHandle, String path, byte[] content);
+    private static native long write(long nativeHandle, long executorHandle, String path, byte[] content);
 
-    private static native long append(long nativeHandle, String path, byte[] content);
+    private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 
-    private static native long delete(long nativeHandle, String path);
+    private static native long delete(long nativeHandle, long executorHandle, String path);
 
-    private static native long stat(long nativeHandle, String path);
+    private static native long stat(long nativeHandle, long executorHandle, String path);
 
-    private static native long presignRead(long nativeHandle, String path, long duration);
+    private static native long presignRead(long nativeHandle, long executorHandle, String path, long duration);
 
-    private static native long presignWrite(long nativeHandle, String path, long duration);
+    private static native long presignWrite(long nativeHandle, long executorHandle, String path, long duration);
 
-    private static native long presignStat(long nativeHandle, String path, long duration);
+    private static native long presignStat(long nativeHandle, long executorHandle, String path, long duration);
 
     private static native OperatorInfo makeOperatorInfo(long nativeHandle);
 
     private static native long makeBlockingOp(long nativeHandle);
 
-    private static native long createDir(long nativeHandle, String path);
+    private static native long createDir(long nativeHandle, long executorHandle, String path);
 
-    private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+    private static native long copy(long nativeHandle, long executorHandle, String sourcePath, String targetPath);
 
-    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+    private static native long rename(long nativeHandle, long executorHandle, String sourcePath, String targetPath);
 
-    private static native long removeAll(long nativeHandle, String path);
+    private static native long removeAll(long nativeHandle, long executorHandle, String path);
 
-    private static native long list(long nativeHandle, String path);
+    private static native long list(long nativeHandle, long executorHandle, String path);
 }

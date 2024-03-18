@@ -25,6 +25,31 @@ enum Inner {
     NonContiguous(VecDeque<Bytes>),
 }
 
+impl Buffer {
+    #[inline]
+    pub fn new() -> Self {
+        Self(Inner::Contiguous(Bytes::new()))
+    }
+}
+
+impl From<Bytes> for Buffer {
+    fn from(bs: Bytes) -> Self {
+        Self(Inner::Contiguous(bs))
+    }
+}
+
+impl From<VecDeque<Bytes>> for Buffer {
+    fn from(bs: VecDeque<Bytes>) -> Self {
+        Self(Inner::NonContiguous(bs))
+    }
+}
+
+impl From<Vec<Bytes>> for Buffer {
+    fn from(bs: Vec<Bytes>) -> Self {
+        Self(Inner::NonContiguous(bs.into()))
+    }
+}
+
 impl bytes::Buf for Buffer {
     #[inline]
     fn remaining(&self) -> usize {
@@ -73,7 +98,7 @@ impl bytes::Buf for Buffer {
         match &mut self.0 {
             Inner::Contiguous(b) => b.copy_to_bytes(len),
             Inner::NonContiguous(v) => {
-                if len <= v[0].remaining() {
+                if len > 0 && len <= v[0].remaining() {
                     let bs = v[0].copy_to_bytes(len);
                     if v[0].is_empty() {
                         v.remove(0);

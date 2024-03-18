@@ -526,10 +526,10 @@ impl Operator {
 
                 let (_, r) = inner.read(&path, args.with_range(range)).await?;
                 let mut r = Reader::new(r);
-                let mut buf = Vec::with_capacity(size_hint as usize);
-                r.read_to_end(&mut buf).await?;
-
-                Ok(buf)
+                // let mut buf = Vec::with_capacity(size_hint as usize);
+                // r.read_to_end(&mut buf).await?;
+                todo!()
+                // Ok(buf)
             },
         )
     }

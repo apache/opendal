@@ -18,12 +18,13 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
-use std::ops::DerefMut;
+use std::ops::Deref;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::Future;
 
-use crate::raw::BoxedFuture;
+use crate::raw::oio::Buffer;
+use crate::raw::*;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -88,13 +89,17 @@ pub type Reader = Box<dyn ReadDyn>;
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
     #[cfg(not(target_arch = "wasm32"))]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    fn read_at(
+        &self,
+        offset: u64,
+        limit: usize,
+    ) -> impl Future<Output = Result<oio::Buffer>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Bytes>>;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<oio::Buffer>>;
 }
 
 impl Read for () {
-    async fn read_at(&mut self, offset: u64, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let (_, _) = (offset, limit);
 
         Err(Error::new(
@@ -104,12 +109,24 @@ impl Read for () {
     }
 }
 
+impl Read for Bytes {
+    /// TODO: we can check if the offset is out of range.
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(Buffer::from(self.slice(offset..offset + limit)))
+    }
+}
+
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Bytes>>;
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Bytes>> {
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>> {
         Box::pin(self.read_at(offset, limit))
     }
 }
@@ -119,8 +136,8 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read_at(&mut self, offset: u64, limit: usize) -> Result<Bytes> {
-        self.deref_mut().read_at_dyn(offset, limit).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.deref().read_at_dyn(offset, limit).await
     }
 }
 

@@ -38,10 +38,12 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
+use std::future::Future;
 use std::io::SeekFrom;
 
 use bytes::Bytes;
 
+use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -56,17 +58,10 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.seek(pos).await,
-            Self::Two(v) => v.seek(pos).await,
-        }
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self {
-            Self::One(v) => v.read(limit).await,
-            Self::Two(v) => v.read(limit).await,
+            TwoWays::One(v) => v.read_at(offset, limit).await,
+            TwoWays::Two(v) => v.read_at(offset, limit).await,
         }
     }
 }
@@ -123,19 +118,11 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.seek(pos).await,
-            Self::Two(v) => v.seek(pos).await,
-            Self::Three(v) => v.seek(pos).await,
-        }
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self {
-            Self::One(v) => v.read(limit).await,
-            Self::Two(v) => v.read(limit).await,
-            Self::Three(v) => v.read(limit).await,
+            ThreeWays::One(v) => v.read_at(offset, limit).await,
+            ThreeWays::Two(v) => v.read_at(offset, limit).await,
+            ThreeWays::Three(v) => v.read_at(offset, limit).await,
         }
     }
 }
@@ -209,21 +196,12 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.seek(pos).await,
-            Self::Two(v) => v.seek(pos).await,
-            Self::Three(v) => v.seek(pos).await,
-            Self::Four(v) => v.seek(pos).await,
-        }
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self {
-            Self::One(v) => v.read(limit).await,
-            Self::Two(v) => v.read(limit).await,
-            Self::Three(v) => v.read(limit).await,
-            Self::Four(v) => v.read(limit).await,
+            FourWays::One(v) => v.read_at(offset, limit).await,
+            FourWays::Two(v) => v.read_at(offset, limit).await,
+            FourWays::Three(v) => v.read_at(offset, limit).await,
+            FourWays::Four(v) => v.read_at(offset, limit).await,
         }
     }
 }

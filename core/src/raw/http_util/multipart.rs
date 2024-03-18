@@ -41,7 +41,6 @@ use http::Version;
 
 use super::new_request_build_error;
 use super::AsyncBody;
-use super::IncomingAsyncBody;
 use crate::raw::oio;
 use crate::raw::oio::Stream;
 use crate::raw::oio::Streamer;
@@ -438,7 +437,7 @@ impl MixedPart {
     }
 
     /// Consume a mixed part to build a response.
-    pub fn into_response(mut self) -> Response<IncomingAsyncBody> {
+    pub fn into_response(mut self) -> Response<oio::Buffer> {
         let mut builder = Response::builder();
 
         builder = builder.status(self.status_code.unwrap_or(StatusCode::OK));
@@ -446,15 +445,16 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        let body = if let Some(stream) = self.content {
-            IncomingAsyncBody::new(stream, Some(self.content_length))
-        } else {
-            IncomingAsyncBody::new(Box::new(oio::into_stream(stream::empty())), Some(0))
-        };
+        // let body = if let Some(stream) = self.content {
+        //     IncomingAsyncBody::new(stream, Some(self.content_length))
+        // } else {
+        //     IncomingAsyncBody::new(Box::new(oio::into_stream(stream::empty())), Some(0))
+        // };
 
-        builder
-            .body(body)
-            .expect("mixed part must be valid response")
+        // builder
+        //     .body(body)
+        //     .expect("mixed part must be valid response")
+        todo!()
     }
 
     /// Insert a part header into part.

@@ -294,14 +294,9 @@ impl<R> TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let fut = self.inner.read(limit);
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let fut = self.inner.read_at(offset, limit);
         Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let fut = self.inner.seek(pos);
-        Self::io_timeout(self.timeout, ReadOperation::Seek.into_static(), fut).await
     }
 }
 

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 
 use std::io;
 
@@ -33,9 +34,9 @@ use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
+use crate::raw::oio::{Buffer, ListOperation};
 use crate::raw::*;
 use crate::*;
 
@@ -665,20 +666,16 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        use backon::RetryableWithContext;
-
-        let inner = self.inner.take().expect("inner must be valid");
-
-        let (inner, res) = {
-            |mut r: R| async move {
-                let res = r.seek(pos).await;
-
-                (r, res)
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        {
+            || {
+                self.inner
+                    .as_ref()
+                    .expect("inner must be valid")
+                    .read_at(offset, limit)
             }
         }
         .retry(&self.builder)
-        .context(inner)
         .when(|e| e.is_temporary())
         .notify(|err, dur| {
             self.notify.intercept(
@@ -690,43 +687,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
                 ],
             )
         })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
-        .await;
-
-        self.inner = Some(inner);
-        res
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        use backon::RetryableWithContext;
-
-        let inner = self.inner.take().expect("inner must be valid");
-
-        let (inner, res) = {
-            |mut r: R| async move {
-                let res = r.read(limit).await;
-
-                (r, res)
-            }
-        }
-        .retry(&self.builder)
-        .when(|e| e.is_temporary())
-        .context(inner)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", ReadOperation::Read.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
-        .await;
-
-        self.inner = Some(inner);
-        res
+        .await
+        .map_err(|e| e.set_persistent())
     }
 }
 

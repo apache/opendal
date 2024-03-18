@@ -20,13 +20,14 @@ use std::fmt::Debug;
 use std::io;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
 use log::log;
 use log::trace;
 use log::Level;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -958,7 +959,7 @@ pub struct LoggingReader<R> {
     path: String,
     op: Operation,
 
-    read: u64,
+    read: AtomicU64,
     inner: R,
 }
 
@@ -969,7 +970,7 @@ impl<R> LoggingReader<R> {
             op,
             path: path.to_string(),
 
-            read: 0,
+            read: AtomicU64::new(0),
             inner: reader,
         }
     }
@@ -983,24 +984,25 @@ impl<R> Drop for LoggingReader<R> {
             self.ctx.scheme,
             self.op,
             self.path,
-            self.read
+            self.read.load(Ordering::Relaxed)
         );
     }
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self.inner.read(limit).await {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        match self.inner.read_at(offset, limit).await {
             Ok(bs) => {
-                self.read += bs.len() as u64;
+                self.read
+                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> next returns {}B",
+                    "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
                     ReadOperation::Read,
                     self.path,
-                    self.read,
-                    bs.len()
+                    self.read.load(Ordering::Relaxed),
+                    bs.remaining()
                 );
                 Ok(bs)
             }
@@ -1013,38 +1015,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         self.ctx.scheme,
                         ReadOperation::Read,
                         self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        match self.inner.seek(pos).await {
-            Ok(n) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> seek to {pos:?}, current offset {n}",
-                    self.ctx.scheme,
-                    ReadOperation::Seek,
-                    self.path,
-                    self.read,
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::Seek,
-                        self.path,
-                        self.read,
+                        self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
                     )
                 }
@@ -1058,14 +1029,14 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
     fn read(&mut self, limit: usize) -> Result<Bytes> {
         match self.inner.read(limit) {
             Ok(bs) => {
-                self.read += bs.len() as u64;
+                self.read.fetch_add(bs.len() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read {}B",
                     self.ctx.scheme,
                     ReadOperation::BlockingRead,
                     self.path,
-                    self.read,
+                    self.read.load(Ordering::Relaxed),
                     bs.len()
                 );
                 Ok(bs)
@@ -1079,7 +1050,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                         self.ctx.scheme,
                         ReadOperation::BlockingRead,
                         self.path,
-                        self.read,
+                        self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
                     );
                 }
@@ -1098,7 +1069,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     self.ctx.scheme,
                     ReadOperation::BlockingSeek,
                     self.path,
-                    self.read,
+                    self.read.load(Ordering::Relaxed),
                 );
                 Ok(n)
             }
@@ -1111,7 +1082,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                         self.ctx.scheme,
                         ReadOperation::BlockingSeek,
                         self.path,
-                        self.read,
+                        self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
                     );
                 }

@@ -15,18 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use crate::raw::oio;
+use crate::*;
+use std::future::Future;
+use std::path::PathBuf;
 
-use crate::raw::*;
+pub struct FsReader<F> {
+    f: F,
+}
 
-/// Body used in async HTTP requests.
-#[derive(Default)]
-pub enum AsyncBody {
-    /// An empty body.
-    #[default]
-    Empty,
-    /// Body with bytes.
-    Bytes(Bytes),
-    /// Body with stream.
-    Stream(oio::Streamer),
+impl<F> FsReader<F> {
+    pub fn new(f: F) -> Self {
+        Self { f }
+    }
+}
+
+impl oio::Read for FsReader<tokio::fs::File> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        todo!()
+    }
 }

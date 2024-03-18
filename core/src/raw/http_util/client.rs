@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -26,7 +26,6 @@ use futures::TryStreamExt;
 use http::Request;
 use http::Response;
 
-use super::body::IncomingAsyncBody;
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::AsyncBody;
@@ -80,7 +79,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Bytes>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -168,17 +167,18 @@ impl HttpClient {
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let bytes = resp.bytes().await.map_err(|err| {
+        let bs: Vec<Bytes> = resp.bytes_stream().try_collect().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read data from http response")
                 .with_context("url", uri.to_string())
                 .set_source(err)
         })?;
+        let buffer = oio::Buffer::from(bs);
 
         if let Some(expect) = content_length {
-            check(expect, bytes.len() as u64)?;
+            check(expect, buffer.remaining() as u64)?;
         }
 
-        let resp = hr.body(bytes).expect("response must build succeed");
+        let resp = hr.body(buffer).expect("response must build succeed");
 
         Ok(resp)
     }

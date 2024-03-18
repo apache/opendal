@@ -70,39 +70,39 @@ impl From<Vec<u8>> for Cursor {
     }
 }
 
-impl oio::Read for Cursor {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        if self.is_empty() {
-            Ok(Bytes::new())
-        } else {
-            // The clone here is required as we don't want to change it.
-            let mut bs = self.inner.clone().split_off(self.pos as usize);
-            let bs = bs.split_to(min(bs.len(), limit));
-            self.pos += bs.len() as u64;
-            Ok(bs)
-        }
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let (base, amt) = match pos {
-            SeekFrom::Start(n) => (0, n as i64),
-            SeekFrom::End(n) => (self.inner.len() as i64, n),
-            SeekFrom::Current(n) => (self.pos as i64, n),
-        };
-
-        let n = match base.checked_add(amt) {
-            Some(n) if n >= 0 => n as u64,
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    "invalid seek to a negative or overflowing position",
-                ))
-            }
-        };
-        self.pos = n;
-        Ok(n)
-    }
-}
+// impl oio::Read for Cursor {
+//     async fn read(&mut self, limit: usize) -> Result<Bytes> {
+//         if self.is_empty() {
+//             Ok(Bytes::new())
+//         } else {
+//             // The clone here is required as we don't want to change it.
+//             let mut bs = self.inner.clone().split_off(self.pos as usize);
+//             let bs = bs.split_to(min(bs.len(), limit));
+//             self.pos += bs.len() as u64;
+//             Ok(bs)
+//         }
+//     }
+//
+//     async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+//         let (base, amt) = match pos {
+//             SeekFrom::Start(n) => (0, n as i64),
+//             SeekFrom::End(n) => (self.inner.len() as i64, n),
+//             SeekFrom::Current(n) => (self.pos as i64, n),
+//         };
+//
+//         let n = match base.checked_add(amt) {
+//             Some(n) if n >= 0 => n as u64,
+//             _ => {
+//                 return Err(Error::new(
+//                     ErrorKind::InvalidInput,
+//                     "invalid seek to a negative or overflowing position",
+//                 ))
+//             }
+//         };
+//         self.pos = n;
+//         Ok(n)
+//     }
+// }
 
 impl oio::BlockingRead for Cursor {
     fn read(&mut self, limit: usize) -> Result<Bytes> {

@@ -16,6 +16,7 @@
 // under the License.
 
 mod adaptive;
-mod buffer;
-
 pub use adaptive::AdaptiveBuf;
+
+mod buffer;
+pub use buffer::Buffer;

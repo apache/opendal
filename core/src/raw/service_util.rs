@@ -15,31 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use serde::Deserialize;
-use crate::raw::*;
-
-/// Config for {{ .Desc }}
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct {{ .Name }}Config {
-    {{- range .Fields }}
-    {{ .RustComment -}}
-    pub {{ .Name }}: {{ .RustType }},
-    {{- end }}
-}
-
-impl Debug for {{ .Name }}Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("{{ .Name }}Config");
-
-        d
-        {{- range .Fields }}
-        .field("{{ .Name }}", {{ .RustDebugField }})
-        {{- end }};
-
-        d.finish_non_exhaustive()
+/// A helper function to desensitize secret string.
+pub fn desensitize_secret(s: &str) -> String {
+    // Always use 3 stars to mask the secret if length is low.
+    //
+    // # NOTE
+    //
+    // It's by design to use 10 instead of 6. Attackers could brute force the secrets
+    // if the length is too short.
+    if s.len() <= 10 {
+        return "***".to_string();
     }
+
+    // Keep the first & end three chars visible for easier debugging.
+    format!("{}***{}", &s[..3], &s[s.len() - 3..])
 }

@@ -124,6 +124,18 @@ func (f Field) RustComment() string {
 	return res
 }
 
+func (f Field) RustDebugField() string {
+	if !f.Sensitive {
+		return fmt.Sprintf("&self.%s", f.Name)
+	}
+
+	if f.Required {
+		return fmt.Sprintf("desensitize_secret(&self.%s)", f.Name)
+	}
+
+	return fmt.Sprintf("self.%s.as_deref().map(desensitize_secret)", f.Name)
+}
+
 var S3 = Config{
 	Name: "S3",
 	Desc: "AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.",
@@ -167,8 +179,9 @@ If using a custom endpoint,
 `,
 		},
 		{
-			Name: "access_key_id",
-			Type: fileTypeString,
+			Name:      "access_key_id",
+			Type:      fileTypeString,
+			Sensitive: true,
 			Desc: `access_key_id of this backend.
 
 - If access_key_id is set, we will take user's input first.
@@ -176,8 +189,9 @@ If using a custom endpoint,
 `,
 		},
 		{
-			Name: "secret_access_key",
-			Type: fileTypeString,
+			Name:      "secret_access_key",
+			Type:      fileTypeString,
+			Sensitive: true,
 			Desc: `secret_access_key of this backend.
 
 - If secret_access_key is set, we will take user's input first.
@@ -185,8 +199,9 @@ If using a custom endpoint,
 `,
 		},
 		{
-			Name: "security_token",
-			Type: fileTypeString,
+			Name:      "security_token",
+			Type:      fileTypeString,
+			Sensitive: true,
 			Desc: `security_token (aka, session token) of this backend.
 
 This token will expire after sometime, it's recommended to set security_token
@@ -253,16 +268,18 @@ when credential is not loaded.`,
 			Available: []string{"`AES256`"},
 		},
 		{
-			Name: "server_side_encryption_customer_key",
-			Type: fileTypeString,
+			Name:      "server_side_encryption_customer_key",
+			Type:      fileTypeString,
+			Sensitive: true,
 			Desc: "server_side_encryption_customer_key for this backend.\n\n" +
 				"# Value\n\n" +
 				"base64 encoded key that matches algorithm specified in\n" +
 				"`server_side_encryption_customer_algorithm`.",
 		},
 		{
-			Name: "server_side_encryption_customer_key_md5",
-			Type: fileTypeString,
+			Name:      "server_side_encryption_customer_key_md5",
+			Type:      fileTypeString,
+			Sensitive: true,
 			Desc: "Set server_side_encryption_customer_key_md5 for this backend.\n\n" +
 				"# Value\n\n" +
 				"MD5 digest of key specified in `server_side_encryption_customer_key`.",

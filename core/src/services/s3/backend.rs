@@ -43,10 +43,10 @@ use super::core::*;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::lister::S3Lister;
+use super::reader::S3Reader;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::*;
-use crate::services::s3::reader::S3Reader;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.

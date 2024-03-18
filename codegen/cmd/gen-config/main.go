@@ -21,14 +21,15 @@ package main
 
 import (
 	"flag"
-	"github.com/apache/opendal/codegen/pkg/config"
-	"github.com/cli/safeexec"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"text/template"
+
+	"github.com/apache/opendal/codegen/pkg/config"
+	"github.com/cli/safeexec"
 )
 
 var templates = flag.String("templates", "", "path to template files")

@@ -16,8 +16,8 @@
 // under the License.
 
 mod backend;
+pub use super::config::S3Config;
 pub use backend::S3Builder as S3;
-pub use backend::S3Config;
 
 mod core;
 mod error;

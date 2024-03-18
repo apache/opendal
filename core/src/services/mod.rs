@@ -19,6 +19,8 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
+pub(self) mod config;
+
 #[cfg(feature = "services-azblob")]
 mod azblob;
 #[cfg(feature = "services-azblob")]

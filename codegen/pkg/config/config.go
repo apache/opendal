@@ -133,7 +133,7 @@ func (f Field) RustDebugField() string {
 		return fmt.Sprintf("desensitize_secret(&self.%s)", f.Name)
 	}
 
-	return fmt.Sprintf("self.%s.as_deref().map(desensitize_secret)", f.Name)
+	return fmt.Sprintf("&self.%s.as_deref().map(desensitize_secret)", f.Name)
 }
 
 var S3 = Config{

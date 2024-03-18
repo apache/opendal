@@ -19,6 +19,8 @@
 
 package org.apache.opendal;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * NativeObject is the base-class of all OpenDAL classes that have
  * a pointer to a native object.
@@ -54,6 +56,8 @@ public abstract class NativeObject implements AutoCloseable {
         NativeLibrary.loadLibrary();
     }
 
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
+
     /**
      * An immutable reference to the value of the underneath pointer pointing
      * to some underlying native OpenDAL object.
@@ -66,7 +70,9 @@ public abstract class NativeObject implements AutoCloseable {
 
     @Override
     public void close() {
-        disposeInternal(nativeHandle);
+        if (disposed.compareAndSet(false, true)) {
+            disposeInternal(nativeHandle);
+        }
     }
 
     /**

@@ -62,7 +62,7 @@ impl oio::PageList for YandexDiskLister {
 
         match resp.status() {
             http::StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
 
                 let resp: MetainformationResponse =
                     serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;

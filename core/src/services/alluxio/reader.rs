@@ -15,17 +15,45 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::sync::Arc;
 
-use bytes::Bytes;
-
+use super::core::*;
+use crate::raw::oio::Buffer;
 use crate::raw::*;
+use crate::services::alluxio::error::parse_error;
 use crate::*;
 
 pub struct AlluxioReader {
     core: Arc<AlluxioCore>,
 
-    _op: OpWrite,
+    op: OpRead,
     path: String,
-    stream_id: Option<u64>,
+    stream_id: u64,
+}
+
+impl AlluxioReader {
+    pub fn new(core: Arc<AlluxioCore>, path: &str, op: OpRead, stream_id: u64) -> Self {
+        AlluxioReader {
+            core,
+            path: path.to_string(),
+            op,
+            stream_id,
+        }
+    }
+}
+
+impl oio::Read for AlluxioReader {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
+            return Ok(oio::Buffer::new());
+        };
+
+        let resp = self.core.read(self.stream_id, range).await?;
+
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
+        }
+        Ok(resp.into_body())
+    }
 }

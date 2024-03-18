@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -155,9 +156,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let steam_id: u64 =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
             _ => Err(parse_error(resp).await?),
@@ -181,9 +182,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let steam_id: u64 =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
             _ => Err(parse_error(resp).await?),
@@ -261,9 +262,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let file_info: FileInfo =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(file_info)
             }
             _ => Err(parse_error(resp).await?),
@@ -289,20 +290,16 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let file_infos: Vec<FileInfo> =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
                 Ok(file_infos)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    pub async fn read(
-        &self,
-        stream_id: u64,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn read(&self, stream_id: u64, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let mut req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id
@@ -340,9 +337,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let size: usize =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(size)
             }
             _ => Err(parse_error(resp).await?),

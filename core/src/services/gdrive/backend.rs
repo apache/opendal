@@ -242,7 +242,7 @@ impl Accessor for GdriveBackend {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let meta = serde_json::from_slice::<GdriveFile>(&body)
                     .map_err(new_json_deserialize_error)?;
 

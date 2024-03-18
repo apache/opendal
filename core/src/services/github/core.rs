@@ -241,7 +241,7 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let resp: ListResponse =
                     serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
 

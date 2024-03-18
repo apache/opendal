@@ -236,7 +236,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 Ok(Some(body.into()))
             }
             _ => Err(parse_error(resp).await?),
@@ -291,7 +291,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let response: CfKvScanResponse = serde_json::from_slice(&body).map_err(|e| {
                     Error::new(
                         ErrorKind::Unexpected,

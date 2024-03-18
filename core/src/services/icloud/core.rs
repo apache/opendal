@@ -359,7 +359,7 @@ impl IcloudCore {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let drive_node: Vec<IcloudRoot> =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
         Ok(drive_node[0].clone())
@@ -389,7 +389,7 @@ impl IcloudCore {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let object: IcloudObject =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
@@ -516,7 +516,7 @@ impl PathQuery for IcloudPathQuery {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let root: Vec<IcloudRoot> =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
@@ -557,7 +557,7 @@ impl PathQuery for IcloudPathQuery {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let create_folder: IcloudCreateFolder =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
         Ok(create_folder.destination_drivews_id)

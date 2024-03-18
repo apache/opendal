@@ -123,6 +123,27 @@ impl BytesRange {
         }
     }
 
+    /// Apply range on offset and limit.
+    ///
+    /// Returning `None         `
+    pub fn apply_on_offset(&self, offset: u64, limit: usize) -> Option<Self> {
+        match (self.offset(), self.size()) {
+            (Some(base), Some(size)) => {
+                if offset >= size {
+                    None
+                } else {
+                    Some(Self(
+                        Some(base + offset),
+                        Some((size - offset).min(limit as u64)),
+                    ))
+                }
+            }
+            (Some(base), None) => Some(Self(Some(base + offset), Some(limit as u64))),
+            (None, None) => Some(Self(Some(offset), Some(limit as u64))),
+            (None, Some(size)) => unimplemented!(),
+        }
+    }
+
     /// apply_on_bytes will apply range on bytes.
     pub fn apply_on_bytes(&self, mut bs: Bytes) -> Bytes {
         match (self.0, self.1) {

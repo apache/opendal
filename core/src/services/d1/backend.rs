@@ -313,7 +313,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let d1_response = D1Response::parse(&body)?;
                 Ok(d1_response.get_result(&self.value_field))
             }

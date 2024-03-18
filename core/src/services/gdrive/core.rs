@@ -379,7 +379,7 @@ impl PathQuery for GdrivePathQuery {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let meta: GdriveFileList =
                     serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
 
@@ -416,7 +416,7 @@ impl PathQuery for GdrivePathQuery {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
         Ok(file.id)
     }

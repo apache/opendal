@@ -214,12 +214,12 @@ impl Builder for SurrealdbBuilder {
             .config
             .username
             .clone()
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
         let password = self
             .config
             .password
             .clone()
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
         let key_field = self
             .config
             .key_field

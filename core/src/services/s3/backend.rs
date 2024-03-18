@@ -46,6 +46,7 @@ use super::lister::S3Lister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::*;
+use crate::services::s3::reader::S3Reader;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -984,7 +985,7 @@ pub struct S3Backend {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for S3Backend {
-    type Reader = IncomingAsyncBody;
+    type Reader = S3Reader;
     type Writer = S3Writers;
     type Lister = oio::PageLister<S3Lister>;
     type BlockingReader = ();
@@ -1065,25 +1066,10 @@ impl Accessor for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.s3_get_object(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            S3Reader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -1127,13 +1113,7 @@ impl Accessor for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
-                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -1144,7 +1124,10 @@ impl Accessor for S3Backend {
         // We will not send this request out, just for signing.
         let mut req = match op {
             PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v)?,
-            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v)?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .s3_get_object_request(path, BytesRange::default(), &v)?
+            }
             PresignOperation::Write(_) => self.core.s3_put_object_request(
                 path,
                 None,
@@ -1182,7 +1165,7 @@ impl Accessor for S3Backend {
         let status = resp.status();
 
         if let StatusCode::OK = status {
-            let bs = resp.into_body().bytes().await?;
+            let bs = resp.into_body();
 
             let result: DeleteObjectsResult =
                 quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;

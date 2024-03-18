@@ -182,7 +182,7 @@ impl S3Core {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -300,7 +300,12 @@ impl S3Core {
         Ok(req)
     }
 
-    pub fn s3_get_object_request(&self, path: &str, args: OpRead) -> Result<Request<AsyncBody>> {
+    pub fn s3_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
@@ -335,7 +340,6 @@ impl S3Core {
 
         let mut req = Request::get(&url);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }
@@ -361,9 +365,10 @@ impl S3Core {
     pub async fn s3_get_object(
         &self,
         path: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, args)?;
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
+        let mut req = self.s3_get_object_request(path, range, &args)?;
 
         self.sign(&mut req).await?;
 
@@ -413,11 +418,7 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(
-        &self,
-        path: &str,
-        args: OpStat,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<oio::Buffer>> {
         let mut req = self.s3_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
@@ -425,7 +426,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -439,11 +440,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -508,7 +505,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}?list-type=2", self.endpoint);
@@ -553,7 +550,7 @@ impl S3Core {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -625,7 +622,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -661,7 +658,7 @@ impl S3Core {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -678,10 +675,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_objects(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);

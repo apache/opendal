@@ -27,7 +27,7 @@ enum Inner {
 
 impl Buffer {
     #[inline]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(Inner::Contiguous(Bytes::new()))
     }
 }

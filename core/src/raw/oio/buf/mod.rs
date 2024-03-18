@@ -16,4 +16,6 @@
 // under the License.
 
 mod adaptive;
+mod buffer;
+
 pub use adaptive::AdaptiveBuf;

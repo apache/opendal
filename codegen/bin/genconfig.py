@@ -15,6 +15,9 @@ if __name__ == '__main__':
     opendal = codegen.parent
     rust = opendal / 'core' / 'src' / 'services' / 'config.rs'
     with rust.open('w') as f:
+        template = Path(tmpl.filename).relative_to(opendal)
+        output = rust.relative_to(opendal)
+        print(f'Generating Rust files from templates in {template} to {output}')
         f.write(tmpl.render(configs=[S3]))
 
     rustfmt = safeexec.lookup('rustfmt')

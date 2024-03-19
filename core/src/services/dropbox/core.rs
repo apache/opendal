@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
@@ -104,7 +104,7 @@ impl DropboxCore {
         let body = resp.into_body();
 
         let token: DropboxTokenResponse =
-            serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
         // Update signer after token refreshed.
         signer.access_token = token.access_token.clone();
@@ -121,7 +121,12 @@ impl DropboxCore {
         Ok(())
     }
 
-    pub async fn dropbox_get(&self, path: &str, args: OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        _: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -133,7 +138,6 @@ impl DropboxCore {
             .header("Dropbox-API-Arg", request_payload)
             .header(CONTENT_LENGTH, 0);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -241,8 +245,8 @@ impl DropboxCore {
 
         let bs = resp.into_body();
 
-        let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
-            .map_err(new_json_deserialize_error)?;
+        let decoded_response: DropboxDeleteBatchResponse =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
         match decoded_response.tag.as_str() {
             "in_progress" => Err(Error::new(
                 ErrorKind::Unexpected,

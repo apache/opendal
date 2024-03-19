@@ -32,6 +32,7 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use crate::raw::*;
+use crate::services::obs::reader::ObsReader;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
 
@@ -248,7 +249,7 @@ pub struct ObsBackend {
 
 #[async_trait]
 impl Accessor for ObsBackend {
-    type Reader = oio::Buffer;
+    type Reader = ObsReader;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type BlockingReader = ();
@@ -323,24 +324,10 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.obs_get_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            ObsReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -387,7 +374,10 @@ impl Accessor for ObsBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
-            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .obs_get_object_request(path, BytesRange::default(), v)?
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .obs_put_object_request(path, None, v, AsyncBody::Empty)?

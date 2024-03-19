@@ -101,15 +101,25 @@ impl ObsCore {
 }
 
 impl ObsCore {
-    pub async fn obs_get_object(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
-        let mut req = self.obs_get_object_request(path, args)?;
+    pub async fn obs_get_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
+        let mut req = self.obs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub fn obs_get_object_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
+    pub fn obs_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -120,8 +130,7 @@ impl ObsCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let range = args.range();
-        if !range.is_full() {
+        if range.is_full() {
             req = req.header(http::header::RANGE, range.to_header())
         }
 

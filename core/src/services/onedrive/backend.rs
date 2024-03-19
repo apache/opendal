@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header;
 use http::Request;
 use http::Response;
@@ -32,6 +32,7 @@ use super::graph_model::OnedriveGetItemBody;
 use super::lister::OnedriveLister;
 use super::writer::OneDriveWriter;
 use crate::raw::*;
+use crate::services::onedrive::reader::OnedriveReader;
 use crate::*;
 
 #[derive(Clone)]
@@ -62,7 +63,7 @@ impl Debug for OnedriveBackend {
 
 #[async_trait]
 impl Accessor for OnedriveBackend {
-    type Reader = oio::Buffer;
+    type Reader = OnedriveReader;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;
     type BlockingReader = ();
@@ -121,8 +122,8 @@ impl Accessor for OnedriveBackend {
 
         if status.is_success() {
             let bytes = resp.into_body();
-            let decoded_response = serde_json::from_slice::<OnedriveGetItemBody>(&bytes)
-                .map_err(new_json_deserialize_error)?;
+            let decoded_response: OnedriveGetItemBody =
+                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
             let entry_mode: EntryMode = match decoded_response.item_type {
                 ItemType::Folder { .. } => EntryMode::DIR,
@@ -149,22 +150,11 @@ impl Accessor for OnedriveBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.onedrive_get_content(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            OnedriveReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -235,7 +225,11 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    async fn onedrive_get_content(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn onedrive_get_content(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
@@ -243,7 +237,7 @@ impl OnedriveBackend {
             ":/content"
         );
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(&url).header(header::RANGE, range.to_header());
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);

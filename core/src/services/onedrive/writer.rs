@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::StatusCode;
 
 use super::backend::OnedriveBackend;

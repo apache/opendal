@@ -256,7 +256,7 @@ pub struct SeafileBackend {
 
 #[async_trait]
 impl Accessor for SeafileBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type BlockingReader = ();

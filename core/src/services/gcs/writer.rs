@@ -58,10 +58,7 @@ impl oio::RangeWrite for GcsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -122,10 +119,7 @@ impl oio::RangeWrite for GcsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -136,10 +130,7 @@ impl oio::RangeWrite for GcsWriter {
         match resp.status().as_u16() {
             // gcs returns 499 if the upload aborted successfully
             // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
-            499 => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            499 => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

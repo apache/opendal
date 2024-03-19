@@ -126,7 +126,7 @@ impl OssCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -373,7 +373,7 @@ impl OssCore {
         if_match: Option<&str>,
         if_none_match: Option<&str>,
         override_content_disposition: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_get_object_request(
             path,
             range,
@@ -391,7 +391,7 @@ impl OssCore {
         path: &str,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_head_object_request(path, false, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
@@ -404,18 +404,14 @@ impl OssCore {
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_put_object_request(path, size, args, body, false)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn oss_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -447,23 +443,20 @@ impl OssCore {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn oss_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn oss_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_delete_object_request(path)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn oss_delete_objects(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -509,7 +502,7 @@ impl OssCore {
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
         is_presign: bool,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
@@ -540,7 +533,7 @@ impl OssCore {
         is_presign: bool,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
 
@@ -565,7 +558,7 @@ impl OssCore {
         upload_id: &str,
         is_presign: bool,
         parts: Vec<MultipartUploadPart>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!(
@@ -600,7 +593,7 @@ impl OssCore {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

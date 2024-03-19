@@ -55,10 +55,7 @@ impl oio::MultipartWrite for B2Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -70,7 +67,7 @@ impl oio::MultipartWrite for B2Writer {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let result: StartLargeFileResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
@@ -100,7 +97,7 @@ impl oio::MultipartWrite for B2Writer {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let result: UploadPartResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
@@ -135,11 +132,7 @@ impl oio::MultipartWrite for B2Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -148,10 +141,7 @@ impl oio::MultipartWrite for B2Writer {
         let resp = self.core.cancel_large_file(upload_id).await?;
         match resp.status() {
             // b2 returns code 200 if abort succeeds.
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

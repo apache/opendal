@@ -63,7 +63,7 @@ impl IpmfsBackend {
 
 #[async_trait]
 impl Accessor for IpmfsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type BlockingReader = ();
@@ -98,10 +98,7 @@ impl Accessor for IpmfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -118,7 +115,7 @@ impl Accessor for IpmfsBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let res: IpfsStatResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
@@ -162,10 +159,7 @@ impl Accessor for IpmfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::OK => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -177,7 +171,7 @@ impl Accessor for IpmfsBackend {
 }
 
 impl IpmfsBackend {
-    async fn ipmfs_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -194,11 +188,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -222,7 +212,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -239,7 +229,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -256,7 +246,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -274,11 +264,7 @@ impl IpmfsBackend {
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(
-        &self,
-        path: &str,
-        body: Bytes,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

@@ -91,17 +91,13 @@ impl AzdlsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -175,7 +171,7 @@ impl AzdlsCore {
         Ok(req)
     }
 
-    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -231,7 +227,7 @@ impl AzdlsCore {
         Ok(req)
     }
 
-    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -253,7 +249,7 @@ impl AzdlsCore {
         self.client.send(req).await
     }
 
-    pub async fn azdls_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -280,7 +276,7 @@ impl AzdlsCore {
         path: &str,
         continuation: &str,
         limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -312,7 +308,7 @@ impl AzdlsCore {
     pub async fn azdls_ensure_parent_path(
         &self,
         path: &str,
-    ) -> Result<Option<Response<IncomingAsyncBody>>> {
+    ) -> Result<Option<Response<oio::Buffer>>> {
         let abs_target_path = path.trim_end_matches('/').to_string();
         let abs_target_path = abs_target_path.as_str();
         let mut parts: Vec<&str> = abs_target_path

@@ -48,7 +48,7 @@ impl oio::PageList for ChainsafeLister {
 
         match resp.status() {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let output: Vec<Info> =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

@@ -203,10 +203,7 @@ impl Accessor for DbfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -224,7 +221,7 @@ impl Accessor for DbfsBackend {
         match status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
                     .map_err(new_json_deserialize_error)?;
                 meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
@@ -285,10 +282,7 @@ impl Accessor for DbfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

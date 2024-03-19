@@ -51,7 +51,7 @@ impl oio::PageList for IpmfsLister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let entries_body: IpfsLsResponse =
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 

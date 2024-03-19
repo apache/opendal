@@ -267,7 +267,7 @@ pub struct IcloudBackend {
 
 #[async_trait]
 impl Accessor for IcloudBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
@@ -325,8 +325,7 @@ impl Accessor for IcloudBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }

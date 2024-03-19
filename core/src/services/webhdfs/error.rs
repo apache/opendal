@@ -39,9 +39,9 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub(super) async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.copy_to_bytes(body.remaining());
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }
@@ -99,7 +99,7 @@ mod tests {
 }
     "#,
         );
-        let body = IncomingAsyncBody::new(
+        let body = oio::Buffer::new(
             Box::new(oio::into_stream(stream::iter(vec![Ok(ill_args.clone())]))),
             None,
         );

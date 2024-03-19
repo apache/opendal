@@ -243,7 +243,7 @@ pub struct HuggingfaceBackend {
 
 #[async_trait]
 impl Accessor for HuggingfaceBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
     type BlockingReader = ();
@@ -281,7 +281,7 @@ impl Accessor for HuggingfaceBackend {
         match status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&bs)
                     .map_err(new_json_deserialize_error)?;
@@ -326,8 +326,7 @@ impl Accessor for HuggingfaceBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }

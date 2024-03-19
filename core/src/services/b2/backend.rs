@@ -267,7 +267,7 @@ pub struct B2Backend {
 
 #[async_trait]
 impl Accessor for B2Backend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type BlockingReader = ();
@@ -339,7 +339,7 @@ impl Accessor for B2Backend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: ListFileNamesResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
@@ -368,8 +368,7 @@ impl Accessor for B2Backend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -426,7 +425,7 @@ impl Accessor for B2Backend {
 
         let source_file_id = match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: ListFileNamesResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

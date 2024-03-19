@@ -76,7 +76,7 @@ impl oio::PageList for OnedriveLister {
             return Err(error);
         }
 
-        let bytes = resp.into_body().bytes().await?;
+        let bytes = resp.into_body();
         let decoded_response = serde_json::from_slice::<GraphApiOnedriveListResponse>(&bytes)
             .map_err(new_json_deserialize_error)?;
 

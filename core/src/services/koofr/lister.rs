@@ -57,7 +57,7 @@ impl oio::PageList for KoofrLister {
             }
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let response: ListResponse =
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

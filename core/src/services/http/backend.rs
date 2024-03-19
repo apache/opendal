@@ -223,7 +223,7 @@ impl Debug for HttpBackend {
 
 #[async_trait]
 impl Accessor for HttpBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = ();
     type Lister = ();
     type BlockingReader = ();
@@ -287,8 +287,7 @@ impl Accessor for HttpBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -296,7 +295,7 @@ impl Accessor for HttpBackend {
 }
 
 impl HttpBackend {
-    async fn http_get(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_get(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -326,7 +325,7 @@ impl HttpBackend {
         self.client.send(req).await
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));

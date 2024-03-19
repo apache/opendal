@@ -79,7 +79,7 @@ impl oio::PageList for B2Lister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let output: ListFileNamesResponse =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;

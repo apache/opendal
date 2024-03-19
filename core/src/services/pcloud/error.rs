@@ -43,9 +43,9 @@ impl Debug for PcloudError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.copy_to_bytes(body.remaining());
     let message = String::from_utf8_lossy(&bs).into_owned();
 
     let mut err = Error::new(ErrorKind::Unexpected, &message);
@@ -70,9 +70,9 @@ mod test {
                 <head>
                     <title>Invalid link</title>
                 </head>
-                
+
                 <body>This link was generated for another IP address. Try previous step again.</body>
-                
+
                 </html> "#,
             ErrorKind::Unexpected,
             StatusCode::GONE,
@@ -80,7 +80,7 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = IncomingAsyncBody::new(
+            let body = oio::Buffer::new(
                 Box::new(oio::into_stream(stream::iter(vec![Ok(bs.clone())]))),
                 None,
             );

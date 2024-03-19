@@ -254,7 +254,7 @@ pub struct CosBackend {
 
 #[async_trait]
 impl Accessor for CosBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;
     type BlockingReader = ();
@@ -340,8 +340,7 @@ impl Accessor for CosBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -383,10 +382,7 @@ impl Accessor for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

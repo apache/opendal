@@ -233,7 +233,7 @@ pub struct UpyunBackend {
 
 #[async_trait]
 impl Accessor for UpyunBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type BlockingReader = ();
@@ -348,11 +348,7 @@ impl Accessor for UpyunBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -363,11 +359,7 @@ impl Accessor for UpyunBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -91,7 +91,7 @@ mod tests {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = IncomingAsyncBody::new(
+            let body = oio::Buffer::new(
                 Box::new(oio::into_stream(stream::iter(vec![Ok(bs.clone())]))),
                 None,
             );

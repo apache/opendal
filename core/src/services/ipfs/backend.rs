@@ -161,7 +161,7 @@ impl Debug for IpfsBackend {
 
 #[async_trait]
 impl Accessor for IpfsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
     type BlockingReader = ();
@@ -356,7 +356,7 @@ impl Accessor for IpfsBackend {
 }
 
 impl IpfsBackend {
-    async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -374,7 +374,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -388,7 +388,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -431,7 +431,7 @@ impl oio::PageList for DirStream {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let pb_node = PBNode::decode(bs).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize protobuf from response").set_source(e)
         })?;

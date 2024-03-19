@@ -55,7 +55,7 @@ impl Debug for PcloudCore {
 
 impl PcloudCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
@@ -84,7 +84,7 @@ impl PcloudCore {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: GetFileLinkResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
@@ -108,7 +108,7 @@ impl PcloudCore {
         }
     }
 
-    pub async fn download(&self, url: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download(&self, url: &str) -> Result<Response<oio::Buffer>> {
         let req = Request::get(url);
 
         // set body
@@ -132,7 +132,7 @@ impl PcloudCore {
 
             match status {
                 StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
+                    let bs = resp.into_body();
                     let resp: PcloudError =
                         serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                     let result = resp.result;
@@ -153,10 +153,7 @@ impl PcloudCore {
         Ok(())
     }
 
-    pub async fn create_folder_if_not_exists(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn create_folder_if_not_exists(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "{}/createfolderifnotexists?path=/{}&username={}&password={}",
             self.endpoint,
@@ -175,7 +172,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn rename_file(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn rename_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -198,7 +195,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
         let url = format!(
@@ -220,7 +217,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn delete_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -241,7 +238,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn delete_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -262,7 +259,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn copy_file(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -285,7 +282,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn copy_folder(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -308,7 +305,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let path = path.trim_end_matches('/');
@@ -331,7 +328,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
@@ -355,7 +352,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn list_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn list_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let path = normalize_root(&path);

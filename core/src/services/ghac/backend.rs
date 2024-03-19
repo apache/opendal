@@ -227,7 +227,7 @@ pub struct GhacBackend {
 
 #[async_trait]
 impl Accessor for GhacBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = GhacWriter;
     type Lister = ();
     type BlockingReader = ();
@@ -266,7 +266,7 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
@@ -292,7 +292,6 @@ impl Accessor for GhacBackend {
                         .expect("content range must contains size"),
                 );
 
-                resp.into_body().consume().await?;
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp).await?),
@@ -305,7 +304,7 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
@@ -327,8 +326,7 @@ impl Accessor for GhacBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -340,7 +338,7 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let cache_id = if resp.status().is_success() {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let reserve_resp: GhacReserveResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
@@ -488,7 +486,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ghac_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

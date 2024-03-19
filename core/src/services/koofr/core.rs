@@ -67,7 +67,7 @@ impl Debug for KoofrCore {
 
 impl KoofrCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -90,7 +90,7 @@ impl KoofrCore {
                     return Err(parse_error(resp).await?);
                 }
 
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: MountsResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
@@ -137,7 +137,7 @@ impl KoofrCore {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let resp: TokenResponse =
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -220,7 +220,7 @@ impl KoofrCore {
         }
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn info(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let mount_id = self.get_mount_id().await?;
 
         let url = format!(
@@ -241,7 +241,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn get(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -264,7 +264,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn put(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn put(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let filename = get_basename(&path);
@@ -300,7 +300,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn remove(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn remove(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -323,7 +323,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -355,7 +355,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -387,7 +387,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn list(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;

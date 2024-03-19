@@ -47,7 +47,6 @@ impl oio::PageList for AzdlsLister {
 
         // azdls will return not found for not-exist path.
         if resp.status() == http::StatusCode::NOT_FOUND {
-            resp.into_body().consume().await?;
             ctx.done = true;
             return Ok(());
         }
@@ -68,7 +67,7 @@ impl oio::PageList for AzdlsLister {
             ctx.done = true;
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let output: Output = de::from_slice(&bs).map_err(new_json_deserialize_error)?;
 

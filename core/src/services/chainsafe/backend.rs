@@ -203,7 +203,7 @@ pub struct ChainsafeBackend {
 
 #[async_trait]
 impl Accessor for ChainsafeBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
 
     type Writer = ChainsafeWriters;
 
@@ -258,7 +258,7 @@ impl Accessor for ChainsafeBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let output: ObjectInfoResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

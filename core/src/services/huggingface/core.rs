@@ -49,7 +49,7 @@ impl Debug for HuggingfaceCore {
 }
 
 impl HuggingfaceCore {
-    pub async fn hf_path_info(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn hf_path_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -83,11 +83,7 @@ impl HuggingfaceCore {
         self.client.send(req).await
     }
 
-    pub async fn hf_list(
-        &self,
-        path: &str,
-        recursive: bool,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -125,7 +121,7 @@ impl HuggingfaceCore {
         self.client.send(req).await
     }
 
-    pub async fn hf_resolve(&self, path: &str, arg: OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn hf_resolve(&self, path: &str, arg: OpRead) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();

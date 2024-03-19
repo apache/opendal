@@ -42,7 +42,7 @@ pub struct GdriveBackend {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GdriveBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
     type BlockingReader = ();
@@ -86,7 +86,7 @@ impl Accessor for GdriveBackend {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let gdrive_file: GdriveFile =
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -155,7 +155,7 @@ impl Accessor for GdriveBackend {
         }
 
         self.core.path_cache.remove(&path).await;
-        resp.into_body().consume().await?;
+
         return Ok(RpDelete::default());
     }
 
@@ -190,7 +190,6 @@ impl Accessor for GdriveBackend {
             }
 
             self.core.path_cache.remove(&to_path).await;
-            resp.into_body().consume().await?;
         }
 
         let url = format!(
@@ -230,7 +229,6 @@ impl Accessor for GdriveBackend {
             }
 
             self.core.path_cache.remove(&target).await;
-            resp.into_body().consume().await?;
         }
 
         let resp = self

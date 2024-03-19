@@ -76,7 +76,7 @@ impl oio::PageList for OssLister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let output: ListObjectsOutput = de::from_reader(bs.reader())
             .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;

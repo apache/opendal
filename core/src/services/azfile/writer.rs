@@ -48,9 +48,7 @@ impl oio::OneShotWrite for AzfileWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-            }
+            StatusCode::OK | StatusCode::CREATED => {}
             _ => {
                 return Err(parse_error(resp)
                     .await?
@@ -64,10 +62,7 @@ impl oio::OneShotWrite for AzfileWriter {
             .await?;
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azfile_update")),
@@ -95,10 +90,7 @@ impl oio::AppendWrite for AzfileWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azfile_update")),

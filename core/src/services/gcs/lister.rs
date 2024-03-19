@@ -79,7 +79,7 @@ impl oio::PageList for GcsLister {
         if !resp.status().is_success() {
             return Err(parse_error(resp).await?);
         }
-        let bytes = resp.into_body().bytes().await?;
+        let bytes = resp.into_body();
 
         let output: ListResponse =
             serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;

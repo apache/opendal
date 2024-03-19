@@ -66,7 +66,7 @@ impl oio::PageList for UpyunLister {
             }
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let response = serde_json::from_slice::<ListObjectsResponse>(&bs)
             .map_err(new_json_deserialize_error)?;

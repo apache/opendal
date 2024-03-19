@@ -192,7 +192,7 @@ impl IcloudSigner {
         // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
         self.update(&resp)?;
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let auth_info: IcloudWebservicesResponse =
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -269,7 +269,7 @@ impl IcloudSigner {
     }
 
     /// Update signer's data after request sent out.
-    fn update(&mut self, resp: &Response<IncomingAsyncBody>) -> Result<()> {
+    fn update(&mut self, resp: &Response<oio::Buffer>) -> Result<()> {
         if let Some(account_country) = parse_header_to_str(resp.headers(), ACCOUNT_COUNTRY_HEADER)?
         {
             self.data.account_country = Some(account_country.to_string());
@@ -306,10 +306,7 @@ impl IcloudSigner {
     /// - Init the signer if it's not initiated.
     /// - Sign the request.
     /// - Update the session data if needed.
-    pub async fn send(
-        &mut self,
-        mut req: Request<AsyncBody>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&mut self, mut req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.sign(&mut req)?;
         let resp = self.client.send(req).await?;
 
@@ -370,7 +367,7 @@ impl IcloudCore {
         id: &str,
         zone: &str,
         args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut signer = self.signer.lock().await;
 
         let uri = format!(
@@ -418,7 +415,7 @@ impl IcloudCore {
         Ok(resp)
     }
 
-    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 
@@ -564,9 +561,9 @@ impl PathQuery for IcloudPathQuery {
     }
 }
 
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.copy_to_bytes(body.remaining());
 
     let mut kind = match parts.status.as_u16() {
         421 | 450 | 500 => ErrorKind::NotFound,

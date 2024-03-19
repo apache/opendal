@@ -178,7 +178,7 @@ pub struct VercelBlobBackend {
 
 #[async_trait]
 impl Accessor for VercelBlobBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
     type BlockingReader = ();
@@ -220,7 +220,7 @@ impl Accessor for VercelBlobBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: Blob = serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -267,11 +267,7 @@ impl Accessor for VercelBlobBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

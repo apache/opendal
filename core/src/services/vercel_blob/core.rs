@@ -73,7 +73,7 @@ impl Debug for VercelBlobCore {
 
 impl VercelBlobCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -83,7 +83,7 @@ impl VercelBlobCore {
 }
 
 impl VercelBlobCore {
-    pub async fn download(&self, path: &str, args: OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download(&self, path: &str, args: OpRead) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
@@ -179,7 +179,7 @@ impl VercelBlobCore {
         }
     }
 
-    pub async fn head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn head(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let resp = self.list(&p, Some(1)).await?;
@@ -205,7 +205,7 @@ impl VercelBlobCore {
         self.send(req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
 
         let resp = self.list(&from, Some(1)).await?;
@@ -277,7 +277,7 @@ impl VercelBlobCore {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -311,7 +311,7 @@ impl VercelBlobCore {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -340,7 +340,7 @@ impl VercelBlobCore {
         path: &str,
         upload_id: &str,
         parts: Vec<Part>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

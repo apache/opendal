@@ -45,7 +45,7 @@ impl oio::PageList for WebhdfsLister {
                 StatusCode::OK => {
                     ctx.done = true;
 
-                    let bs = resp.into_body().bytes().await?;
+                    let bs = resp.into_body();
                     serde_json::from_slice::<FileStatusesWrapper>(&bs)
                         .map_err(new_json_deserialize_error)?
                         .file_statuses
@@ -64,7 +64,7 @@ impl oio::PageList for WebhdfsLister {
                 .await?;
             match resp.status() {
                 StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
+                    let bs = resp.into_body();
                     let directory_listing = serde_json::from_slice::<DirectoryListingWrapper>(&bs)
                         .map_err(new_json_deserialize_error)?
                         .directory_listing;

@@ -35,7 +35,7 @@ pub struct DropboxBackend {
 
 #[async_trait]
 impl Accessor for DropboxBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = ();
     type BlockingReader = ();
@@ -70,7 +70,7 @@ impl Accessor for DropboxBackend {
         // Check if the folder already exists.
         let resp = self.core.dropbox_get_metadata(path).await?;
         if StatusCode::OK == resp.status() {
-            let bytes = resp.into_body().bytes().await?;
+            let bytes = resp.into_body();
             let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
                 .map_err(new_json_deserialize_error)?;
             if "folder" == decoded_response.tag {
@@ -102,7 +102,7 @@ impl Accessor for DropboxBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
+                let bytes = resp.into_body();
                 let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
                     .map_err(new_json_deserialize_error)?;
                 let entry_mode: EntryMode = match decoded_response.tag.as_str() {
@@ -141,8 +141,7 @@ impl Accessor for DropboxBackend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -193,7 +192,7 @@ impl Accessor for DropboxBackend {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
             .map_err(new_json_deserialize_error)?;
 

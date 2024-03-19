@@ -15,46 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::sync::Arc;
 
-use bytes::Bytes;
-use http::Request;
 use http::StatusCode;
 
-use super::core::YandexDiskCore;
+use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type YandexDiskWriters = oio::OneShotWriter<YandexDiskWriter>;
+pub struct AzblobReader {
+    core: Arc<AzblobCore>,
 
-pub struct YandexDiskWriter {
-    core: Arc<YandexDiskCore>,
     path: String,
+    op: OpRead,
 }
 
-impl YandexDiskWriter {
-    pub fn new(core: Arc<YandexDiskCore>, path: String) -> Self {
-        YandexDiskWriter { core, path }
+impl AzblobReader {
+    pub fn new(core: Arc<AzblobCore>, path: &str, op: OpRead) -> Self {
+        AzblobReader {
+            core,
+            path: path.to_string(),
+            op,
+        }
     }
 }
 
-impl oio::OneShotWrite for YandexDiskWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
-        self.core.ensure_dir_exists(&self.path).await?;
+impl oio::Read for AzblobReader {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
+            return Ok(oio::Buffer::new());
+        };
 
-        let upload_url = self.core.get_upload_url(&self.path).await?;
-
-        let req = Request::put(upload_url)
-            .body(AsyncBody::Bytes(bs))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .azblob_get_blob(&self.path, range, &self.op)
+            .await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => Ok(()),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

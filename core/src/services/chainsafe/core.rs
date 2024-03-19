@@ -52,13 +52,13 @@ impl Debug for ChainsafeCore {
 
 impl ChainsafeCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
 
 impl ChainsafeCore {
-    pub async fn download_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -83,7 +83,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn object_info(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -109,7 +109,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -136,7 +136,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -162,11 +162,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn upload_object(
-        &self,
-        path: &str,
-        bs: Bytes,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn upload_object(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -190,7 +186,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn list_objects(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn list_objects(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -216,7 +212,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(

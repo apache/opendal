@@ -49,7 +49,7 @@ impl oio::OneShotWrite for PcloudWriter {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: PcloudError =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 let result = resp.result;

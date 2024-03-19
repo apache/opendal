@@ -309,7 +309,7 @@ impl Adapter {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let resp: ServerMsg = serde_json::from_slice(&bs).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize json from response").set_source(e)

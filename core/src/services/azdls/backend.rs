@@ -245,7 +245,7 @@ pub struct AzdlsBackend {
 
 #[async_trait]
 impl Accessor for AzdlsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type BlockingReader = ();
@@ -293,10 +293,7 @@ impl Accessor for AzdlsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -362,8 +359,7 @@ impl Accessor for AzdlsBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -400,9 +396,7 @@ impl Accessor for AzdlsBackend {
         if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
             let status = resp.status();
             match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::CREATED | StatusCode::CONFLICT => {}
                 _ => return Err(parse_error(resp).await?),
             }
         }
@@ -412,10 +406,7 @@ impl Accessor for AzdlsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

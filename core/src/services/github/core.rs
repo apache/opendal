@@ -60,7 +60,7 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -100,7 +100,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -122,7 +122,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn get(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -144,7 +144,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);

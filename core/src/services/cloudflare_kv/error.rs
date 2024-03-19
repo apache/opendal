@@ -28,9 +28,9 @@ use crate::ErrorKind;
 use crate::Result;
 
 /// Parse error response into Error.
-pub(crate) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub(crate) async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.copy_to_bytes(body.remaining());
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),

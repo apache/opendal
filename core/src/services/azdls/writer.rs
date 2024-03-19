@@ -53,9 +53,7 @@ impl oio::OneShotWrite for AzdlsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-            }
+            StatusCode::CREATED | StatusCode::OK => {}
             _ => {
                 return Err(parse_error(resp)
                     .await?
@@ -76,10 +74,7 @@ impl oio::OneShotWrite for AzdlsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azdls_update_request")),
@@ -113,9 +108,7 @@ impl oio::AppendWrite for AzdlsWriter {
 
             let status = resp.status();
             match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::CREATED | StatusCode::OK => {}
                 _ => {
                     return Err(parse_error(resp)
                         .await?
@@ -134,10 +127,7 @@ impl oio::AppendWrite for AzdlsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azdls_update_request")),

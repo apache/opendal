@@ -126,7 +126,7 @@ impl AzblobCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -163,7 +163,12 @@ impl AzblobCore {
 }
 
 impl AzblobCore {
-    pub fn azblob_get_blob_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
+    pub fn azblob_get_blob_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -190,18 +195,7 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        let range = args.range();
         if !range.is_full() {
-            // azblob doesn't support read with suffix range.
-            //
-            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
             req = req.header(http::header::RANGE, range.to_header());
         }
 
@@ -223,9 +217,10 @@ impl AzblobCore {
     pub async fn azblob_get_blob(
         &self,
         path: &str,
+        range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_get_blob_request(path, args)?;
+    ) -> Result<Response<oio::Buffer>> {
+        let mut req = self.azblob_get_blob_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
@@ -423,7 +418,7 @@ impl AzblobCore {
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
 
         self.sign(&mut req).await?;
@@ -477,7 +472,7 @@ impl AzblobCore {
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self
             .azblob_complete_put_block_list_request(path, block_ids, args)
             .await?;
@@ -525,7 +520,7 @@ impl AzblobCore {
         &self,
         path: &str,
         args: &OpStat,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.azblob_head_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
@@ -549,18 +544,14 @@ impl AzblobCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let mut req = self.azblob_delete_blob_request(path)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn azblob_copy_blob(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -593,7 +584,7 @@ impl AzblobCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -622,10 +613,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_batch_delete(
-        &self,
-        paths: &[String],
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
             self.endpoint, self.container

@@ -235,7 +235,7 @@ pub struct KoofrBackend {
 
 #[async_trait]
 impl Accessor for KoofrBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type BlockingReader = ();
@@ -286,7 +286,7 @@ impl Accessor for KoofrBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let file: File = serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -372,11 +372,7 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -401,11 +397,7 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

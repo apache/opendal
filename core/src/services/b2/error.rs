@@ -34,9 +34,9 @@ struct B2Error {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.copy_to_bytes(body.remaining());
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
@@ -124,7 +124,7 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = IncomingAsyncBody::new(
+            let body = oio::Buffer::new(
                 Box::new(oio::into_stream(stream::iter(vec![Ok(bs.clone())]))),
                 None,
             );

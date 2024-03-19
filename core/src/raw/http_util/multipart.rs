@@ -446,9 +446,9 @@ impl MixedPart {
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
         // let body = if let Some(stream) = self.content {
-        //     IncomingAsyncBody::new(stream, Some(self.content_length))
+        //     oio::Buffer::new(stream, Some(self.content_length))
         // } else {
-        //     IncomingAsyncBody::new(Box::new(oio::into_stream(stream::empty())), Some(0))
+        //     oio::Buffer::new(Box::new(oio::into_stream(stream::empty())), Some(0))
         // };
 
         // builder

@@ -64,7 +64,7 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -96,7 +96,7 @@ impl SeafileCore {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
+                    let resp_body = &resp.into_body();
                     let auth_response = serde_json::from_slice::<AuthTokenResponse>(resp_body)
                         .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
@@ -125,7 +125,7 @@ impl SeafileCore {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
+                    let resp_body = &resp.into_body();
                     let list_library_response =
                         serde_json::from_slice::<Vec<ListLibraryResponse>>(resp_body)
                             .map_err(new_json_deserialize_error)?;
@@ -174,7 +174,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
+                let resp_body = &resp.into_body();
                 let upload_url = serde_json::from_slice::<String>(resp_body)
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
@@ -205,7 +205,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
+                let resp_body = &resp.into_body();
                 let download_url = serde_json::from_slice::<String>(resp_body)
                     .map_err(new_json_deserialize_error)?;
 
@@ -216,7 +216,7 @@ impl SeafileCore {
     }
 
     /// download file
-    pub async fn download_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let download_url = self.get_download_url(path).await?;
 
         let req = Request::get(download_url);
@@ -256,7 +256,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
+                let resp_body = &resp.into_body();
                 let file_detail = serde_json::from_slice::<FileDetail>(resp_body)
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
@@ -287,7 +287,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
+                let resp_body = &resp.into_body();
                 let dir_detail = serde_json::from_slice::<DirDetail>(resp_body)
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)

@@ -156,7 +156,7 @@ pub struct SupabaseBackend {
 
 #[async_trait]
 impl Accessor for SupabaseBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list and scan
     type Lister = ();

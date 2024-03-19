@@ -95,17 +95,13 @@ impl ObsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
 
 impl ObsCore {
-    pub async fn obs_get_object(
-        &self,
-        path: &str,
-        args: &OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn obs_get_object(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
         let mut req = self.obs_get_object_request(path, args)?;
 
         self.sign(&mut req).await?;
@@ -173,7 +169,7 @@ impl ObsCore {
         &self,
         path: &str,
         args: &OpStat,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = self.obs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
@@ -206,7 +202,7 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn obs_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -258,11 +254,7 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn obs_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -285,7 +277,7 @@ impl ObsCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut queries = vec![];
@@ -320,7 +312,7 @@ impl ObsCore {
         &self,
         path: &str,
         content_type: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -344,7 +336,7 @@ impl ObsCore {
         part_number: usize,
         size: Option<u64>,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -374,7 +366,7 @@ impl ObsCore {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}?uploadId={}",
@@ -407,7 +399,7 @@ impl ObsCore {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

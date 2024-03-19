@@ -266,7 +266,7 @@ pub struct AzfileBackend {
 
 #[async_trait]
 impl Accessor for AzfileBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type BlockingReader = ();
@@ -303,10 +303,7 @@ impl Accessor for AzfileBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED => Ok(RpCreateDir::default()),
             _ => {
                 // we cannot just check status code because 409 Conflict has two meaning:
                 // 1. If a directory by the same name is being deleted when Create Directory is called, the server returns status code 409 (Conflict)
@@ -360,8 +357,7 @@ impl Accessor for AzfileBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -387,10 +383,7 @@ impl Accessor for AzfileBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -406,10 +399,7 @@ impl Accessor for AzfileBackend {
         let resp = self.core.azfile_rename(from, to).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

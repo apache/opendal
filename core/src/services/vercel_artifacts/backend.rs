@@ -45,7 +45,7 @@ impl Debug for VercelArtifactsBackend {
 
 #[async_trait]
 impl Accessor for VercelArtifactsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type BlockingReader = ();
@@ -113,7 +113,7 @@ impl VercelArtifactsBackend {
         &self,
         hash: &str,
         args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -140,7 +140,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -158,7 +158,7 @@ impl VercelArtifactsBackend {
         self.client.send(req).await
     }
 
-    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)

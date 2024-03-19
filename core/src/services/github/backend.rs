@@ -221,7 +221,7 @@ pub struct GithubBackend {
 
 #[async_trait]
 impl Accessor for GithubBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
 
     type Writer = GithubWriters;
 

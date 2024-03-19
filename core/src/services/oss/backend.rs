@@ -376,7 +376,7 @@ pub struct OssBackend {
 
 #[async_trait]
 impl Accessor for OssBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;
     type BlockingReader = ();
@@ -479,8 +479,7 @@ impl Accessor for OssBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -502,10 +501,7 @@ impl Accessor for OssBackend {
         let resp = self.core.oss_delete_object(path).await?;
         let status = resp.status();
         match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -526,10 +522,7 @@ impl Accessor for OssBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -595,7 +588,7 @@ impl Accessor for OssBackend {
         let status = resp.status();
 
         if let StatusCode::OK = status {
-            let bs = resp.into_body().bytes().await?;
+            let bs = resp.into_body();
 
             let result: DeleteObjectsResult =
                 quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;

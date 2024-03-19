@@ -69,7 +69,7 @@ impl oio::PageList for SeafileLister {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
+                let resp_body = &resp.into_body();
                 let infos = serde_json::from_slice::<Vec<Info>>(resp_body)
                     .map_err(new_json_deserialize_error)?;
 

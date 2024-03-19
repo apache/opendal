@@ -48,7 +48,7 @@ impl oio::PageList for PcloudLister {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: ListFolderResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

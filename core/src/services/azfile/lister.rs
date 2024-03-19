@@ -55,7 +55,7 @@ impl oio::PageList for AzfileLister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let text = String::from_utf8(bs.to_vec()).expect("response convert to string must success");
 

@@ -248,7 +248,7 @@ pub struct ObsBackend {
 
 #[async_trait]
 impl Accessor for ObsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type BlockingReader = ();
@@ -337,8 +337,7 @@ impl Accessor for ObsBackend {
                 ))
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -380,10 +379,7 @@ impl Accessor for ObsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

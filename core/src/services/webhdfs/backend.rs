@@ -267,7 +267,7 @@ impl WebhdfsBackend {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let resp =
             serde_json::from_slice::<LocationResponse>(&bs).map_err(new_json_deserialize_error)?;
@@ -307,7 +307,7 @@ impl WebhdfsBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: LocationResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
@@ -321,7 +321,7 @@ impl WebhdfsBackend {
         &self,
         from: &str,
         to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -431,10 +431,7 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    pub async fn webhdfs_list_status_request(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -455,7 +452,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         start_after: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -480,7 +477,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let req = self.webhdfs_open_request(path, &range).await?;
         self.client.send(req).await
     }
@@ -488,7 +485,7 @@ impl WebhdfsBackend {
     pub(super) async fn webhdfs_get_file_status(
         &self,
         path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -507,7 +504,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
@@ -529,7 +526,7 @@ impl WebhdfsBackend {
         let resp = self.webhdfs_get_file_status("/").await?;
         match resp.status() {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
                     .map_err(new_json_deserialize_error)?
@@ -553,7 +550,7 @@ impl WebhdfsBackend {
 
 #[async_trait]
 impl Accessor for WebhdfsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type BlockingReader = ();
@@ -599,7 +596,7 @@ impl Accessor for WebhdfsBackend {
         // the redirection should be done automatically.
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp = serde_json::from_slice::<BooleanResp>(&bs)
                     .map_err(new_json_deserialize_error)?;
@@ -627,7 +624,7 @@ impl Accessor for WebhdfsBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
                     .map_err(new_json_deserialize_error)?
@@ -664,17 +661,16 @@ impl Accessor for WebhdfsBackend {
             // WebHDFS will returns 403 when range is outside of the end.
             StatusCode::FORBIDDEN => {
                 let (parts, body) = resp.into_parts();
-                let bs = body.bytes().await?;
+                let bs = body.copy_to_bytes(body.remaining());
                 let s = String::from_utf8_lossy(&bs);
                 if s.contains("out of the range") {
-                    Ok((RpRead::new(), IncomingAsyncBody::empty()))
+                    Ok((RpRead::new(), oio::Buffer::empty()))
                 } else {
                     Err(parse_error_msg(parts, &s)?)
                 }
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
+                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -696,10 +692,7 @@ impl Accessor for WebhdfsBackend {
         let resp = self.webhdfs_delete(path).await?;
 
         match resp.status() {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::OK => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

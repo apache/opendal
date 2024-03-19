@@ -179,7 +179,7 @@ pub struct YandexDiskBackend {
 
 #[async_trait]
 impl Accessor for YandexDiskBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type BlockingReader = ();
@@ -227,11 +227,7 @@ impl Accessor for YandexDiskBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-
-                Ok(RpRename::default())
-            }
+            StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -244,11 +240,7 @@ impl Accessor for YandexDiskBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -283,7 +275,7 @@ impl Accessor for YandexDiskBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let mf: MetainformationResponse =
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;

@@ -62,7 +62,7 @@ impl Debug for OnedriveBackend {
 
 #[async_trait]
 impl Accessor for OnedriveBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = oio::Buffer;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;
     type BlockingReader = ();
@@ -120,7 +120,7 @@ impl Accessor for OnedriveBackend {
         let status = resp.status();
 
         if status.is_success() {
-            let bytes = resp.into_body().bytes().await?;
+            let bytes = resp.into_body();
             let decoded_response = serde_json::from_slice::<OnedriveGetItemBody>(&bytes)
                 .map_err(new_json_deserialize_error)?;
 
@@ -199,7 +199,7 @@ impl Accessor for OnedriveBackend {
 impl OnedriveBackend {
     pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
 
-    async fn onedrive_get_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn onedrive_get_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
@@ -222,7 +222,7 @@ impl OnedriveBackend {
     pub(crate) async fn onedrive_get_next_list_page(
         &self,
         url: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::get(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -235,7 +235,7 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    async fn onedrive_get_content(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn onedrive_get_content(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
@@ -261,7 +261,7 @@ impl OnedriveBackend {
         size: Option<usize>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
             percent_encode_path(path)
@@ -293,7 +293,7 @@ impl OnedriveBackend {
         chunk_end: usize,
         total_len: usize,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::put(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -318,7 +318,7 @@ impl OnedriveBackend {
         &self,
         url: &str,
         body: OneDriveUploadSessionCreationRequestBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::post(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -337,7 +337,7 @@ impl OnedriveBackend {
         &self,
         url: &str,
         body: CreateDirPayload,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::post(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -351,7 +351,7 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
         let url = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:/{}",

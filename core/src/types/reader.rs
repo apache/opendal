@@ -414,8 +414,8 @@ impl BlockingReader {
 
     /// Read at most `size` bytes of data from reader.
     #[inline]
-    pub fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
+    pub fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 
     /// Read exact `size` bytes of data from reader.

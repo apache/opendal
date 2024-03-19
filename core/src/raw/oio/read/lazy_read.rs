@@ -73,7 +73,7 @@ where
         self.reader().await?.seek(pos).await
     }
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let r = self.reader().await?;
         r.read(limit).await
     }
@@ -99,7 +99,7 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         self.blocking_reader()?.read(limit)
     }
 

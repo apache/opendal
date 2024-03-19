@@ -264,12 +264,8 @@ impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 }
 

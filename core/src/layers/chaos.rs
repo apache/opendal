@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -145,7 +146,7 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
 /// ChaosReader will inject error into read operations.
 pub struct ChaosReader<R> {
     inner: R,
-    rng: StdRng,
+    rng: Arc<Mutex<StdRng>>,
 
     error_ratio: f64,
 }
@@ -154,15 +155,15 @@ impl<R> ChaosReader<R> {
     fn new(inner: R, rng: StdRng, error_ratio: f64) -> Self {
         Self {
             inner,
-            rng,
+            rng: Arc::new(Mutex::new(rng)),
             error_ratio,
         }
     }
 
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
-    fn i_feel_lucky(&mut self) -> bool {
-        let point = self.rng.gen_range(0..=100);
+    fn i_feel_lucky(&self) -> bool {
+        let point = self.rng.lock().unwrap().gen_range(0..=100);
         point >= (self.error_ratio * 100.0) as i32
     }
 
@@ -174,17 +175,9 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read(limit).await
-        } else {
-            Err(Self::unexpected_eof())
-        }
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        if self.i_feel_lucky() {
-            self.inner.seek(pos).await
+            self.inner.read_at(offset, limit).await
         } else {
             Err(Self::unexpected_eof())
         }
@@ -192,17 +185,9 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read(limit)
-        } else {
-            Err(Self::unexpected_eof())
-        }
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        if self.i_feel_lucky() {
-            self.inner.seek(pos)
+            self.inner.read_at(offset, limit)
         } else {
             Err(Self::unexpected_eof())
         }

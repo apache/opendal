@@ -360,21 +360,13 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).map_err(|err| {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("offset", offset.to_string())
                 .with_context("limit", limit.to_string())
-        })
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).map_err(|err| {
-            err.with_operation(ReadOperation::BlockingSeek)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context("seek", format!("{pos:?}"))
         })
     }
 }

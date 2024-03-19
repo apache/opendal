@@ -388,11 +388,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn seek(&mut self, _: SeekFrom) -> impl Future<Output = Result<u64>> {
-            pending()
-        }
-
-        fn read(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
+        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<oio::Buffer>> {
             pending()
         }
     }

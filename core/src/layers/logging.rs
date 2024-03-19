@@ -1026,10 +1026,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self.inner.read(limit) {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        match self.inner.read_at(offset, limit) {
             Ok(bs) => {
-                self.read.fetch_add(bs.len() as u64, Ordering::Relaxed);
+                self.read
+                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read {}B",
@@ -1037,7 +1038,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     ReadOperation::BlockingRead,
                     self.path,
                     self.read.load(Ordering::Relaxed),
-                    bs.len()
+                    bs.remaining()
                 );
                 Ok(bs)
             }
@@ -1049,38 +1050,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                         "service={} operation={} path={} read={} -> data read failed: {}",
                         self.ctx.scheme,
                         ReadOperation::BlockingRead,
-                        self.path,
-                        self.read.load(Ordering::Relaxed),
-                        self.ctx.error_print(&err),
-                    );
-                }
-                Err(err)
-            }
-        }
-    }
-
-    #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        match self.inner.seek(pos) {
-            Ok(n) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data seek to offset {n}",
-                    self.ctx.scheme,
-                    ReadOperation::BlockingSeek,
-                    self.path,
-                    self.read.load(Ordering::Relaxed),
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::BlockingSeek,
                         self.path,
                         self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),

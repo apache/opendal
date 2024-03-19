@@ -50,7 +50,7 @@ where
         ))
     }
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.buf.is_empty() {
             self.buf = match self.inner.next().await.transpose()? {
                 Some(v) => v.into(),

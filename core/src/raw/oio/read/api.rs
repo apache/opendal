@@ -17,13 +17,11 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
 use std::ops::Deref;
 
 use bytes::{Buf, Bytes};
 use futures::Future;
 
-use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -111,13 +109,13 @@ impl Read for () {
 
 impl Read for Bytes {
     /// TODO: we can check if the offset is out of range.
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if offset >= self.len() as u64 {
-            return Ok(Buffer::new());
+            return Ok(oio::Buffer::new());
         }
         let offset = offset as usize;
         let limit = limit.min(self.len() - offset);
-        Ok(Buffer::from(self.slice(offset..offset + limit)))
+        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
     }
 }
 
@@ -156,37 +154,21 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 /// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync {
     /// Read synchronously.
-    fn read(&mut self, limit: usize) -> Result<Bytes>;
-
-    /// Seek synchronously.
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer>;
 }
 
 impl BlockingRead for () {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let _ = (offset, limit);
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output blocking reader doesn't support seeking",
-        ))
     }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        (**self).read(limit)
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        (**self).seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        (**self).read_at(offset, limit)
     }
 }

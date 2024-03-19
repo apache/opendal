@@ -210,7 +210,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.reader.is_none() {
             // FileReader doesn't support range, we will always use full range to open a file.
             let op = self.op.clone().with_range(BytesRange::from(..));
@@ -267,7 +267,7 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.reader.is_none() {
             // FileReader doesn't support range, we will always use full range to open a file.
             let op = self.op.clone().with_range(BytesRange::from(..));

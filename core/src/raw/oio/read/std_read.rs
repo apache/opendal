@@ -44,7 +44,7 @@ impl<R> oio::BlockingRead for StdReader<R>
 where
     R: Read + Seek + Send + Sync,
 {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // Make sure buf has enough space.
         if self.buf.capacity() < limit {
             self.buf.reserve(limit);

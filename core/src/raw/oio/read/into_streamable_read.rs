@@ -43,7 +43,7 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
         self.r.seek(pos).await
     }
 
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let size = min(self.buf.capacity(), limit);
 
         let dst = self.buf.spare_capacity_mut();
@@ -61,7 +61,7 @@ impl<R: oio::Read> oio::Read for StreamableReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         self.r.read(limit)
     }
 

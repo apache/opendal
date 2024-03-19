@@ -277,22 +277,14 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 }
 

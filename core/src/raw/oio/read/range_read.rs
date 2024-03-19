@@ -252,7 +252,7 @@ where
     A: Accessor<Reader = R>,
     R: oio::Read,
 {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {
             return Ok(Bytes::new());
@@ -336,7 +336,7 @@ where
     A: Accessor<BlockingReader = R>,
     R: oio::BlockingRead,
 {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // Sanity check for normal cases.
         if self.cur >= self.size.unwrap_or(u64::MAX) {
             return Ok(Bytes::new());
@@ -496,7 +496,7 @@ mod tests {
             ))
         }
 
-        async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
             let mut bs = vec![0; limit];
             let n = self.inner.read(&mut bs).await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)

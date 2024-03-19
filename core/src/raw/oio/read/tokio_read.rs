@@ -47,7 +47,7 @@ impl<R> oio::Read for TokioReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // Make sure buf has enough space.
         if self.buf.capacity() < limit {
             self.buf.reserve(limit);

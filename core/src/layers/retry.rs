@@ -693,8 +693,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        { || self.inner.as_mut().unwrap().read(limit) }
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        { || self.inner.as_ref().unwrap().read_at(offset, limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -703,24 +703,6 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
                     dur,
                     &[
                         ("operation", ReadOperation::BlockingRead.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        { || self.inner.as_mut().unwrap().seek(pos) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::BlockingSeek.into_static()),
                         ("path", &self.path),
                     ],
                 );
@@ -1061,17 +1043,7 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-            self.pos = match pos {
-                io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
-                io::SeekFrom::Start(n) => n,
-                io::SeekFrom::End(n) => (13 + n) as u64,
-            };
-
-            Ok(self.pos)
-        }
-
-        async fn read(&mut self, _: usize) -> Result<Bytes> {
+        async fn read_at(&self, _: u64, _: usize) -> Result<oio::Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -1080,19 +1052,13 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                2 => {
-                    self.pos += 7;
-                    Ok(Bytes::copy_from_slice("Hello, ".as_bytes()))
-                }
+                2 => Ok(Bytes::copy_from_slice("Hello, ".as_bytes()).into()),
                 3 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                4 => {
-                    self.pos += 6;
-                    Ok(Bytes::copy_from_slice("World!".as_bytes()))
-                }
-                5 => Ok(Bytes::new()),
+                4 => Ok(Bytes::copy_from_slice("World!".as_bytes()).into()),
+                5 => Ok(Bytes::new().into()),
                 _ => unreachable!(),
             }
         }

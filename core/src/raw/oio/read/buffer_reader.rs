@@ -135,7 +135,7 @@ impl<R> oio::Read for BufferReader<R>
 where
     R: oio::Read,
 {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if limit == 0 {
             return Ok(Bytes::new());
         }
@@ -233,7 +233,7 @@ impl<R> BlockingRead for BufferReader<R>
 where
     R: BlockingRead,
 {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if limit == 0 {
             return Ok(Bytes::new());
         }
@@ -379,14 +379,14 @@ mod tests {
             ))
         }
 
-        async fn read(&mut self, limit: usize) -> Result<Bytes> {
+        async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
             oio::Read::read(&mut self.inner, limit).await
         }
     }
 
     impl BlockingRead for MockReader {
-        fn read(&mut self, limit: usize) -> Result<Bytes> {
-            self.inner.read(limit)
+        fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+            self.inner.read_at(offset, limit)
         }
 
         fn seek(&mut self, _pos: SeekFrom) -> Result<u64> {

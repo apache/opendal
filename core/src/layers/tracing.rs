@@ -272,16 +272,8 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await
-    }
-
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        skip_all)]
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).await
     }
 }
 
@@ -290,16 +282,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
-    }
-
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        skip_all)]
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 }
 

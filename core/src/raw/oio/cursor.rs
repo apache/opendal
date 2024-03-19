@@ -71,7 +71,7 @@ impl From<Vec<u8>> for Cursor {
 }
 
 // impl oio::Read for Cursor {
-//     async fn read(&mut self, limit: usize) -> Result<Bytes> {
+//     async fn read(&self,offset:u64, limit: usize) -> Result<oio::Buffer> {
 //         if self.is_empty() {
 //             Ok(Bytes::new())
 //         } else {
@@ -105,7 +105,7 @@ impl From<Vec<u8>> for Cursor {
 // }
 
 impl oio::BlockingRead for Cursor {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         if self.is_empty() {
             Ok(Bytes::new())
         } else {

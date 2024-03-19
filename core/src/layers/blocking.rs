@@ -288,12 +288,8 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.handle.block_on(self.inner.read(limit))
-    }
-
-    fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
-        self.handle.block_on(self.inner.seek(pos))
+    fn read_at(&mut self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.handle.block_on(self.inner.read_at(offset, limit))
     }
 }
 

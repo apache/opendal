@@ -12,3 +12,8 @@ license = {text = "Apache-2.0"}
 
 [tool.pdm]
 distribution = false
+
+[tool.pdm.dev-dependencies]
+lint = [
+    "ruff>=0.3.3",
+]

@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use http::StatusCode;
+use quick_xml::de;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
@@ -57,9 +59,8 @@ impl oio::PageList for AzfileLister {
 
         let bs = resp.into_body();
 
-        let text = String::from_utf8(bs.to_vec()).expect("response convert to string must success");
-
-        let results: EnumerationResults = from_str(&text).map_err(new_xml_deserialize_error)?;
+        let results: EnumerationResults =
+            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         if results.next_marker.is_empty() {
             ctx.done = true;

@@ -34,6 +34,7 @@ use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
 use crate::services::azfile::lister::AzfileLister;
+use crate::services::azfile::reader::AzfileReader;
 use crate::*;
 
 /// Default endpoint of Azure File services.
@@ -266,7 +267,7 @@ pub struct AzfileBackend {
 
 #[async_trait]
 impl Accessor for AzfileBackend {
-    type Reader = oio::Buffer;
+    type Reader = AzfileReader;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type BlockingReader = ();
@@ -343,24 +344,10 @@ impl Accessor for AzfileBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azfile_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            AzfileReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

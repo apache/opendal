@@ -104,7 +104,11 @@ services-azdls = [
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
 ]
-services-azfile = []
+services-azfile = [
+  "dep:reqsign",
+  "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
 services-b2 = []
 services-cacache = ["dep:cacache"]
 services-chainsafe = []

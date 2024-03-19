@@ -26,6 +26,7 @@ use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
 use crate::raw::*;
+use crate::services::supabase::reader::SupabaseReader;
 use crate::*;
 
 /// [Supabase](https://supabase.com/) service support
@@ -156,7 +157,7 @@ pub struct SupabaseBackend {
 
 #[async_trait]
 impl Accessor for SupabaseBackend {
-    type Reader = oio::Buffer;
+    type Reader = SupabaseReader;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list and scan
     type Lister = ();
@@ -204,14 +205,10 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            SupabaseReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

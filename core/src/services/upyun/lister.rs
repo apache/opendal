@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use super::core::ListObjectsResponse;
@@ -68,8 +69,8 @@ impl oio::PageList for UpyunLister {
 
         let bs = resp.into_body();
 
-        let response = serde_json::from_slice::<ListObjectsResponse>(&bs)
-            .map_err(new_json_deserialize_error)?;
+        let response: ListObjectsResponse =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         // ref https://help.upyun.com/knowledge-base/rest_api/#e88eb7e58f96e79baee5bd95e69687e4bbb6e58897e8a1a8
         // when iter is "g2gCZAAEbmV4dGQAA2VvZg", it means the list is done.

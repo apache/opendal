@@ -29,6 +29,7 @@ use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;
+use crate::services::swift::reader::SwiftReader;
 use crate::*;
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
@@ -190,7 +191,7 @@ pub struct SwiftBackend {
 
 #[async_trait]
 impl Accessor for SwiftBackend {
-    type Reader = oio::Buffer;
+    type Reader = SwiftReader;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type BlockingReader = ();
@@ -235,22 +236,10 @@ impl Accessor for SwiftBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.swift_read(path, args).await?;
-
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            SwiftReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

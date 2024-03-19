@@ -104,7 +104,11 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn download_file(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -116,6 +120,7 @@ impl UpyunCore {
         let req = Request::get(url);
 
         let mut req = req
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

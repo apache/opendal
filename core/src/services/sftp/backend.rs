@@ -23,6 +23,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
@@ -71,7 +72,7 @@ impl Debug for SftpConfig {
 
 /// SFTP services support. (only works on unix)
 ///
-/// If you are interested in working on windows, please refer to [this](https://github.com/apache/opendal/issues/2963) issue.
+/// If you are interested in working on windows, pl ease refer to [this](https://github.com/apache/opendal/issues/2963) issue.
 /// Welcome to leave your comments or make contributions.
 ///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.
@@ -242,7 +243,7 @@ impl Debug for SftpBackend {
 
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = oio::TokioReader<Pin<Box<TokioCompatFile>>>;
+    type Reader = Bytes;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type BlockingReader = ();
@@ -322,15 +323,7 @@ impl Accessor for SftpBackend {
             .await
             .map_err(parse_sftp_error)?;
 
-        // Sorry for the ugly code...
-        //
-        // - `f` is a openssh file.
-        // - `TokioCompatFile::new(f)` makes it implements tokio AsyncRead + AsyncSeek for openssh File.
-        // - `Box::pin(x)` to make sure this reader implements `Unpin`, since `TokioCompatFile` is not.
-        // - `oio::TokioReader::new(x)` makes it a `oio::TokioReader` which implements `oio::Read`.
-        let r = oio::TokioReader::new(Box::pin(TokioCompatFile::new(f)));
-
-        Ok((RpRead::new(), r))
+        todo!()
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

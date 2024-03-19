@@ -127,9 +127,12 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_read(&self, path: &str, arg: OpRead) -> Result<Response<oio::Buffer>> {
-        let range = arg.range();
-
+    pub async fn swift_read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        arg: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -146,7 +149,7 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
 
         if !range.is_full() {
-            req = req.header("Range", &range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req

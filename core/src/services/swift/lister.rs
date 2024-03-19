@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use super::core::*;
@@ -55,7 +56,7 @@ impl oio::PageList for SwiftLister {
             return Err(error);
         }
 
-        let bytes = response.into_body().bytes().await?;
+        let bytes = response.into_body();
         let decoded_response: Vec<ListOpResponse> =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 

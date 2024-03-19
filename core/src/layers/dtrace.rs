@@ -22,6 +22,7 @@ use std::fmt::Formatter;
 use std::io;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use bytes::Bytes;
 use probe::probe_lazy;
 

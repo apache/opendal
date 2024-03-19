@@ -42,8 +42,8 @@ pub use api::Reader;
 // mod tokio_read;
 // pub use tokio_read::TokioReader;
 
-mod std_read;
-pub use std_read::StdReader;
+// mod std_read;
+// pub use std_read::StdReader;
 
 // mod lazy_read;
 // pub use lazy_read::LazyReader;

@@ -22,5 +22,5 @@ pub use backend::AlluxioConfig;
 mod core;
 mod error;
 mod lister;
-mod writer;
 mod reader;
+mod writer;

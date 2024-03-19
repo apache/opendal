@@ -632,7 +632,8 @@ impl S3Builder {
 
         // Omit default ports if specified.
         if let Ok(url) = Url::from_str(&endpoint) {
-            endpoint = url.to_string();
+            // Remove the trailing `/` of root path.
+            endpoint = url.to_string().trim_end_matches('/').to_string();
         }
 
         // Update with endpoint templates.

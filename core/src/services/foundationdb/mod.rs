@@ -17,4 +17,5 @@
 
 mod backend;
 
+pub use backend::FoundationConfig;
 pub use backend::FoundationdbBuilder as Foundationdb;

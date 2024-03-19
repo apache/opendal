@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import textwrap
 from typing import List, Optional
 
 import humps
@@ -75,7 +76,7 @@ class ConfigField:
     def rust_comment(self) -> str:
         res = ""
 
-        for line in self.desc.strip().splitlines():
+        for line in textwrap.dedent(self.desc).strip().splitlines():
             if line:
                 res += f"/// {line}\n"
             else:

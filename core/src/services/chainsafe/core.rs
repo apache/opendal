@@ -58,7 +58,11 @@ impl ChainsafeCore {
 }
 
 impl ChainsafeCore {
-    pub async fn download_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn download_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -76,6 +80,7 @@ impl ChainsafeCore {
                 header::AUTHORIZATION,
                 format_authorization_by_bearer(&self.api_key)?,
             )
+            .header(header::RANGE, range.to_header())
             .header(header::CONTENT_TYPE, "application/json")
             .body(body)
             .map_err(new_request_build_error)?;

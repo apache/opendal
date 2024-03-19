@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -33,6 +34,7 @@ use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
 use crate::raw::*;
+use crate::services::vercel_blob::reader::VercelBlobReader;
 use crate::*;
 
 /// Config for backblaze VercelBlob services support.
@@ -178,7 +180,7 @@ pub struct VercelBlobBackend {
 
 #[async_trait]
 impl Accessor for VercelBlobBackend {
-    type Reader = oio::Buffer;
+    type Reader = VercelBlobReader;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
     type BlockingReader = ();
@@ -232,21 +234,10 @@ impl Accessor for VercelBlobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            VercelBlobReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

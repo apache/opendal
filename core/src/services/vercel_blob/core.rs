@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header;
 use http::request;
 use http::Request;
@@ -83,7 +83,12 @@ impl VercelBlobCore {
 }
 
 impl VercelBlobCore {
-    pub async fn download(&self, path: &str, args: OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn download(
+        &self,
+        path: &str,
+        range: BytesRange,
+        _: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
@@ -98,9 +103,8 @@ impl VercelBlobCore {
 
         let mut req = Request::get(url);
 
-        let range = args.range();
         if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         // Set body

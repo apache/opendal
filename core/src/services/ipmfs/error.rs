@@ -46,7 +46,7 @@ struct IpfsError {
 ///
 /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
 pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
+    let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
     let ipfs_error = de::from_slice::<IpfsError>(&bs).ok();

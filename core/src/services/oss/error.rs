@@ -38,7 +38,7 @@ struct OssError {
 
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
+    let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
     let (kind, retryable) = match parts.status {

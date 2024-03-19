@@ -660,7 +660,7 @@ impl Accessor for WebhdfsBackend {
             }
             // WebHDFS will returns 403 when range is outside of the end.
             StatusCode::FORBIDDEN => {
-                let (parts, body) = resp.into_parts();
+                let (parts, mut body) = resp.into_parts();
                 let bs = body.copy_to_bytes(body.remaining());
                 let s = String::from_utf8_lossy(&bs);
                 if s.contains("out of the range") {

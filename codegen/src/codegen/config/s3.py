@@ -4,7 +4,7 @@ S3 = Config(
     name="s3",
     desc="AWS S3 and compatible services support (MinIO, DigitalOcean Spaces, Tencent Cloud Object Storage, etc.)",
 
-    rust_cfg_cond='#[cfg(feature = "services-s3")]',
+    rust_cfg='#[cfg(feature = "services-s3")]',
 
     fields=[
         ConfigField(

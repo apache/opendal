@@ -119,7 +119,7 @@ class Config:
     fields: List[ConfigField] = dataclasses.field(default_factory=list)
 
     # Rust's #[cfg(...)] conditions for the config
-    rust_cfg_cond: str = ""
+    rust_cfg: str = ""
 
     ###########
     # RustGen #

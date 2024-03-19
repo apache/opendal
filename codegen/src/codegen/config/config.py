@@ -18,7 +18,7 @@
 import dataclasses
 import enum
 import textwrap
-from typing import List, Optional
+from typing import List
 
 import humps
 
@@ -45,8 +45,8 @@ class ConfigField:
     name: str
     desc: str
 
-    ty: Optional[FieldType] = None
-    refined_ty: Optional[RefinedFieldType] = None
+    ty: FieldType = FieldType.Nothing
+    refined_ty: RefinedFieldType = RefinedFieldType.Nothing
 
     required: bool = False
     sensitive: bool = False

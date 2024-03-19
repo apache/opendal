@@ -17,7 +17,7 @@
 
 import sys
 from subprocess import PIPE, Popen
-from typing import Optional, Any, TextIO, Set
+from typing import Optional, Any, Set, IO
 
 
 def run(
@@ -26,7 +26,7 @@ def run(
     verbose: bool = False,
     codes: Optional[Set[int]] = None,
     **kwargs: Any
-) -> Popen:
+) -> Popen[str]:
     sys.stdout.flush()
     if verbose:
         print(f"$ {' '.join(args)}")
@@ -49,9 +49,10 @@ def run_pipe(
     verbose: bool = False,
     codes: Optional[Set[int]] = None,
     **kwargs: Any
-) -> TextIO:
+) -> IO[str]:
     p = run(*args, msg=msg, verbose=verbose, codes=codes, stdout=PIPE, universal_newlines=True, **kwargs)
-    return p.stdout  # type: ignore[return-value]
+    assert p.stdout is not None
+    return p.stdout
 
 
 def lookup(command: str, msg: Optional[str] = None) -> str:

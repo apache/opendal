@@ -146,7 +146,7 @@ impl OneDriveWriter {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let result: OneDriveUploadSessionCreationResponseBody =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
             _ => Err(parse_error(resp).await?),

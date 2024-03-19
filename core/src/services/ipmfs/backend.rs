@@ -118,7 +118,7 @@ impl Accessor for IpmfsBackend {
                 let bs = resp.into_body();
 
                 let res: IpfsStatResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 let mode = match res.file_type.as_str() {
                     "file" => EntryMode::FILE,

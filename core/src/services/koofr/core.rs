@@ -93,7 +93,7 @@ impl KoofrCore {
                 let bs = resp.into_body();
 
                 let resp: MountsResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 for mount in resp.mounts {
                     if mount.is_primary {
@@ -139,7 +139,7 @@ impl KoofrCore {
 
         let bs = resp.into_body();
         let resp: TokenResponse =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         signer.token = resp.token;
 

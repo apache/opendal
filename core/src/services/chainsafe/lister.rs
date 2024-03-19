@@ -51,7 +51,7 @@ impl oio::PageList for ChainsafeLister {
                 let bs = resp.into_body();
 
                 let output: Vec<Info> =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 for info in output {
                     let mut path = build_abs_path(&normalize_root(&self.path), &info.name);

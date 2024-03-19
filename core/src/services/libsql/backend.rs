@@ -311,7 +311,7 @@ impl Adapter {
 
         let bs = resp.into_body();
 
-        let resp: ServerMsg = serde_json::from_slice(&bs).map_err(|e| {
+        let resp: ServerMsg = serde_json::from_reader(bs.reader()).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize json from response").set_source(e)
         })?;
 

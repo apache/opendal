@@ -194,7 +194,7 @@ impl IcloudSigner {
 
         let bs = resp.into_body();
         let auth_info: IcloudWebservicesResponse =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         // Check if we have extra challenge to take.
         if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {

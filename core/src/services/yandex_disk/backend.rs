@@ -278,7 +278,7 @@ impl Accessor for YandexDiskBackend {
                 let bs = resp.into_body();
 
                 let mf: MetainformationResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 parse_info(mf).map(RpStat::new)
             }

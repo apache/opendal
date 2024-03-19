@@ -51,7 +51,7 @@ impl oio::PageList for PcloudLister {
                 let bs = resp.into_body();
 
                 let resp: ListFolderResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
                 if result == 2005 {

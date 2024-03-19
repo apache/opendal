@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -70,7 +71,7 @@ impl oio::MultipartWrite for B2Writer {
                 let bs = resp.into_body();
 
                 let result: StartLargeFileResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(result.file_id)
             }
@@ -100,7 +101,7 @@ impl oio::MultipartWrite for B2Writer {
                 let bs = resp.into_body();
 
                 let result: UploadPartResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(oio::MultipartPart {
                     etag: result.content_sha1,

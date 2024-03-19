@@ -222,7 +222,8 @@ impl Accessor for VercelBlobBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
-                let resp: Blob = serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                let resp: Blob =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 parse_blob(&resp).map(RpStat::new)
             }

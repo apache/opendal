@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -105,9 +106,10 @@ impl B2Core {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body();
-                    let token = serde_json::from_slice::<AuthorizeAccountResponse>(resp_body)
-                        .map_err(new_json_deserialize_error)?;
+                    let resp_body = resp.into_body();
+                    let token: AuthorizeAccountResponse =
+                        serde_json::from_reader(resp_body.reader())
+                            .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
                         authorization_token: token.authorization_token.clone(),
                         api_url: token.api_url.clone(),
@@ -129,6 +131,7 @@ impl B2Core {
     pub async fn download_file_by_name(
         &self,
         path: &str,
+        range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
@@ -147,7 +150,6 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -180,8 +182,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body();
-                let resp = serde_json::from_slice::<GetUploadUrlResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
@@ -229,8 +231,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body();
-                let resp = serde_json::from_slice::<GetDownloadAuthorizationResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
@@ -335,8 +337,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body();
-                let resp = serde_json::from_slice::<GetUploadPartUrlResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }

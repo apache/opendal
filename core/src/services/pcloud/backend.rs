@@ -275,7 +275,7 @@ impl Accessor for PcloudBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: StatResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
@@ -336,7 +336,7 @@ impl Accessor for PcloudBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
                 // pCloud returns 2005 or 2009 if the file or folder is not found
@@ -370,7 +370,7 @@ impl Accessor for PcloudBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
@@ -400,7 +400,7 @@ impl Accessor for PcloudBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));

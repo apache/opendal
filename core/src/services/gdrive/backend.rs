@@ -88,7 +88,7 @@ impl Accessor for GdriveBackend {
 
         let bs = resp.into_body();
         let gdrive_file: GdriveFile =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));

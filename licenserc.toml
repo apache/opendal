@@ -29,7 +29,8 @@ excludes = [
   "**/DEPENDENCIES.*.tsv",
   "**/DEPENDENCIES.*.csv",
 
-  # Python binding related files
+  # Python virtual env files
+  "**/.venv/**",
   "**/venv/**",
 
   # Website generated files

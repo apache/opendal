@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -236,8 +237,8 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                Ok(Some(body.into()))
+                let mut body = resp.into_body();
+                Ok(Some(body.copy_to_bytes(body.remaining()).to_vec()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -292,12 +293,13 @@ impl kv::Adapter for Adapter {
         match status {
             StatusCode::OK => {
                 let body = resp.into_body();
-                let response: CfKvScanResponse = serde_json::from_slice(&body).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("failed to parse error response: {}", e),
-                    )
-                })?;
+                let response: CfKvScanResponse =
+                    serde_json::from_reader(body.reader()).map_err(|e| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("failed to parse error response: {}", e),
+                        )
+                    })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
             _ => Err(parse_error(resp).await?),

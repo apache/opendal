@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import subprocess
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from codegen import safeexec
 from codegen.config import S3
 
 if __name__ == '__main__':
@@ -38,5 +38,4 @@ if __name__ == '__main__':
         print(f'Generating Rust files from templates in {template} to {output}')
         f.write(tmpl.render(configs=[S3]))
 
-    rustfmt = safeexec.lookup('rustfmt')
-    safeexec.run(rustfmt, str(rust), verbose=True)
+    subprocess.run(['rustfmt', rust])

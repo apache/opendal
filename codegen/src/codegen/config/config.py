@@ -61,6 +61,7 @@ class ConfigField:
     ###########
     # RustGen #
     ###########
+
     def rust_type(self) -> str:
         ty = self._rust_type()
         if self.required:

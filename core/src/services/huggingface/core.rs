@@ -121,7 +121,12 @@ impl HuggingfaceCore {
         self.client.send(req).await
     }
 
-    pub async fn hf_resolve(&self, path: &str, arg: OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn hf_resolve(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -148,9 +153,8 @@ impl HuggingfaceCore {
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
 
-        let range = arg.range();
         if !range.is_full() {
-            req = req.header(header::RANGE, &range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req

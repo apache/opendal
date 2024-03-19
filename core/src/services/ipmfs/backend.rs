@@ -21,7 +21,7 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -31,6 +31,7 @@ use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
 use crate::raw::*;
+use crate::services::ipmfs::reader::IpmfsReader;
 use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
@@ -63,7 +64,7 @@ impl IpmfsBackend {
 
 #[async_trait]
 impl Accessor for IpmfsBackend {
-    type Reader = oio::Buffer;
+    type Reader = IpmfsReader;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type BlockingReader = ();
@@ -136,14 +137,10 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipmfs_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            IpmfsReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -188,7 +185,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(

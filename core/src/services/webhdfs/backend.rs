@@ -19,6 +19,7 @@ use core::fmt::Debug;
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -37,6 +38,7 @@ use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
+use crate::services::webhdfs::reader::WebhdfsReader;
 use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
@@ -269,8 +271,8 @@ impl WebhdfsBackend {
 
         let bs = resp.into_body();
 
-        let resp =
-            serde_json::from_slice::<LocationResponse>(&bs).map_err(new_json_deserialize_error)?;
+        let resp: LocationResponse =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         let mut req = Request::put(&resp.location);
 
@@ -473,7 +475,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    async fn webhdfs_read_file(
+    pub async fn webhdfs_read_file(
         &self,
         path: &str,
         range: BytesRange,
@@ -528,7 +530,7 @@ impl WebhdfsBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
-                let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
+                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(bs.reader())
                     .map_err(new_json_deserialize_error)?
                     .file_status;
 
@@ -550,7 +552,7 @@ impl WebhdfsBackend {
 
 #[async_trait]
 impl Accessor for WebhdfsBackend {
-    type Reader = oio::Buffer;
+    type Reader = WebhdfsReader;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type BlockingReader = ();
@@ -598,7 +600,7 @@ impl Accessor for WebhdfsBackend {
             StatusCode::CREATED | StatusCode::OK => {
                 let bs = resp.into_body();
 
-                let resp = serde_json::from_slice::<BooleanResp>(&bs)
+                let resp = serde_json::from_reader::<_, BooleanResp>(bs.reader())
                     .map_err(new_json_deserialize_error)?;
 
                 if resp.boolean {
@@ -626,7 +628,7 @@ impl Accessor for WebhdfsBackend {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
-                let file_status = serde_json::from_slice::<FileStatusWrapper>(&bs)
+                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(bs.reader())
                     .map_err(new_json_deserialize_error)?
                     .file_status;
 
@@ -647,33 +649,10 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let range = args.range();
-        let resp = self.webhdfs_read_file(path, range).await?;
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            // WebHDFS will returns 403 when range is outside of the end.
-            StatusCode::FORBIDDEN => {
-                let (parts, mut body) = resp.into_parts();
-                let bs = body.copy_to_bytes(body.remaining());
-                let s = String::from_utf8_lossy(&bs);
-                if s.contains("out of the range") {
-                    Ok((RpRead::new(), oio::Buffer::empty()))
-                } else {
-                    Err(parse_error_msg(parts, &s)?)
-                }
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            WebhdfsReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

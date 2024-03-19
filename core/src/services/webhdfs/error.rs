@@ -100,10 +100,7 @@ mod tests {
 }
     "#,
         );
-        let body = oio::Buffer::new(
-            Box::new(oio::into_stream(stream::iter(vec![Ok(ill_args.clone())]))),
-            None,
-        );
+        let body = oio::Buffer::from(ill_args.clone());
         let resp = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(body)

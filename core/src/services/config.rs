@@ -29,7 +29,7 @@ pub mod s3 {
     use std::fmt::Formatter;
 
     /// Config for AWS S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
-    #[derive(Default, serde::Deserialize)]
+    #[derive(Default, Deserialize)]
     #[serde(default)]
     #[non_exhaustive]
     pub struct S3Config {

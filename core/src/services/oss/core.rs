@@ -238,9 +238,7 @@ impl OssCore {
         path: &str,
         range: BytesRange,
         is_presign: bool,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-        override_content_disposition: Option<&str>,
+        args: &OpRead,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -248,7 +246,7 @@ impl OssCore {
 
         // Add query arguments to the URL based on response overrides
         let mut query_args = Vec::new();
-        if let Some(override_content_disposition) = override_content_disposition {
+        if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
@@ -270,10 +268,10 @@ impl OssCore {
             req = req.header("x-oss-range-behavior", "standard");
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match)
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
@@ -370,18 +368,9 @@ impl OssCore {
         &self,
         path: &str,
         range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-        override_content_disposition: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
-        let mut req = self.oss_get_object_request(
-            path,
-            range,
-            false,
-            if_match,
-            if_none_match,
-            override_content_disposition,
-        )?;
+        let mut req = self.oss_get_object_request(path, range, false, args)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }

@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use reqsign::GoogleCredentialLoader;
@@ -33,6 +34,7 @@ use serde_json;
 use super::core::*;
 use super::error::parse_error;
 use super::lister::GcsLister;
+use super::reader::GcsReader;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use crate::raw::*;
@@ -332,7 +334,7 @@ pub struct GcsBackend {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GcsBackend {
-    type Reader = oio::Buffer;
+    type Reader = GcsReader;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type BlockingReader = ();
@@ -396,7 +398,7 @@ impl Accessor for GcsBackend {
         let slc = resp.into_body();
 
         let meta: GetObjectJsonResponse =
-            serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
 
         let mut m = Metadata::new(EntryMode::FILE);
 
@@ -418,16 +420,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gcs_get_object(path, &args).await?;
-
-        if resp.status().is_success() {
-            let size = parse_content_length(resp.headers())?;
-            Ok((RpRead::new().with_size(size), resp.into_body()))
-        } else if resp.status() == StatusCode::RANGE_NOT_SATISFIABLE {
-            Ok((RpRead::new(), oio::Buffer::empty()))
-        } else {
-            Err(parse_error(resp).await?)
-        }
+        Ok((
+            RpRead::default(),
+            GcsReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -527,7 +523,7 @@ impl Accessor for GcsBackend {
                 .trim_matches('"');
             let multipart: Multipart<MixedPart> = Multipart::new()
                 .with_boundary(boundary)
-                .parse(resp.into_body().bytes().await?)?;
+                .parse(resp.into_body().to_bytes())?;
             let parts = multipart.into_parts();
 
             let mut batched_result = Vec::with_capacity(parts.len());

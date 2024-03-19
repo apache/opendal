@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use serde_json;
@@ -82,7 +83,7 @@ impl oio::PageList for GcsLister {
         let bytes = resp.into_body();
 
         let output: ListResponse =
-            serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
             ctx.token = token.clone();

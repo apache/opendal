@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub struct Buffer(Inner);
 
+#[derive(Clone)]
 enum Inner {
     Contiguous(Bytes),
     NonContiguous(VecDeque<Bytes>),
@@ -29,6 +31,12 @@ impl Buffer {
     #[inline]
     pub const fn new() -> Self {
         Self(Inner::Contiguous(Bytes::new()))
+    }
+
+    #[inline]
+    pub fn to_bytes(&self) -> Bytes {
+        let mut bs = self.clone();
+        bs.copy_to_bytes(bs.remaining())
     }
 }
 

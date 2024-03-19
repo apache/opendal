@@ -147,7 +147,12 @@ impl GcsCore {
 }
 
 impl GcsCore {
-    pub fn gcs_get_object_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
+    pub fn gcs_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -165,8 +170,8 @@ impl GcsCore {
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !args.range().is_full() {
-            req = req.header(http::header::RANGE, args.range().to_header());
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
         }
 
         let req = req
@@ -205,8 +210,13 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub async fn gcs_get_object(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
-        let mut req = self.gcs_get_object_request(path, args)?;
+    pub async fn gcs_get_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
+        let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

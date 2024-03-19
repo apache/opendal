@@ -31,6 +31,7 @@ use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
+use crate::services::github::reader::GithubReader;
 use crate::*;
 
 /// Config for backblaze Github services support.
@@ -221,7 +222,7 @@ pub struct GithubBackend {
 
 #[async_trait]
 impl Accessor for GithubBackend {
-    type Reader = oio::Buffer;
+    type Reader = GithubReader;
 
     type Writer = GithubWriters;
 
@@ -284,22 +285,11 @@ impl Accessor for GithubBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.get(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            GithubReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use base64::Engine;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header;
 use http::request;
 use http::Request;
@@ -122,7 +122,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -137,7 +137,8 @@ impl GithubCore {
         let req = self.sign(req)?;
 
         let req = req
-            .header("Accept", "application/vnd.github.raw+json")
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -128,25 +128,27 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
     Ok(Executor::Tokio(executor))
 }
 
-/// # Safety
+/// # Panic
 ///
-/// This function could be only when the lib is loaded.
-pub(crate) unsafe fn executor_or_default<'a>(
+/// Crash if the executor is disposed.
+#[inline]
+pub(crate) fn executor_or_default<'a>(
     env: &mut JNIEnv<'a>,
     executor: *const Executor,
-) -> &'a Executor {
-    if executor.is_null() {
-        default_executor(env)
-    } else {
-        &*executor
+) -> Result<&'a Executor> {
+    unsafe {
+        if executor.is_null() {
+            default_executor(env)
+        } else {
+            // SAFETY: executor must be valid
+            Ok(&*executor)
+        }
     }
 }
 
 /// # Safety
 ///
 /// This function could be only when the lib is loaded.
-unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> &'a Executor {
-    RUNTIME
-        .get_or_try_init(|| make_tokio_executor(env, num_cpus::get()))
-        .expect("default executor must be able to initialize")
+unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
+    RUNTIME.get_or_try_init(|| make_tokio_executor(env, num_cpus::get()))
 }

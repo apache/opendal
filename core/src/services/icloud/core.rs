@@ -366,6 +366,7 @@ impl IcloudCore {
         &self,
         id: &str,
         zone: &str,
+        range: BytesRange,
         args: OpRead,
     ) -> Result<Response<oio::Buffer>> {
         let mut signer = self.signer.lock().await;
@@ -398,8 +399,7 @@ impl IcloudCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let range = args.range();
-        if !range.is_full() {
+        if range.is_full() {
             req = req.header(header::RANGE, range.to_header())
         }
         if let Some(if_none_match) = args.if_none_match() {
@@ -415,7 +415,12 @@ impl IcloudCore {
         Ok(resp)
     }
 
-    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 
@@ -426,7 +431,7 @@ impl IcloudCore {
 
         if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
             Ok(self
-                .get_file(docwsid, "com.apple.CloudDocs", args.clone())
+                .get_file(docwsid, "com.apple.CloudDocs", range, args.clone())
                 .await?)
         } else {
             Err(Error::new(

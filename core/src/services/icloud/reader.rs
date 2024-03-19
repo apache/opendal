@@ -15,23 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::HuggingfaceCore;
-use super::error::parse_error;
+use super::core::{parse_error, IcloudCore};
 use crate::raw::{oio, OpRead};
 use http::StatusCode;
 use std::future::Future;
 use std::sync::Arc;
 
-pub struct HuggingfaceReader {
-    core: Arc<HuggingfaceCore>,
+pub struct IcloudReader {
+    core: Arc<IcloudCore>,
 
     path: String,
     op: OpRead,
 }
 
-impl HuggingfaceReader {
-    pub fn new(core: Arc<HuggingfaceCore>, path: &str, op: OpRead) -> Self {
-        HuggingfaceReader {
+impl IcloudReader {
+    pub fn new(core: Arc<IcloudCore>, path: &str, op: OpRead) -> Self {
+        IcloudReader {
             core,
             path: path.to_string(),
             op: op,
@@ -39,13 +38,13 @@ impl HuggingfaceReader {
     }
 }
 
-impl oio::Read for HuggingfaceReader {
+impl oio::Read for IcloudReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
         let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
             return Ok(oio::Buffer::new());
         };
 
-        let resp = self.core.hf_resolve(&self.path, range, &self.op).await?;
+        let resp = self.core.read(&self.path, range, &self.op).await?;
 
         let status = resp.status();
 

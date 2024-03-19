@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::Bytes;
-use http::Request;
+use bytes::{Buf, Bytes};
 use http::Response;
 use http::StatusCode;
+use http::{header, Request};
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -108,11 +108,12 @@ impl PcloudCore {
         }
     }
 
-    pub async fn download(&self, url: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let req = Request::get(url);
 
         // set body
         let req = req
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -15,51 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
-use bytes::{Buf, Bytes};
-use http::StatusCode;
-
 use super::core::PcloudCore;
 use super::error::parse_error;
-use super::error::PcloudError;
-use crate::raw::*;
-use crate::*;
+use crate::raw::{oio, OpRead};
+use http::StatusCode;
+use std::future::Future;
+use std::sync::Arc;
 
-pub type PcloudWriters = oio::OneShotWriter<PcloudWriter>;
-
-pub struct PcloudWriter {
+pub struct PcloudReader {
     core: Arc<PcloudCore>,
-    path: String,
+
+    link: String,
+    op: OpRead,
 }
 
-impl PcloudWriter {
-    pub fn new(core: Arc<PcloudCore>, path: String) -> Self {
-        PcloudWriter { core, path }
+impl PcloudReader {
+    pub fn new(core: Arc<PcloudCore>, link: &str, op: OpRead) -> Self {
+        PcloudReader {
+            core,
+            link: link.to_string(),
+            op: op,
+        }
     }
 }
 
-impl oio::OneShotWrite for PcloudWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
-        self.core.ensure_dir_exists(&self.path).await?;
+impl oio::Read for PcloudReader {
+    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
+            return Ok(oio::Buffer::new());
+        };
 
-        let resp = self.core.upload_file(&self.path, bs).await?;
+        let resp = self.core.download(&self.link, range).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

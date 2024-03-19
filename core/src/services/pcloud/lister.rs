@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -50,8 +51,8 @@ impl oio::PageList for PcloudLister {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
-                let resp: ListFolderResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                let resp: ListFolderResponse = serde_json::from_reader(bs.clone().reader())
+                    .map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
                 if result == 2005 {
@@ -85,7 +86,7 @@ impl oio::PageList for PcloudLister {
 
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    &String::from_utf8_lossy(&bs),
+                    &String::from_utf8_lossy(&bs.to_bytes()),
                 ));
             }
             _ => Err(parse_error(resp).await?),

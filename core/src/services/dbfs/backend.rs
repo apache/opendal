@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -222,8 +223,8 @@ impl Accessor for DbfsBackend {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
                 let bs = resp.into_body();
-                let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
-                    .map_err(new_json_deserialize_error)?;
+                let decoded_response: DbfsStatus =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
                     decoded_response.modification_time,
                 )?);

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -50,9 +51,9 @@ impl oio::PageList for DbfsLister {
             return Err(error);
         }
 
-        let bytes = response.into_body().bytes().await?;
-        let decoded_response =
-            serde_json::from_slice::<DbfsOutputList>(&bytes).map_err(new_json_deserialize_error)?;
+        let bytes = response.into_body();
+        let decoded_response: DbfsOutputList =
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         ctx.done = true;
 

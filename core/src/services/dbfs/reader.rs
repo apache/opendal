@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::io::SeekFrom;
 use std::sync::Arc;
 
@@ -24,6 +25,7 @@ use bytes::Bytes;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
+use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -86,22 +88,8 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        todo!()
     }
 }
 

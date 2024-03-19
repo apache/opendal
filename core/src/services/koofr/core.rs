@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header;
 use http::request;
 use http::Request;
@@ -241,7 +241,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -253,7 +253,7 @@ impl KoofrCore {
             percent_encode_path(&path)
         );
 
-        let req = Request::get(url);
+        let req = Request::get(url).header(header::RANGE, range.to_header());
 
         let req = self.sign(req).await?;
 

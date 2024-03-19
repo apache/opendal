@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use super::core::KoofrCore;

@@ -271,6 +271,8 @@ pub use self::tikv::TikvConfig;
 #[cfg(feature = "services-foundationdb")]
 mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
+pub use self::foundationdb::FoundationConfig;
+#[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::Foundationdb;
 
 #[cfg(feature = "services-postgresql")]
@@ -399,3 +401,10 @@ mod vercel_blob;
 pub use vercel_blob::VercelBlob;
 #[cfg(feature = "services-vercel-blob")]
 pub use vercel_blob::VercelBlobConfig;
+
+#[cfg(feature = "services-surrealdb")]
+mod surrealdb;
+#[cfg(feature = "services-surrealdb")]
+pub use surrealdb::Surrealdb;
+#[cfg(feature = "services-surrealdb")]
+pub use surrealdb::SurrealdbConfig;

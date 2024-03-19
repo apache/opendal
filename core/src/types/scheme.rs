@@ -155,6 +155,8 @@ pub enum Scheme {
     Github,
     /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
     HdfsNative,
+    /// [surrealdb](crate::services::surrealdb): Surrealdb Services
+    Surrealdb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -295,6 +297,8 @@ impl Scheme {
             Scheme::Mongodb,
             #[cfg(feature = "services-hdfs-native")]
             Scheme::HdfsNative,
+            #[cfg(feature = "services-surrealdb")]
+            Scheme::Surrealdb,
         ])
     }
 }
@@ -381,6 +385,7 @@ impl FromStr for Scheme {
             "azfile" => Ok(Scheme::Azfile),
             "mongodb" => Ok(Scheme::Mongodb),
             "hdfs_native" => Ok(Scheme::HdfsNative),
+            "surrealdb" => Ok(Scheme::Surrealdb),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -450,6 +455,7 @@ impl From<Scheme> for &'static str {
             Scheme::YandexDisk => "yandex_disk",
             Scheme::Pcloud => "pcloud",
             Scheme::HdfsNative => "hdfs_native",
+            Scheme::Surrealdb => "surrealdb",
             Scheme::Custom(v) => v,
         }
     }

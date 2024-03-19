@@ -210,16 +210,8 @@ impl Builder for SurrealdbBuilder {
             }
         };
 
-        let username = self
-            .config
-            .username
-            .clone()
-            .unwrap_or_default();
-        let password = self
-            .config
-            .password
-            .clone()
-            .unwrap_or_default();
+        let username = self.config.username.clone().unwrap_or_default();
+        let password = self.config.password.clone().unwrap_or_default();
         let key_field = self
             .config
             .key_field

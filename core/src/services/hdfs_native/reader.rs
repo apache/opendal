@@ -20,7 +20,7 @@ use std::io::SeekFrom;
 use bytes::Bytes;
 use hdfs_native::file::FileReader;
 
-use crate::raw::oio::Read;
+use crate::raw::oio;
 use crate::*;
 
 pub struct HdfsNativeReader {
@@ -33,19 +33,8 @@ impl HdfsNativeReader {
     }
 }
 
-impl Read for HdfsNativeReader {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
-
+impl oio::Read for HdfsNativeReader {
+    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
         todo!()
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "HdfsNativeReader doesn't support seeking",
-        ))
     }
 }

@@ -31,6 +31,7 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::http::reader::HttpReader;
 use crate::*;
 
 /// Config for Http service support.
@@ -223,7 +224,7 @@ impl Debug for HttpBackend {
 
 #[async_trait]
 impl Accessor for HttpBackend {
-    type Reader = oio::Buffer;
+    type Reader = HttpReader;
     type Writer = ();
     type Lister = ();
     type BlockingReader = ();
@@ -273,29 +274,17 @@ impl Accessor for HttpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.http_get(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((RpRead::default(), HttpReader::new(self.clone(), path, args)))
     }
 }
 
 impl HttpBackend {
-    async fn http_get(&self, path: &str, args: &OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn http_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -314,8 +303,8 @@ impl HttpBackend {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        if !args.range().is_full() {
-            req = req.header(header::RANGE, args.range().to_header());
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req

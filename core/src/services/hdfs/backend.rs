@@ -31,6 +31,7 @@ use uuid::Uuid;
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
 use crate::raw::*;
+use crate::services::hdfs::reader::HdfsReader;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
@@ -245,7 +246,7 @@ unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
-    type Reader = oio::FuturesReader<hdrs::AsyncFile>;
+    type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type BlockingReader = oio::StdReader<hdrs::File>;
@@ -317,9 +318,7 @@ impl Accessor for HdfsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let r = oio::FuturesReader::new(f);
-
-        Ok((RpRead::new(), r))
+        todo!()
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

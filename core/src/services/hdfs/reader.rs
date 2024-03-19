@@ -15,9 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::HdfsBuilder as Hdfs;
-pub use backend::HdfsConfig;
-mod lister;
-mod writer;
-mod r#reader
+use crate::raw::{oio, OpRead};
+use http::StatusCode;
+use std::future::Future;
+use std::sync::Arc;
+
+pub struct HdfsReader {
+    path: String,
+    op: OpRead,
+}
+
+impl HdfsReader {
+    pub fn new(path: &str, op: OpRead) -> Self {
+        HdfsReader {
+            path: path.to_string(),
+            op,
+        }
+    }
+}
+
+impl oio::Read for HdfsReader {
+    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+        todo!()
+    }
+}

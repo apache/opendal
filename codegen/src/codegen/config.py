@@ -93,13 +93,13 @@ class ConfigField:
             res += "///\n"
             res += "/// For examples:\n"
             for example in self.example:
-                res += f"/// - `{example}`\n"
+                res += f"/// - {example}\n"
 
         if self.available:
             res += "///\n"
             res += "/// Available values:\n"
             for available in self.available:
-                res += f"/// - `{available}`\n"
+                res += f"/// - {available}\n"
 
         return res
 
@@ -115,7 +115,7 @@ class ConfigField:
 @dataclasses.dataclass
 class Config:
     name: str
-    desc: str = ""
+    desc: str
     fields: List[ConfigField] = dataclasses.field(default_factory=list)
 
     # Rust's #[cfg(...)] conditions for the config

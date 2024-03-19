@@ -1,7 +1,7 @@
 [project]
 name = "codegen"
 version = "0.1.0"
-description = "Default template for PDM package"
+description = "Generate source code for Apache OpenDAL."
 authors = [
     {name = "Apache OpenDAL", email = "dev@opendal.apache.org"},
 ]
@@ -9,7 +9,6 @@ dependencies = []
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "Apache-2.0"}
-
 
 [tool.pdm]
 distribution = false

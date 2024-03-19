@@ -26,6 +26,7 @@ use http::StatusCode;
 use super::error::parse_error;
 use super::writer::VercelArtifactsWriter;
 use crate::raw::*;
+use crate::services::vercel_artifacts::reader::VercelArtifactsReader;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
@@ -45,7 +46,7 @@ impl Debug for VercelArtifactsBackend {
 
 #[async_trait]
 impl Accessor for VercelArtifactsBackend {
-    type Reader = oio::Buffer;
+    type Reader = VercelArtifactsReader;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type BlockingReader = ();
@@ -85,15 +86,10 @@ impl Accessor for VercelArtifactsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.vercel_artifacts_get(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            VercelArtifactsReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -109,10 +105,11 @@ impl Accessor for VercelArtifactsBackend {
 }
 
 impl VercelArtifactsBackend {
-    async fn vercel_artifacts_get(
+    pub async fn vercel_artifacts_get(
         &self,
         hash: &str,
-        args: OpRead,
+        range: BytesRange,
+        _: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
@@ -121,8 +118,8 @@ impl VercelArtifactsBackend {
 
         let mut req = Request::get(&url);
 
-        if !args.range().is_full() {
-            req = req.header(header::RANGE, args.range().to_header());
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let auth_header_content = format!("Bearer {}", self.access_token);

@@ -18,6 +18,7 @@
 mod backend;
 mod builder;
 mod error;
+mod reader;
 mod writer;
 
 pub use builder::VercelArtifactsBuilder as VercelArtifacts;

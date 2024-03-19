@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
@@ -78,7 +78,7 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_get(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
@@ -91,6 +91,7 @@ impl GdriveCore {
         );
 
         let mut req = Request::get(&url)
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -310,8 +311,8 @@ impl GdriveSigner {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body();
-                    let token = serde_json::from_slice::<GdriveTokenResponse>(resp_body)
+                    let resp_body = resp.into_body();
+                    let token: GdriveTokenResponse = serde_json::from_reader(resp_body.reader())
                         .map_err(new_json_deserialize_error)?;
                     self.access_token = token.access_token.clone();
                     self.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in)
@@ -381,7 +382,7 @@ impl PathQuery for GdrivePathQuery {
             StatusCode::OK => {
                 let body = resp.into_body();
                 let meta: GdriveFileList =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 if let Some(f) = meta.files.first() {
                     Ok(Some(f.id.clone()))
@@ -417,7 +418,8 @@ impl PathQuery for GdrivePathQuery {
         }
 
         let body = resp.into_body();
-        let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+        let file: GdriveFile =
+            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
         Ok(file.id)
     }
 }

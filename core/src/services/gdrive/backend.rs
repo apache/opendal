@@ -19,19 +19,19 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::Utc;
 use http::Request;
 use http::StatusCode;
 use serde_json::json;
 
 use super::core::GdriveCore;
+use super::core::GdriveFile;
 use super::error::parse_error;
 use super::lister::GdriveLister;
+use super::reader::GdriveReader;
 use super::writer::GdriveWriter;
 use crate::raw::*;
-use crate::services::gdrive::core::GdriveFile;
-use crate::types::Result;
 use crate::*;
 
 #[derive(Clone, Debug)]
@@ -42,7 +42,7 @@ pub struct GdriveBackend {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GdriveBackend {
-    type Reader = oio::Buffer;
+    type Reader = GdriveReader;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
     type BlockingReader = ();
@@ -108,22 +108,11 @@ impl Accessor for GdriveBackend {
         Ok(RpStat::new(meta))
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gdrive_get(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            GdriveReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -241,8 +230,8 @@ impl Accessor for GdriveBackend {
         match status {
             StatusCode::OK => {
                 let body = resp.into_body();
-                let meta = serde_json::from_slice::<GdriveFile>(&body)
-                    .map_err(new_json_deserialize_error)?;
+                let meta: GdriveFile =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let cache = &self.core.path_cache;
 

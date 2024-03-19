@@ -65,7 +65,7 @@ impl oio::PageList for YandexDiskLister {
                 let body = resp.into_body();
 
                 let resp: MetainformationResponse =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 if let Some(embedded) = resp.embedded {
                     let n = embedded.items.len();

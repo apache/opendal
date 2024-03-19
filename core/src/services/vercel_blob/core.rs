@@ -268,7 +268,7 @@ impl VercelBlobCore {
         let body = resp.into_body();
 
         let resp: ListResponse =
-            serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
         Ok(resp)
     }

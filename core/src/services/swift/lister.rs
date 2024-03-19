@@ -57,7 +57,7 @@ impl oio::PageList for SwiftLister {
 
         let bytes = response.into_body().bytes().await?;
         let decoded_response: Vec<ListOpResponse> =
-            serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         // Update token and done based on resp.
         if let Some(entry) = decoded_response.last() {

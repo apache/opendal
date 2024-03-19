@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::env;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header;
 use http::header::ACCEPT;
 use http::header::AUTHORIZATION;
@@ -37,6 +37,7 @@ use serde::Serialize;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
+use crate::services::ghac::reader::GhacReader;
 use crate::*;
 
 /// The base url for cache url.
@@ -227,7 +228,7 @@ pub struct GhacBackend {
 
 #[async_trait]
 impl Accessor for GhacBackend {
-    type Reader = oio::Buffer;
+    type Reader = GhacReader;
     type Writer = GhacWriter;
     type Lister = ();
     type BlockingReader = ();
@@ -268,7 +269,7 @@ impl Accessor for GhacBackend {
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
             return Err(parse_error(resp).await?);
@@ -306,30 +307,16 @@ impl Accessor for GhacBackend {
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
             return Err(parse_error(resp).await?);
         };
 
-        let req = self.ghac_get_location(&location, args.range()).await?;
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                Ok((RpRead::new().with_size(Some(0)), oio::Buffer::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            GhacReader::new(self.clone(), &location, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -340,7 +327,7 @@ impl Accessor for GhacBackend {
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body();
             let reserve_resp: GhacReserveResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
         } else {
             return Err(parse_error(resp)
@@ -392,7 +379,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_get_location(
+    pub async fn ghac_get_location(
         &self,
         location: &str,
         range: BytesRange,

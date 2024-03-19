@@ -90,7 +90,7 @@ impl YandexDiskCore {
                 let bytes = resp.into_body();
 
                 let resp: GetUploadUrlResponse =
-                    serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.href)
             }
@@ -124,7 +124,7 @@ impl YandexDiskCore {
                 let bytes = resp.into_body();
 
                 let resp: GetUploadUrlResponse =
-                    serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.href)
             }

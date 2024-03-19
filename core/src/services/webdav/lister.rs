@@ -56,7 +56,7 @@ impl oio::PageList for WebdavLister {
         };
 
         let bs = if resp.status().is_success() {
-            resp.into_body().bytes().await?
+            resp.into_body()
         } else if resp.status() == StatusCode::NOT_FOUND && self.path.ends_with('/') {
             ctx.done = true;
             return Ok(());
@@ -64,7 +64,7 @@ impl oio::PageList for WebdavLister {
             return Err(parse_error(resp).await?);
         };
 
-        let result: Multistatus = deserialize_multistatus(&bs)?;
+        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
 
         for res in result.response {
             let mut path = res

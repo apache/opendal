@@ -118,7 +118,7 @@ impl WebdavCore {
 
         let bs = resp.into_body();
 
-        let result: Multistatus = deserialize_multistatus(&bs)?;
+        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -130,7 +130,12 @@ impl WebdavCore {
         Ok(metadata)
     }
 
-    pub async fn webdav_get(&self, path: &str, args: OpRead) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        _: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -140,7 +145,6 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }

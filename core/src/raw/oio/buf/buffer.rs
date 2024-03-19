@@ -32,6 +32,12 @@ impl Buffer {
     }
 }
 
+impl From<Vec<u8>> for Buffer {
+    fn from(bs: Vec<u8>) -> Self {
+        Self(Inner::Contiguous(bs.into()))
+    }
+}
+
 impl From<Bytes> for Buffer {
     fn from(bs: Bytes) -> Self {
         Self(Inner::Contiguous(bs))

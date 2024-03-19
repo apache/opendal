@@ -21,5 +21,5 @@ pub use backend::FtpConfig;
 
 mod err;
 mod lister;
-mod util;
+mod reader;
 mod writer;

@@ -42,10 +42,10 @@ use tokio::sync::OnceCell;
 
 use super::err::parse_error;
 use super::lister::FtpLister;
-use super::util::FtpReader;
+use super::reader::FtpReader;
 use super::writer::FtpWriter;
+use super::writer::FtpWriters;
 use crate::raw::*;
-use crate::services::ftp::writer::FtpWriters;
 use crate::*;
 
 /// Config for Ftpservices support.
@@ -359,49 +359,8 @@ impl Accessor for FtpBackend {
         Ok(RpStat::new(meta))
     }
 
-    /// TODO: migrate to FileReader maybe?
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
-
-        let meta = self.ftp_stat(path).await?;
-
-        let br = args.range();
-        let r: Box<dyn AsyncRead + Send + Unpin> = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(parse_error)?;
-                let ds = ftp_stream
-                    .retr_as_stream(path)
-                    .await
-                    .map_err(parse_error)?
-                    .take(size);
-                Box::new(ds)
-            }
-            (Some(offset), None) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(parse_error)?;
-                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
-                Box::new(ds)
-            }
-            (None, Some(size)) => {
-                ftp_stream
-                    .resume_transfer((meta.size() as u64 - size) as usize)
-                    .await
-                    .map_err(parse_error)?;
-                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
-                Box::new(ds)
-            }
-            (None, None) => {
-                let ds = ftp_stream.retr_as_stream(path).await.map_err(parse_error)?;
-                Box::new(ds)
-            }
-        };
-
-        Ok((RpRead::new(), FtpReader::new(r, ftp_stream)))
+        Ok((RpRead::new(), FtpReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -497,7 +456,7 @@ impl FtpBackend {
         })
     }
 
-    async fn ftp_stat(&self, path: &str) -> Result<File> {
+    pub async fn ftp_stat(&self, path: &str) -> Result<File> {
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         let (parent, basename) = (get_parent(path), get_basename(path));

@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .s3 import S3
+from .s3 import S3 as S3

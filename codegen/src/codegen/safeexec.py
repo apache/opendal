@@ -51,7 +51,7 @@ def run_pipe(
     **kwargs: Any
 ) -> TextIO:
     p = run(*args, msg=msg, verbose=verbose, codes=codes, stdout=PIPE, universal_newlines=True, **kwargs)
-    return p.stdout  # type: ignore
+    return p.stdout  # type: ignore[return-value]
 
 
 def lookup(command: str, msg: Optional[str] = None) -> str:

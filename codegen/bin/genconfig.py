@@ -32,6 +32,7 @@ if __name__ == '__main__':
     opendal = codegen.parent
     rust = opendal / 'core' / 'src' / 'services' / 'config.rs'
     with rust.open('w') as f:
+        assert tmpl.filename is not None
         template = Path(tmpl.filename).relative_to(opendal)
         output = rust.relative_to(opendal)
         print(f'Generating Rust files from templates in {template} to {output}')

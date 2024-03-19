@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::Request;
 use http::StatusCode;
 use log::debug;
@@ -32,6 +33,7 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
+use crate::services::yandex_disk::reader::YandexDiskReader;
 use crate::*;
 
 /// Config for backblaze YandexDisk services support.
@@ -179,7 +181,7 @@ pub struct YandexDiskBackend {
 
 #[async_trait]
 impl Accessor for YandexDiskBackend {
-    type Reader = oio::Buffer;
+    type Reader = YandexDiskReader;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type BlockingReader = ();
@@ -245,27 +247,11 @@ impl Accessor for YandexDiskBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let download_url = self.core.get_download_url(path).await?;
-
-        let req = Request::get(download_url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            YandexDiskReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

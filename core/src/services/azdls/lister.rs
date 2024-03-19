@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -69,7 +70,7 @@ impl oio::PageList for AzdlsLister {
 
         let bs = resp.into_body();
 
-        let output: Output = de::from_slice(&bs).map_err(new_json_deserialize_error)?;
+        let output: Output = de::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         for object in output.paths {
             // Azdls will return `"true"` and `"false"` for is_directory.

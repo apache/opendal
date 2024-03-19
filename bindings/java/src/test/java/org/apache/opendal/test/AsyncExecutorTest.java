@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 public class AsyncExecutorTest {
     @Test
-    void testOperatorWithRetryLayer() {
+    void testDedicatedTokioExecutor() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
         final int cores = Runtime.getRuntime().availableProcessors();
@@ -45,5 +45,11 @@ public class AsyncExecutorTest {
         assertThat(op.read(key).join()).isEqualTo(v0);
         op.write(key, v1).join();
         assertThat(op.read(key).join()).isEqualTo(v1);
+
+        assertThat(executor.isDisposed()).isFalse();
+        executor.close();
+        assertThat(executor.isDisposed()).isTrue();
+
+        // @Cleanup will close executor once more, but we don't crash with the guard.
     }
 }

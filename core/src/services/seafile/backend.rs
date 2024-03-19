@@ -35,6 +35,7 @@ use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
 use crate::services::seafile::core::SeafileSigner;
+use crate::services::seafile::reader::SeafileReader;
 use crate::*;
 
 /// Config for backblaze seafile services support.
@@ -256,7 +257,7 @@ pub struct SeafileBackend {
 
 #[async_trait]
 impl Accessor for SeafileBackend {
-    type Reader = oio::Buffer;
+    type Reader = SeafileReader;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type BlockingReader = ();
@@ -303,22 +304,11 @@ impl Accessor for SeafileBackend {
         metadata.map(RpStat::new)
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_file(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            SeafileReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

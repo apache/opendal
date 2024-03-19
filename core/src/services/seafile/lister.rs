@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::sync::Arc;
 
 use http::header;
@@ -69,8 +70,8 @@ impl oio::PageList for SeafileLister {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body();
-                let infos = serde_json::from_slice::<Vec<Info>>(resp_body)
+                let resp_body = resp.into_body();
+                let infos: Vec<Info> = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
 
                 for info in infos {

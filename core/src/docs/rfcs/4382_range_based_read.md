@@ -30,6 +30,7 @@ However, after observing our users, we found that:
 
 - `AsyncSeek` in `Reader` is prone to misuse.
 - `Reader` does not support concurrent reading.
+- `Reader` can't adopt Completion-based IO
 
 ## Misuse of `AsyncSeek`
 
@@ -42,6 +43,10 @@ For example, `s3` storage does not support `seek` natively. When users call `see
 `oio::Read` complicates supporting concurrent reading. Users must implement a feature similar to merge IO, as discussed in [support merge io read api by settings](https://github.com/apache/opendal/issues/3675).
 
 There is no way for opendal to support this feature.
+
+## Can't adopt Completion-based IO
+
+Completion-based IO requires take the buffer's owner ship. But API that take `&mut [u8]` can't do that.
 
 # Guide-level explanation
 

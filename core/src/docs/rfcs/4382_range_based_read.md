@@ -1,7 +1,7 @@
 - Proposal Name: `range_based_read`
 - Start Date: 2024-03-20
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#4382](https://github.com/apache/opendal/pull/4382)
+- Tracking Issue: [apache/opendal#4383](https://github.com/apache/opendal/issues/4383)
 
 # Summary
 

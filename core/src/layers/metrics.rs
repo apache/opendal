@@ -787,7 +787,7 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
         self.inner
             .write(bs)
             .map_ok(|n| {
-                self.bytes_counter.increment(bs.remaining() as u64);
+                self.bytes_counter.increment(n as u64);
                 n
             })
             .map_err(|err| {
@@ -816,7 +816,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
         self.inner
             .write(bs)
             .map(|n| {
-                self.bytes_counter.increment(bs.remaining() as u64);
+                self.bytes_counter.increment(n as u64);
                 n
             })
             .map_err(|err| {

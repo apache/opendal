@@ -580,14 +580,14 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
         let start = Instant::now();
 
         self.inner
             .write(bs)
-            .map_ok(|n| {
-                self.metrics
-                    .observe_bytes_total(self.scheme, self.op, bs.remaining());
+            .await
+            .map(|n| {
+                self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
                 n
@@ -599,16 +599,16 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.abort().map_err(|err| {
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
             self.metrics
                 .increment_errors_total(self.scheme, self.op, err.kind());
             err
         })
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.close().map_err(|err| {
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
             self.metrics
                 .increment_errors_total(self.scheme, self.op, err.kind());
             err

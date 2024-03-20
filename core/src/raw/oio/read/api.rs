@@ -165,6 +165,18 @@ impl BlockingRead for () {
     }
 }
 
+impl BlockingRead for Bytes {
+    /// TODO: we can check if the offset is out of range.
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(oio::Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
+    }
+}
+
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {

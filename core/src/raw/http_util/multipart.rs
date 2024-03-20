@@ -245,7 +245,7 @@ impl FormDataPart {
         Self {
             headers,
             content_length: 0,
-            content: Box::new(oio::Cursor::new()),
+            content: Box::new(Bytes::new()),
         }
     }
 
@@ -260,7 +260,7 @@ impl FormDataPart {
         let content = content.into();
 
         self.content_length = content.len() as u64;
-        self.content = Box::new(oio::Cursor::from(content));
+        self.content = Box::new(content);
         self
     }
 
@@ -399,10 +399,7 @@ impl MixedPart {
 
         let (content_length, content) = match body {
             AsyncBody::Empty => (0, None),
-            AsyncBody::Bytes(bs) => (
-                bs.len() as u64,
-                Some(Box::new(oio::Cursor::from(bs)) as Streamer),
-            ),
+            AsyncBody::Bytes(bs) => (bs.len() as u64, Some(Box::new(bs) as Streamer)),
             AsyncBody::Stream(stream) => {
                 let len = parts
                     .headers
@@ -486,7 +483,7 @@ impl MixedPart {
         let content = content.into();
 
         self.content_length = content.len() as u64;
-        self.content = Some(Box::new(oio::Cursor::from(content)));
+        self.content = Some(Box::new(content));
         self
     }
 
@@ -651,7 +648,7 @@ impl Part for MixedPart {
             version: Version::HTTP_11,
             headers,
             content_length: body_bytes.len() as u64,
-            content: Some(Box::new(oio::Cursor::from(body_bytes))),
+            content: Some(Box::new(body_bytes)),
 
             method: None,
             uri: None,

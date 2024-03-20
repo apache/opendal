@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::oio;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 
@@ -30,13 +31,36 @@ enum Inner {
 impl Buffer {
     #[inline]
     pub const fn new() -> Self {
-        Self(Inner::Contiguous(Bytes::new()))
+        Self(Inner::NonContiguous(VecDeque::new()))
     }
 
     #[inline]
     pub fn to_bytes(&self) -> Bytes {
         let mut bs = self.clone();
         bs.copy_to_bytes(bs.remaining())
+    }
+
+    /// Merge two buffer together without copying internal bytes.
+    pub fn merge(mut self, buf: Buffer) -> Self {
+        let mut vec = match self.0 {
+            Inner::Contiguous(b) => {
+                // NOTE: we will have at least two bytes in the vec.
+                let mut vec = VecDeque::with_capacity(2);
+                vec.push_back(b);
+                vec
+            }
+            Inner::NonContiguous(v) => v,
+        };
+
+        match buf.0 {
+            Inner::Contiguous(b) => vec.push_back(b),
+            Inner::NonContiguous(bs) => {
+                vec.reserve(bs.len());
+                vec.extend(bs)
+            }
+        }
+
+        Self(Inner::NonContiguous(vec))
     }
 }
 

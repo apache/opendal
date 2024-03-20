@@ -429,7 +429,7 @@ mod tests {
 
         let mut reader = op.reader("test").await.unwrap();
 
-        let res = reader.read(4).await;
+        let res = reader.read_at(&mut Vec::with_capacity(4), 0).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

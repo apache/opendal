@@ -120,67 +120,63 @@ impl Reader {
     //     todo!()
     // }
 
-    /// Read at most `size` bytes of data from reader.
-    #[inline]
-    pub async fn read_at(&self, offset: u64, limit: usize) -> Result<impl Buf> {
-        self.inner.read_at_dyn(offset, limit).await
+    pub async fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
+        let bs = self.inner.read_at_dyn(offset, buf.remaining_mut()).await?;
+        let n = bs.remaining();
+        buf.put(bs);
+        Ok(n)
     }
 
-    /// Read exact `size` bytes of data from reader.
-    pub async fn read_exact_at(&self, offset: u64, size: usize) -> Result<Bytes> {
-        let mut buf = BytesMut::with_capacity(size);
-        let mut remaining = size;
-        let mut cur = offset;
+    /// Read given range bytes of data from reader.
+    pub async fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> Result<usize> {
+        if range.is_empty() {
+            return Ok(0);
+        }
+        let (mut offset, mut size) = (range.start, range.end - range.start);
+
+        let mut read = 0;
 
         loop {
-            let bs = self.inner.read_at_dyn(cur, remaining).await?;
+            let bs = self.inner.read_at_dyn(offset, size as usize).await?;
             let n = bs.remaining();
+            read += n;
             buf.put(bs);
-            cur += n as u64;
-            remaining -= n;
-            if remaining == 0 {
-                break;
+            if n == 0 {
+                return Ok(read);
+            }
+
+            offset += n as u64;
+
+            debug_assert!(
+                size >= n as u64,
+                "read should not return more bytes than expected"
+            );
+            size -= n as u64;
+            if size == 0 {
+                return Ok(read);
             }
         }
-        Ok(buf.freeze())
     }
 
-    pub async fn read_range(&self, range: Range<u64>) -> Result<Bytes> {
-        todo!()
+    pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
+        self.read_to_end_at(buf, 0).await
     }
 
-    /// Reads all bytes until EOF in this source, placing them into buf.
-    pub async fn read_to_end_at(&self, offset: u64, buf: &mut Vec<u8>) -> Result<usize> {
-        todo!()
-        // let start_len = buf.len();
-        //
-        // loop {
-        //     if buf.len() == buf.capacity() {
-        //         buf.reserve(32); // buf is full, need more space
-        //     }
-        //
-        //     let spare = buf.spare_capacity_mut();
-        //     let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
-        //
-        //     // SAFETY: These bytes were initialized but not filled in the previous loop
-        //     unsafe {
-        //         read_buf.assume_init(read_buf.capacity());
-        //     }
-        //
-        //     match self.read(read_buf.initialize_unfilled().len()).await {
-        //         Ok(bs) if bs.is_empty() => {
-        //             return Ok(buf.len() - start_len);
-        //         }
-        //         Ok(bs) => {
-        //             read_buf.initialize_unfilled()[..bs.len()].copy_from_slice(&bs);
-        //             // SAFETY: Read API makes sure that returning `n` is correct.
-        //             unsafe {
-        //                 buf.set_len(buf.len() + bs.len());
-        //             }
-        //         }
-        //         Err(e) => return Err(e),
-        //     }
-        // }
+    pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
+        let mut size = 0;
+        loop {
+            // TODO: io size should be tuned based on storage
+            let bs = self.inner.read_at_dyn(offset, 4 * 1024 * 1024).await?;
+            let n = bs.remaining();
+            size += n;
+
+            buf.put(bs);
+            if n == 0 {
+                return Ok(size);
+            }
+
+            offset += n as u64;
+        }
     }
 }
 
@@ -224,7 +220,7 @@ unsafe impl Sync for State {}
 //             }
 //             State::Seeking(_) => Poll::Ready(Err(io::Error::new(
 //                 io::ErrorKind::Interrupted,
-//                 "another io operation is in progress",
+//                 "another io operation is  in progress",
 //             ))),
 //         }
 //     }
@@ -406,129 +402,99 @@ impl BlockingReader {
         BlockingReader { inner: r }
     }
 
-    /// Seek to the position of `pos` of reader.
-    #[inline]
-    pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    /// Read given range bytes of data from reader.
+    pub fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
+        let bs = self.inner.read_at(offset, buf.remaining_mut())?;
+        let n = bs.remaining();
+        buf.put(bs);
+        Ok(n)
     }
 
-    /// Read at most `size` bytes of data from reader.
-    #[inline]
-    pub fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        self.inner.read_at(offset, limit)
-    }
-
-    /// Read exact `size` bytes of data from reader.
-    pub fn read_exact(&mut self, size: usize) -> Result<Bytes> {
-        // Lucky path.
-        let bs1 = self.inner.read(size)?;
-        debug_assert!(
-            bs1.len() <= size,
-            "read should not return more bytes than expected"
-        );
-        if bs1.len() == size {
-            return Ok(bs1);
+    /// Read given range bytes of data from reader.
+    pub fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> Result<usize> {
+        if range.is_empty() {
+            return Ok(0);
         }
-        if bs1.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
-                    .with_context("expect", size.to_string()),
-            );
-        }
+        let (mut offset, mut size) = (range.start, range.end - range.start);
 
-        let mut bs = BytesMut::with_capacity(size);
-        bs.put_slice(&bs1);
-
-        let mut remaining = size - bs.len();
+        let mut read = 0;
 
         loop {
-            let tmp = self.inner.read(remaining)?;
-            if tmp.is_empty() {
-                return Err(
-                    Error::new(ErrorKind::ContentIncomplete, "reader got too little data")
-                        .with_context("expect", size.to_string())
-                        .with_context("actual", bs.len().to_string()),
-                );
+            let bs = self.inner.read_at(offset, size as usize)?;
+            let n = bs.remaining();
+            read += n;
+            buf.put(bs);
+            if n == 0 {
+                return Ok(read);
             }
-            bs.put_slice(&tmp);
+
+            offset += n as u64;
+
             debug_assert!(
-                tmp.len() <= remaining,
+                size >= n as u64,
                 "read should not return more bytes than expected"
             );
-
-            remaining -= tmp.len();
-            if remaining == 0 {
-                break;
+            size -= n as u64;
+            if size == 0 {
+                return Ok(read);
             }
         }
-
-        Ok(bs.freeze())
     }
-    /// Reads all bytes until EOF in this source, placing them into buf.
-    pub fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        let start_len = buf.len();
 
+    pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
+        self.read_to_end_at(buf, 0)
+    }
+
+    pub fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
+        let mut size = 0;
         loop {
-            if buf.len() == buf.capacity() {
-                buf.reserve(32); // buf is full, need more space
+            // TODO: io size should be tuned based on storage
+            let bs = self.inner.read_at(offset, 4 * 1024 * 1024)?;
+            let n = bs.remaining();
+            size += n;
+
+            buf.put(bs);
+            if n == 0 {
+                return Ok(size);
             }
 
-            let spare = buf.spare_capacity_mut();
-            let mut read_buf: ReadBuf = ReadBuf::uninit(spare);
-
-            // SAFETY: These bytes were initialized but not filled in the previous loop
-            unsafe {
-                read_buf.assume_init(read_buf.capacity());
-            }
-
-            match self.read(read_buf.initialized_mut().len()) {
-                Ok(bs) if bs.is_empty() => return Ok(buf.len() - start_len),
-                Ok(bs) => {
-                    read_buf.initialized_mut()[..bs.len()].copy_from_slice(&bs);
-
-                    // SAFETY: Read API makes sure that returning `n` is correct.
-                    unsafe {
-                        buf.set_len(buf.len() + bs.len());
-                    }
-                }
-                Err(e) => return Err(e),
-            }
+            offset += n as u64;
         }
     }
 }
 
-impl io::Read for BlockingReader {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let bs = self.inner.read(buf.len()).map_err(format_std_io_error)?;
-        buf[..bs.len()].copy_from_slice(&bs);
-        Ok(bs.len())
-    }
-}
-
-impl io::Seek for BlockingReader {
-    #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.inner.seek(pos).map_err(format_std_io_error)
-    }
-}
-
-impl Iterator for BlockingReader {
-    type Item = io::Result<Bytes>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        match self
-            .inner
-            .read(4 * 1024 * 1024)
-            .map_err(format_std_io_error)
-        {
-            Ok(bs) if bs.is_empty() => None,
-            Ok(bs) => Some(Ok(bs)),
-            Err(err) => Some(Err(err)),
-        }
-    }
-}
+// impl io::Read for BlockingReader {
+//     #[inline]
+//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+//         let bs = self.inner.read(buf.len()).map_err(format_std_io_error)?;
+//         buf[..bs.len()].copy_from_slice(&bs);
+//         Ok(bs.len())
+//     }
+// }
+//
+// impl io::Seek for BlockingReader {
+//     #[inline]
+//     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+//         self.inner.seek(pos).map_err(format_std_io_error)
+//     }
+// }
+//
+// impl Iterator for BlockingReader {
+//     type Item = io::Result<Bytes>;
+//
+//     #[inline]
+//     fn next(&mut self) -> Option<Self::Item> {
+//         match self
+//             .inner
+//             .read(4 * 1024 * 1024)
+//             .map_err(format_std_io_error)
+//         {
+//             Ok(bs) if bs.is_empty() => None,
+//             Ok(bs) => Some(Ok(bs)),
+//             Err(err) => Some(Err(err)),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -561,7 +527,7 @@ mod tests {
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
-            .read_to_end(&mut buf)
+            .read_to_end_at(&mut buf, 0)
             .await
             .expect("read to end must succeed");
 
@@ -581,17 +547,7 @@ mod tests {
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
-            .read_to_end(&mut buf)
-            .await
-            .expect("read to end must succeed");
-        assert_eq!(buf, content);
-
-        let n = reader.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
-        assert_eq!(n, 0, "seek position must be 0");
-
-        let mut buf = Vec::new();
-        reader
-            .read_to_end(&mut buf)
+            .read_to_end_at(&mut buf, 0)
             .await
             .expect("read to end must succeed");
         assert_eq!(buf, content);

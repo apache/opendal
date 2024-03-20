@@ -198,7 +198,7 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read_at(&mut self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         match self {
             Self::One(v) => v.read_at(offset, limit),
             Self::Two(v) => v.read_at(offset, limit),

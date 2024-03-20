@@ -49,7 +49,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_with_override_cache_control,
             test_read_with_override_content_disposition,
             test_read_with_override_content_type,
-            test_read_with_invalid_seek
         ))
     }
 
@@ -592,28 +591,6 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
         target_content_type
     );
     assert_eq!(resp.bytes().await?, content);
-
-    Ok(())
-}
-
-/// seeking a negative position should return a InvalidInput error
-pub async fn test_read_with_invalid_seek(op: Operator) -> anyhow::Result<()> {
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader(&path).await?;
-    let res = r.seek(std::io::SeekFrom::Current(-1024)).await;
-
-    assert!(res.is_err());
-
-    assert_eq!(
-        res.unwrap_err().kind(),
-        ErrorKind::InvalidInput,
-        "seeking a negative position should return a InvalidInput error"
-    );
 
     Ok(())
 }

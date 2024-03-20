@@ -20,6 +20,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
@@ -244,7 +245,7 @@ impl Accessor for FsBackend {
     type Reader = FsReader<tokio::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
-    type BlockingReader = oio::StdReader<std::fs::File>;
+    type BlockingReader = Bytes;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
@@ -476,9 +477,7 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(new_std_io_error)?;
 
-        let r = oio::StdReader::new(f);
-
-        Ok((RpRead::new(), r))
+        todo!()
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

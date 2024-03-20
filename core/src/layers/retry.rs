@@ -1119,7 +1119,7 @@ mod tests {
         let mut r = op.reader("retryable_error").await.unwrap();
         let mut content = Vec::new();
         let size = r
-            .read_to_end(&mut content)
+            .read_to_end_at(&mut content, 0)
             .await
             .expect("read must succeed");
         assert_eq!(size, 13);

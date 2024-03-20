@@ -96,7 +96,7 @@ mod tests {
     "exception"    : "IllegalArgumentException",
     "javaClassName": "java.lang.IllegalArgumentException",
     "message"      : "Invalid value for webhdfs parameter \"permission\": ..."
-  }
+  }         
 }
     "#,
         );

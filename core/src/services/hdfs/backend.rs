@@ -23,6 +23,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncWriteExt;
 use log::debug;
 use serde::Deserialize;
@@ -249,7 +250,7 @@ impl Accessor for HdfsBackend {
     type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
-    type BlockingReader = oio::StdReader<hdrs::File>;
+    type BlockingReader = Bytes;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
 
@@ -507,9 +508,7 @@ impl Accessor for HdfsBackend {
             .open(&p)
             .map_err(new_std_io_error)?;
 
-        let r = oio::StdReader::new(f);
-
-        Ok((RpRead::new(), r))
+        todo!()
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

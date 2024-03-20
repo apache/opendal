@@ -64,7 +64,7 @@ where
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = Bytes;
-    type BlockingReader = oio::Cursor;
+    type BlockingReader = Bytes;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
@@ -118,7 +118,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok((RpRead::new(), oio::Cursor::from(bs)))
+        Ok((RpRead::new(), Bytes::from(bs)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

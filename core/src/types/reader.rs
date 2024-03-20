@@ -162,7 +162,7 @@ impl Reader {
         self.read_to_end_at(buf, 0).await
     }
 
-    pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
+    pub async fn read_to_end_at(&self, buf: &mut imp                l BufMut, mut offset: u64) -> Result<usize> {
         let mut size = 0;
         loop {
             // TODO: io size should be tuned based on storage

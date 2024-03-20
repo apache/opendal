@@ -25,9 +25,9 @@ use opendal::raw::BytesRange;
 
 use crate::*;
 
-// pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-//     tests.extend(async_trials!(op))
-// }
+pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
+    tests.extend(async_trials!(op))
+}
 
 async fn test_fuzz_read(
     op: Operator,

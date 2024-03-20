@@ -670,7 +670,7 @@ pub async fn test_read_only_reader_from(op: Operator) -> anyhow::Result<()> {
 
 /// Read tail should match.
 pub async fn test_read_only_reader_tail(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(..1024).await?;
+    let r = op.reader_with("normal_file.txt").range(..1024).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;

@@ -205,3 +205,7 @@ We can reduce unnecessary `open` and `seek` syscalls by using the `read_at` API 
 We can implement [Auto ranged read support](https://github.com/apache/opendal/issues/1105) like AWS S3 Crt Client. For examples, split the range into multiple ranges and read them concurrently. 
 
 Services can define the preferred io size as default, and users can override it. For example, s3 can use `8 MiB` as preferred io size, while fs can use `4 KiB` instead.
+
+## Completion-based IO
+
+`oio::Read` is designed with Completion-based IO in mind. We can add IOCP/io_uring support in the future.

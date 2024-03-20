@@ -26,8 +26,10 @@ pub use metadata::Metadata;
 pub use metadata::Metakey;
 
 mod reader;
-pub use reader::BlockingReader;
 pub use reader::Reader;
+
+mod blocking_reader;
+pub use blocking_reader::BlockingReader;
 
 mod writer;
 pub use writer::BlockingWriter;
@@ -57,4 +59,5 @@ mod scheme;
 pub use scheme::Scheme;
 
 mod capability;
+
 pub use capability::Capability;

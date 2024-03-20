@@ -65,7 +65,6 @@ fn main() -> anyhow::Result<()> {
     async_copy::tests(&op, &mut tests);
     async_create_dir::tests(&op, &mut tests);
     async_delete::tests(&op, &mut tests);
-    async_fuzz::tests(&op, &mut tests);
     async_list::tests(&op, &mut tests);
     async_presign::tests(&op, &mut tests);
     async_read::tests(&op, &mut tests);

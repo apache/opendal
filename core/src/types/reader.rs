@@ -66,15 +66,14 @@ use crate::*;
 ///
 /// [`Reader`] provides [`Reader::into_tokio_read`] to remove extra APIs upon self.
 pub struct Reader {
+    acc: FusedAccessor,
+    path: String,
+    op: OpRead,
+
     inner: oio::Reader,
 }
 
 impl Reader {
-    /// Create a new reader from an `oio::Reader`.
-    pub(crate) fn new(r: oio::Reader) -> Self {
-        Reader { inner: r }
-    }
-
     /// Create a new reader.
     ///
     /// Create will use internal information to decide the most suitable
@@ -83,9 +82,14 @@ impl Reader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let (_, r) = acc.read(path, op).await?;
+        let (_, r) = acc.read(path, op.clone()).await?;
 
-        Ok(Reader { inner: r })
+        Ok(Reader {
+            acc,
+            path: path.to_string(),
+            op,
+            inner: r,
+        })
     }
 
     /// Convert [`Reader`] into an [`futures::AsyncRead`] and [`futures::AsyncSeek`]
@@ -95,14 +99,13 @@ impl Reader {
     ///
     /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
     /// as `Box<dyn futures::AsyncRead>` and calling `poll_read_unpin` on it.
-    // #[inline]
-    // #[cfg(not(target_arch = "wasm32"))]
-    // pub fn into_futures_read(
-    //     self,
-    // ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
-    //     // self
-    //     todo!()
-    // }
+    #[inline]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn into_futures_read(
+        self,
+    ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
+        futures_io_adapter::FuturesReader::new(self.acc, self.path, self.op)
+    }
 
     /// Convert [`Reader`] into an [`tokio::io::AsyncRead`] and [`tokio::io::AsyncSeek`]
     ///
@@ -162,7 +165,7 @@ impl Reader {
         self.read_to_end_at(buf, 0).await
     }
 
-    pub async fn read_to_end_at(&self, buf: &mut imp                l BufMut, mut offset: u64) -> Result<usize> {
+    pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
         let mut size = 0;
         loop {
             // TODO: io size should be tuned based on storage
@@ -180,321 +183,281 @@ impl Reader {
     }
 }
 
-enum State {
-    Idle(Option<oio::Reader>),
-    Reading(BoxedStaticFuture<(oio::Reader, Result<Bytes>)>),
-    Seeking(BoxedStaticFuture<(oio::Reader, Result<u64>)>),
-}
+mod futures_io_adapter {
+    use super::*;
+    use futures::io::{AsyncRead, AsyncSeek};
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
 
-/// # Safety
-///
-/// Reader will only be used with `&mut self`.
-unsafe impl Sync for State {}
+    /// TODO: we can implement async buf read.
+    pub struct FuturesReader {
+        pub acc: FusedAccessor,
+        pub path: String,
+        pub op: OpRead,
 
-// impl futures::AsyncRead for Reader {
-//     fn poll_read(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//         buf: &mut [u8],
-//     ) -> Poll<io::Result<usize>> {
-//         use oio::Read;
-//
-//         match &mut self.state {
-//             State::Idle(r) => {
-//                 let mut r = r.take().expect("reader must be valid");
-//                 let size = buf.len();
-//                 let fut = async move {
-//                     let res = r.read(size).await;
-//                     (r, res)
-//                 };
-//                 self.state = State::Reading(Box::pin(fut));
-//                 self.poll_read(cx, buf)
-//             }
-//             State::Reading(fut) => {
-//                 let (r, res) = ready!(fut.as_mut().poll(cx));
-//                 self.state = State::Idle(Some(r));
-//                 let bs = res.map_err(format_std_io_error)?;
-//                 let n = bs.len();
-//                 buf[..n].copy_from_slice(&bs);
-//                 Poll::Ready(Ok(n))
-//             }
-//             State::Seeking(_) => Poll::Ready(Err(io::Error::new(
-//                 io::ErrorKind::Interrupted,
-//                 "another io operation is  in progress",
-//             ))),
-//         }
-//     }
-// }
+        pub state: State,
+        pub offset: u64,
+    }
 
-// impl futures::AsyncSeek for Reader {
-//     fn poll_seek(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//         pos: io::SeekFrom,
-//     ) -> Poll<io::Result<u64>> {
-//         use oio::Read;
-//
-//         match &mut self.state {
-//             State::Idle(r) => {
-//                 let mut r = r.take().expect("reader must be valid");
-//                 let fut = async move {
-//                     let res = r.seek(pos).await;
-//                     (r, res)
-//                 };
-//                 self.state = State::Seeking(Box::pin(fut));
-//                 self.poll_seek(cx, pos)
-//             }
-//             State::Seeking(fut) => {
-//                 let (r, res) = ready!(fut.as_mut().poll(cx));
-//                 self.state = State::Idle(Some(r));
-//                 Poll::Ready(res.map_err(format_std_io_error))
-//             }
-//             State::Reading(_) => Poll::Ready(Err(io::Error::new(
-//                 io::ErrorKind::Interrupted,
-//                 "another io operation is in progress",
-//             ))),
-//         }
-//     }
-// }
-//
-// impl tokio::io::AsyncRead for Reader {
-//     fn poll_read(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//         buf: &mut tokio::io::ReadBuf<'_>,
-//     ) -> Poll<io::Result<()>> {
-//         use oio::Read;
-//
-//         loop {
-//             match &mut self.state {
-//                 State::Idle(r) => {
-//                     // Safety: We make sure that we will set filled correctly.
-//                     unsafe { buf.assume_init(buf.remaining()) }
-//                     let size = buf.initialize_unfilled().len();
-//
-//                     let mut r = r.take().expect("reader must be valid");
-//                     let fut = async move {
-//                         let res = r.read(size).await;
-//                         (r, res)
-//                     };
-//                     self.state = State::Reading(Box::pin(fut));
-//                 }
-//                 State::Reading(fut) => {
-//                     let (r, res) = ready!(fut.as_mut().poll(cx));
-//                     self.state = State::Idle(Some(r));
-//                     let bs = res.map_err(format_std_io_error)?;
-//                     let n = bs.len();
-//                     buf.initialize_unfilled()[..n].copy_from_slice(&bs);
-//                     buf.advance(n);
-//                     return Poll::Ready(Ok(()));
-//                 }
-//                 State::Seeking(_) => {
-//                     return Poll::Ready(Err(io::Error::new(
-//                         io::ErrorKind::Interrupted,
-//                         "another io operation is in progress",
-//                     )))
-//                 }
-//             }
-//         }
-//     }
-// }
+    enum State {
+        Idle(Option<oio::Reader>),
+        Stating(BoxedStaticFuture<Result<RpStat>>),
+        Reading(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+    }
 
-// impl tokio::io::AsyncSeek for Reader {
-//     fn start_seek(mut self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
-//         use oio::Read;
-//
-//         match &mut self.state {
-//             State::Idle(r) => {
-//                 let mut r = r.take().expect("reader must be valid");
-//                 let fut = async move {
-//                     let res = r.seek(pos).await;
-//                     (r, res)
-//                 };
-//                 self.state = State::Seeking(Box::pin(fut));
-//                 Ok(())
-//             }
-//             State::Seeking(_) | State::Reading(_) => Err(io::Error::new(
-//                 io::ErrorKind::Interrupted,
-//                 "another io operation is in progress",
-//             )),
-//         }
-//     }
-//
-//     fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-//         match &mut self.state {
-//             State::Idle(_) => {
-//                 // AsyncSeek recommends calling poll_complete before start_seek.
-//                 // We don't have to guarantee that the value returned by
-//                 // poll_complete called without start_seek is correct,
-//                 // so we'll return 0.
-//                 Poll::Ready(Ok(0))
-//             }
-//             State::Seeking(fut) => {
-//                 let (r, res) = ready!(fut.as_mut().poll(cx));
-//                 self.state = State::Idle(Some(r));
-//                 Poll::Ready(res.map_err(format_std_io_error))
-//             }
-//             State::Reading(_) => Poll::Ready(Err(io::Error::new(
-//                 io::ErrorKind::Interrupted,
-//                 "another io operation is in progress",
-//             ))),
-//         }
-//     }
-// }
-
-// impl Stream for Reader {
-//     type Item = io::Result<Bytes>;
-//
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         use oio::Read;
-//
-//         match &mut self.state {
-//             State::Idle(r) => {
-//                 let mut r = r.take().expect("reader must be valid");
-//                 let fut = async move {
-//                     // TODO: should allow user to tune this value.
-//                     let res = r.read(4 * 1024 * 1024).await;
-//                     (r, res)
-//                 };
-//                 self.state = State::Reading(Box::pin(fut));
-//                 self.poll_next(cx)
-//             }
-//             State::Reading(fut) => {
-//                 let (r, res) = ready!(fut.as_mut().poll(cx));
-//                 self.state = State::Idle(Some(r));
-//                 let bs = res.map_err(format_std_io_error)?;
-//                 if bs.is_empty() {
-//                     Poll::Ready(None)
-//                 } else {
-//                     Poll::Ready(Some(Ok(bs)))
-//                 }
-//             }
-//             State::Seeking(_) => Poll::Ready(Some(Err(io::Error::new(
-//                 io::ErrorKind::Interrupted,
-//                 "another io operation is in progress",
-//             )))),
-//         }
-//     }
-// }
-
-/// BlockingReader is designed to read data from given path in an blocking
-/// manner.
-pub struct BlockingReader {
-    pub(crate) inner: oio::BlockingReader,
-}
-
-impl BlockingReader {
-    /// Create a new blocking reader.
+    /// # Safety
     ///
-    /// Create will use internal information to decide the most suitable
-    /// implementation for users.
-    ///
-    /// We don't want to expose those details to users so keep this function
-    /// in crate only.
-    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let (_, r) = acc.blocking_read(path, op)?;
+    /// Reader will only be used with `&mut self`.
+    unsafe impl Sync for State {}
 
-        Ok(BlockingReader { inner: r })
-    }
-
-    /// Create a new reader from an `oio::BlockingReader`.
-    pub(crate) fn new(r: oio::BlockingReader) -> Self {
-        BlockingReader { inner: r }
-    }
-
-    /// Read given range bytes of data from reader.
-    pub fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
-        let bs = self.inner.read_at(offset, buf.remaining_mut())?;
-        let n = bs.remaining();
-        buf.put(bs);
-        Ok(n)
-    }
-
-    /// Read given range bytes of data from reader.
-    pub fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> Result<usize> {
-        if range.is_empty() {
-            return Ok(0);
-        }
-        let (mut offset, mut size) = (range.start, range.end - range.start);
-
-        let mut read = 0;
-
-        loop {
-            let bs = self.inner.read_at(offset, size as usize)?;
-            let n = bs.remaining();
-            read += n;
-            buf.put(bs);
-            if n == 0 {
-                return Ok(read);
-            }
-
-            offset += n as u64;
-
-            debug_assert!(
-                size >= n as u64,
-                "read should not return more bytes than expected"
-            );
-            size -= n as u64;
-            if size == 0 {
-                return Ok(read);
+    impl FuturesReader {
+        pub fn new(acc: FusedAccessor, path: String, op: OpRead) -> Self {
+            Self {
+                acc,
+                path,
+                op,
+                state: State::Idle(None),
+                offset: 0,
             }
         }
     }
 
-    pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
-        self.read_to_end_at(buf, 0)
+    impl AsyncRead for FuturesReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            mut buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            use oio::Read;
+
+            match &mut self.state {
+                State::Idle(r) => {
+                    let mut r = r.take().expect("reader must be valid");
+                    let size = buf.len();
+                    let offset = self.offset;
+                    let fut = async move {
+                        let res = r.read_at(offset, size).await;
+                        (r, res)
+                    };
+                    self.state = State::Reading(Box::pin(fut));
+                    self.poll_read(cx, buf)
+                }
+                State::Reading(fut) => {
+                    let (r, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(r));
+                    let bs = res.map_err(format_std_io_error)?;
+                    let n = bs.remaining();
+                    buf.put(bs);
+                    self.offset += n as u64;
+                    Poll::Ready(Ok(n))
+                }
+                State::Stating(_) => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
+            }
+        }
     }
 
-    pub fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
-        let mut size = 0;
-        loop {
-            // TODO: io size should be tuned based on storage
-            let bs = self.inner.read_at(offset, 4 * 1024 * 1024)?;
-            let n = bs.remaining();
-            size += n;
+    impl AsyncSeek for FuturesReader {
+        fn poll_seek(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            pos: io::SeekFrom,
+        ) -> Poll<io::Result<u64>> {
+            use oio::Read;
 
-            buf.put(bs);
-            if n == 0 {
-                return Ok(size);
+            match &mut self.state {
+                State::Idle(_) => match pos {
+                    SeekFrom::Start(n) => {
+                        self.offset = n;
+                        Poll::Ready(Ok(n))
+                    }
+                    SeekFrom::End(_) => todo!(),
+                    SeekFrom::Current(amt) => {
+                        let offset = self.offset as i64 + amt;
+                        if offset < 0 {
+                            return Poll::Ready(Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "invalid seek to a negative position",
+                            )));
+                        }
+                        self.offset = offset as u64;
+                        Poll::Ready(Ok(self.offset))
+                    }
+                },
+                State::Stating(fut) => {
+                    todo!()
+                }
+                State::Reading(_) => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
             }
-
-            offset += n as u64;
         }
     }
 }
 
-// impl io::Read for BlockingReader {
-//     #[inline]
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         let bs = self.inner.read(buf.len()).map_err(format_std_io_error)?;
-//         buf[..bs.len()].copy_from_slice(&bs);
-//         Ok(bs.len())
-//     }
-// }
-//
-// impl io::Seek for BlockingReader {
-//     #[inline]
-//     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-//         self.inner.seek(pos).map_err(format_std_io_error)
-//     }
-// }
-//
-// impl Iterator for BlockingReader {
-//     type Item = io::Result<Bytes>;
-//
-//     #[inline]
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match self
-//             .inner
-//             .read(4 * 1024 * 1024)
-//             .map_err(format_std_io_error)
-//         {
-//             Ok(bs) if bs.is_empty() => None,
-//             Ok(bs) => Some(Ok(bs)),
-//             Err(err) => Some(Err(err)),
-//         }
-//     }
-// }
+mod tokio_io_adapter {
+    use super::*;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::{AsyncRead, AsyncSeek};
+
+    /// TODO: we can implement async buf read.
+    pub struct TokioReader {
+        acc: FusedAccessor,
+        path: String,
+        op: OpRead,
+
+        state: State,
+        offset: u64,
+    }
+
+    enum State {
+        Idle(Option<oio::Reader>),
+        Stating(BoxedStaticFuture<Result<RpStat>>),
+        Reading(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+    }
+
+    /// # Safety
+    ///
+    /// Reader will only be used with `&mut self`.
+    unsafe impl Sync for State {}
+
+    impl AsyncRead for TokioReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            use oio::Read;
+
+            match &mut self.state {
+                State::Idle(r) => {
+                    let mut r = r.take().expect("reader must be valid");
+                    let size = buf.remaining_mut();
+                    let offset = self.offset;
+                    let fut = async move {
+                        let res = r.read_at(offset, size).await;
+                        (r, res)
+                    };
+                    self.state = State::Reading(Box::pin(fut));
+                    self.poll_read(cx, buf)
+                }
+                State::Reading(fut) => {
+                    let (r, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(r));
+                    let bs = res.map_err(format_std_io_error)?;
+                    let n = bs.remaining();
+                    buf.put(bs);
+                    self.offset += n as u64;
+                    Poll::Ready(Ok(()))
+                }
+                State::Stating(_) => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
+            }
+        }
+    }
+
+    impl AsyncSeek for TokioReader {
+        fn start_seek(mut self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
+            match &mut self.state {
+                State::Idle(_) => match pos {
+                    SeekFrom::Start(n) => {
+                        self.offset = n;
+                        Ok(())
+                    }
+                    SeekFrom::End(_) => todo!(),
+                    SeekFrom::Current(amt) => {
+                        let offset = self.offset as i64 + amt;
+                        if offset < 0 {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "invalid seek to a negative position",
+                            ));
+                        }
+                        self.offset = offset as u64;
+                        Ok(())
+                    }
+                },
+                State::Stating(fut) => {
+                    todo!()
+                }
+                State::Reading(_) => Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                )),
+            }
+        }
+
+        fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+            Poll::Ready(Ok(self.offset))
+        }
+    }
+}
+
+mod stream_adapter {
+    use super::*;
+    use crate::raw::{oio, BoxedStaticFuture, RpStat};
+    use bytes::Bytes;
+    use futures::Stream;
+    use std::io;
+    use std::pin::Pin;
+
+    pub struct StreamReader {
+        state: State,
+
+        buffer: oio::Buffer,
+        offset: u64,
+    }
+
+    enum State {
+        Idle(Option<oio::Reader>),
+        Reading(BoxedStaticFuture<(oio::Reader, crate::Result<oio::Buffer>)>),
+    }
+
+    impl Stream for StreamReader {
+        type Item = io::Result<Bytes>;
+
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            if self.buffer.has_remaining() {
+                let n = self.buffer.chunk().len();
+                let bs = self.buffer.copy_to_bytes(n);
+                return Poll::Ready(Some(Ok(bs)));
+            }
+
+            let offset = self.offset;
+
+            match &mut self.state {
+                State::Idle(r) => {
+                    let mut r = r.take().expect("reader must be valid");
+                    let fut = async move {
+                        // TODO: should allow user to tune this value.
+                        let res = r.read_at_dyn(offset, 4 * 1024 * 1024).await;
+                        (r, res)
+                    };
+                    self.state = State::Reading(Box::pin(fut));
+                    self.poll_next(cx)
+                }
+                State::Reading(fut) => {
+                    let (r, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(r));
+                    let bs = res.map_err(format_std_io_error)?;
+                    if bs.has_remaining() {
+                        self.offset += bs.remaining() as u64;
+                        self.buffer = bs;
+                        self.poll_next(cx)
+                    } else {
+                        Poll::Ready(None)
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

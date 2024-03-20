@@ -48,7 +48,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_with_special_chars,
             test_read_with_override_cache_control,
             test_read_with_override_content_disposition,
-            test_read_with_override_content_type,
+            test_read_with_override_content_type
         ))
     }
 

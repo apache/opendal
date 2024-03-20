@@ -114,14 +114,13 @@ impl Reader {
     ///
     /// The returning type also implements `Send`, `Sync` and `Unpin`, so users can use it
     /// as `Box<dyn tokio::io::AsyncRead>` and calling `poll_read_unpin` on it.
-    // #[inline]
-    // #[cfg(not(target_arch = "wasm32"))]
-    // pub fn into_tokio_read(
-    //     self,
-    // ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin {
-    //     // self
-    //     todo!()
-    // }
+    #[inline]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn into_tokio_read(
+        self,
+    ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin {
+        tokio_io_adapter::TokioReader::new(self.acc, self.path, self.op)
+    }
 
     pub async fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
         let bs = self.inner.read_at_dyn(offset, buf.remaining_mut()).await?;
@@ -324,6 +323,18 @@ mod tokio_io_adapter {
     ///
     /// Reader will only be used with `&mut self`.
     unsafe impl Sync for State {}
+
+    impl TokioReader {
+        pub fn new(acc: FusedAccessor, path: String, op: OpRead) -> Self {
+            Self {
+                acc,
+                path,
+                op,
+                state: State::Idle(None),
+                offset: 0,
+            }
+        }
+    }
 
     impl AsyncRead for TokioReader {
         fn poll_read(

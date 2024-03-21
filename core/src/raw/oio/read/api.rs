@@ -19,7 +19,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::ops::Deref;
 
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use futures::Future;
 
 use crate::raw::*;

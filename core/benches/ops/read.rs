@@ -52,7 +52,7 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
             b.to_async(&*TEST_RUNTIME).iter(|| async {
                 let r = op.reader_with(path).await.unwrap();
 
-                let r = r.into_futures_read();
+                let r = r.into_async_read(0..size.bytes() as u64);
                 io::copy(r, &mut io::sink()).await.unwrap();
             })
         });

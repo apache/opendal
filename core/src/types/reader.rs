@@ -15,16 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-use std::io::SeekFrom;
-use std::ops::{Bound, RangeBounds};
-
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
+use std::ops::{Bound, Range, RangeBounds};
 
 use bytes::{Buf, BufMut};
-use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -45,10 +38,6 @@ use crate::*;
 ///
 /// Implement `into_async_read` and `into_stream`.
 pub struct Reader {
-    acc: FusedAccessor,
-    path: String,
-    op: OpRead,
-
     inner: oio::Reader,
 }
 
@@ -61,14 +50,9 @@ impl Reader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let (_, r) = acc.read(path, op.clone()).await?;
+        let (_, r) = acc.read(path, op).await?;
 
-        Ok(Reader {
-            acc,
-            path: path.to_string(),
-            op,
-            inner: r,
-        })
+        Ok(Reader { inner: r })
     }
 
     /// Read from underlying storage and write data into the specified buffer, starting at
@@ -144,6 +128,250 @@ impl Reader {
     #[inline]
     pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
         self.read_range(buf, ..).await
+    }
+
+    /// Convert reader into async read.
+    #[inline]
+    pub fn into_async_read(
+        self,
+        range: Range<u64>,
+    ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
+        // TODO: the capacity should be decided by services.
+        impl_futures_async_read::FuturesReader::new(self.inner, range, 4 * 1024 * 1024)
+    }
+
+    /// Convert reader into async buf read.
+    #[inline]
+    pub fn into_async_buf_read(
+        self,
+        range: Range<u64>,
+        capacity: usize,
+    ) -> impl futures::AsyncBufRead + futures::AsyncSeek + Send + Sync + Unpin {
+        impl_futures_async_read::FuturesReader::new(self.inner, range, capacity)
+    }
+
+    /// Convert reader into stream.
+    #[inline]
+    pub fn into_stream(self, range: Range<u64>) -> impl futures::Stream + Send + Sync + Unpin {
+        // TODO: the capacity should be decided by services.
+        impl_futures_stream::FuturesStream::new(self.inner, range, 4 * 1024 * 1024)
+    }
+}
+
+mod impl_futures_async_read {
+    use crate::raw::*;
+    use crate::*;
+    use bytes::Buf;
+    use futures::{AsyncBufRead, AsyncRead, AsyncSeek};
+    use std::io;
+    use std::io::SeekFrom;
+    use std::ops::Range;
+    use std::pin::Pin;
+    use std::task::{ready, Context, Poll};
+
+    pub struct FuturesReader {
+        state: State,
+        offset: u64,
+        size: u64,
+        cap: usize,
+
+        cur: u64,
+        buf: oio::Buffer,
+    }
+
+    enum State {
+        Idle(Option<oio::Reader>),
+        Fill(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+    }
+
+    /// # Safety
+    ///
+    /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
+    unsafe impl Sync for State {}
+
+    impl FuturesReader {
+        #[inline]
+        pub fn new(r: oio::Reader, range: Range<u64>, cap: usize) -> Self {
+            FuturesReader {
+                state: State::Idle(Some(r)),
+                offset: range.start,
+                size: range.end - range.start,
+                cap,
+
+                cur: 0,
+                buf: oio::Buffer::new(),
+            }
+        }
+    }
+
+    impl AsyncBufRead for FuturesReader {
+        fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
+            let this = self.get_mut();
+            loop {
+                if this.buf.has_remaining() {
+                    return Poll::Ready(Ok(this.buf.chunk()));
+                }
+
+                match &mut this.state {
+                    State::Idle(r) => {
+                        // Make sure cur didn't exceed size.
+                        if this.cur >= this.size {
+                            return Poll::Ready(Ok(&[]));
+                        }
+
+                        let r = r.take().expect("reader must be present");
+                        let next_offset = this.offset + this.cur;
+                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let fut = async move {
+                            let res = r.read_at_dyn(next_offset, next_size).await;
+                            (r, res)
+                        };
+                        this.state = State::Fill(Box::pin(fut));
+                    }
+                    State::Fill(fut) => {
+                        let (r, res) = ready!(fut.as_mut().poll(cx));
+                        this.state = State::Idle(Some(r));
+                        this.buf = res?;
+                    }
+                }
+            }
+        }
+
+        fn consume(mut self: Pin<&mut Self>, amt: usize) {
+            self.buf.advance(amt);
+            self.cur += amt as u64;
+        }
+    }
+
+    impl AsyncRead for FuturesReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let bs = ready!(self.as_mut().poll_fill_buf(cx))?;
+            let n = bs.len().min(buf.len());
+            buf[..n].copy_from_slice(&bs[..n]);
+            self.as_mut().consume(n);
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    impl AsyncSeek for FuturesReader {
+        fn poll_seek(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            pos: SeekFrom,
+        ) -> Poll<io::Result<u64>> {
+            let new_pos = match pos {
+                SeekFrom::Start(pos) => pos as i64,
+                SeekFrom::End(pos) => self.size as i64 + pos,
+                SeekFrom::Current(pos) => self.cur as i64 + pos,
+            };
+
+            if new_pos < 0 {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative position",
+                )));
+            }
+
+            let new_pos = new_pos as u64;
+
+            if (self.cur..self.cur + self.buf.remaining() as u64).contains(&new_pos) {
+                let cnt = new_pos - self.cur;
+                self.buf.advance(cnt as _);
+            } else {
+                self.buf = oio::Buffer::new()
+            }
+
+            self.cur = new_pos;
+            Poll::Ready(Ok(self.cur))
+        }
+    }
+}
+
+mod impl_futures_stream {
+    use crate::raw::*;
+    use crate::*;
+    use bytes::{Buf, Bytes};
+    use futures::Stream;
+    use std::io;
+    use std::ops::Range;
+    use std::pin::Pin;
+    use std::task::{ready, Context, Poll};
+
+    pub struct FuturesStream {
+        state: State,
+        offset: u64,
+        size: u64,
+        cap: usize,
+
+        cur: u64,
+    }
+
+    enum State {
+        Idle(Option<oio::Reader>),
+        Next(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+    }
+
+    /// # Safety
+    ///
+    /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
+    unsafe impl Sync for State {}
+
+    impl FuturesStream {
+        #[inline]
+        pub fn new(r: oio::Reader, range: Range<u64>, cap: usize) -> Self {
+            FuturesStream {
+                state: State::Idle(Some(r)),
+                offset: range.start,
+                size: range.end - range.start,
+                cap,
+
+                cur: 0,
+            }
+        }
+    }
+
+    impl Stream for FuturesStream {
+        type Item = io::Result<Bytes>;
+
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            let this = self.get_mut();
+
+            loop {
+                match &mut this.state {
+                    State::Idle(r) => {
+                        // Make sure cur didn't exceed size.
+                        if this.cur >= this.size {
+                            return Poll::Ready(None);
+                        }
+
+                        let r = r.take().expect("reader must be present");
+                        let next_offset = this.offset + this.cur;
+                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let fut = async move {
+                            let res = r.read_at_dyn(next_offset, next_size).await;
+                            (r, res)
+                        };
+                        this.state = State::Next(Box::pin(fut));
+                    }
+                    State::Next(fut) => {
+                        let (r, res) = ready!(fut.as_mut().poll(cx));
+                        this.state = State::Idle(Some(r));
+                        return match res {
+                            Ok(buf) if !buf.has_remaining() => Poll::Ready(None),
+                            Ok(mut buf) => {
+                                this.cur += buf.remaining() as u64;
+                                Poll::Ready(Some(Ok(buf.copy_to_bytes(buf.remaining()))))
+                            }
+                            Err(err) => Poll::Ready(Some(Err(format_std_io_error(err)))),
+                        };
+                    }
+                }
+            }
+        }
     }
 }
 

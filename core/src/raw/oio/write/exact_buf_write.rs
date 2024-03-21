@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, BufMut, Bytes};
 use std::mem;
+
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;

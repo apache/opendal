@@ -18,10 +18,12 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
+use http::header;
+use http::Request;
 use http::Response;
 use http::StatusCode;
-use http::{header, Request};
 use serde::Deserialize;
 
 use super::error::parse_error;

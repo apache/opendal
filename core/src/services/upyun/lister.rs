@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::sync::Arc;
+
+use bytes::Buf;
 
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;

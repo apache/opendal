@@ -23,7 +23,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;

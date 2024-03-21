@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;

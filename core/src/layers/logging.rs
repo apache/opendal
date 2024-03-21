@@ -16,18 +16,18 @@
 // under the License.
 
 use std::fmt::Debug;
-
-
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
 use log::log;
 use log::trace;
 use log::Level;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;

@@ -18,7 +18,8 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;

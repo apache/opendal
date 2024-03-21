@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::num::NonZeroU32;
 use std::sync::Arc;
-
 use std::thread;
 
 use async_trait::async_trait;

@@ -17,13 +17,12 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::sync::Arc;
-
 use std::time::Instant;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use metrics::increment_counter;

@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-
 use std::io::Write;
 use std::path::PathBuf;
 
+use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;

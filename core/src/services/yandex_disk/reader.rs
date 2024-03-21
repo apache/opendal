@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use http::header;
+use http::Request;
+use http::StatusCode;
+
 use super::core::YandexDiskCore;
 use super::error::parse_error;
 use crate::raw::*;
-use http::{header, Request, StatusCode};
-
-use std::sync::Arc;
 
 pub struct YandexDiskReader {
     core: Arc<YandexDiskCore>,

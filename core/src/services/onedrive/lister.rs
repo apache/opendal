@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;
@@ -22,7 +24,6 @@ use super::graph_model::ItemType;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
 
 pub struct OnedriveLister {
     root: String,

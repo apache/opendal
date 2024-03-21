@@ -126,12 +126,11 @@ impl Writer {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::Result;
-    ///
     /// use bytes::Bytes;
     /// use futures::stream;
     /// use futures::StreamExt;
     /// use opendal::Operator;
+    /// use opendal::Result;
     ///
     /// async fn sink_example(op: Operator) -> Result<()> {
     ///     let mut w = op.writer_with("path/to/file").await?;
@@ -176,13 +175,12 @@ impl Writer {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::Result;
-    ///
     /// use bytes::Bytes;
     /// use futures::io::Cursor;
     /// use futures::stream;
     /// use futures::StreamExt;
     /// use opendal::Operator;
+    /// use opendal::Result;
     ///
     /// async fn copy_example(op: Operator) -> Result<()> {
     ///     let mut w = op.writer_with("path/to/file").await?;

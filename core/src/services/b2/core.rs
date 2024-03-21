@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bytes::Buf;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;

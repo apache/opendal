@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::mem;
 use std::str::FromStr;
 
+use bytes::Buf;
+use bytes::Bytes;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;

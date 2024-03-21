@@ -16,10 +16,10 @@
 // under the License.
 
 use std::collections::Bound;
-
 use std::ops::RangeBounds;
 
-use bytes::{Buf, BufMut};
+use bytes::Buf;
+use bytes::BufMut;
 
 use crate::raw::oio::BlockingRead;
 use crate::raw::*;

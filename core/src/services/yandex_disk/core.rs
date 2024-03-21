@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use bytes::Buf;
 use http::header;
 use http::request;
 use http::Request;

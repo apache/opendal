@@ -15,13 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
-
 use hdfs_native::file::FileReader;
 
 use crate::raw::oio;
-
 
 pub struct HdfsNativeReader {
     _f: FileReader,

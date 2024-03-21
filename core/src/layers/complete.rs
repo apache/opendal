@@ -18,7 +18,6 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::sync::Arc;
 
 use async_trait::async_trait;

@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use http::StatusCode;
+
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::onedrive::backend::OnedriveBackend;
-use http::StatusCode;
 
 pub struct OnedriveReader {
     core: OnedriveBackend,

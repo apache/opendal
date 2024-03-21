@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::{Error, ErrorKind};
-use hdrs::File;
-
 use std::sync::Arc;
+
+use hdrs::File;
 use tokio::io::ReadBuf;
+
+use crate::raw::*;
+use crate::Error;
+use crate::ErrorKind;
 
 pub struct HdfsReader {
     f: Arc<File>,

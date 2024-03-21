@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::fmt::Debug;
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;

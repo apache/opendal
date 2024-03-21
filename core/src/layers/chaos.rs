@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
-
 use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;

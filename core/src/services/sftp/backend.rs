@@ -21,14 +21,12 @@ use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
 
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
-
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;

@@ -15,8 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
+
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
+use bytes::BytesMut;
 
 /// Buffer is a wrapper of `Bytes` and `VecDeque<Bytes>`.
 ///

@@ -19,7 +19,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use chrono::Utc;
 use http::Request;
 use http::StatusCode;

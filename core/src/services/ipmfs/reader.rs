@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use http::StatusCode;
+
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::ipmfs::backend::IpmfsBackend;
-use http::StatusCode;
 
 pub struct IpmfsReader {
     core: IpmfsBackend,

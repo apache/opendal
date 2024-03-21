@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use http::StatusCode;
+
 use super::core::AzfileCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-use http::StatusCode;
-use std::sync::Arc;
 
 pub struct AzfileReader {
     core: Arc<AzfileCore>,

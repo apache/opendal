@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::{parse_error, IcloudCore};
-use crate::raw::*;
+use std::sync::Arc;
+
 use http::StatusCode;
 
-use std::sync::Arc;
+use super::core::parse_error;
+use super::core::IcloudCore;
+use crate::raw::*;
 
 pub struct IcloudReader {
     core: Arc<IcloudCore>,

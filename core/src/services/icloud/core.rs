@@ -719,9 +719,10 @@ pub struct IcloudCreateFolder {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::IcloudRoot;
     use super::IcloudWebservicesResponse;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_icloud_drive_root_json() {

@@ -17,23 +17,21 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::sync::Arc;
-
 use std::time::Duration;
 
 use async_trait::async_trait;
 use backon::BlockingRetryable;
-
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
+use crate::raw::oio::Buffer;
+use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
-use crate::raw::oio::{Buffer, ListOperation};
 use crate::raw::*;
 use crate::*;
 

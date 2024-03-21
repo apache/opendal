@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -325,9 +324,9 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::future::{pending, Future};
+    use std::future::pending;
+    use std::future::Future;
     use std::sync::Arc;
-
     use std::time::Duration;
 
     use async_trait::async_trait;

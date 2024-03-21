@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::AsyncReadExt;
+
 use super::backend::FtpBackend;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;
-use futures::AsyncReadExt;
 
 pub struct FtpReader {
     core: FtpBackend,

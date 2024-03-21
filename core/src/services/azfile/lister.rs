@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 use quick_xml::de;
-
 use serde::Deserialize;
 
 use super::core::AzfileCore;
@@ -149,8 +148,9 @@ struct Properties {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use quick_xml::de::from_str;
+
+    use super::*;
 
     #[test]
     fn test_parse_list_result() {

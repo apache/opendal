@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use http::StatusCode;
+
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::ghac::backend::GhacBackend;
-use http::StatusCode;
 
 pub struct GhacReader {
     core: GhacBackend,

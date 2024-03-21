@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use serde::Deserialize;
 use tokio::sync::Mutex;
 

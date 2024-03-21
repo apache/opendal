@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::error::{parse_error, parse_error_msg};
-use crate::raw::*;
-use crate::services::webhdfs::backend::WebhdfsBackend;
 use bytes::Buf;
 use http::StatusCode;
+
+use super::error::parse_error;
+use super::error::parse_error_msg;
+use crate::raw::*;
+use crate::services::webhdfs::backend::WebhdfsBackend;
 
 pub struct WebhdfsReader {
     core: WebhdfsBackend,

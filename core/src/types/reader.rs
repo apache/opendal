@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::{Bound, Range, RangeBounds};
+use std::ops::Bound;
+use std::ops::Range;
+use std::ops::RangeBounds;
 
-use bytes::{Buf, BufMut};
+use bytes::Buf;
+use bytes::BufMut;
 
 use crate::raw::*;
 use crate::*;
@@ -156,15 +159,21 @@ impl Reader {
 }
 
 mod impl_futures_async_read {
-    use crate::raw::*;
-    use crate::*;
-    use bytes::Buf;
-    use futures::{AsyncBufRead, AsyncRead, AsyncSeek};
     use std::io;
     use std::io::SeekFrom;
     use std::ops::Range;
     use std::pin::Pin;
-    use std::task::{ready, Context, Poll};
+    use std::task::ready;
+    use std::task::Context;
+    use std::task::Poll;
+
+    use bytes::Buf;
+    use futures::AsyncBufRead;
+    use futures::AsyncRead;
+    use futures::AsyncSeek;
+
+    use crate::raw::*;
+    use crate::*;
 
     pub struct FuturesReader {
         state: State,
@@ -289,14 +298,19 @@ mod impl_futures_async_read {
 }
 
 mod impl_futures_stream {
-    use crate::raw::*;
-    use crate::*;
-    use bytes::{Buf, Bytes};
-    use futures::Stream;
     use std::io;
     use std::ops::Range;
     use std::pin::Pin;
-    use std::task::{ready, Context, Poll};
+    use std::task::ready;
+    use std::task::Context;
+    use std::task::Poll;
+
+    use bytes::Buf;
+    use bytes::Bytes;
+    use futures::Stream;
+
+    use crate::raw::*;
+    use crate::*;
 
     pub struct FuturesStream {
         state: State,

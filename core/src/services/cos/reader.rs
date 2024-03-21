@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use http::StatusCode;
+
 use super::core::CosCore;
 use super::error::parse_error;
 use crate::raw::*;
-use http::StatusCode;
-use std::sync::Arc;
 
 pub struct CosReader {
     core: Arc<CosCore>,

@@ -21,8 +21,9 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
+use bytes::Bytes;
 use bytes::BytesMut;
-use bytes::{Buf, Bytes};
 
 use crate::*;
 

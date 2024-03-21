@@ -19,7 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use base64::Engine;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use http::header;
 use http::request;
 use http::Request;
@@ -28,10 +29,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]

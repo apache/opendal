@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
 use std::ops::DerefMut;
+
+use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;

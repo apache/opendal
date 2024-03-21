@@ -968,7 +968,6 @@ mod tests {
                 RpRead::new(),
                 MockReader {
                     attempt: self.attempt.clone(),
-                    pos: 0,
                 },
             ))
         }
@@ -1039,7 +1038,6 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockReader {
         attempt: Arc<Mutex<usize>>,
-        pos: u64,
     }
 
     impl oio::Read for MockReader {

@@ -226,7 +226,7 @@ impl Accessor for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let stream_id = self.core.open_file(path).await?;
 
-        let r = AlluxioReader::new(self.core.clone(), path, args.clone(), stream_id);
+        let r = AlluxioReader::new(self.core.clone(), stream_id, args.clone());
         Ok((RpRead::new(), r))
     }
 

@@ -242,10 +242,10 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = FsReader<tokio::fs::File>;
+    type Reader = FsReader;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
-    type BlockingReader = Bytes;
+    type BlockingReader = FsReader;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
@@ -329,7 +329,7 @@ impl Accessor for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(f);
+        let r = FsReader::new(f.into_std().await);
         Ok((RpRead::new(), r))
     }
 
@@ -477,7 +477,8 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(new_std_io_error)?;
 
-        todo!()
+        let r = FsReader::new(f);
+        Ok((RpRead::new(), r))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

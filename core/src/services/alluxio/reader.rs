@@ -26,18 +26,16 @@ use crate::*;
 pub struct AlluxioReader {
     core: Arc<AlluxioCore>,
 
-    op: OpRead,
-    path: String,
     stream_id: u64,
+    op: OpRead,
 }
 
 impl AlluxioReader {
-    pub fn new(core: Arc<AlluxioCore>, path: &str, op: OpRead, stream_id: u64) -> Self {
+    pub fn new(core: Arc<AlluxioCore>, stream_id: u64, op: OpRead) -> Self {
         AlluxioReader {
             core,
-            path: path.to_string(),
-            op,
             stream_id,
+            op,
         }
     }
 }

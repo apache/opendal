@@ -34,7 +34,7 @@ impl B2Reader {
         B2Reader {
             core,
             path: path.to_string(),
-            op: op,
+            op,
         }
     }
 }

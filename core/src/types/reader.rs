@@ -94,10 +94,7 @@ impl Reader {
         }
 
         let mut offset = start;
-        let mut size = match end {
-            Some(end) => Some(end - start),
-            None => None,
-        };
+        let mut size = end.map(|end| end - start);
 
         let mut read = 0;
         loop {

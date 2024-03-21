@@ -78,6 +78,12 @@ pub struct SessionData {
     docws_url: String,
 }
 
+impl Default for SessionData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionData {
     pub fn new() -> SessionData {
         Self {

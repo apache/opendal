@@ -368,7 +368,7 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
-        let mut req = self.s3_get_object_request(path, range, &args)?;
+        let mut req = self.s3_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 

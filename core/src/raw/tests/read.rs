@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes};
+use bytes::Bytes;
 use rand::thread_rng;
 use rand::RngCore;
 use sha2::Digest;
 use sha2::Sha256;
 
-use crate::raw::*;
 use crate::*;
 
 /// ReadAction represents a read action.
@@ -39,8 +38,6 @@ pub enum ReadAction {
 pub struct ReadChecker {
     /// Raw Data is the data we write to the storage.
     raw_data: Bytes,
-    /// Ranged Data is the data that we read from the storage.
-    ranged_data: Bytes,
 }
 
 impl ReadChecker {
@@ -48,18 +45,14 @@ impl ReadChecker {
     ///
     /// It's by design that we use a random generator to generate the raw data. The content of data
     /// is not important, we only care about the correctness of the read process.
-    pub fn new(size: usize, range: impl Into<BytesRange>) -> Self {
+    pub fn new(size: usize) -> Self {
         let mut rng = thread_rng();
         let mut data = vec![0; size];
         rng.fill_bytes(&mut data);
 
         let raw_data = Bytes::from(data);
-        let ranged_data = range.into().apply_on_bytes(raw_data.clone());
 
-        Self {
-            raw_data,
-            ranged_data,
-        }
+        Self { raw_data }
     }
 
     /// Return the raw data of this read checker.
@@ -83,18 +76,18 @@ impl ReadChecker {
 
         if size > 0 && output.is_empty() {
             assert!(
-                offset >= self.ranged_data.len(),
+                offset >= self.raw_data.len(),
                 "check read failed: no data read means cur must outsides of ranged_data",
             );
             return;
         }
 
         assert!(
-            offset + output.len() <= self.ranged_data.len(),
-            "check read failed: cur + output length must be less than ranged_data length, offset: {}, output: {}, ranged_data: {}",  offset, output.len(), self.ranged_data.len(),
+            offset + output.len() <= self.raw_data.len(),
+            "check read failed: cur + output length must be less than ranged_data length, offset: {}, output: {}, ranged_data: {}",  offset, output.len(), self.raw_data.len(),
         );
 
-        let expected = &self.ranged_data[offset..offset + output.len()];
+        let expected = &self.raw_data[offset..offset + output.len()];
 
         // Check the read result
         assert_eq!(

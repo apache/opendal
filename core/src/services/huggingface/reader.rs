@@ -34,7 +34,7 @@ impl HuggingfaceReader {
         HuggingfaceReader {
             core,
             path: path.to_string(),
-            op: op,
+            op,
         }
     }
 }

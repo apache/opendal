@@ -34,7 +34,7 @@ impl VercelBlobReader {
         VercelBlobReader {
             core,
             path: path.to_string(),
-            op: op,
+            op,
         }
     }
 }

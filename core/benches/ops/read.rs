@@ -51,6 +51,7 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
         group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
             b.to_async(&*TEST_RUNTIME).iter(|| async {
                 let r = op.reader_with(path).await.unwrap();
+
                 let r = r.into_futures_read();
                 io::copy(r, &mut io::sink()).await.unwrap();
             })

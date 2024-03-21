@@ -300,8 +300,6 @@ impl BatchOperation {
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    /// NOTE: range is not apply for reader.
-    range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
     override_content_type: Option<String>,
@@ -314,17 +312,6 @@ impl OpRead {
     /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Create a new OpRead with range.
-    pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.range = range;
-        self
-    }
-
-    /// Get range from OpRead.
-    pub fn range(&self) -> BytesRange {
-        self.range
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.

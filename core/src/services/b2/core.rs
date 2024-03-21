@@ -194,7 +194,6 @@ impl B2Core {
     pub async fn get_download_authorization(
         &self,
         path: &str,
-        args: &OpRead,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
         let path = build_abs_path(&self.root, path);
@@ -210,10 +209,6 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let range = args.range();
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
-        }
         let body = GetDownloadAuthorizationRequest {
             bucket_id: self.bucket_id.clone(),
             file_name_prefix: path,

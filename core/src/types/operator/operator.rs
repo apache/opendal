@@ -500,8 +500,8 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpRead::default(),
-            |inner, path, args| async move {
+            (OpRead::default(), BytesRange::default()),
+            |inner, path, (args, range)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -511,11 +511,11 @@ impl Operator {
                     );
                 }
 
-                let size_hint = args.range().size();
+                let size_hint = range.size();
 
                 let r = Reader::create(inner, &path, args).await?;
                 let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
-                r.read_to_end(&mut buf).await?;
+                r.read_range(&mut buf, range.to_range()).await?;
                 Ok(buf)
             },
         )
@@ -574,7 +574,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), ()),
+            OpRead::default(),
             |inner, path, args| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -585,7 +585,7 @@ impl Operator {
                     );
                 }
 
-                Reader::create(inner.clone(), &path, args.0).await
+                Reader::create(inner.clone(), &path, args).await
             },
         )
     }

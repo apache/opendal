@@ -91,8 +91,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let br = args.range();
-
         self.inner
             .read(path, args)
             .map_ok(|(rp, r)| {
@@ -109,7 +107,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 err.with_operation(Operation::Read)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
-                    .with_context("range", br.to_string())
             })
             .await
     }

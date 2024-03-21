@@ -446,7 +446,7 @@ impl Accessor for B2Backend {
             PresignOperation::Stat(_) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, &OpRead::default(), args.expire())
+                    .get_download_authorization(path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 
@@ -472,10 +472,10 @@ impl Accessor for B2Backend {
                     parts.headers,
                 )))
             }
-            PresignOperation::Read(op) => {
+            PresignOperation::Read(_) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, op, args.expire())
+                    .get_download_authorization(path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 

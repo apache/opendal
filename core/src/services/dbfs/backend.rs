@@ -244,8 +244,8 @@ impl Accessor for DbfsBackend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = DbfsReader::new(self.core.clone(), args, path.to_string());
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let op = DbfsReader::new(self.core.clone(), path.to_string());
 
         Ok((RpRead::new(), op))
     }

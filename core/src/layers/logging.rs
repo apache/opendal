@@ -285,14 +285,11 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} range={} -> started",
+            "service={} operation={} path={} -> started",
             self.ctx.scheme,
             Operation::Read,
             path,
-            args.range()
         );
-
-        let range = args.range();
 
         self.inner
             .read(path, args)
@@ -300,11 +297,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, r)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} range={} -> got reader",
+                    "service={} operation={} path={} -> got reader",
                     self.ctx.scheme,
                     Operation::Read,
                     path,
-                    range
                 );
                 (
                     rp,
@@ -316,11 +312,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}",
+                        "service={} operation={} path={} -> {}",
                         self.ctx.scheme,
                         Operation::Read,
                         path,
-                        range,
                         self.ctx.error_print(&err)
                     )
                 }
@@ -684,11 +679,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} range={} -> started",
+            "service={} operation={} path={} -> started",
             self.ctx.scheme,
             Operation::BlockingRead,
             path,
-            args.range(),
         );
 
         self.inner
@@ -696,11 +690,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, r)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} range={} -> got reader",
+                    "service={} operation={} path={} -> got reader",
                     self.ctx.scheme,
                     Operation::BlockingRead,
                     path,
-                    args.range(),
                 );
                 let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
                 (rp, r)
@@ -710,11 +703,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}",
+                        "service={} operation={} path={} -> {}",
                         self.ctx.scheme,
                         Operation::BlockingRead,
                         path,
-                        args.range(),
                         self.ctx.error_print(&err)
                     );
                 }

@@ -199,9 +199,6 @@ impl GcsCore {
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !args.range().is_full() {
-            req = req.header(http::header::RANGE, args.range().to_header());
-        }
 
         let req = req
             .body(AsyncBody::Empty)

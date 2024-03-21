@@ -65,17 +65,29 @@ We will add the following new APIs to `Reader`:
 ```rust
 impl Reader {
     /// Read data from the storage at the specified offset.
-    pub async fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize>;
-    
+    pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize>;
+
     /// Read data from the storage at the specified range.
-    pub async fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> Result<usize>;
-    
+    pub async fn read_range(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize>;
+
     /// Read all data from the storage into given buf.
     pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize>;
-    
-    /// Read all data from the storage into given buf at the specified offset.
-    pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize>;
 
+    /// Copy data from the storage into given writer.
+    pub async fn copy(&mut self, write_into: &mut impl futures::AsyncWrite) -> Result<u64>;
+
+    /// Sink date from the storage into given sink.
+    pub async fn sink<S, T>(&mut self, sink_from: &mut S) -> Result<u64>
+    where
+        S: futures::Sink<T, Error = Error>,
+        T: Into<Bytes>,
+}
+```
+
+Apart from `Reader`'s own API, we will also provide convert to existing IO APIs like:
+
+```rust
+impl Reader {
     /// Convert Reader into `futures::AsyncRead`  
     pub fn into_futures_read(
         self,

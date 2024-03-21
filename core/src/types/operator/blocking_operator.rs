@@ -395,21 +395,10 @@ impl BlockingOperator {
                     );
                 }
 
-                let range = args.range();
-                let (size_hint, range) = if let Some(size) = range.size() {
-                    (size, range)
-                } else {
-                    let size = inner
-                        .blocking_stat(&path, OpStat::default())?
-                        .into_metadata()
-                        .content_length();
-                    let range = range.complete(size);
-                    (range.size().unwrap(), range)
-                };
+                let size_hint = args.range().size();
 
-                let (_, r) = inner.blocking_read(&path, args.with_range(range))?;
-                let r = BlockingReader::new(r);
-                let mut buf = Vec::with_capacity(size_hint as usize);
+                let r = BlockingReader::create(inner, &path, args)?;
+                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
                 r.read_to_end(&mut buf)?;
 
                 Ok(buf)

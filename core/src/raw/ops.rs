@@ -300,16 +300,14 @@ impl BatchOperation {
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    br: BytesRange,
+    /// NOTE: range is not apply for reader.
+    range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
-    /// The maximum buffer capability.
-    /// `None` stand for disable buffer.
-    buffer: Option<usize>,
 }
 
 impl OpRead {
@@ -337,13 +335,13 @@ impl OpRead {
 
     /// Create a new OpRead with range.
     pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.br = range;
+        self.range = range;
         self
     }
 
     /// Get range from OpRead.
     pub fn range(&self) -> BytesRange {
-        self.br
+        self.range
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.
@@ -411,18 +409,6 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
-    }
-
-    /// Set the buffer capability.
-    pub fn with_buffer(mut self, buffer: usize) -> Self {
-        self.buffer = Some(buffer);
-
-        self
-    }
-
-    /// Get buffer from option.
-    pub fn buffer(&self) -> Option<usize> {
-        self.buffer
     }
 }
 

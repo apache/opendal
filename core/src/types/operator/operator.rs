@@ -511,21 +511,10 @@ impl Operator {
                     );
                 }
 
-                let range = args.range();
-                let (size_hint, range) = if let Some(size) = range.size() {
-                    (size, range)
-                } else {
-                    let size = inner
-                        .stat(&path, OpStat::default())
-                        .await?
-                        .into_metadata()
-                        .content_length();
-                    let range = range.complete(size);
-                    (range.size().unwrap(), range)
-                };
+                let size_hint = args.range().size();
 
-                let r = Reader::create(inner, &path, args.with_range(range)).await?;
-                let mut buf = Vec::with_capacity(size_hint as usize);
+                let r = Reader::create(inner, &path, args).await?;
+                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
                 r.read_to_end(&mut buf).await?;
                 Ok(buf)
             },
@@ -567,86 +556,6 @@ impl Operator {
     /// extra options like `range` and `if_match`, please use [`Operator::reader_with`] instead.
     ///
     /// # Options
-    ///
-    /// ## `range`
-    ///
-    /// Set `range` for this `read` request.
-    ///
-    /// If we have a file with size `n`.
-    ///
-    /// - `..` means read bytes in range `[0, n)` of file.
-    /// - `0..1024` means read bytes in range `[0, 1024)` of file
-    /// - `1024..` means read bytes in range `[1024, n)` of file
-    /// - `..1024` means read bytes in range `(n - 1024, n)` of file
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.reader_with("path/to/file").range(0..1024).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `buffer`
-    ///
-    /// Set `buffer` for the reader.
-    ///
-    /// OpenDAL by default to read file without buffer. This is not efficient for cases like `seek`
-    /// after read or reading file with small chunks. To improve performance, we can set a buffer.
-    ///
-    /// The following example will create a reader with 4 MiB buffer internally. All seek operations
-    /// happened in buffered data will be zero cost.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op
-    ///     .reader_with("path/to/file")
-    ///     .buffer(4 * 1024 * 1024)
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_match`
-    ///
-    /// Set `if_match` for this `read` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
-    ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.reader_with("path/to/file").if_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_none_match`
-    ///
-    /// Set `if_none_match` for this `read` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
-    ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.reader_with("path/to/file").if_none_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
     ///
     /// # Examples
     ///

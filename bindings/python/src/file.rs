@@ -18,6 +18,7 @@
 // Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
+use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
@@ -28,6 +29,7 @@ use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
+use pyo3::buffer::PyBuffer;
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
@@ -91,6 +93,41 @@ impl File {
         };
 
         Buffer::new(buffer).into_bytes_ref(py)
+    }
+
+    /// Read bytes into a pre-allocated, writable buffer
+    pub fn readinto(&mut self, buffer: PyBuffer<u8>) -> PyResult<usize> {
+        let reader = match &mut self.0 {
+            FileState::Reader(r) => r,
+            FileState::Writer(_) => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on write only file.",
+                ));
+            }
+            FileState::Closed => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on closed file.",
+                ));
+            }
+        };
+
+        if buffer.readonly() {
+            return Err(PyIOError::new_err("Buffer is not writable."))
+        }
+
+        if !buffer.is_c_contiguous() {
+            return Err(PyIOError::new_err("Buffer is not C contiguous."))
+        }
+
+        Python::with_gil(|_py| {
+            let ptr = buffer.buf_ptr();
+            let nbytes = buffer.len_bytes();
+            unsafe {
+                let view: &mut [u8] = std::slice::from_raw_parts_mut(ptr as *mut u8, nbytes);
+                let z = Read::read(reader, view)?;
+                Ok(z)
+            }
+        })
     }
 
     /// Write bytes into the file.
@@ -193,6 +230,45 @@ impl File {
         _traceback: PyObject,
     ) -> PyResult<()> {
         self.close()
+    }
+
+    /// Flush the underlying writer. Is a no-op if the file is opened in reading mode.
+    pub fn flush(&mut self) -> PyResult<()> {
+        if matches!(self.0, FileState::Reader(_)) {
+            Ok(())
+        } else {
+            if let FileState::Writer(w) = &mut self.0 {
+                match w.flush() {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e.into()),
+                }
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Return True if the stream can be read from.
+    pub fn readable(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Reader(_)))
+    }
+
+    /// Return True if the stream can be written to.
+    pub fn writable(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Writer(_)))
+    }
+
+    /// Return True if the stream can be repositioned.
+    ///
+    /// In OpenDAL this is limited to only *readable* streams.
+    pub fn seekable(&self) -> PyResult<bool> {
+        self.readable()
+    }
+
+    /// Return True if the stream is closed.
+    #[getter]
+    pub fn closed(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Closed))
     }
 }
 
@@ -391,5 +467,38 @@ impl AsyncFile {
         _traceback: &'a PyAny,
     ) -> PyResult<&'a PyAny> {
         self.close(py)
+    }
+
+    /// Check if the stream may be read from.
+    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Reader(_)))
+        })
+    }
+
+    /// Check if the stream may be written to.
+    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Writer(_)))
+        })
+    }
+
+    /// Check if the stream reader may be re-located.
+    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        self.readable(py)
+    }
+
+    /// Check if the stream is closed.
+    #[getter]
+    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Closed))
+        })
     }
 }

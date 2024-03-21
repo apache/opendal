@@ -45,6 +45,10 @@ def test_sync_reader(service_name, operator, async_operator):
     operator.write(filename, content)
 
     with operator.open(filename, "rb") as reader:
+        assert reader.readable()
+        assert not reader.writable()
+        assert not reader.closed
+
         read_content = reader.read()
         assert read_content is not None
         assert read_content == content
@@ -53,6 +57,11 @@ def test_sync_reader(service_name, operator, async_operator):
         read_content = reader.read(size + 1)
         assert read_content is not None
         assert read_content == content
+
+    buf = bytearray(size = 1)
+    with operator.open(filename, 'rb') as reader:
+        reader.readinto(buf)
+        assert buf == content
 
     operator.delete(filename)
 

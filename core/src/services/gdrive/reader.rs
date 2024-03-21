@@ -17,7 +17,7 @@
 
 use super::core::GdriveCore;
 use super::error::parse_error;
-use crate::raw::{oio, OpRead};
+use crate::raw::*;
 use http::StatusCode;
 
 use std::sync::Arc;
@@ -41,9 +41,7 @@ impl GdriveReader {
 
 impl oio::Read for GdriveReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.gdrive_get(&self.path, range).await?;
 

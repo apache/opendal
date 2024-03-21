@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
 use std::sync::Arc;
 
 use base64::engine::general_purpose;
@@ -46,7 +44,7 @@ impl DbfsReader {
         DbfsReader {
             core,
             path,
-            offset: op.range().offset().unwrap_or(0),
+            offset: op.range().offset(),
             has_filled: 0,
         }
     }

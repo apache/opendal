@@ -41,9 +41,7 @@ impl B2Reader {
 
 impl oio::Read for B2Reader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self
             .core

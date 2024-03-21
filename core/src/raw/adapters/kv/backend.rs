@@ -104,9 +104,10 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
+        let bs = Bytes::from(bs);
+        let bs = args.range().apply_on_bytes(bs);
 
-        Ok((RpRead::new(), Bytes::from(bs)))
+        Ok((RpRead::new(), bs))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -117,8 +118,9 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
-        Ok((RpRead::new(), Bytes::from(bs)))
+        let bs = Bytes::from(bs);
+        let bs = args.range().apply_on_bytes(bs);
+        Ok((RpRead::new(), bs))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -195,26 +197,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-}
-
-impl<S> Backend<S>
-where
-    S: Adapter,
-{
-    fn apply_range(&self, mut bs: Vec<u8>, br: BytesRange) -> Vec<u8> {
-        match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                let mut bs = bs.split_off(offset as usize);
-                if (size as usize) < bs.len() {
-                    let _ = bs.split_off(size as usize);
-                }
-                bs
-            }
-            (Some(offset), None) => bs.split_off(offset as usize),
-            (None, Some(size)) => bs.split_off(bs.len() - size as usize),
-            (None, None) => bs,
-        }
     }
 }
 

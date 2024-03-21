@@ -16,12 +16,10 @@
 // under the License.
 
 use super::error::{parse_error, parse_error_msg};
-use crate::raw::{oio, OpRead};
+use crate::raw::*;
 use crate::services::webhdfs::backend::WebhdfsBackend;
 use bytes::Buf;
 use http::StatusCode;
-
-
 
 pub struct WebhdfsReader {
     core: WebhdfsBackend,
@@ -42,9 +40,7 @@ impl WebhdfsReader {
 
 impl oio::Read for WebhdfsReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.webhdfs_read_file(&self.path, range).await?;
 

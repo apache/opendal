@@ -16,11 +16,9 @@
 // under the License.
 
 use super::error::parse_error;
-use crate::raw::{oio, OpRead};
+use crate::raw::*;
 use crate::services::vercel_artifacts::backend::VercelArtifactsBackend;
 use http::StatusCode;
-
-
 
 pub struct VercelArtifactsReader {
     core: VercelArtifactsBackend,
@@ -41,9 +39,7 @@ impl VercelArtifactsReader {
 
 impl oio::Read for VercelArtifactsReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self
             .core

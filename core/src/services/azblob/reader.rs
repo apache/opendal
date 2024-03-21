@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -44,9 +43,7 @@ impl AzblobReader {
 
 impl oio::Read for AzblobReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self
             .core

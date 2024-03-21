@@ -188,8 +188,8 @@ where
             Bound::Unbounded => 0,
         };
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset.unwrap_or_default()),
-            Bound::Excluded(n) => Some(n - offset.unwrap_or_default()),
+            Bound::Included(n) => Some(n + 1 - offset),
+            Bound::Excluded(n) => Some(n - offset),
             Bound::Unbounded => None,
         };
 

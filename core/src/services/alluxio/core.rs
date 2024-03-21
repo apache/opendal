@@ -306,14 +306,6 @@ impl AlluxioCore {
         ));
 
         if !range.is_full() {
-            // alluxio doesn't support read with suffix range.
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
             req = req.header(RANGE, range.to_header());
         }
 

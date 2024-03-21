@@ -16,11 +16,9 @@
 // under the License.
 
 use super::error::parse_error;
-use crate::raw::{oio, OpRead};
+use crate::raw::*;
 use crate::services::ghac::backend::GhacBackend;
 use http::StatusCode;
-
-
 
 pub struct GhacReader {
     core: GhacBackend,
@@ -41,9 +39,7 @@ impl GhacReader {
 
 impl oio::Read for GhacReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let req = self.core.ghac_get_location(&self.location, range).await?;
         let resp = self.core.client.send(req).await?;

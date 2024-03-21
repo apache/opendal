@@ -194,9 +194,7 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        if let Some(offset) = range.offset() {
-            write!(url, "&offset={offset}").expect("write into string must succeed")
-        }
+        write!(url, "&offset={}", range.offset()).expect("write into string must succeed");
         if let Some(count) = range.size() {
             write!(url, "&count={count}").expect("write into string must succeed")
         }

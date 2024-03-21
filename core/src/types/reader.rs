@@ -272,8 +272,6 @@ mod futures_io_adapter {
             _cx: &mut Context<'_>,
             pos: io::SeekFrom,
         ) -> Poll<io::Result<u64>> {
-            
-
             match &mut self.state {
                 State::Idle(_) => match pos {
                     SeekFrom::Start(n) => {
@@ -420,7 +418,7 @@ mod tokio_io_adapter {
 
 mod stream_adapter {
     use super::*;
-    use crate::raw::{oio, BoxedStaticFuture};
+    use crate::raw::*;
     use bytes::Bytes;
     use futures::Stream;
     use std::io;

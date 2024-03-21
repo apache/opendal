@@ -17,7 +17,7 @@
 
 use super::core::YandexDiskCore;
 use super::error::parse_error;
-use crate::raw::{new_request_build_error, oio, AsyncBody, OpRead};
+use crate::raw::*;
 use http::{header, Request, StatusCode};
 
 use std::sync::Arc;
@@ -41,9 +41,7 @@ impl YandexDiskReader {
 
 impl oio::Read for YandexDiskReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         // TODO: move this out of reader.
         let download_url = self.core.get_download_url(&self.path).await?;

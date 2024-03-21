@@ -17,7 +17,7 @@
 
 use super::backend::FtpBackend;
 use super::err::parse_error;
-use crate::raw::{new_std_io_error, oio, OpRead, Operation};
+use crate::raw::*;
 use crate::*;
 use futures::AsyncReadExt;
 
@@ -40,43 +40,22 @@ impl FtpReader {
 
 impl oio::Read for FtpReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
-
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
-        let _meta = self.core.ftp_stat(&self.path).await?;
-
-        match (range.offset(), range.size()) {
-            (Some(offset), Some(size)) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(parse_error)?;
-                let mut ds = ftp_stream
-                    .retr_as_stream(&self.path)
-                    .await
-                    .map_err(parse_error)?
-                    .take(size);
-                let mut bs = Vec::with_capacity(size as usize);
-                ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
-                Ok(oio::Buffer::from(bs))
-            }
-            (Some(offset), None) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(parse_error)?;
-                let mut ds = ftp_stream
-                    .retr_as_stream(&self.path)
-                    .await
-                    .map_err(parse_error)?;
-                let mut bs = vec![];
-                ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
-                Ok(oio::Buffer::from(bs))
-            }
-            _ => unimplemented!(),
+        if offset != 0 {
+            ftp_stream
+                .resume_transfer(offset as usize)
+                .await
+                .map_err(parse_error)?;
         }
+
+        let mut ds = ftp_stream
+            .retr_as_stream(&self.path)
+            .await
+            .map_err(parse_error)?
+            .take(limit as _);
+        let mut bs = Vec::with_capacity(limit);
+        ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
+        Ok(oio::Buffer::from(bs))
     }
 }

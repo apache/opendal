@@ -111,8 +111,7 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
-
+        let bs = args.range().apply_on_bytes(bs);
         Ok((RpRead::new(), bs))
     }
 
@@ -125,7 +124,7 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
+        let bs = args.range().apply_on_bytes(bs);
         Ok((RpRead::new(), bs))
     }
 
@@ -199,26 +198,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-}
-
-impl<S> Backend<S>
-where
-    S: Adapter,
-{
-    fn apply_range(&self, mut bs: Bytes, br: BytesRange) -> Bytes {
-        match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                let mut bs = bs.split_off(offset as usize);
-                if (size as usize) < bs.len() {
-                    let _ = bs.split_off(size as usize);
-                }
-                bs
-            }
-            (Some(offset), None) => bs.split_off(offset as usize),
-            (None, Some(size)) => bs.split_off(bs.len() - size as usize),
-            (None, None) => bs,
-        }
     }
 }
 

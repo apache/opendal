@@ -150,6 +150,7 @@ struct Properties {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quick_xml::de::from_str;
 
     #[test]
     fn test_parse_list_result() {

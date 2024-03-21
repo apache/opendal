@@ -410,17 +410,7 @@ impl WebhdfsBackend {
         }
 
         if !range.is_full() {
-            // Webhdfs does not support read from end
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "webhdfs doesn't support read with suffix range",
-                ));
-            };
-
-            if let Some(offset) = range.offset() {
-                url += &format!("&offset={offset}");
-            }
+            url += &format!("&offset={}", range.offset());
             if let Some(size) = range.size() {
                 url += &format!("&length={size}")
             }

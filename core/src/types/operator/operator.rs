@@ -568,13 +568,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Reader>>> {
+    pub fn reader_with(&self, path: &str) -> FutureReader<impl Future<Output = Result<Reader>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpRead::default(),
+            (OpRead::default(), ()),
             |inner, path, args| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -585,7 +585,7 @@ impl Operator {
                     );
                 }
 
-                Reader::create(inner.clone(), &path, args).await
+                Reader::create(inner.clone(), &path, args.0).await
             },
         )
     }

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::sync::Arc;
 
 use super::core::*;
@@ -42,9 +41,7 @@ impl AlluxioReader {
 
 impl oio::Read for AlluxioReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let Some(range) = self.op.range().apply_on_offset(offset, limit) else {
-            return Ok(oio::Buffer::new());
-        };
+        let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.read(self.stream_id, range).await?;
 

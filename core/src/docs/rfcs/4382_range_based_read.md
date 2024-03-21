@@ -56,9 +56,9 @@ We will remove the following `impl` from `Reader`:
 
 - `futures::AsyncRead`
 - `futures::AsyncSeek`
+- `futures::Stream`
 - `tokio::AsyncRead`
 - `tokio::AsyncSeek`
-- `futures::Stream`
 
 We will add the following new APIs to `Reader`:
 
@@ -76,7 +76,7 @@ impl Reader {
     /// Read all data from the storage into given buf at the specified offset.
     pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize>;
 
-    /// Convert Reader into `futures::AsyncRead`
+    /// Convert Reader into `futures::AsyncRead`  
     pub fn into_futures_read(
         self,
     ) -> impl futures::AsyncRead + Send + Sync + Unpin;
@@ -85,6 +85,11 @@ impl Reader {
     pub fn into_futures_read_seek(
         self,
     ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin;
+    
+    /// Convert Reader into `futures::Stream`
+    pub fn into_futures_stream(
+        self,
+    ) -> impl futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin;
     
     /// Convert Reader into `tokio::io::AsyncRead`
     pub fn into_tokio_io_read(
@@ -95,11 +100,6 @@ impl Reader {
     pub fn into_tokio_io_read_seek(
         self,
     ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin;
-    
-    /// Convert Reader into `futures::Stream`
-    pub fn into_futures_stream(
-        self,
-    ) -> impl futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin;
 }
 ```
 
@@ -138,17 +138,17 @@ For example, http based storage services like `s3` is a stream that generating d
 This change will break the existing `Reader` API. Users will need to update their code to use the new `Reader` API.
 
 Users wishing to migrate to the new range-based API will need to update their code. Those who simply want to use `futures::AsyncRead` can instead utilize `Reader::into_futures_read`.
-
+  
 # Rationale and alternatives
 
 None.
 
 # Prior art
 
-## `object_store`'s API design
+## `object_store`'s API design  
 
 Current API design inspired from `object_store`'s `ObjectStore` a lot:
-
+    
 ```rust
 #[async_trait]
 pub trait ObjectStore: std::fmt::Display + Send + Sync + Debug + 'static {

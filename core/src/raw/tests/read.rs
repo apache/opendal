@@ -113,7 +113,7 @@ impl ReadChecker {
                 ReadAction::Read(offset, size) => {
                     let mut bs = Vec::with_capacity(size);
                     let n = r
-                        .read_at(&mut bs, offset as u64)
+                        .read(&mut bs, offset as u64, size)
                         .await
                         .expect("read must success");
                     self.check_read(offset, size, &bs[..n]);
@@ -131,7 +131,7 @@ impl ReadChecker {
                 ReadAction::Read(offset, size) => {
                     let mut bs = Vec::with_capacity(size);
                     let n = r
-                        .read_at(&mut bs, offset as u64)
+                        .read(&mut bs, offset as u64, size)
                         .expect("read must success");
                     self.check_read(offset, size, &bs[..n]);
                 }

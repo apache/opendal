@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::Bound;
 use std::io;
 use std::io::SeekFrom;
 use std::ops::{Range, RangeBounds};
@@ -56,25 +57,47 @@ impl BlockingReader {
         BlockingReader { inner: r }
     }
 
-    /// Read given range bytes of data from reader.
-    pub fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> crate::Result<usize> {
-        let bs = self.inner.read_at(offset, buf.remaining_mut())?;
+    #[inline]
+    pub fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
+        let bs = self.inner.read_at(offset, limit)?;
         let n = bs.remaining();
         buf.put(bs);
         Ok(n)
     }
 
     /// Read given range bytes of data from reader.
-    pub fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> crate::Result<usize> {
-        if range.is_empty() {
-            return Ok(0);
+    pub fn read_range(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize> {
+        let start = match range.start_bound().cloned() {
+            Bound::Included(start) => start,
+            Bound::Excluded(start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound().cloned() {
+            Bound::Included(end) => Some(end + 1),
+            Bound::Excluded(end) => Some(end),
+            Bound::Unbounded => None,
+        };
+
+        // If range is empty, return Ok(0) directly.
+        if let Some(end) = end {
+            if end <= start {
+                return Ok(0);
+            }
         }
-        let (mut offset, mut size) = (range.start, range.end - range.start);
+
+        let mut offset = start;
+        let mut size = match end {
+            Some(end) => Some(end - start),
+            None => None,
+        };
 
         let mut read = 0;
-
         loop {
-            let bs = self.inner.read_at(offset, size as usize)?;
+            let bs = self
+                .inner
+                // TODO: use service preferred io size instead.
+                .read_at(offset, size.unwrap_or(4 * 1024 * 1024) as usize)?;
             let n = bs.remaining();
             read += n;
             buf.put(bs);
@@ -84,36 +107,16 @@ impl BlockingReader {
 
             offset += n as u64;
 
-            debug_assert!(
-                size >= n as u64,
-                "read should not return more bytes than expected"
-            );
-            size -= n as u64;
-            if size == 0 {
+            size = size.map(|v| v - n as u64);
+            if size == Some(0) {
                 return Ok(read);
             }
         }
     }
 
-    pub fn read_to_end(&self, buf: &mut impl BufMut) -> crate::Result<usize> {
-        self.read_to_end_at(buf, 0)
-    }
-
-    pub fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> crate::Result<usize> {
-        let mut size = 0;
-        loop {
-            // TODO: io size should be tuned based on storage
-            let bs = self.inner.read_at(offset, 4 * 1024 * 1024)?;
-            let n = bs.remaining();
-            size += n;
-
-            buf.put(bs);
-            if n == 0 {
-                return Ok(size);
-            }
-
-            offset += n as u64;
-        }
+    #[inline]
+    pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
+        self.read_range(buf, ..)
     }
 }
 

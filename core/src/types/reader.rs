@@ -17,7 +17,7 @@
 
 use std::io;
 use std::io::SeekFrom;
-use std::ops::{Range, RangeBounds};
+use std::ops::{Bound, Range, RangeBounds};
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -122,24 +122,52 @@ impl Reader {
         tokio_io_adapter::TokioReader::new(self.acc, self.path, self.op)
     }
 
-    pub async fn read_at(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
-        let bs = self.inner.read_at_dyn(offset, buf.remaining_mut()).await?;
+    #[inline]
+    pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
+        let bs = self.inner.read_at_dyn(offset, limit).await?;
         let n = bs.remaining();
         buf.put(bs);
         Ok(n)
     }
 
     /// Read given range bytes of data from reader.
-    pub async fn read_range(&self, buf: &mut impl BufMut, range: Range<u64>) -> Result<usize> {
-        if range.is_empty() {
-            return Ok(0);
+    pub async fn read_range(
+        &self,
+        buf: &mut impl BufMut,
+        range: impl RangeBounds<u64>,
+    ) -> Result<usize> {
+        let start = match range.start_bound().cloned() {
+            Bound::Included(start) => start,
+            Bound::Excluded(start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound().cloned() {
+            Bound::Included(end) => Some(end + 1),
+            Bound::Excluded(end) => Some(end),
+            Bound::Unbounded => None,
+        };
+
+        // If range is empty, return Ok(0) directly.
+        if let Some(end) = end {
+            if end <= start {
+                return Ok(0);
+            }
         }
-        let (mut offset, mut size) = (range.start, range.end - range.start);
+
+        let mut offset = start;
+        let mut size = match end {
+            Some(end) => Some(end - start),
+            None => None,
+        };
 
         let mut read = 0;
-
         loop {
-            let bs = self.inner.read_at_dyn(offset, size as usize).await?;
+            let bs = self
+                .inner
+                // TODO: use service preferred io size instead.
+                .read_at_dyn(offset, size.unwrap_or(4 * 1024 * 1024) as usize)
+                .await?;
             let n = bs.remaining();
             read += n;
             buf.put(bs);
@@ -149,36 +177,16 @@ impl Reader {
 
             offset += n as u64;
 
-            debug_assert!(
-                size >= n as u64,
-                "read should not return more bytes than expected"
-            );
-            size -= n as u64;
-            if size == 0 {
+            size = size.map(|v| v - n as u64);
+            if size == Some(0) {
                 return Ok(read);
             }
         }
     }
 
+    #[inline]
     pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
-        self.read_to_end_at(buf, 0).await
-    }
-
-    pub async fn read_to_end_at(&self, buf: &mut impl BufMut, mut offset: u64) -> Result<usize> {
-        let mut size = 0;
-        loop {
-            // TODO: io size should be tuned based on storage
-            let bs = self.inner.read_at_dyn(offset, 4 * 1024 * 1024).await?;
-            let n = bs.remaining();
-            size += n;
-
-            buf.put(bs);
-            if n == 0 {
-                return Ok(size);
-            }
-
-            offset += n as u64;
-        }
+        self.read_range(buf, ..).await
     }
 }
 
@@ -501,7 +509,7 @@ mod tests {
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
-            .read_to_end_at(&mut buf, 0)
+            .read_to_end(&mut buf)
             .await
             .expect("read to end must succeed");
 
@@ -521,7 +529,7 @@ mod tests {
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
-            .read_to_end_at(&mut buf, 0)
+            .read_to_end(&mut buf)
             .await
             .expect("read to end must succeed");
         assert_eq!(buf, content);

@@ -15,27 +15,73 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{oio, OpRead};
+use crate::raw::{new_std_io_error, oio, OpRead};
+use crate::{Error, ErrorKind};
+use hdrs::File;
 use http::StatusCode;
 use std::future::Future;
 use std::sync::Arc;
+use tokio::io::ReadBuf;
 
 pub struct HdfsReader {
-    path: String,
-    op: OpRead,
+    f: Arc<File>,
 }
 
 impl HdfsReader {
-    pub fn new(path: &str, op: OpRead) -> Self {
-        HdfsReader {
-            path: path.to_string(),
-            op,
-        }
+    pub fn new(f: File) -> Self {
+        Self { f: Arc::new(f) }
     }
 }
 
 impl oio::Read for HdfsReader {
     async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        todo!()
+        let r = Self { f: self.f.clone() };
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => runtime
+                .spawn_blocking(move || oio::BlockingRead::read_at(&r, offset, limit))
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
+                })?,
+            Err(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "no tokio runtime found, failed to run io task",
+            )),
+        }
+    }
+}
+
+impl oio::BlockingRead for HdfsReader {
+    fn read_at(&self, mut offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+        let mut bs = Vec::with_capacity(limit);
+
+        let buf = bs.spare_capacity_mut();
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
+
+        // SAFETY: Read at most `size` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(limit);
+        }
+
+        loop {
+            // If the buffer is full, we are done.
+            if read_buf.initialize_unfilled().is_empty() {
+                break;
+            }
+            let n = self
+                .f
+                .read_at(read_buf.initialize_unfilled(), offset)
+                .map_err(new_std_io_error)?;
+            if n == 0 {
+                break;
+            }
+            read_buf.advance(n);
+            offset += n as u64;
+        }
+
+        // Safety: We make sure that bs contains `n` more bytes.
+        let filled = read_buf.filled().len();
+        unsafe { bs.set_len(filled) }
+        Ok(oio::Buffer::from(bs))
     }
 }

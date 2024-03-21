@@ -250,7 +250,7 @@ impl Accessor for HdfsBackend {
     type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
-    type BlockingReader = Bytes;
+    type BlockingReader = HdfsReader;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
 
@@ -311,15 +311,27 @@ impl Accessor for HdfsBackend {
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self
-            .client
-            .open_file()
-            .read(true)
-            .async_open(&p)
-            .await
-            .map_err(new_std_io_error)?;
+        let client = self.client.clone();
+        let f = match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => runtime
+                .spawn_blocking(move || {
+                    client
+                        .open_file()
+                        .read(true)
+                        .open(&p)
+                        .map_err(new_std_io_error)
+                })
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
+                })?,
+            Err(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "no tokio runtime found, failed to run io task",
+            )),
+        }?;
 
-        todo!()
+        Ok((RpRead::new(), HdfsReader::new(f)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -508,7 +520,7 @@ impl Accessor for HdfsBackend {
             .open(&p)
             .map_err(new_std_io_error)?;
 
-        todo!()
+        Ok((RpRead::new(), HdfsReader::new(f)))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future::Future;
-use std::io;
+
 use std::sync::Arc;
 
 use std::time::Instant;
@@ -456,7 +456,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.handle.requests_total_read.increment(1);
 
-        let start = Instant::now();
+        let _start = Instant::now();
 
         self.inner
             .read(path, args)
@@ -485,7 +485,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.handle.requests_total_write.increment(1);
 
-        let start = Instant::now();
+        let _start = Instant::now();
 
         self.inner
             .write(path, args)
@@ -618,7 +618,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
-        let start = Instant::now();
+        let _start = Instant::now();
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,

@@ -46,7 +46,7 @@ impl oio::Read for FtpReader {
 
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
-        let meta = self.core.ftp_stat(&self.path).await?;
+        let _meta = self.core.ftp_stat(&self.path).await?;
 
         match (range.offset(), range.size()) {
             (Some(offset), Some(size)) => {

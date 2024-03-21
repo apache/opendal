@@ -30,7 +30,7 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;
-use super::error::parse_error_msg;
+
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
 use super::message::FileStatusType;

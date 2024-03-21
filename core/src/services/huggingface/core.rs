@@ -125,7 +125,7 @@ impl HuggingfaceCore {
         &self,
         path: &str,
         range: BytesRange,
-        args: &OpRead,
+        _args: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')

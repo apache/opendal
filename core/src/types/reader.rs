@@ -17,13 +17,13 @@
 
 use std::io;
 use std::io::SeekFrom;
-use std::ops::{Bound, Range, RangeBounds};
-use std::pin::Pin;
+use std::ops::{Bound, RangeBounds};
+
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut};
 use futures::Stream;
 use tokio::io::ReadBuf;
 
@@ -239,7 +239,7 @@ mod futures_io_adapter {
 
             match &mut self.state {
                 State::Idle(r) => {
-                    let mut r = r.take().expect("reader must be valid");
+                    let r = r.take().expect("reader must be valid");
                     let size = buf.len();
                     let offset = self.offset;
                     let fut = async move {
@@ -269,10 +269,10 @@ mod futures_io_adapter {
     impl AsyncSeek for FuturesReader {
         fn poll_seek(
             mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
+            _cx: &mut Context<'_>,
             pos: io::SeekFrom,
         ) -> Poll<io::Result<u64>> {
-            use oio::Read;
+            
 
             match &mut self.state {
                 State::Idle(_) => match pos {
@@ -293,7 +293,7 @@ mod futures_io_adapter {
                         Poll::Ready(Ok(self.offset))
                     }
                 },
-                State::Stating(fut) => {
+                State::Stating(_fut) => {
                     todo!()
                 }
                 State::Reading(_) => Poll::Ready(Err(io::Error::new(
@@ -354,7 +354,7 @@ mod tokio_io_adapter {
 
             match &mut self.state {
                 State::Idle(r) => {
-                    let mut r = r.take().expect("reader must be valid");
+                    let r = r.take().expect("reader must be valid");
                     let size = buf.remaining_mut();
                     let offset = self.offset;
                     let fut = async move {
@@ -402,7 +402,7 @@ mod tokio_io_adapter {
                         Ok(())
                     }
                 },
-                State::Stating(fut) => {
+                State::Stating(_fut) => {
                     todo!()
                 }
                 State::Reading(_) => Err(io::Error::new(
@@ -412,7 +412,7 @@ mod tokio_io_adapter {
             }
         }
 
-        fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+        fn poll_complete(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
             Poll::Ready(Ok(self.offset))
         }
     }
@@ -420,7 +420,7 @@ mod tokio_io_adapter {
 
 mod stream_adapter {
     use super::*;
-    use crate::raw::{oio, BoxedStaticFuture, RpStat};
+    use crate::raw::{oio, BoxedStaticFuture};
     use bytes::Bytes;
     use futures::Stream;
     use std::io;
@@ -452,7 +452,7 @@ mod stream_adapter {
 
             match &mut self.state {
                 State::Idle(r) => {
-                    let mut r = r.take().expect("reader must be valid");
+                    let r = r.take().expect("reader must be valid");
                     let fut = async move {
                         // TODO: should allow user to tune this value.
                         let res = r.read_at_dyn(offset, 4 * 1024 * 1024).await;

@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use serde::Deserialize;
 use tokio::sync::Mutex;
 

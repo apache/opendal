@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future::Future;
 
-use std::io;
-
 use std::sync::Arc;
 
 use std::time::Duration;

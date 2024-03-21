@@ -19,8 +19,8 @@ use super::error::parse_error;
 use crate::raw::{oio, OpRead};
 use crate::services::http::backend::HttpBackend;
 use http::StatusCode;
-use std::future::Future;
-use std::sync::Arc;
+
+
 
 pub struct HttpReader {
     core: HttpBackend,

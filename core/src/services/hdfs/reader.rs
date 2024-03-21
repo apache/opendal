@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{new_std_io_error, oio, OpRead};
+use crate::raw::{new_std_io_error, oio};
 use crate::{Error, ErrorKind};
 use hdrs::File;
-use http::StatusCode;
-use std::future::Future;
+
+
 use std::sync::Arc;
 use tokio::io::ReadBuf;
 

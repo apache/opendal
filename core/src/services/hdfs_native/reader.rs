@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
 
-use bytes::Bytes;
+
+
 use hdfs_native::file::FileReader;
 
 use crate::raw::oio;
-use crate::*;
+
 
 pub struct HdfsNativeReader {
     _f: FileReader,
@@ -34,7 +34,7 @@ impl HdfsNativeReader {
 }
 
 impl oio::Read for HdfsNativeReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, _offset: u64, _limit: usize) -> crate::Result<oio::Buffer> {
         todo!()
     }
 }

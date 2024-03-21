@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes};
 use rand::thread_rng;
 use rand::RngCore;
 use sha2::Digest;
@@ -125,7 +125,7 @@ impl ReadChecker {
     /// Check will check the correctness of the read process via given actions.
     ///
     /// Check will panic if any check failed.
-    pub fn blocking_check(&mut self, mut r: BlockingReader, actions: &[ReadAction]) {
+    pub fn blocking_check(&mut self, r: BlockingReader, actions: &[ReadAction]) {
         for action in actions {
             match *action {
                 ReadAction::Read(offset, size) => {

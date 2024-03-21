@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+
 use futures::AsyncWriteExt;
 use log::debug;
 use serde::Deserialize;

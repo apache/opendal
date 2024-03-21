@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -29,7 +29,7 @@ use tokio::sync::RwLock;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::core::SeafileCore;
-use super::error::parse_error;
+
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;

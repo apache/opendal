@@ -16,12 +16,12 @@
 // under the License.
 
 use super::error::{parse_error, parse_error_msg};
-use crate::raw::{oio, OpRead, RpRead};
+use crate::raw::{oio, OpRead};
 use crate::services::webhdfs::backend::WebhdfsBackend;
 use bytes::Buf;
 use http::StatusCode;
-use std::future::Future;
-use std::sync::Arc;
+
+
 
 pub struct WebhdfsReader {
     core: WebhdfsBackend,

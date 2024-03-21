@@ -18,7 +18,7 @@
 use super::core::{parse_error, IcloudCore};
 use crate::raw::{oio, OpRead};
 use http::StatusCode;
-use std::future::Future;
+
 use std::sync::Arc;
 
 pub struct IcloudReader {

@@ -19,7 +19,7 @@ use super::core::SeafileCore;
 use super::error::parse_error;
 use crate::raw::{oio, OpRead};
 use http::StatusCode;
-use std::future::Future;
+
 use std::sync::Arc;
 
 pub struct SeafileReader {

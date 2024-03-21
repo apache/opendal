@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::io::SeekFrom;
+
+
 use std::sync::Arc;
 
 use base64::engine::general_purpose;
@@ -88,7 +88,7 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, _offset: u64, _limit: usize) -> Result<Buffer> {
         todo!()
     }
 }

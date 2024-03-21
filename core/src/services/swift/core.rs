@@ -131,7 +131,7 @@ impl SwiftCore {
         &self,
         path: &str,
         range: BytesRange,
-        arg: &OpRead,
+        _arg: &OpRead,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')

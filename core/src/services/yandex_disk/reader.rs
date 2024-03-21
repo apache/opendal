@@ -19,7 +19,7 @@ use super::core::YandexDiskCore;
 use super::error::parse_error;
 use crate::raw::{new_request_build_error, oio, AsyncBody, OpRead};
 use http::{header, Request, StatusCode};
-use std::future::Future;
+
 use std::sync::Arc;
 
 pub struct YandexDiskReader {

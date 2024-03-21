@@ -156,7 +156,7 @@ pub async fn test_reader_range(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.reader_with(&path).range(offset..offset + length).await?;
+    let r = op.reader_with(&path).range(offset..offset + length).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -186,7 +186,7 @@ pub async fn test_reader_range_with_buffer(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op
+    let r = op
         .reader_with(&path)
         .range(offset..offset + length)
         .buffer(4096)
@@ -220,7 +220,7 @@ pub async fn test_reader_from(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.reader_with(&path).range(offset..).await?;
+    let r = op.reader_with(&path).range(offset..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -248,7 +248,7 @@ pub async fn test_reader_from_with_buffer(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.reader_with(&path).range(offset..).buffer(4096).await?;
+    let r = op.reader_with(&path).range(offset..).buffer(4096).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -276,7 +276,7 @@ pub async fn test_reader_tail(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = match op.reader_with(&path).range(..length).await {
+    let r = match op.reader_with(&path).range(..length).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -312,7 +312,7 @@ pub async fn test_reader_tail_with_buffer(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = match op.reader_with(&path).range(..length).buffer(4096).await {
+    let r = match op.reader_with(&path).range(..length).buffer(4096).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -636,7 +636,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> 
 
 /// Read range should match.
 pub async fn test_read_only_reader_with_range(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(1024..2048).await?;
+    let r = op.reader_with("normal_file.txt").range(1024..2048).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -653,7 +653,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> anyhow::Result<()
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(29458..).await?;
+    let r = op.reader_with("normal_file.txt").range(29458..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;

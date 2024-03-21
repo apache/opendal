@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
-use std::pin::Pin;
+
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -28,7 +28,7 @@ use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
-use openssh_sftp_client::file::TokioCompatFile;
+
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;
@@ -318,7 +318,7 @@ impl Accessor for SftpBackend {
         fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
 
-        let f = client
+        let _f = client
             .open(path.as_path())
             .await
             .map_err(parse_sftp_error)?;

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio;
+
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 
@@ -41,7 +41,7 @@ impl Buffer {
     }
 
     /// Merge two buffer together without copying internal bytes.
-    pub fn merge(mut self, buf: Buffer) -> Self {
+    pub fn merge(self, buf: Buffer) -> Self {
         let mut vec = match self.0 {
             Inner::Contiguous(b) => {
                 // NOTE: we will have at least two bytes in the vec.

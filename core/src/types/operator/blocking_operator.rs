@@ -408,7 +408,7 @@ impl BlockingOperator {
                 };
 
                 let (_, r) = inner.blocking_read(&path, args.with_range(range))?;
-                let mut r = BlockingReader::new(r);
+                let r = BlockingReader::new(r);
                 let mut buf = Vec::with_capacity(size_hint as usize);
                 r.read_to_end(&mut buf)?;
 

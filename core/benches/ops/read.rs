@@ -121,16 +121,15 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
             group.bench_with_input(
                 format!("{}x{}", parallel, size.to_string()),
                 &(op.clone(), &path, buf_size),
-                |b, (op, path, buf_size)| {
+                |b, (op, path, _buf_size)| {
                     b.to_async(&*TEST_RUNTIME).iter(|| async {
                         let futures = (0..parallel)
                             .map(|_| async {
-                                let mut r = op
+                                let _r = op
                                     .reader_with(path)
                                     .range(offset..=offset + size.bytes() as u64)
                                     .await
                                     .unwrap();
-                                todo!();
                                 // r.read_exact(*buf_size).await.unwrap();
 
                                 let mut d = 0;

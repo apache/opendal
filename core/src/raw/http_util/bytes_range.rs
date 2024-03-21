@@ -140,7 +140,7 @@ impl BytesRange {
             }
             (Some(base), None) => Some(Self(Some(base + offset), Some(limit as u64))),
             (None, None) => Some(Self(Some(offset), Some(limit as u64))),
-            (None, Some(size)) => unimplemented!(),
+            (None, Some(_size)) => unimplemented!(),
         }
     }
 

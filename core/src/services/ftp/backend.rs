@@ -25,7 +25,7 @@ use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
-use futures::AsyncRead;
+
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;

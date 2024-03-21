@@ -47,7 +47,7 @@ impl Stream for () {
 }
 
 impl Stream for Bytes {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if self.has_remaining() {
             Poll::Ready(Some(Ok(self.copy_to_bytes(self.remaining()))))
         } else {

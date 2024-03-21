@@ -26,7 +26,7 @@ pub struct PcloudReader {
     core: Arc<PcloudCore>,
 
     link: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl PcloudReader {
@@ -34,7 +34,7 @@ impl PcloudReader {
         PcloudReader {
             core,
             link: link.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

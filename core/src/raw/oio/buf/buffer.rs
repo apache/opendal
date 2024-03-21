@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 
+/// Buffer is a wrapper of `Bytes` and `VecDeque<Bytes>`.
+///
+/// We designed buffer to allow underlying storage to return non-contiguous bytes.
+///
+/// For example, http based storage like s3 could generate non-contiguous bytes by stream.
 #[derive(Clone)]
 pub struct Buffer(Inner);
 
@@ -29,11 +33,15 @@ enum Inner {
 }
 
 impl Buffer {
+    /// Create a new empty buffer.
+    ///
+    /// This operation is const and no allocation will be performed.
     #[inline]
     pub const fn new() -> Self {
         Self(Inner::NonContiguous(VecDeque::new()))
     }
 
+    /// Clone internal bytes to a new `Bytes`.
     #[inline]
     pub fn to_bytes(&self) -> Bytes {
         let mut bs = self.clone();
@@ -88,7 +96,7 @@ impl From<Vec<Bytes>> for Buffer {
     }
 }
 
-impl bytes::Buf for Buffer {
+impl Buf for Buffer {
     #[inline]
     fn remaining(&self) -> usize {
         match &self.0 {

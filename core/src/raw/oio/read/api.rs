@@ -86,6 +86,12 @@ pub type Reader = Box<dyn ReadDyn>;
 /// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
+    /// Read at the given offset with the given limit.
+    ///
+    /// # Notes
+    ///
+    /// Storage services should try to read as much as possible, only return bytes less than the
+    /// limit while reaching the end of the file.
     #[cfg(not(target_arch = "wasm32"))]
     fn read_at(
         &self,
@@ -143,17 +149,13 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
 pub type BlockingReader = Box<dyn BlockingRead>;
 
 /// Read is the trait that OpenDAL returns to callers.
-///
-/// Read is compose of the following trait
-///
-/// - `Read`
-/// - `Seek`
-/// - `Iterator<Item = Result<Bytes>>`
-///
-/// `Read` is required to be implemented, `Seek` and `Iterator`
-/// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync {
-    /// Read synchronously.
+    /// Read data from the reader at the given offset with the given limit.
+    ///
+    /// # Notes
+    ///
+    /// Storage services should try to read as much as possible, only return bytes less than the
+    /// limit while reaching the end of the file.
     fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer>;
 }
 

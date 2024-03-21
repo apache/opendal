@@ -24,7 +24,7 @@ pub struct GhacReader {
     core: GhacBackend,
 
     location: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl GhacReader {
@@ -32,7 +32,7 @@ impl GhacReader {
         GhacReader {
             core,
             location: location.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

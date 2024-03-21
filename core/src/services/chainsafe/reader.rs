@@ -26,7 +26,7 @@ pub struct ChainsafeReader {
     core: Arc<ChainsafeCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl ChainsafeReader {
@@ -34,7 +34,7 @@ impl ChainsafeReader {
         ChainsafeReader {
             core,
             path: path.to_string(),
-            op,
+            _op: op,
         }
     }
 }

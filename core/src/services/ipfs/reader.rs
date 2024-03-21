@@ -24,7 +24,7 @@ pub struct IpfsReader {
     core: IpfsBackend,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl IpfsReader {
@@ -32,7 +32,7 @@ impl IpfsReader {
         IpfsReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

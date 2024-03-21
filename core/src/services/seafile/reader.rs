@@ -26,7 +26,7 @@ pub struct SeafileReader {
     core: Arc<SeafileCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl SeafileReader {
@@ -34,7 +34,7 @@ impl SeafileReader {
         SeafileReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

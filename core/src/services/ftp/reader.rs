@@ -25,7 +25,7 @@ pub struct FtpReader {
     core: FtpBackend,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl FtpReader {
@@ -33,7 +33,7 @@ impl FtpReader {
         FtpReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

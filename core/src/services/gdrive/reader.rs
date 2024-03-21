@@ -26,7 +26,7 @@ pub struct GdriveReader {
     core: Arc<GdriveCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl GdriveReader {
@@ -34,7 +34,7 @@ impl GdriveReader {
         GdriveReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

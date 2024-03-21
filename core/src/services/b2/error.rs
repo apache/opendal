@@ -79,7 +79,6 @@ pub fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 
 #[cfg(test)]
 mod test {
-    use futures::stream;
     use http::StatusCode;
 
     use super::*;

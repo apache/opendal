@@ -24,7 +24,7 @@ pub struct OnedriveReader {
     core: OnedriveBackend,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl OnedriveReader {
@@ -32,7 +32,7 @@ impl OnedriveReader {
         OnedriveReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

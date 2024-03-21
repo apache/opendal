@@ -24,7 +24,7 @@ pub struct IpmfsReader {
     core: IpmfsBackend,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl IpmfsReader {
@@ -32,7 +32,7 @@ impl IpmfsReader {
         IpmfsReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

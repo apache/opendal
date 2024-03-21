@@ -26,7 +26,7 @@ pub struct KoofrReader {
     core: Arc<KoofrCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl KoofrReader {
@@ -34,7 +34,7 @@ impl KoofrReader {
         KoofrReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

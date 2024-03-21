@@ -67,7 +67,6 @@ pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
 
 #[cfg(test)]
 mod test {
-    use futures::stream;
     use http::StatusCode;
 
     use super::*;

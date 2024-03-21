@@ -17,7 +17,6 @@
 
 use std::future::Future;
 
-
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -327,13 +326,11 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 #[cfg(test)]
 mod tests {
     use std::future::{pending, Future};
-    use std::io::SeekFrom;
     use std::sync::Arc;
 
     use std::time::Duration;
 
     use async_trait::async_trait;
-    use bytes::Bytes;
     use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
@@ -427,7 +424,7 @@ mod tests {
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
-        let mut reader = op.reader("test").await.unwrap();
+        let reader = op.reader("test").await.unwrap();
 
         let res = reader.read(&mut Vec::default(), 0, 4).await;
         assert!(res.is_err());

@@ -80,7 +80,6 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-    use futures::stream;
     use serde_json::from_reader;
 
     use super::*;
@@ -96,7 +95,7 @@ mod tests {
     "exception"    : "IllegalArgumentException",
     "javaClassName": "java.lang.IllegalArgumentException",
     "message"      : "Invalid value for webhdfs parameter \"permission\": ..."
-  }         
+  }
 }
     "#,
         );

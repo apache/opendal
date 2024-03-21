@@ -316,23 +316,6 @@ impl OpRead {
         Self::default()
     }
 
-    /// The into_deterministic function transforms the OpRead into a deterministic version.
-    ///
-    /// This API is utilized because it allows for internal optimizations such as dividing read
-    /// ranges or retrying the read request from where it failed. In these scenarios, the expected
-    /// `ETag` value differs from what users specify in `If-Match` or `If-None-Match`.Therefore,
-    /// we need to eliminate these conditional headers to ensure that the read operation is
-    /// deterministic.
-    ///
-    /// This API is not intended to be used by users and should never be exposed.
-    pub(crate) fn into_deterministic(self) -> Self {
-        Self {
-            if_match: None,
-            if_none_match: None,
-            ..self
-        }
-    }
-
     /// Create a new OpRead with range.
     pub fn with_range(mut self, range: BytesRange) -> Self {
         self.range = range;

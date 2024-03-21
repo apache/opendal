@@ -26,7 +26,7 @@ pub struct AzdlsReader {
     core: Arc<AzdlsCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl AzdlsReader {
@@ -34,7 +34,7 @@ impl AzdlsReader {
         AzdlsReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

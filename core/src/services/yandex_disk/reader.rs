@@ -26,7 +26,7 @@ pub struct YandexDiskReader {
     core: Arc<YandexDiskCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl YandexDiskReader {
@@ -34,7 +34,7 @@ impl YandexDiskReader {
         YandexDiskReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

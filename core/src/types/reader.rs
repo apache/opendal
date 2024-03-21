@@ -24,10 +24,8 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::{Buf, BufMut};
-use futures::Stream;
 use tokio::io::ReadBuf;
 
-use crate::raw::oio::BlockingRead;
 use crate::raw::*;
 use crate::*;
 
@@ -122,6 +120,11 @@ impl Reader {
         tokio_io_adapter::TokioReader::new(self.acc, self.path, self.op)
     }
 
+    /// Read from underlying storage and write data into the specified buffer, starting at
+    /// the given offset and up to the limit.
+    ///
+    /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
+    /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
     pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
         let bs = self.inner.read_at_dyn(offset, limit).await?;
@@ -184,6 +187,9 @@ impl Reader {
         }
     }
 
+    /// Read all data from reader.
+    ///
+    /// This API is exactly the same with `Reader::read_range(buf, ..)`.
     #[inline]
     pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
         self.read_range(buf, ..).await
@@ -418,7 +424,6 @@ mod tokio_io_adapter {
 
 mod stream_adapter {
     use super::*;
-    use crate::raw::*;
     use bytes::Bytes;
     use futures::Stream;
     use std::io;
@@ -504,7 +509,7 @@ mod tests {
             .await
             .expect("write must succeed");
 
-        let mut reader = op.reader(path).await.unwrap();
+        let reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
             .read_to_end(&mut buf)
@@ -524,7 +529,7 @@ mod tests {
             .await
             .expect("write must succeed");
 
-        let mut reader = op.reader(path).await.unwrap();
+        let reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
             .read_to_end(&mut buf)

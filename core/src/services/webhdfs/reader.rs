@@ -25,7 +25,7 @@ pub struct WebhdfsReader {
     core: WebhdfsBackend,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl WebhdfsReader {
@@ -33,7 +33,7 @@ impl WebhdfsReader {
         WebhdfsReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

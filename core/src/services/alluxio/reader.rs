@@ -26,7 +26,7 @@ pub struct AlluxioReader {
     core: Arc<AlluxioCore>,
 
     stream_id: u64,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl AlluxioReader {
@@ -34,7 +34,7 @@ impl AlluxioReader {
         AlluxioReader {
             core,
             stream_id,
-            op,
+            _op: op,
         }
     }
 }

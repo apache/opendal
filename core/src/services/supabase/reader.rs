@@ -26,7 +26,7 @@ pub struct SupabaseReader {
     core: Arc<SupabaseCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl SupabaseReader {
@@ -34,7 +34,7 @@ impl SupabaseReader {
         SupabaseReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

@@ -26,7 +26,7 @@ pub struct GithubReader {
     core: Arc<GithubCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl GithubReader {
@@ -34,7 +34,7 @@ impl GithubReader {
         GithubReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

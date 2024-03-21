@@ -26,7 +26,7 @@ pub struct AzfileReader {
     core: Arc<AzfileCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl AzfileReader {
@@ -34,7 +34,7 @@ impl AzfileReader {
         Self {
             core,
             path: path.to_string(),
-            op,
+            _op: op,
         }
     }
 }

@@ -26,7 +26,7 @@ pub struct UpyunReader {
     core: Arc<UpyunCore>,
 
     path: String,
-    op: OpRead,
+    _op: OpRead,
 }
 
 impl UpyunReader {
@@ -34,7 +34,7 @@ impl UpyunReader {
         UpyunReader {
             core,
             path: path.to_string(),
-            op: op,
+            _op: op,
         }
     }
 }

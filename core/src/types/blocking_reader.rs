@@ -17,16 +17,9 @@
 
 use std::collections::Bound;
 
-
-use std::ops::{RangeBounds};
-
-
-
-
+use std::ops::RangeBounds;
 
 use bytes::{Buf, BufMut};
-
-
 
 use crate::raw::oio::BlockingRead;
 use crate::raw::*;
@@ -52,11 +45,11 @@ impl BlockingReader {
         Ok(BlockingReader { inner: r })
     }
 
-    /// Create a new reader from an `oio::BlockingReader`.
-    pub(crate) fn new(r: oio::BlockingReader) -> Self {
-        BlockingReader { inner: r }
-    }
-
+    /// Read from underlying storage and write data into the specified buffer, starting at
+    /// the given offset and up to the limit.
+    ///
+    /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
+    /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
     pub fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
         let bs = self.inner.read_at(offset, limit)?;
@@ -114,6 +107,9 @@ impl BlockingReader {
         }
     }
 
+    /// Read all data from reader.
+    ///
+    /// This API is exactly the same with `BlockingReader::read_range(buf, ..)`.
     #[inline]
     pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
         self.read_range(buf, ..)

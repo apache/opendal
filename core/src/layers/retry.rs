@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 
 use std::sync::Arc;
 
@@ -903,7 +902,6 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -1112,7 +1110,7 @@ mod tests {
             .layer(RetryLayer::new())
             .finish();
 
-        let mut r = op.reader("retryable_error").await.unwrap();
+        let r = op.reader("retryable_error").await.unwrap();
         let mut content = Vec::new();
         let size = r
             .read_to_end(&mut content)

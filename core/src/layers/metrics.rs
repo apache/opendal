@@ -754,9 +754,13 @@ impl<R> MetricWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let start = Instant::now();
+
         match self.inner.read_at(offset, limit).await {
             Ok(bs) => {
                 self.bytes_counter.increment(bs.remaining() as u64);
+                self.requests_duration_seconds
+                    .record(start.elapsed().as_secs_f64());
                 Ok(bs)
             }
             Err(e) => {
@@ -769,10 +773,14 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
     fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let start = Instant::now();
+
         self.inner
             .read_at(offset, limit)
             .map(|bs| {
                 self.bytes_counter.increment(bs.remaining() as u64);
+                self.requests_duration_seconds
+                    .record(start.elapsed().as_secs_f64());
                 bs
             })
             .map_err(|e| {
@@ -783,11 +791,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        let start = Instant::now();
+
         self.inner
             .write(bs)
-            .map_ok(|n| {
+            .await
+            .map(|n| {
                 self.bytes_counter.increment(n as u64);
+                self.requests_duration_seconds
+                    .record(start.elapsed().as_secs_f64());
                 n
             })
             .map_err(|err| {
@@ -796,15 +809,15 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.abort().map_err(|err| {
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
-        self.inner.close().map_err(|err| {
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })

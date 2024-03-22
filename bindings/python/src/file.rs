@@ -268,13 +268,9 @@ impl File {
     /// In OpenDAL this is limited to only *readable* streams.
     pub fn seekable(&self) -> PyResult<bool> {
         match &self.0 {
-            FileState::Reader(_) => {
-                Ok(self.1.read_can_seek)
-            },
+            FileState::Reader(_) => Ok(self.1.read_can_seek),
             _ => Ok(false)
         }
-
-        // self.readable()
     }
 
     /// Return True if the stream is closed.
@@ -297,11 +293,17 @@ enum AsyncFileState {
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::Reader, capability: Capability) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))), capability)
+        Self(
+            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
+            capability
+        )
     }
 
     pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))), capability)
+        Self(
+            Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
+            capability
+        )
     }
 }
 
@@ -504,9 +506,7 @@ impl AsyncFile {
         if self.1.read_can_seek {
             self.readable(py)
         } else {
-            future_into_py(py, async move {
-                Ok(false)
-            })
+            future_into_py(py, async move { Ok(false) })
         }
     }
 

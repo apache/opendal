@@ -75,9 +75,6 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         let mut cap = am.native_capability();
         if cap.read {
-            cap.read_can_seek = true;
-            cap.read_can_next = true;
-            cap.read_with_range = true;
             cap.stat = true;
         }
 

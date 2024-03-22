@@ -177,8 +177,6 @@ impl Accessor for IpfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 list: true,
 

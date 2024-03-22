@@ -52,7 +52,6 @@ impl Accessor for DropboxBackend {
                 stat: true,
 
                 read: true,
-                read_with_range: true,
 
                 write: true,
 

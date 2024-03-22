@@ -253,8 +253,6 @@ impl Accessor for WebdavBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_empty: true,

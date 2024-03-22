@@ -262,8 +262,6 @@ impl Accessor for AzdlsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_append: true,

@@ -81,10 +81,6 @@ pub async fn test_read_full(op: Operator) -> anyhow::Result<()> {
 
 /// Read range content should match.
 pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
     let (offset, length) = gen_offset_length(size);
 
@@ -108,10 +104,6 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
 
 /// Read large range content should match.
 pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
     let (offset, _) = gen_offset_length(size);
 

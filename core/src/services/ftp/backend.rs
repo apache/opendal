@@ -299,7 +299,6 @@ impl Accessor for FtpBackend {
                 stat: true,
 
                 read: true,
-                read_with_range: true,
 
                 write: true,
 

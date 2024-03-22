@@ -183,8 +183,6 @@ impl Accessor for DbfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 create_dir: true,

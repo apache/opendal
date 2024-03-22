@@ -270,7 +270,6 @@ impl Accessor for SeafileBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
                 write_can_empty: true,

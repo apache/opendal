@@ -251,7 +251,6 @@ impl Accessor for UpyunBackend {
                 create_dir: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
                 write_can_empty: true,

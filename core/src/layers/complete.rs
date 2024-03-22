@@ -390,10 +390,6 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     fn metadata(&self) -> AccessorInfo {
         let mut meta = self.meta.clone();
         let cap = meta.full_capability_mut();
-        if cap.read {
-            cap.read_can_next = true;
-            cap.read_can_seek = true;
-        }
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }

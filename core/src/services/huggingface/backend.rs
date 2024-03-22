@@ -259,8 +259,6 @@ impl Accessor for HuggingfaceBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 list: true,
                 list_with_recursive: true,

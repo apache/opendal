@@ -60,7 +60,6 @@ impl Accessor for VercelArtifactsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
 

@@ -256,7 +256,6 @@ impl Accessor for FsBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
 
                 write: true,
                 write_can_empty: true,

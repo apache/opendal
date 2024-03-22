@@ -247,7 +247,6 @@ impl Accessor for PcloudBackend {
                 create_dir: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
 

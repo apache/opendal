@@ -273,8 +273,7 @@ impl Accessor for CosBackend {
                 stat_with_if_none_match: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 

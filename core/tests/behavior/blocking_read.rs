@@ -71,10 +71,6 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes(op.info().full_capability());
@@ -100,10 +96,6 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
 
 /// Read large range content should match.
 pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes(op.info().full_capability());

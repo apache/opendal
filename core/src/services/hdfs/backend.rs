@@ -261,7 +261,6 @@ impl Accessor for HdfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
 
                 write: true,
                 write_can_append: self.enable_append,

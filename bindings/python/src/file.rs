@@ -269,7 +269,7 @@ impl File {
     pub fn seekable(&self) -> PyResult<bool> {
         match &self.0 {
             FileState::Reader(_) => Ok(self.1.read_can_seek),
-            _ => Ok(false)
+            _ => Ok(false),
         }
     }
 
@@ -295,14 +295,14 @@ impl AsyncFile {
     pub fn new_reader(reader: ocore::Reader, capability: Capability) -> Self {
         Self(
             Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
-            capability
+            capability,
         )
     }
 
     pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
         Self(
             Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
-            capability
+            capability,
         )
     }
 }

@@ -32,7 +32,7 @@ pub use reader::Reader;
 
 mod blocking_reader;
 pub use blocking_reader::into_std_iterator::StdBytesIterator;
-pub use blocking_reader::into_std_read::StdReader;
+pub use blocking_reader::into_std_read::StdIoReader;
 pub use blocking_reader::BlockingReader;
 
 mod writer;

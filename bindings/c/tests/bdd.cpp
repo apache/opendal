@@ -95,7 +95,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     unsigned char buffer[this->content.length()];
     opendal_result_operator_reader reader = opendal_operator_reader(this->p, this->path.c_str());
     EXPECT_EQ(reader.error, nullptr);
-    auto rst = opendal_reader_read(reader.reader, buffer, length);
+    auto rst = opendal_reader_pread(reader.reader, buffer, 0, length);
     EXPECT_EQ(rst.size, length);
     for (int i = 0; i < this->content.length(); i++) {
         EXPECT_EQ(this->content[i], buffer[i]);

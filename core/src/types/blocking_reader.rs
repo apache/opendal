@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::Bound;
-use std::ops::RangeBounds;
+use std::ops::{Range, RangeBounds};
 
 use bytes::Buf;
 use bytes::BufMut;
@@ -111,37 +111,196 @@ impl BlockingReader {
     pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
         self.read_range(buf, ..)
     }
+
+    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
+    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    #[inline]
+    pub fn into_std_io_read(self, range: Range<u64>) -> StdReader {
+        // TODO: the capacity should be decided by services.
+        StdReader::new(self.inner, range)
+    }
+
+    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
+    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    #[inline]
+    pub fn into_std_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
+        StdBytesIterator::new(self.inner, range)
+    }
 }
 
-// impl io::Read for BlockingReader {
-//     #[inline]
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         let bs = self.inner.read(buf.len()).map_err(format_std_io_error)?;
-//         buf[..bs.len()].copy_from_slice(&bs);
-//         Ok(bs.len())
-//     }
-// }
-//
-// impl io::Seek for BlockingReader {
-//     #[inline]
-//     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-//         self.inner.seek(pos).map_err(format_std_io_error)
-//     }
-// }
-//
-// impl Iterator for BlockingReader {
-//     type Item = io::Result<Bytes>;
-//
-//     #[inline]
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match self
-//             .inner
-//             .read(4 * 1024 * 1024)
-//             .map_err(format_std_io_error)
-//         {
-//             Ok(bs) if bs.is_empty() => None,
-//             Ok(bs) => Some(Ok(bs)),
-//             Err(err) => Some(Err(err)),
-//         }
-//     }
-// }
+pub mod into_std_read {
+    use crate::raw::{format_std_io_error, oio};
+    use bytes::Buf;
+    use std::io;
+    use std::io::Read;
+    use std::io::Seek;
+    use std::io::{BufRead, SeekFrom};
+    use std::ops::Range;
+
+    /// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
+    ///
+    /// Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
+    ///
+    /// StdReader also implements [`Send`] and [`Sync`].
+    pub struct StdReader {
+        inner: oio::BlockingReader,
+        offset: u64,
+        size: u64,
+        cap: usize,
+
+        cur: u64,
+        buf: oio::Buffer,
+    }
+
+    impl StdReader {
+        /// NOTE: don't allow users to create StdReader directly.
+        #[inline]
+        pub(super) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
+            StdReader {
+                inner: r,
+                offset: range.start,
+                size: range.end - range.start,
+                // TODO: should use services preferred io size.
+                cap: 4 * 1024 * 1024,
+
+                cur: 0,
+                buf: oio::Buffer::new(),
+            }
+        }
+
+        /// Set the capacity of this reader to control the IO size.
+        pub fn with_capacity(mut self, cap: usize) -> Self {
+            self.cap = cap;
+            self
+        }
+    }
+
+    impl BufRead for StdReader {
+        fn fill_buf(&mut self) -> io::Result<&[u8]> {
+            if self.buf.has_remaining() {
+                return Ok(self.buf.chunk());
+            }
+
+            // Make sure cur didn't exceed size.
+            if self.cur >= self.size {
+                return Ok(&[]);
+            }
+
+            let next_offset = self.offset + self.cur;
+            let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
+            self.buf = self
+                .inner
+                .read_at(next_offset, next_size)
+                .map_err(format_std_io_error)?;
+            Ok(self.buf.chunk())
+        }
+
+        fn consume(&mut self, amt: usize) {
+            self.buf.advance(amt);
+            self.cur += amt as u64;
+        }
+    }
+
+    impl Read for StdReader {
+        #[inline]
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let bs = self.fill_buf()?;
+            let n = bs.len().min(buf.len());
+            buf[..n].copy_from_slice(&bs[..n]);
+            self.consume(n);
+            Ok(n)
+        }
+    }
+
+    impl Seek for StdReader {
+        #[inline]
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            let new_pos = match pos {
+                SeekFrom::Start(pos) => pos as i64,
+                SeekFrom::End(pos) => self.size as i64 + pos,
+                SeekFrom::Current(pos) => self.cur as i64 + pos,
+            };
+
+            if new_pos < 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative position",
+                ));
+            }
+
+            let new_pos = new_pos as u64;
+
+            if (self.cur..self.cur + self.buf.remaining() as u64).contains(&new_pos) {
+                let cnt = new_pos - self.cur;
+                self.buf.advance(cnt as _);
+            } else {
+                self.buf = oio::Buffer::new()
+            }
+
+            self.cur = new_pos;
+            Ok(self.cur)
+        }
+    }
+}
+
+pub mod into_std_iterator {
+    use crate::raw::*;
+    use bytes::{Buf, Bytes};
+    use std::io;
+
+    /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].
+    ///
+    /// Users can use this adapter in cases where they need to use [`Iterator`] trait.
+    ///
+    /// StdIterator also implements [`Send`] and [`Sync`].
+    pub struct StdBytesIterator {
+        inner: oio::BlockingReader,
+        offset: u64,
+        size: u64,
+        cap: usize,
+
+        cur: u64,
+    }
+
+    impl StdBytesIterator {
+        /// NOTE: don't allow users to create StdIterator directly.
+        #[inline]
+        pub(crate) fn new(r: oio::BlockingReader, range: std::ops::Range<u64>) -> Self {
+            StdBytesIterator {
+                inner: r,
+                offset: range.start,
+                size: range.end - range.start,
+                // TODO: should use services preferred io size.
+                cap: 4 * 1024 * 1024,
+                cur: 0,
+            }
+        }
+
+        /// Set the capacity of this reader to control the IO size.
+        pub fn with_capacity(mut self, cap: usize) -> Self {
+            self.cap = cap;
+            self
+        }
+    }
+
+    impl Iterator for StdBytesIterator {
+        type Item = io::Result<Bytes>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.cur >= self.size {
+                return None;
+            }
+
+            let next_offset = self.offset + self.cur;
+            let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
+            match self.inner.read_at(next_offset, next_size) {
+                Ok(buf) if !buf.has_remaining() => None,
+                Ok(mut buf) => {
+                    self.cur += buf.remaining() as u64;
+                    Some(Ok(buf.copy_to_bytes(buf.remaining())))
+                }
+                Err(err) => Some(Err(format_std_io_error(err))),
+            }
+        }
+    }
+}

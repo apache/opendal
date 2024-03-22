@@ -26,11 +26,13 @@ pub use metadata::Metadata;
 pub use metadata::Metakey;
 
 mod reader;
-pub use reader::into_futures_async_read::FuturesAsyncReader;
-pub use reader::into_futures_stream::FuturesStream;
+pub use reader::into_futures_async_read::FuturesIoAsyncReader;
+pub use reader::into_futures_stream::FuturesBytesStream;
 pub use reader::Reader;
 
 mod blocking_reader;
+pub use blocking_reader::into_std_iterator::StdBytesIterator;
+pub use blocking_reader::into_std_read::StdReader;
 pub use blocking_reader::BlockingReader;
 
 mod writer;

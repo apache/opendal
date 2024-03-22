@@ -36,10 +36,6 @@ use crate::*;
 /// ## Direct
 ///
 /// [`Reader`] provides public API including [`Reader::read`], [`Reader:read_range`], and [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
-///
-/// # TODO
-///
-/// Implement `into_async_read` and `into_stream`.
 pub struct Reader {
     inner: oio::Reader,
 }
@@ -130,25 +126,18 @@ impl Reader {
         self.read_range(buf, ..).await
     }
 
-    /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
+    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_futures_async_read(
-        self,
-        range: Range<u64>,
-    ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
-        // TODO: the capacity should be decided by services.
-        FuturesAsyncReader::new(self.inner, range)
+    pub fn into_futures_io_async_read(self, range: Range<u64>) -> FuturesIoAsyncReader {
+        FuturesIoAsyncReader::new(self.inner, range)
     }
 
-    /// Convert reader into [`FuturesStream`] which implements [`futures::Stream`],
+    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_futures_stream(
-        self,
-        range: Range<u64>,
-    ) -> impl futures::Stream + Send + Sync + Unpin {
-        FuturesStream::new(self.inner, range)
+    pub fn into_futures_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
+        FuturesBytesStream::new(self.inner, range)
     }
 }
 
@@ -169,19 +158,13 @@ pub mod into_futures_async_read {
     use crate::raw::*;
     use crate::*;
 
-    /// FuturesAsyncReader is the adapter of [`AsyncRead`] for [`Reader`].
+    /// FuturesAsyncReader is the adapter of [`AsyncRead`], [`AsyncBufRead`] and [`AsyncSeek`]
+    /// for [`Reader`].
     ///
-    /// Users can use this adapter in cases where they need to use [`AsyncRead`] trait.
+    /// Users can use this adapter in cases where they need to use [`AsyncRead`] related trait.
     ///
-    /// FuturesAsyncReader implements the following trait:
-    ///
-    /// - [`AsyncBufRead`]
-    /// - [`AsyncRead`]
-    /// - [`AsyncSeek`]
-    /// - [`Unpin`]
-    /// - [`Send`]
-    /// - [`Sync`]
-    pub struct FuturesAsyncReader {
+    /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
+    pub struct FuturesIoAsyncReader {
         state: State,
         offset: u64,
         size: u64,
@@ -201,11 +184,11 @@ pub mod into_futures_async_read {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesAsyncReader {
+    impl FuturesIoAsyncReader {
         /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
         pub(super) fn new(r: oio::Reader, range: Range<u64>) -> Self {
-            FuturesAsyncReader {
+            FuturesIoAsyncReader {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
@@ -224,7 +207,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncBufRead for FuturesAsyncReader {
+    impl AsyncBufRead for FuturesIoAsyncReader {
         fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
@@ -263,7 +246,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncRead for FuturesAsyncReader {
+    impl AsyncRead for FuturesIoAsyncReader {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -277,7 +260,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncSeek for FuturesAsyncReader {
+    impl AsyncSeek for FuturesIoAsyncReader {
         fn poll_seek(
             mut self: Pin<&mut Self>,
             _: &mut Context<'_>,
@@ -330,13 +313,8 @@ pub mod into_futures_stream {
     ///
     /// Users can use this adapter in cases where they need to use [`Stream`] trait.
     ///
-    /// FuturesStream implements the following trait:
-    ///
-    /// - [`Stream`]
-    /// - [`Unpin`]
-    /// - [`Send`]
-    /// - [`Sync`]
-    pub struct FuturesStream {
+    /// FuturesStream also implements [`Unpin`], [`Send`] and [`Sync`].
+    pub struct FuturesBytesStream {
         state: State,
         offset: u64,
         size: u64,
@@ -355,11 +333,11 @@ pub mod into_futures_stream {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesStream {
+    impl FuturesBytesStream {
         /// NOTE: don't allow users to create FuturesStream directly.
         #[inline]
         pub(crate) fn new(r: oio::Reader, range: Range<u64>) -> Self {
-            FuturesStream {
+            FuturesBytesStream {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
@@ -377,7 +355,7 @@ pub mod into_futures_stream {
         }
     }
 
-    impl Stream for FuturesStream {
+    impl Stream for FuturesBytesStream {
         type Item = io::Result<Bytes>;
 
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

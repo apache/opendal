@@ -26,6 +26,8 @@ pub use metadata::Metadata;
 pub use metadata::Metakey;
 
 mod reader;
+pub use reader::into_futures_async_read::FuturesAsyncReader;
+pub use reader::into_futures_stream::FuturesStream;
 pub use reader::Reader;
 
 mod blocking_reader;

@@ -130,35 +130,29 @@ impl Reader {
         self.read_range(buf, ..).await
     }
 
-    /// Convert reader into async read.
+    /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
+    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_async_read(
+    pub fn into_futures_async_read(
         self,
         range: Range<u64>,
     ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin {
         // TODO: the capacity should be decided by services.
-        impl_futures_async_read::FuturesReader::new(self.inner, range, 4 * 1024 * 1024)
+        FuturesAsyncReader::new(self.inner, range)
     }
 
-    /// Convert reader into async buf read.
+    /// Convert reader into [`FuturesStream`] which implements [`futures::Stream`],
+    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_async_buf_read(
+    pub fn into_futures_stream(
         self,
         range: Range<u64>,
-        capacity: usize,
-    ) -> impl futures::AsyncBufRead + futures::AsyncSeek + Send + Sync + Unpin {
-        impl_futures_async_read::FuturesReader::new(self.inner, range, capacity)
-    }
-
-    /// Convert reader into stream.
-    #[inline]
-    pub fn into_stream(self, range: Range<u64>) -> impl futures::Stream + Send + Sync + Unpin {
-        // TODO: the capacity should be decided by services.
-        impl_futures_stream::FuturesStream::new(self.inner, range, 4 * 1024 * 1024)
+    ) -> impl futures::Stream + Send + Sync + Unpin {
+        FuturesStream::new(self.inner, range)
     }
 }
 
-mod impl_futures_async_read {
+pub mod into_futures_async_read {
     use std::io;
     use std::io::SeekFrom;
     use std::ops::Range;
@@ -175,7 +169,19 @@ mod impl_futures_async_read {
     use crate::raw::*;
     use crate::*;
 
-    pub struct FuturesReader {
+    /// FuturesAsyncReader is the adapter of [`AsyncRead`] for [`Reader`].
+    ///
+    /// Users can use this adapter in cases where they need to use [`AsyncRead`] trait.
+    ///
+    /// FuturesAsyncReader implements the following trait:
+    ///
+    /// - [`AsyncBufRead`]
+    /// - [`AsyncRead`]
+    /// - [`AsyncSeek`]
+    /// - [`Unpin`]
+    /// - [`Send`]
+    /// - [`Sync`]
+    pub struct FuturesAsyncReader {
         state: State,
         offset: u64,
         size: u64,
@@ -195,22 +201,30 @@ mod impl_futures_async_read {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesReader {
+    impl FuturesAsyncReader {
+        /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
-        pub fn new(r: oio::Reader, range: Range<u64>, cap: usize) -> Self {
-            FuturesReader {
+        pub(super) fn new(r: oio::Reader, range: Range<u64>) -> Self {
+            FuturesAsyncReader {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
-                cap,
+                // TODO: should use services preferred io size.
+                cap: 4 * 1024 * 1024,
 
                 cur: 0,
                 buf: oio::Buffer::new(),
             }
         }
+
+        /// Set the capacity of this reader to control the IO size.
+        pub fn with_capacity(mut self, cap: usize) -> Self {
+            self.cap = cap;
+            self
+        }
     }
 
-    impl AsyncBufRead for FuturesReader {
+    impl AsyncBufRead for FuturesAsyncReader {
         fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
@@ -249,7 +263,7 @@ mod impl_futures_async_read {
         }
     }
 
-    impl AsyncRead for FuturesReader {
+    impl AsyncRead for FuturesAsyncReader {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -263,7 +277,7 @@ mod impl_futures_async_read {
         }
     }
 
-    impl AsyncSeek for FuturesReader {
+    impl AsyncSeek for FuturesAsyncReader {
         fn poll_seek(
             mut self: Pin<&mut Self>,
             _: &mut Context<'_>,
@@ -297,7 +311,7 @@ mod impl_futures_async_read {
     }
 }
 
-mod impl_futures_stream {
+pub mod into_futures_stream {
     use std::io;
     use std::ops::Range;
     use std::pin::Pin;
@@ -312,6 +326,16 @@ mod impl_futures_stream {
     use crate::raw::*;
     use crate::*;
 
+    /// FuturesStream is the adapter of [`Stream`] for [`Reader`].
+    ///
+    /// Users can use this adapter in cases where they need to use [`Stream`] trait.
+    ///
+    /// FuturesStream implements the following trait:
+    ///
+    /// - [`Stream`]
+    /// - [`Unpin`]
+    /// - [`Send`]
+    /// - [`Sync`]
     pub struct FuturesStream {
         state: State,
         offset: u64,
@@ -332,16 +356,24 @@ mod impl_futures_stream {
     unsafe impl Sync for State {}
 
     impl FuturesStream {
+        /// NOTE: don't allow users to create FuturesStream directly.
         #[inline]
-        pub fn new(r: oio::Reader, range: Range<u64>, cap: usize) -> Self {
+        pub(crate) fn new(r: oio::Reader, range: Range<u64>) -> Self {
             FuturesStream {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
-                cap,
+                // TODO: should use services preferred io size.
+                cap: 4 * 1024 * 1024,
 
                 cur: 0,
             }
+        }
+
+        /// Set the capacity of this reader to control the IO size.
+        pub fn with_capacity(mut self, cap: usize) -> Self {
+            self.cap = cap;
+            self
         }
     }
 

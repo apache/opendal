@@ -319,8 +319,13 @@ impl Stream for FormDataPartStream {
             return Poll::Ready(Some(Ok(pre_content)));
         }
 
-        if let Some(bs) = self.content.take() {
-            return Poll::Ready(Some(Ok(bs)));
+        if let Some(bs) = self.content.as_mut() {
+            if bs.has_remaining() {
+                return Poll::Ready(Some(Ok(bs.copy_to_bytes(bs.remaining()))));
+            } else {
+                self.content = None;
+                return Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))));
+            };
         }
 
         Poll::Ready(None)
@@ -334,7 +339,7 @@ pub struct MixedPart {
     /// Common
     version: Version,
     headers: HeaderMap,
-    content: Bytes,
+    content: Option<Bytes>,
 
     /// Request only
     method: Option<Method>,
@@ -358,7 +363,7 @@ impl MixedPart {
 
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            content: Bytes::new(),
+            content: None,
 
             uri: Some(uri),
             method: None,
@@ -376,8 +381,8 @@ impl MixedPart {
         let (parts, body) = req.into_parts();
 
         let content = match body {
-            AsyncBody::Empty => Bytes::new(),
-            AsyncBody::Bytes(bs) => bs,
+            AsyncBody::Empty => None,
+            AsyncBody::Bytes(bs) => Some(bs),
             AsyncBody::Stream(_) => {
                 unimplemented!("multipart upload does not support streaming body")
             }
@@ -413,7 +418,10 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        let body = oio::Buffer::from(self.content);
+        let body = match self.content {
+            None => oio::Buffer::new(),
+            Some(bs) => oio::Buffer::from(bs),
+        };
 
         builder
             .body(body)
@@ -446,7 +454,7 @@ impl MixedPart {
 
     /// Set the content for this part.
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
-        self.content = content.into();
+        self.content = Some(content.into());
         self
     }
 }
@@ -519,15 +527,15 @@ impl Part for MixedPart {
         // pre-content + content + post-content;
         let mut total_size = bs.len() as u64;
 
-        if self.content.has_remaining() {
-            total_size += self.content.len() as u64 + 2;
+        if let Some(bs) = &self.content {
+            total_size += bs.len() as u64 + 2;
         }
 
         (
             total_size,
             MixedPartStream {
                 pre_content: Some(bs),
-                content: Some(self.content),
+                content: self.content,
             },
         )
     }
@@ -603,7 +611,7 @@ impl Part for MixedPart {
             part_headers,
             version: Version::HTTP_11,
             headers,
-            content: body_bytes,
+            content: Some(body_bytes),
 
             method: None,
             uri: None,
@@ -1071,7 +1079,10 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[0].content.len(), part0_bs.len());
+        assert_eq!(
+            multipart.parts[0].content.as_ref().unwrap().len(),
+            part0_bs.len()
+        );
         assert_eq!(multipart.parts[0].uri, None);
         assert_eq!(multipart.parts[0].method, None);
         assert_eq!(
@@ -1111,7 +1122,10 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[1].content.len(), part1_bs.len());
+        assert_eq!(
+            multipart.parts[1].content.as_ref().unwrap().len(),
+            part1_bs.len()
+        );
         assert_eq!(multipart.parts[1].uri, None);
         assert_eq!(multipart.parts[1].method, None);
         assert_eq!(
@@ -1151,7 +1165,10 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[2].content.len(), part2_bs.len());
+        assert_eq!(
+            multipart.parts[2].content.as_ref().unwrap().len(),
+            part2_bs.len()
+        );
         assert_eq!(multipart.parts[2].uri, None);
         assert_eq!(multipart.parts[2].method, None);
         assert_eq!(

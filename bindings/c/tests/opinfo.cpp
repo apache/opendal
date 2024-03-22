@@ -65,6 +65,9 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
 
     EXPECT_TRUE(full_cap.blocking);
     EXPECT_TRUE(full_cap.read);
+    EXPECT_TRUE(full_cap.read_can_seek);
+    EXPECT_TRUE(full_cap.read_can_next);
+    EXPECT_TRUE(full_cap.read_with_range);
     EXPECT_TRUE(full_cap.stat);
     EXPECT_TRUE(full_cap.write);
     EXPECT_TRUE(full_cap.write_can_empty);
@@ -75,6 +78,9 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
 
     EXPECT_TRUE(native_cap.blocking);
     EXPECT_TRUE(native_cap.read);
+    EXPECT_TRUE(native_cap.read_can_seek);
+    EXPECT_TRUE(native_cap.read_can_next);
+    EXPECT_TRUE(native_cap.read_with_range);
     EXPECT_TRUE(native_cap.stat);
     EXPECT_TRUE(native_cap.write);
     EXPECT_TRUE(native_cap.write_can_empty);

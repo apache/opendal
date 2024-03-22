@@ -512,6 +512,18 @@ typedef struct opendal_capability {
    */
   bool read;
   /**
+   * If operator supports seek on returning reader.
+   */
+  bool read_can_seek;
+  /**
+   * If operator supports next on returning reader.
+   */
+  bool read_can_next;
+  /**
+   * If operator supports read with range.
+   */
+  bool read_with_range;
+  /**
    * If operator supports read with if match.
    */
   bool read_with_if_match;
@@ -1405,10 +1417,9 @@ void opendal_entry_free(struct opendal_entry *ptr);
 /**
  * \brief Read data from the reader.
  */
-struct opendal_result_reader_read opendal_reader_pread(const struct opendal_reader *reader,
-                                                       uint8_t *buf,
-                                                       uintptr_t len,
-                                                       uintptr_t offset);
+struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *reader,
+                                                      uint8_t *buf,
+                                                      uintptr_t len);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.

@@ -37,25 +37,27 @@ impl opendal_reader {
 
     /// \brief Read data from the reader.
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_reader_pread(
+    pub unsafe extern "C" fn opendal_reader_read(
         reader: *const Self,
         buf: *mut u8,
         len: usize,
-        offset: usize,
     ) -> opendal_result_reader_read {
         if buf.is_null() {
             panic!("The buffer given is pointing at NULL");
         }
 
-        let mut buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+        let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
 
         let inner = unsafe { &mut *(*reader).inner };
-        let r = inner.read(&mut buf, offset as u64, len);
+        let r = inner.read(buf.len());
         match r {
-            Ok(n) => opendal_result_reader_read {
-                size: n,
-                error: std::ptr::null_mut(),
-            },
+            Ok(bs) => {
+                buf[..bs.len()].copy_from_slice(&bs);
+                opendal_result_reader_read {
+                    size: bs.len(),
+                    error: std::ptr::null_mut(),
+                }
+            }
             Err(e) => opendal_result_reader_read {
                 size: 0,
                 error: opendal_error::new(

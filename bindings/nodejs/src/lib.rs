@@ -182,7 +182,10 @@ impl Operator {
     #[napi]
     pub async fn reader(&self, path: String) -> Result<Reader> {
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
-        Ok(Reader(r))
+        Ok(Reader {
+            inner: r,
+            offset: 0,
+        })
     }
 
     /// Read the whole path into a buffer synchronously.
@@ -203,7 +206,10 @@ impl Operator {
     #[napi]
     pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
         let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
-        Ok(BlockingReader(r))
+        Ok(BlockingReader {
+            inner: r,
+            offset: 0,
+        })
     }
 
     /// Write bytes into path.
@@ -641,23 +647,33 @@ pub struct ListOptions {
 /// BlockingReader is designed to read data from given path in an blocking
 /// manner.
 #[napi]
-pub struct BlockingReader(opendal::BlockingReader);
+pub struct BlockingReader {
+    inner: opendal::BlockingReader,
+    offset: u64,
+}
 
 #[napi]
 impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let bs = self.0.read(buf.len()).map_err(format_napi_error)?;
-        buf[..bs.len()].copy_from_slice(&bs);
-        Ok(bs.len())
+        let mut buf = buf.as_mut();
+        let size = buf.len();
+        let n = self
+            .inner
+            .read(&mut buf, self.offset, size)
+            .map_err(format_napi_error)?;
+        self.offset += n as u64;
+        Ok(n)
     }
 }
 
 /// Reader is designed to read data from given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Reader(opendal::Reader);
+pub struct Reader {
+    inner: opendal::Reader,
+    offset: u64,
+}
 
 #[napi]
 impl Reader {
@@ -666,14 +682,17 @@ impl Reader {
     /// > &mut self in async napi methods should be marked as unsafe
     ///
     /// Read bytes from this reader into given buffer.
-    ///
-    /// TODO: change api into stream based.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let bs = self.0.read(buf.len()).await.map_err(format_napi_error)?;
-        buf[..bs.len()].copy_from_slice(&bs);
-        Ok(bs.len())
+        let mut buf = buf.as_mut();
+        let size = buf.len();
+        let n = self
+            .inner
+            .read(&mut buf, self.offset, size)
+            .await
+            .map_err(format_napi_error)?;
+        self.offset += n as u64;
+        Ok(n)
     }
 }
 

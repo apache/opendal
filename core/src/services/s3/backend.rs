@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -37,6 +38,7 @@ use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
+use reqwest::Url;
 use serde::Deserialize;
 
 use super::core::*;
@@ -628,6 +630,12 @@ impl S3Builder {
 
         // If endpoint contains bucket name, we should trim them.
         endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+
+        // Omit default ports if specified.
+        if let Ok(url) = Url::from_str(&endpoint) {
+            // Remove the trailing `/` of root path.
+            endpoint = url.to_string().trim_end_matches('/').to_string();
+        }
 
         // Update with endpoint templates.
         endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {

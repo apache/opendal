@@ -16,6 +16,5 @@
 // under the License.
 
 mod backend;
-
-pub use backend::FoundationConfig;
-pub use backend::FoundationdbBuilder as Foundationdb;
+pub use backend::SurrealdbBuilder as Surrealdb;
+pub use backend::SurrealdbConfig;

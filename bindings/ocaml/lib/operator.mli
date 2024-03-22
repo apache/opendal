@@ -146,7 +146,8 @@ val remove_all :
 *)
 
 module Reader : sig
-  val pread : Opendal_core.Operator.reader -> bytes -> int64 -> (int, string) result
+  val pread :
+    Opendal_core.Operator.reader -> bytes -> int64 -> (int, string) result
   (** [read reader buf] Read data to [buf] and return data size.*)
 end
 

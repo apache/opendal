@@ -44,5 +44,4 @@ external blocking_remove_all: operator -> string -> (unit, string) Result.t  = "
 
 (* file: reader.rs *)
 
-external reader_read: reader -> bytes -> (int, string) Result.t  = "reader_read"
-external reader_seek: reader -> Seek_from.seek_from -> (int64, string) Result.t  = "reader_seek"
+external reader_pread: reader -> bytes -> int64 -> (int, string) Result.t  = "reader_pread"

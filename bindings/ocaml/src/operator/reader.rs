@@ -15,20 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-
 use super::*;
 
 #[ocaml::func]
-#[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]
-pub fn reader_read(reader: &mut Reader, buf: &mut [u8]) -> Result<usize, String> {
-    let bs = map_res_error(reader.0.read(buf.len()))?;
-    buf[..bs.len()].copy_from_slice(&bs);
-    Ok(bs.len())
-}
-
-#[ocaml::func]
-#[ocaml::sig("reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
-pub fn reader_seek(reader: &mut Reader, pos: seek_from::SeekFrom) -> Result<u64, String> {
-    map_res_error(reader.0.seek(io::SeekFrom::from(pos)))
+#[ocaml::sig("reader -> bytes -> int64 -> (int, string) Result.t ")]
+pub fn reader_pread(reader: &mut Reader, mut buf: &mut [u8], offset: u64) -> Result<usize, String> {
+    let size = buf.len();
+    let n = map_res_error(reader.0.read(&mut buf, offset, size))?;
+    Ok(n)
 }

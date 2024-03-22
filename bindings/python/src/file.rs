@@ -27,9 +27,9 @@ use std::sync::Arc;
 
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
-use pyo3::buffer::PyBuffer;
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
@@ -112,11 +112,11 @@ impl File {
         };
 
         if buffer.readonly() {
-            return Err(PyIOError::new_err("Buffer is not writable."))
+            return Err(PyIOError::new_err("Buffer is not writable."));
         }
 
         if !buffer.is_c_contiguous() {
-            return Err(PyIOError::new_err("Buffer is not C contiguous."))
+            return Err(PyIOError::new_err("Buffer is not C contiguous."));
         }
 
         Python::with_gil(|_py| {

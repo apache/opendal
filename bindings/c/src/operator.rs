@@ -367,10 +367,21 @@ pub unsafe extern "C" fn opendal_operator_reader(
         panic!("The path given is pointing at NULL");
     }
     let op = (*op).as_ref();
+
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    let meta = match op.stat(path) {
+        Ok(meta) => meta,
+        Err(err) => {
+            return opendal_result_operator_reader {
+                reader: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            }
+        }
+    };
+
     match op.reader(path) {
         Ok(reader) => opendal_result_operator_reader {
-            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader, meta.content_length()))),
             error: std::ptr::null_mut(),
         },
         Err(e) => opendal_result_operator_reader {

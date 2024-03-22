@@ -40,8 +40,8 @@ impl opendal_reader {
     pub unsafe extern "C" fn opendal_reader_pread(
         reader: *const Self,
         buf: *mut u8,
-        offset: usize,
         len: usize,
+        offset: usize,
     ) -> opendal_result_reader_read {
         if buf.is_null() {
             panic!("The buffer given is pointing at NULL");

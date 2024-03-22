@@ -1407,8 +1407,8 @@ void opendal_entry_free(struct opendal_entry *ptr);
  */
 struct opendal_result_reader_read opendal_reader_pread(const struct opendal_reader *reader,
                                                        uint8_t *buf,
-                                                       uintptr_t offset,
-                                                       uintptr_t len);
+                                                       uintptr_t len,
+                                                       uintptr_t offset);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.

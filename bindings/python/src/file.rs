@@ -39,7 +39,7 @@ use crate::*;
 /// A file-like object.
 /// Can be used as a context manager.
 #[pyclass(module = "opendal")]
-pub struct File(FileState);
+pub struct File(FileState, Capability);
 
 enum FileState {
     Reader(ocore::BlockingReader),
@@ -48,12 +48,12 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::BlockingReader) -> Self {
-        Self(FileState::Reader(reader))
+    pub fn new_reader(reader: ocore::BlockingReader, capability: Capability) -> Self {
+        Self(FileState::Reader(reader), capability)
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
-        Self(FileState::Writer(writer))
+    pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
+        Self(FileState::Writer(writer), capability)
     }
 }
 
@@ -163,6 +163,11 @@ impl File {
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
     pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
+        if !self.seekable()? {
+            return Err(PyIOError::new_err(
+                "Seek operation is not supported by the backing service.",
+            ));
+        }
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -262,7 +267,14 @@ impl File {
     ///
     /// In OpenDAL this is limited to only *readable* streams.
     pub fn seekable(&self) -> PyResult<bool> {
-        self.readable()
+        match &self.0 {
+            FileState::Reader(_) => {
+                Ok(self.1.read_can_seek)
+            },
+            _ => Ok(false)
+        }
+
+        // self.readable()
     }
 
     /// Return True if the stream is closed.
@@ -275,7 +287,7 @@ impl File {
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
+pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
 
 enum AsyncFileState {
     Reader(ocore::Reader),
@@ -284,12 +296,12 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::Reader) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
+    pub fn new_reader(reader: ocore::Reader, capability: Capability) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))), capability)
     }
 
-    pub fn new_writer(writer: ocore::Writer) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
+    pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))), capability)
     }
 }
 
@@ -489,7 +501,13 @@ impl AsyncFile {
 
     /// Check if the stream reader may be re-located.
     pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
-        self.readable(py)
+        if self.1.read_can_seek {
+            self.readable(py)
+        } else {
+            future_into_py(py, async move {
+                Ok(false)
+            })
+        }
     }
 
     /// Check if the stream is closed.

@@ -22,8 +22,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
 use bytes::BytesMut;
+use bytes::{Buf, Bytes};
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -42,7 +42,6 @@ use super::new_request_build_error;
 use super::AsyncBody;
 use crate::raw::oio;
 use crate::raw::oio::Stream;
-use crate::raw::oio::Streamer;
 use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
@@ -223,8 +222,7 @@ pub trait Part: Sized + 'static {
 pub struct FormDataPart {
     headers: HeaderMap,
 
-    content_length: u64,
-    content: Streamer,
+    content: Bytes,
 }
 
 impl FormDataPart {
@@ -243,8 +241,7 @@ impl FormDataPart {
 
         Self {
             headers,
-            content_length: 0,
-            content: Box::new(Bytes::new()),
+            content: Bytes::new(),
         }
     }
 
@@ -256,17 +253,7 @@ impl FormDataPart {
 
     /// Set the content for this part.
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
-        let content = content.into();
-
-        self.content_length = content.len() as u64;
-        self.content = Box::new(content);
-        self
-    }
-
-    /// Set the stream content for this part.
-    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
-        self.content_length = size;
-        self.content = content;
+        self.content = content.into();
         self
     }
 }
@@ -301,7 +288,7 @@ impl Part for FormDataPart {
         let bs = bs.freeze();
 
         // pre-content + content + post-content (b`\r\n`)
-        let total_size = bs.len() as u64 + self.content_length + 2;
+        let total_size = bs.len() as u64 + self.content.len() as u64 + 2;
 
         (
             total_size,
@@ -323,23 +310,17 @@ impl Part for FormDataPart {
 pub struct FormDataPartStream {
     /// Including headers and the first `b\r\n`
     pre_content: Option<Bytes>,
-    content: Option<Streamer>,
+    content: Option<Bytes>,
 }
 
 impl Stream for FormDataPartStream {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(pre_content) = self.pre_content.take() {
             return Poll::Ready(Some(Ok(pre_content)));
         }
 
-        if let Some(stream) = self.content.as_mut() {
-            return match ready!(stream.poll_next(cx)) {
-                None => {
-                    self.content = None;
-                    Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))))
-                }
-                Some(v) => Poll::Ready(Some(v)),
-            };
+        if let Some(bs) = self.content.take() {
+            return Poll::Ready(Some(Ok(bs)));
         }
 
         Poll::Ready(None)
@@ -353,8 +334,7 @@ pub struct MixedPart {
     /// Common
     version: Version,
     headers: HeaderMap,
-    content_length: u64,
-    content: Option<Streamer>,
+    content: Bytes,
 
     /// Request only
     method: Option<Method>,
@@ -378,8 +358,7 @@ impl MixedPart {
 
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            content_length: 0,
-            content: None,
+            content: Bytes::new(),
 
             uri: Some(uri),
             method: None,
@@ -396,17 +375,11 @@ impl MixedPart {
 
         let (parts, body) = req.into_parts();
 
-        let (content_length, content) = match body {
-            AsyncBody::Empty => (0, None),
-            AsyncBody::Bytes(bs) => (bs.len() as u64, Some(Box::new(bs) as Streamer)),
-            AsyncBody::Stream(stream) => {
-                let len = parts
-                    .headers
-                    .get(CONTENT_LENGTH)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .expect("the content length of a mixed part must be valid");
-                (len, Some(stream))
+        let content = match body {
+            AsyncBody::Empty => Bytes::new(),
+            AsyncBody::Bytes(bs) => bs,
+            AsyncBody::Stream(_) => {
+                unimplemented!("multipart upload does not support streaming body")
             }
         };
 
@@ -424,7 +397,6 @@ impl MixedPart {
             ),
             version: parts.version,
             headers: parts.headers,
-            content_length,
             content,
 
             method: Some(parts.method),
@@ -441,16 +413,11 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        // let body = if let Some(stream) = self.content {
-        //     oio::Buffer::new(stream, Some(self.content_length))
-        // } else {
-        //     oio::Buffer::new(Box::new(oio::into_stream(stream::empty())), Some(0))
-        // };
+        let body = oio::Buffer::from(self.content);
 
-        // builder
-        //     .body(body)
-        //     .expect("mixed part must be valid response")
-        todo!()
+        builder
+            .body(body)
+            .expect("mixed part must be valid response")
     }
 
     /// Insert a part header into part.
@@ -479,17 +446,7 @@ impl MixedPart {
 
     /// Set the content for this part.
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
-        let content = content.into();
-
-        self.content_length = content.len() as u64;
-        self.content = Some(Box::new(content));
-        self
-    }
-
-    /// Set the stream content for this part.
-    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
-        self.content_length = size;
-        self.content = Some(content);
+        self.content = content.into();
         self
     }
 }
@@ -562,15 +519,15 @@ impl Part for MixedPart {
         // pre-content + content + post-content;
         let mut total_size = bs.len() as u64;
 
-        if self.content.is_some() {
-            total_size += self.content_length + 2;
+        if self.content.has_remaining() {
+            total_size += self.content.len() as u64 + 2;
         }
 
         (
             total_size,
             MixedPartStream {
                 pre_content: Some(bs),
-                content: self.content,
+                content: Some(self.content),
             },
         )
     }
@@ -646,8 +603,7 @@ impl Part for MixedPart {
             part_headers,
             version: Version::HTTP_11,
             headers,
-            content_length: body_bytes.len() as u64,
-            content: Some(Box::new(body_bytes)),
+            content: body_bytes,
 
             method: None,
             uri: None,
@@ -666,22 +622,21 @@ impl Part for MixedPart {
 pub struct MixedPartStream {
     /// Including headers and the first `b\r\n`
     pre_content: Option<Bytes>,
-    content: Option<Streamer>,
+    content: Option<Bytes>,
 }
 
 impl Stream for MixedPartStream {
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(pre_content) = self.pre_content.take() {
             return Poll::Ready(Some(Ok(pre_content)));
         }
 
-        if let Some(stream) = self.content.as_mut() {
-            return match ready!(stream.poll_next(cx)) {
-                None => {
-                    self.content = None;
-                    Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))))
-                }
-                Some(v) => Poll::Ready(Some(v)),
+        if let Some(bs) = self.content.as_mut() {
+            if bs.has_remaining() {
+                return Poll::Ready(Some(Ok(bs.copy_to_bytes(bs.remaining()))));
+            } else {
+                self.content = None;
+                return Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))));
             };
         }
 
@@ -1116,7 +1071,7 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[0].content_length, part0_bs.len() as u64);
+        assert_eq!(multipart.parts[0].content.len(), part0_bs.len());
         assert_eq!(multipart.parts[0].uri, None);
         assert_eq!(multipart.parts[0].method, None);
         assert_eq!(
@@ -1156,7 +1111,7 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[1].content_length, part1_bs.len() as u64);
+        assert_eq!(multipart.parts[1].content.len(), part1_bs.len());
         assert_eq!(multipart.parts[1].uri, None);
         assert_eq!(multipart.parts[1].method, None);
         assert_eq!(
@@ -1196,7 +1151,7 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[2].content_length, part2_bs.len() as u64);
+        assert_eq!(multipart.parts[2].content.len(), part2_bs.len());
         assert_eq!(multipart.parts[2].uri, None);
         assert_eq!(multipart.parts[2].method, None);
         assert_eq!(

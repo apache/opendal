@@ -291,8 +291,11 @@ impl GcsCore {
                 AsyncBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
                 }
-                AsyncBody::Stream(stream) => {
-                    media_part = media_part.stream(size.unwrap(), stream);
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "multipart upload does not support streaming body",
+                    ));
                 }
             }
 

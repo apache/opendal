@@ -366,4 +366,3 @@ tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
-wiremock = "0.5"

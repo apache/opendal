@@ -22,8 +22,6 @@ use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
-use bytes::Bytes;
-
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -101,17 +99,6 @@ impl BytesRange {
                 None => Bound::Unbounded,
             },
         )
-    }
-
-    /// apply_on_bytes will apply range on bytes.
-    pub fn apply_on_bytes(&self, mut bs: Bytes) -> Bytes {
-        let mut bs = bs.split_off(self.0 as usize);
-        if let Some(size) = self.1 {
-            if (size as usize) < bs.len() {
-                let _ = bs.split_off(size as usize);
-            }
-        }
-        bs
     }
 }
 
@@ -252,34 +239,6 @@ mod tests {
             let actual = input.parse()?;
 
             assert_eq!(expected, actual, "{name}")
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_apply_on_bytes() -> Result<()> {
-        let bs = Bytes::from_static("Hello, World!".as_bytes());
-
-        let cases = vec![
-            ("full", (0, None), "Hello, World!"),
-            ("with_offset", (1, None), "ello, World!"),
-            ("with_size", (0, Some(1)), "!"),
-            ("with_larger_size", (0, Some(100)), "Hello, World!"),
-            ("with_offset_and_size", (1, Some(1)), "e"),
-            (
-                "with_offset_and_larger_size",
-                (1, Some(100)),
-                "ello, World!",
-            ),
-            ("with_empty_offset", (0, Some(100)), "Hello, World!"),
-        ];
-
-        for (name, input, expected) in cases {
-            let actual = BytesRange(input.0, input.1).apply_on_bytes(bs.clone());
-            let actual = String::from_utf8_lossy(&actual);
-
-            assert_eq!(expected, &actual, "{name}");
         }
 
         Ok(())

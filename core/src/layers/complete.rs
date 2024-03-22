@@ -401,7 +401,10 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        // self.complete_read(path, args).await
+        let capability = self.meta.full_capability();
+        if !capability.read {
+            return Err(self.new_unsupported_error(Operation::Read));
+        }
         self.inner.read(path, args).await
     }
 
@@ -511,7 +514,10 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        // self.complete_blocking_read(path, args)
+        let capability = self.meta.full_capability();
+        if !capability.read || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::Read));
+        }
         self.inner.blocking_read(path, args)
     }
 

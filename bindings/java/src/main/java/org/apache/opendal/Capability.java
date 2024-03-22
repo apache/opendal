@@ -24,7 +24,7 @@ import lombok.Data;
 @Data
 public class Capability {
     /**
-     *  If operator supports stat.
+     * If operator supports stat.
      */
     public final boolean stat;
 
@@ -42,21 +42,6 @@ public class Capability {
      * If operator supports read.
      */
     public final boolean read;
-
-    /**
-     * If operator supports seek on returning reader.
-     */
-    public final boolean readCanSeek;
-
-    /**
-     * If operator supports next on returning reader.
-     */
-    public final boolean readCanNext;
-
-    /**
-     * If operator supports read with range.
-     */
-    public final boolean readWithRange;
 
     /**
      * If operator supports read with if matched.
@@ -212,50 +197,44 @@ public class Capability {
     public final boolean blocking;
 
     public Capability(
-            boolean stat,
-            boolean statWithIfMatch,
-            boolean statWithIfNoneMatch,
-            boolean read,
-            boolean readCanSeek,
-            boolean readCanNext,
-            boolean readWithRange,
-            boolean readWithIfMatch,
-            boolean readWithIfNoneMatch,
-            boolean readWithOverrideCacheControl,
-            boolean readWithOverrideContentDisposition,
-            boolean readWithOverrideContentType,
-            boolean write,
-            boolean writeCanMulti,
-            boolean writeCanAppend,
-            boolean writeWithContentType,
-            boolean writeWithContentDisposition,
-            boolean writeWithCacheControl,
-            long writeMultiMaxSize,
-            long writeMultiMinSize,
-            long writeMultiAlignSize,
-            boolean createDir,
-            boolean delete,
-            boolean copy,
-            boolean rename,
-            boolean list,
-            boolean listWithLimit,
-            boolean listWithStartAfter,
-            boolean listWithRecursive,
-            boolean presign,
-            boolean presignRead,
-            boolean presignStat,
-            boolean presignWrite,
-            boolean batch,
-            boolean batchDelete,
-            long batchMaxOperations,
-            boolean blocking) {
+        boolean stat,
+        boolean statWithIfMatch,
+        boolean statWithIfNoneMatch,
+        boolean read,
+        boolean readWithIfMatch,
+        boolean readWithIfNoneMatch,
+        boolean readWithOverrideCacheControl,
+        boolean readWithOverrideContentDisposition,
+        boolean readWithOverrideContentType,
+        boolean write,
+        boolean writeCanMulti,
+        boolean writeCanAppend,
+        boolean writeWithContentType,
+        boolean writeWithContentDisposition,
+        boolean writeWithCacheControl,
+        long writeMultiMaxSize,
+        long writeMultiMinSize,
+        long writeMultiAlignSize,
+        boolean createDir,
+        boolean delete,
+        boolean copy,
+        boolean rename,
+        boolean list,
+        boolean listWithLimit,
+        boolean listWithStartAfter,
+        boolean listWithRecursive,
+        boolean presign,
+        boolean presignRead,
+        boolean presignStat,
+        boolean presignWrite,
+        boolean batch,
+        boolean batchDelete,
+        long batchMaxOperations,
+        boolean blocking) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
         this.read = read;
-        this.readCanSeek = readCanSeek;
-        this.readCanNext = readCanNext;
-        this.readWithRange = readWithRange;
         this.readWithIfMatch = readWithIfMatch;
         this.readWithIfNoneMatch = readWithIfNoneMatch;
         this.readWithOverrideCacheControl = readWithOverrideCacheControl;

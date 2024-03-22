@@ -153,15 +153,12 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
 fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability = env.new_object(
         "org/apache/opendal/Capability",
-        "(ZZZZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZZZJZ)V",
+        "(ZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZZZJZ)V",
         &[
             JValue::Bool(cap.stat as jboolean),
             JValue::Bool(cap.stat_with_if_match as jboolean),
             JValue::Bool(cap.stat_with_if_none_match as jboolean),
             JValue::Bool(cap.read as jboolean),
-            JValue::Bool(cap.read_can_seek as jboolean),
-            JValue::Bool(cap.read_can_next as jboolean),
-            JValue::Bool(cap.read_with_range as jboolean),
             JValue::Bool(cap.read_with_if_match as jboolean),
             JValue::Bool(cap.read_with_if_none_match as jboolean),
             JValue::Bool(cap.read_with_override_cache_control as jboolean),

@@ -22,12 +22,13 @@ use url::Url;
 #[command(version, about)]
 pub struct Config {
     /// fuse mount path
+    #[cfg(target_os = "linux")]
     #[arg(env = "OFS_MOUNT_PATH", index = 1)]
-    pub(crate) mount_path: String,
+    pub mount_path: String,
 
     /// location of opendal service
     /// format: <scheme>://?<key>=<value>&<key>=<value>
     /// example: fs://?root=/tmp
     #[arg(env = "OFS_BACKEND", index = 2)]
-    pub(crate) backend: Url,
+    pub backend: Url,
 }

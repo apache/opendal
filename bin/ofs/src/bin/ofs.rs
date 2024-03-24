@@ -23,5 +23,5 @@ async fn main() -> Result<()> {
     let cfg = ofs::Config::parse();
 
     env_logger::init();
-    ofs::new_app(cfg).await
+    ofs::execute(cfg).await
 }

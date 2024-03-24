@@ -68,14 +68,14 @@ impl FileKey {
     }
 }
 
-pub(super) struct Ofs {
+pub(super) struct Fuse {
     op: Operator,
     gid: u32,
     uid: u32,
     opened_files: Slab<OpenedFile>,
 }
 
-impl Ofs {
+impl Fuse {
     pub fn new(op: Operator, uid: u32, gid: u32) -> Self {
         Self {
             op,
@@ -128,7 +128,7 @@ impl Ofs {
 }
 
 #[async_trait]
-impl PathFilesystem for Ofs {
+impl PathFilesystem for Fuse {
     type DirEntryStream = BoxStream<'static, Result<DirectoryEntry>>;
     type DirEntryPlusStream = BoxStream<'static, Result<DirectoryEntryPlus>>;
 

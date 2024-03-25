@@ -638,6 +638,96 @@ impl PathFilesystem for Fuse {
             entries: relative_paths.chain(children).skip(offset as usize).boxed(),
         })
     }
+    async fn rename2(
+        &self,
+        req: Request,
+        origin_parent: &OsStr,
+        origin_name: &OsStr,
+        parent: &OsStr,
+        name: &OsStr,
+        _flags: u32,
+    ) -> Result<()> {
+        log::debug!(
+            "rename2(origin_parent={:?}, origin_name={:?}, parent={:?}, name={:?})",
+            origin_parent,
+            origin_name,
+            parent,
+            name
+        );
+        self.rename(req, origin_parent, origin_name, parent, name)
+            .await
+    }
+
+    async fn lseek(
+        &self,
+        _req: Request,
+        path: Option<&OsStr>,
+        _fh: u64,
+        offset: u64,
+        whence: u32,
+    ) -> Result<ReplyLSeek> {
+        log::debug!("lseek(path={:?}, fh={}, offset={}, whence={})", path, _fh, offset, whence);
+
+        let whence = whence as i32;
+
+        let offset = if whence == libc::SEEK_CUR || whence == libc::SEEK_SET {
+            offset
+        } else if whence == libc::SEEK_END {
+            let metadata = self
+                .op
+                .stat(&path.unwrap().to_string_lossy())
+                .await
+                .map_err(opendal_error2errno)?;
+            let content_size = metadata.content_length();
+            
+            if content_size >= offset as _ {
+                content_size as u64 - offset
+            } else {
+                0
+            }
+        } else {
+            return Err(libc::EINVAL.into());
+        };
+
+        Ok(ReplyLSeek { offset })
+    }
+
+
+    async fn copy_file_range(
+        &self,
+        req: Request,
+        from_path: Option<&OsStr>,
+        fh_in: u64,
+        offset_in: u64,
+        to_path: Option<&OsStr>,
+        fh_out: u64,
+        offset_out: u64,
+        length: u64,
+        flags: u64,
+    ) -> Result<ReplyCopyFileRange> {
+        log::debug!(
+            "copy_file_range(from_path={:?}, fh_in={}, offset_in={}, to_path={:?}, fh_out={}, offset_out={}, length={}, flags={})",
+            from_path,
+            fh_in,
+            offset_in,
+            to_path,
+            fh_out,
+            offset_out,
+            length,
+            flags
+        );
+        let data = self
+            .read(req, from_path, fh_in, offset_in, length as _)
+            .await?;
+
+        let ReplyWrite { written } = self
+            .write(req, to_path, fh_out, offset_out, &data.data, flags as _)
+            .await?;
+
+        Ok(ReplyCopyFileRange {
+            copied: u64::from(written),
+        })
+    }
 }
 
 const fn entry_mode2file_type(mode: EntryMode) -> FileType {

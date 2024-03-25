@@ -22,7 +22,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
@@ -36,6 +35,7 @@ use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
 use super::lister::SftpLister;
+use super::reader::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
@@ -210,7 +210,6 @@ impl Builder for SftpBuilder {
             key: self.config.key.clone(),
             known_hosts_strategy,
             copyable: self.config.enable_copy,
-            client: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -223,6 +222,7 @@ impl Builder for SftpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
+#[derive(Clone)]
 pub struct SftpBackend {
     endpoint: String,
     root: String,
@@ -230,7 +230,6 @@ pub struct SftpBackend {
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
     copyable: bool,
-    client: tokio::sync::OnceCell<Sftp>,
 }
 
 impl Debug for SftpBackend {
@@ -241,7 +240,7 @@ impl Debug for SftpBackend {
 
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = Bytes;
+    type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type BlockingReader = ();
@@ -309,18 +308,10 @@ impl Accessor for SftpBackend {
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let _f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        todo!()
+        Ok((
+            RpRead::default(),
+            SftpReader::new(self.clone(), self.root.clone(), path.to_owned()),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -467,21 +458,16 @@ impl Accessor for SftpBackend {
 }
 
 impl SftpBackend {
-    async fn connect(&self) -> Result<&Sftp> {
-        let sftp = self
-            .client
-            .get_or_try_init(|| {
-                Box::pin(connect_sftp(
-                    self.endpoint.as_str(),
-                    self.root.clone(),
-                    self.user.clone(),
-                    self.key.clone(),
-                    self.known_hosts_strategy.clone(),
-                ))
-            })
-            .await?;
-
-        Ok(sftp)
+    /// TODO: implement connection pool in the future.
+    pub async fn connect(&self) -> Result<Sftp> {
+        connect_sftp(
+            self.endpoint.as_str(),
+            self.root.clone(),
+            self.user.clone(),
+            self.key.clone(),
+            self.known_hosts_strategy.clone(),
+        )
+        .await
     }
 }
 

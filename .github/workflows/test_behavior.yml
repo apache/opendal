@@ -27,6 +27,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   plan:
@@ -82,6 +83,7 @@ jobs:
     if: fromJson(needs.plan.outputs.plan).components.core
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).core }}
     uses: ./.github/workflows/test_behavior_core.yml
@@ -95,6 +97,7 @@ jobs:
     if: fromJson(needs.plan.outputs.plan).components.binding_java
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_java }}
     uses: ./.github/workflows/test_behavior_binding_java.yml
@@ -108,6 +111,7 @@ jobs:
     if: fromJson(needs.plan.outputs.plan).components.binding_python
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_python }}
     uses: ./.github/workflows/test_behavior_binding_python.yml
@@ -121,6 +125,7 @@ jobs:
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_nodejs }}
     uses: ./.github/workflows/test_behavior_binding_nodejs.yml

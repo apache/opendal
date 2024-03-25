@@ -27,7 +27,6 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
 
 jobs:
   plan:
@@ -79,7 +78,7 @@ jobs:
 
   test_core:
     name: core / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.core
     secrets: inherit
     strategy:
@@ -92,7 +91,7 @@ jobs:
 
   test_binding_java:
     name: binding_java / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_java
     secrets: inherit
     strategy:
@@ -105,7 +104,7 @@ jobs:
 
   test_binding_python:
     name: binding_python / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_python
     secrets: inherit
     strategy:
@@ -118,7 +117,7 @@ jobs:
 
   test_binding_nodejs:
     name: binding_nodejs / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
     secrets: inherit
     strategy:

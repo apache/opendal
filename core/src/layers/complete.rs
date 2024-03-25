@@ -586,6 +586,28 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
 pub type CompleteLister<A, P> =
     FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
 
+pub struct CompleteReader<R>(R);
+
+impl<R: oio::Read> oio::Read for CompleteReader<R> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if limit == 0 {
+            return Ok(oio::Buffer::new());
+        }
+
+        self.0.read_at(offset, limit).await
+    }
+}
+
+impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if limit == 0 {
+            return Ok(oio::Buffer::new());
+        }
+
+        self.0.read_at(offset, limit)
+    }
+}
+
 pub struct CompleteWriter<W> {
     inner: Option<W>,
 }

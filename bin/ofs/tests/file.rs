@@ -27,7 +27,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
-static TEST_TEXT: &'static str = include_str!("../Cargo.toml");
+static TEST_TEXT: &str = include_str!("../Cargo.toml");
 
 #[test_context(OfsTestContext)]
 #[tokio::test]
@@ -35,7 +35,7 @@ async fn test_file(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file.txt");
     let mut file = File::create(&path).await.unwrap();
 
-    file.write(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
     drop(file);
 
     let mut file = File::open(&path).await.unwrap();
@@ -53,11 +53,11 @@ async fn test_file_append(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file_append.txt");
     let mut file = File::create(&path).await.unwrap();
 
-    file.write(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
     drop(file);
 
     let mut file = File::options().append(true).open(&path).await.unwrap();
-    file.write(b"test").await.unwrap();
+    file.write_all(b"test").await.unwrap();
     drop(file);
 
     let mut file = File::open(&path).await.unwrap();
@@ -75,7 +75,7 @@ async fn test_file_seek(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file_seek.txt");
     let mut file = File::create(&path).await.unwrap();
 
-    file.write(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
     drop(file);
 
     let mut file = File::open(&path).await.unwrap();

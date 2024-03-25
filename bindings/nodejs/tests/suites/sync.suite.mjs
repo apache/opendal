@@ -17,11 +17,11 @@
  * under the License.
  */
 
-import { randomUUID } from 'node:crypto'
-import { test } from 'vitest'
-import { WriteStream, ReadStream } from '../../index.js'
-import { generateFixedBytes } from '../utils.mjs'
-import { Readable } from 'node:stream'
+import {randomUUID} from 'node:crypto'
+import {test} from 'vitest'
+import {WriteStream, ReadStream} from '../../index.js'
+import {generateFixedBytes} from '../utils.mjs'
+import {Readable} from 'node:stream'
 
 export function run(op) {
   describe.runIf(op.capability().blocking)('sync tests', () => {
@@ -59,7 +59,7 @@ export function run(op) {
       },
     )
 
-    test.runIf(op.capability().write)('blocking read stream', async () => {
+    test.runIf(op.capability().read && op.capability().write)('blocking read stream', async () => {
       let c = generateFixedBytes(3 * 1024 * 1024)
       const filename = `random_file_${randomUUID()}`
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-import { randomUUID } from 'node:crypto'
-import { test } from 'vitest'
-import { generateBytes, generateFixedBytes } from '../utils.mjs'
-import { Readable, Writable } from 'node:stream'
-import { finished, pipeline } from 'node:stream/promises'
+import {randomUUID} from 'node:crypto'
+import {test} from 'vitest'
+import {generateBytes, generateFixedBytes} from '../utils.mjs'
+import {Readable, Writable} from 'node:stream'
+import {finished, pipeline} from 'node:stream/promises'
 
 export function run(op) {
   describe('async tests', () => {
@@ -56,7 +56,7 @@ export function run(op) {
       await op.delete(filename)
     })
 
-    test.runIf(op.capability().write)('read stream', async () => {
+    test.runIf(op.capability().read && op.capability().write)('read stream', async () => {
       let c = generateFixedBytes(3 * 1024 * 1024)
       const filename = `random_file_${randomUUID()}`
 

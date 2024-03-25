@@ -375,8 +375,8 @@ impl<A: Accessor> CompleteAccessor<A> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
-    type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
+    type Reader = CompleteReader<A::Reader>;
+    type BlockingReader = CompleteReader<A::BlockingReader>;
     type Writer =
         TwoWays<CompleteWriter<A::Writer>, oio::ExactBufWriter<CompleteWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
@@ -405,7 +405,10 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         if !capability.read {
             return Err(self.new_unsupported_error(Operation::Read));
         }
-        self.inner.read(path, args).await
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| (rp, CompleteReader(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -518,7 +521,9 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         if !capability.read || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::Read));
         }
-        self.inner.blocking_read(path, args)
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, CompleteReader(r)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

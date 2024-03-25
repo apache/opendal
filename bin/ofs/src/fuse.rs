@@ -23,7 +23,6 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
-use fuse3::async_trait;
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
@@ -127,7 +126,6 @@ impl Fuse {
     }
 }
 
-#[async_trait]
 impl PathFilesystem for Fuse {
     type DirEntryStream = BoxStream<'static, Result<DirectoryEntry>>;
     type DirEntryPlusStream = BoxStream<'static, Result<DirectoryEntryPlus>>;
@@ -474,6 +472,7 @@ impl PathFilesystem for Fuse {
         fh: u64,
         offset: u64,
         data: &[u8],
+        _write_flags: u32,
         flags: u32,
     ) -> Result<ReplyWrite> {
         log::debug!(

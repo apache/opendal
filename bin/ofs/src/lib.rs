@@ -22,6 +22,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use opendal::Operator;
 use opendal::Scheme;
+use tokio::signal;
 
 pub mod config;
 pub use config::Config;
@@ -83,11 +84,18 @@ async fn execute_inner(args: Args) -> Result<()> {
 
     let adapter = fuse::Fuse::new(args.backend, uid.into(), gid.into());
 
-    let mount_handle = Session::new(mount_option)
+    let mut mount_handle = Session::new(mount_option)
         .mount_with_unprivileged(adapter, args.mount_path)
         .await?;
 
-    mount_handle.await?;
+    let handle = &mut mount_handle;
+
+    tokio::select! {
+        res = handle => res.unwrap(),
+        _ = signal::ctrl_c() => {
+            mount_handle.unmount().await.unwrap()
+        }
+    }
 
     Ok(())
 }

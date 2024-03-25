@@ -91,9 +91,9 @@ async fn execute_inner(args: Args) -> Result<()> {
     let handle = &mut mount_handle;
 
     tokio::select! {
-        res = handle => res.unwrap(),
+        res = handle => res?,
         _ = signal::ctrl_c() => {
-            mount_handle.unmount().await.unwrap()
+            mount_handle.unmount().await?
         }
     }
 

@@ -23,6 +23,7 @@ use log::warn;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
+use uuid::Uuid;
 
 use crate::*;
 
@@ -790,3 +791,90 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 
     Ok(())
 }
+
+/// Read file must be same with read file with latest version.
+pub async fn test_read_same_with_latest_version(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let version = meta.version().expect("version must be some");
+
+    let read_content = op.read(&path).await.expect("read must succeed");
+    let read_version_content = op.read_with(&path).version(version).await.expect("read with version must succeed");
+
+    assert_eq!(read_content, read_version_content, "read content must be same with read version content");
+
+    op.delete_with(&path)
+        .version(version)
+        .await
+        .expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Use previous version to read a deleted file should success.
+pub async fn test_read_deleted_file_by_version(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let version = meta.version().expect("version must be some");
+
+    op.delete(&path)
+        .await
+        .expect("delete must succeed");
+
+    let meta = op.stat(&path).await;
+    assert!(meta.is_err(), "stat must fail");
+    assert_eq!(
+        meta.unwrap_err().kind(),
+        ErrorKind::NotFound,
+        "error kind must be not found"
+    );
+
+    let read_content = op.read_with(&path)
+        .version(version)
+        .await
+        .expect("read with version must succeed");
+
+    assert_eq!(read_content, content, "read content must be same with write content");
+
+    op.delete_with(&path)
+        .version(version)
+        .await
+        .expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Read with not exist version should get a NotFound error.
+pub async fn test_read_deleted_file_with_not_exist_version(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let version = meta.version().expect("version must be some");
+
+    let random_version_content = op.read_with(&path)
+        .version(&format!("random_version_{}", Uuid::new_v4()))
+        .await;
+    assert!(random_version_content.is_err(), "read with random version must fail");
+
+    op.delete_with(&path)
+        .version(version)
+        .await
+        .expect("delete must succeed");
+
+    Ok(())
+}
+

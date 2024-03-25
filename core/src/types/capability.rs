@@ -61,12 +61,14 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
-    /// if operator supports read with override cache control.
+    /// if operator supports stat with override cache control.
     pub stat_with_override_cache_control: bool,
-    /// if operator supports read with override content disposition.
+    /// if operator supports stat with override content disposition.
     pub stat_with_override_content_disposition: bool,
-    /// if operator supports read with override content type.
+    /// if operator supports stat with override content type.
     pub stat_with_override_content_type: bool,
+    /// if operator supports stat with version.
+    pub stat_with_version: bool,
 
     /// If operator supports read.
     pub read: bool,
@@ -86,6 +88,8 @@ pub struct Capability {
     pub read_with_override_content_disposition: bool,
     /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
+    /// if operator supports read with version.
+    pub read_with_version: bool,
 
     /// If operator supports write.
     pub write: bool,
@@ -123,6 +127,8 @@ pub struct Capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// If operator supports delete with version.
+    pub delete_with_version: bool,
 
     /// If operator supports copy.
     pub copy: bool,

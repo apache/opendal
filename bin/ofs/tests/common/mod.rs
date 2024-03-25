@@ -15,19 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{
-    collections::HashMap,
-    env,
-    process::{Child, Command},
-};
+use std::{collections::HashMap, env, process::Command};
 
-use assert_cmd::cargo::CommandCargoExt;
 use tempfile::TempDir;
 use test_context::AsyncTestContext;
+use tokio::task::JoinHandle;
 
 pub(crate) struct OfsTestContext {
     pub mount_point: TempDir,
-    pub ofs_process: Child,
+    ofs_task: JoinHandle<anyhow::Result<()>>,
 }
 
 impl AsyncTestContext for OfsTestContext {
@@ -35,24 +31,26 @@ impl AsyncTestContext for OfsTestContext {
         let backend = backend_scheme().unwrap();
 
         let mount_point = tempfile::tempdir().unwrap();
-        let cmd = Command::cargo_bin("ofs")
-            .unwrap()
-            .args([mount_point.path().to_str().unwrap(), &backend])
-            .spawn()
-            .unwrap();
+
+        let ofs_task = tokio::spawn(ofs::execute(ofs::Config {
+            mount_path: mount_point.path().to_string_lossy().to_string(),
+            backend: backend.parse().unwrap(),
+        }));
 
         OfsTestContext {
             mount_point,
-            ofs_process: cmd,
+            ofs_task,
         }
     }
 
-    async fn teardown(mut self) {
+    async fn teardown(self) {
+        // FIXME: ofs could not unmount
         Command::new("fusermount3")
             .args(["-u", self.mount_point.path().to_str().unwrap()])
             .output()
             .unwrap();
-        self.ofs_process.kill().unwrap();
+
+        self.ofs_task.abort();
         self.mount_point.close().unwrap();
     }
 }

@@ -22,7 +22,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
@@ -344,54 +343,17 @@ impl Accessor for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
-        if path.ends_with('/') {
-            let file_path = format!("./{}", path);
-            let mut dir = match fs.open_dir(&file_path).await {
-                Ok(dir) => dir,
-                Err(e) => {
-                    if is_not_found(&e) {
-                        return Ok(RpDelete::default());
-                    } else {
-                        return Err(parse_sftp_error(e));
-                    }
-                }
-            }
-            .read_dir()
-            .boxed();
-
-            while let Some(file) = dir.next().await {
-                let file = file.map_err(parse_sftp_error)?;
-                let file_name = file.filename().to_str();
-                if file_name == Some(".") || file_name == Some("..") {
-                    continue;
-                }
-                let file_path = Path::new(&self.root).join(file.filename());
-                self.delete(
-                    file_path.to_str().ok_or(Error::new(
-                        ErrorKind::Unexpected,
-                        "unable to convert file path to str",
-                    ))?,
-                    OpDelete::default(),
-                )
-                .await?;
-            }
-
-            match fs.remove_dir(path).await {
-                Err(e) if !is_not_found(&e) => {
-                    return Err(parse_sftp_error(e));
-                }
-                _ => {}
-            }
+        let res = if path.ends_with('/') {
+            fs.remove_dir(path).await
         } else {
-            match fs.remove_file(path).await {
-                Err(e) if !is_not_found(&e) => {
-                    return Err(parse_sftp_error(e));
-                }
-                _ => {}
-            }
+            fs.remove_file(path).await
         };
 
-        Ok(RpDelete::default())
+        match res {
+            Ok(()) => Ok(RpDelete::default()),
+            Err(e) if !is_not_found(&e) => Ok(RpDelete::default()),
+            Err(e) => Err(parse_sftp_error(e)),
+        }
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

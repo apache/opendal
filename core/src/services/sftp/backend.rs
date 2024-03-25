@@ -351,7 +351,7 @@ impl Accessor for SftpBackend {
 
         match res {
             Ok(()) => Ok(RpDelete::default()),
-            Err(e) if !is_not_found(&e) => Ok(RpDelete::default()),
+            Err(e) if is_not_found(&e) => Ok(RpDelete::default()),
             Err(e) => Err(parse_sftp_error(e)),
         }
     }

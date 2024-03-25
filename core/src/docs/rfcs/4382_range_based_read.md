@@ -65,10 +65,14 @@ We will add the following new APIs to `Reader`:
 ```rust
 impl Reader {
     /// Read data from the storage at the specified offset.
-    pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize>;
+     pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize>;
 
     /// Read data from the storage at the specified range.
-    pub async fn read_range(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize>;
+    pub async fn read_range(
+        &self,
+        buf: &mut impl BufMut,
+        range: impl RangeBounds<u64>,
+    ) -> Result<usize>;
 
     /// Read all data from the storage into given buf.
     pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize>;
@@ -89,33 +93,14 @@ Apart from `Reader`'s own API, we will also provide convert to existing IO APIs 
 ```rust
 impl Reader {
     /// Convert Reader into `futures::AsyncRead`  
-    pub fn into_futures_read(
-        self,
-    ) -> impl futures::AsyncRead + Send + Sync + Unpin;
-    
-    /// Convert Reader into `futures::AsyncRead + futures::AsyncSeek`
-    pub fn into_futures_read_seek(
-        self,
-    ) -> impl futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin;
+    pub fn into_futures_io_async_read(self, range: Range<u64>) -> FuturesIoAsyncReader;
     
     /// Convert Reader into `futures::Stream`
-    pub fn into_futures_stream(
-        self,
-    ) -> impl futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin;
-    
-    /// Convert Reader into `tokio::io::AsyncRead`
-    pub fn into_tokio_io_read(
-        self,
-    ) -> impl tokio::io::AsyncRead + Send + Sync + Unpin;
-    
-    /// Convert Reader into `tokio::io::AsyncRead + tokio::io::AsyncSeek`
-    pub fn into_tokio_io_read_seek(
-        self,
-    ) -> impl tokio::io::AsyncRead + tokio::io::AsyncSeek + Send + Sync + Unpin;
+    pub fn into_futures_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream;
 }
 ```
 
-After this change, users will be able to use `Reader` to read data from storage in a stateless, range-based pattern. Users can also convert `Reader` into `futures::AsyncRead`, `futures::AsyncSeek`, `tokio::io::AsyncRead`, `tokio::io::AsyncSeek` and `futures::Stream` as needed.
+After this change, users will be able to use `Reader` to read data from storage in a stateless, range-based pattern. Users can also convert `Reader` into `futures::AsyncRead`, `futures::AsyncSeek` and `futures::Stream` as needed.
 
 # Reference-level explanation
 

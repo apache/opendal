@@ -196,7 +196,11 @@ impl Accessor for AlluxioBackend {
             .set_native_capability(Capability {
                 stat: true,
 
-                read: true,
+                // FIXME:
+                //
+                // alluxio's read support is not implemented correctly
+                // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+                read: false,
 
                 write: true,
                 write_can_multi: true,

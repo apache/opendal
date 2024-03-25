@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Buf;
-use http::header::RANGE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -299,15 +298,14 @@ impl AlluxioCore {
         }
     }
 
-    pub async fn read(&self, stream_id: u64, range: BytesRange) -> Result<Response<oio::Buffer>> {
-        let mut req = Request::post(format!(
+    /// TODO: we should implement range support correctly.
+    ///
+    /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<oio::Buffer>> {
+        let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
-            self.endpoint, stream_id
+            self.endpoint, stream_id,
         ));
-
-        if !range.is_full() {
-            req = req.header(RANGE, range.to_header());
-        }
 
         let req = req
             .body(AsyncBody::Empty)

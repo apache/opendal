@@ -58,7 +58,6 @@ services-s3 = ["opendal/services-s3"]
 
 [dev-dependencies]
 test-context = "0.3.0"
-assert_cmd = "2.0.14"
 tempfile = "3.10.1"
 walkdir = "2.5.0"
 uuid = "1.7.0"

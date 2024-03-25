@@ -18,8 +18,8 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::mem;
 use std::str::FromStr;
+use std::{future, mem};
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -168,11 +168,16 @@ impl HttpClient {
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let bs: Vec<Bytes> = resp.bytes_stream().try_collect().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read data from http response")
-                .with_context("url", uri.to_string())
-                .set_source(err)
-        })?;
+        let bs: Vec<Bytes> = resp
+            .bytes_stream()
+            .try_filter(|v| future::ready(!v.is_empty()))
+            .try_collect()
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read data from http response")
+                    .with_context("url", uri.to_string())
+                    .set_source(err)
+            })?;
         let buffer = oio::Buffer::from(bs);
 
         if let Some(expect) = content_length {

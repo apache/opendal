@@ -96,6 +96,13 @@ impl Buf for Buffer {
         match &self.0 {
             Inner::Contiguous(b) => b.remaining(),
             Inner::NonContiguous { parts, idx, offset } => {
+                assert!(
+                    *idx <= parts.len(),
+                    "idx larger than parts length: {:?} <= {:?}",
+                    *idx,
+                    parts.len(),
+                );
+
                 parts[*idx..].iter().map(|p| p.len()).sum::<usize>() - offset
             }
         }
@@ -106,35 +113,79 @@ impl Buf for Buffer {
         match &self.0 {
             Inner::Contiguous(b) => b.chunk(),
             Inner::NonContiguous { parts, idx, offset } => {
-                if parts.is_empty() {
-                    &[]
-                } else {
-                    &parts[*idx][*offset..]
-                }
+                assert!(
+                    *idx <= parts.len(),
+                    "idx larger than parts length: {:?} <= {:?}",
+                    *idx,
+                    parts.len(),
+                );
+
+                &parts[*idx][*offset..]
             }
         }
     }
 
     #[inline]
     fn advance(&mut self, mut cnt: usize) {
+        assert!(
+            cnt <= self.remaining(),
+            "cannot advance past `remaining`: {:?} <= {:?}",
+            cnt,
+            self.remaining(),
+        );
+
         match &mut self.0 {
             Inner::Contiguous(b) => b.advance(cnt),
             Inner::NonContiguous { parts, idx, offset } => {
                 while cnt > 0 {
                     let remaining = parts[*idx].len() - *offset;
-                    if cnt < remaining {
+                    if cnt <= remaining {
                         *offset += cnt;
                         return;
                     } else {
                         cnt -= remaining;
                         *idx += 1;
                         *offset = 0;
-                        if *idx >= parts.len() {
-                            break;
-                        }
                     }
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    const EMPTY_SLICE: &[u8] = &[];
+
+    #[test]
+    fn test_contiguous_buffer() {
+        let buf = Buffer::new();
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_empty_non_contiguous_buffer() {
+        let buf = Buffer::from(vec![Bytes::new()]);
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_non_contiguous_buffer_with_empty_chunks() {
+        let mut buf = Buffer::from(vec![Bytes::from("a")]);
+
+        assert_eq!(buf.remaining(), 1);
+        assert_eq!(buf.chunk(), b"a");
+
+        buf.advance(1);
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
     }
 }

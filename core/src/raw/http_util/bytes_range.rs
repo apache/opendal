@@ -81,11 +81,6 @@ impl BytesRange {
     }
 
     /// Convert bytes range into Range header.
-    ///
-    /// # NOTE
-    ///
-    /// - `bytes=-1023` means get the suffix of the file.
-    /// - `bytes=0-1023` means get the first 1024 bytes, we must set the end to 1023.
     pub fn to_header(&self) -> String {
         format!("bytes={self}")
     }

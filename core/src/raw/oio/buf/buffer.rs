@@ -96,12 +96,9 @@ impl Buf for Buffer {
         match &self.0 {
             Inner::Contiguous(b) => b.remaining(),
             Inner::NonContiguous { parts, idx, offset } => {
-                assert!(
-                    *idx <= parts.len(),
-                    "idx larger than parts length: {:?} <= {:?}",
-                    *idx,
-                    parts.len(),
-                );
+                if *idx >= parts.len() {
+                    return 0;
+                }
 
                 parts[*idx..].iter().map(|p| p.len()).sum::<usize>() - offset
             }
@@ -113,12 +110,9 @@ impl Buf for Buffer {
         match &self.0 {
             Inner::Contiguous(b) => b.chunk(),
             Inner::NonContiguous { parts, idx, offset } => {
-                assert!(
-                    *idx <= parts.len(),
-                    "idx larger than parts length: {:?} <= {:?}",
-                    *idx,
-                    parts.len(),
-                );
+                if *idx >= parts.len() {
+                    return &[];
+                }
 
                 &parts[*idx][*offset..]
             }
@@ -126,27 +120,35 @@ impl Buf for Buffer {
     }
 
     #[inline]
-    fn advance(&mut self, mut cnt: usize) {
-        assert!(
-            cnt <= self.remaining(),
-            "cannot advance past `remaining`: {:?} <= {:?}",
-            cnt,
-            self.remaining(),
-        );
-
+    fn advance(&mut self, cnt: usize) {
         match &mut self.0 {
             Inner::Contiguous(b) => b.advance(cnt),
             Inner::NonContiguous { parts, idx, offset } => {
-                while cnt > 0 {
-                    let remaining = parts[*idx].len() - *offset;
-                    if cnt <= remaining {
-                        *offset += cnt;
-                        return;
+                let mut new_cnt = cnt;
+                let mut new_idx = *idx;
+                let mut new_offset = *offset;
+
+                while new_cnt > 0 {
+                    let remaining = parts[new_idx].len() - new_offset;
+                    if new_cnt < remaining {
+                        new_offset += new_cnt;
+                        new_cnt = 0;
+                        break;
                     } else {
-                        cnt -= remaining;
-                        *idx += 1;
-                        *offset = 0;
+                        new_cnt -= remaining;
+                        new_idx += 1;
+                        new_offset = 0;
+                        if new_idx > parts.len() {
+                            break;
+                        }
                     }
+                }
+
+                if new_cnt == 0 {
+                    *idx = new_idx;
+                    *offset = new_offset;
+                } else {
+                    panic!("cannot advance past {cnt} bytes")
                 }
             }
         }

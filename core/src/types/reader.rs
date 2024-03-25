@@ -97,20 +97,17 @@ impl Reader {
 
         let mut read = 0;
         loop {
-            let bs = self
-                .inner
-                // TODO: use service preferred io size instead.
-                .read_at_dyn(offset, size.unwrap_or(4 * 1024 * 1024) as usize)
-                .await?;
+            // TODO: use service preferred io size instead.
+            let limit = size.unwrap_or(4 * 1024 * 1024) as usize;
+            let bs = self.inner.read_at_dyn(offset, limit).await?;
             let n = bs.remaining();
             read += n;
             buf.put(bs);
-            if n == 0 {
+            if n < limit {
                 return Ok(read);
             }
 
             offset += n as u64;
-
             size = size.map(|v| v - n as u64);
             if size == Some(0) {
                 return Ok(read);

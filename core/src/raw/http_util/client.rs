@@ -178,6 +178,7 @@ impl HttpClient {
                     .with_context("url", uri.to_string())
                     .set_source(err)
             })?;
+
         let buffer = oio::Buffer::from(bs);
 
         if let Some(expect) = content_length {

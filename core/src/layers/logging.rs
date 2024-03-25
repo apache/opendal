@@ -1003,7 +1003,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> next failed: {}",
+                        "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
                         ReadOperation::Read,
                         self.path,
@@ -1025,7 +1025,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read {}B",
+                    "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
                     ReadOperation::BlockingRead,
                     self.path,
@@ -1039,7 +1039,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
+                        "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
                         ReadOperation::BlockingRead,
                         self.path,

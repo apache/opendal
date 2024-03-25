@@ -24,6 +24,8 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
+
+
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
@@ -208,7 +210,8 @@ impl PathFilesystem for Fuse {
             fh,
             set_attr
         );
-        Err(libc::EOPNOTSUPP.into())
+
+        self.getattr(_req, path, fh, 0).await
     }
 
     async fn symlink(
@@ -666,7 +669,13 @@ impl PathFilesystem for Fuse {
         offset: u64,
         whence: u32,
     ) -> Result<ReplyLSeek> {
-        log::debug!("lseek(path={:?}, fh={}, offset={}, whence={})", path, _fh, offset, whence);
+        log::debug!(
+            "lseek(path={:?}, fh={}, offset={}, whence={})",
+            path,
+            _fh,
+            offset,
+            whence
+        );
 
         let whence = whence as i32;
 
@@ -679,7 +688,7 @@ impl PathFilesystem for Fuse {
                 .await
                 .map_err(opendal_error2errno)?;
             let content_size = metadata.content_length();
-            
+
             if content_size >= offset as _ {
                 content_size as u64 - offset
             } else {
@@ -691,7 +700,6 @@ impl PathFilesystem for Fuse {
 
         Ok(ReplyLSeek { offset })
     }
-
 
     async fn copy_file_range(
         &self,

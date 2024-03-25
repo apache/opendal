@@ -18,6 +18,7 @@
 // Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
+use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
@@ -26,6 +27,7 @@ use std::sync::Arc;
 
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -37,7 +39,7 @@ use crate::*;
 /// A file-like object.
 /// Can be used as a context manager.
 #[pyclass(module = "opendal")]
-pub struct File(FileState);
+pub struct File(FileState, Capability);
 
 enum FileState {
     Reader(ocore::BlockingReader),
@@ -46,12 +48,12 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::BlockingReader) -> Self {
-        Self(FileState::Reader(reader))
+    pub fn new_reader(reader: ocore::BlockingReader, capability: Capability) -> Self {
+        Self(FileState::Reader(reader), capability)
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
-        Self(FileState::Writer(writer))
+    pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
+        Self(FileState::Writer(writer), capability)
     }
 }
 
@@ -93,6 +95,41 @@ impl File {
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
+    /// Read bytes into a pre-allocated, writable buffer
+    pub fn readinto(&mut self, buffer: PyBuffer<u8>) -> PyResult<usize> {
+        let reader = match &mut self.0 {
+            FileState::Reader(r) => r,
+            FileState::Writer(_) => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on write only file.",
+                ));
+            }
+            FileState::Closed => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on closed file.",
+                ));
+            }
+        };
+
+        if buffer.readonly() {
+            return Err(PyIOError::new_err("Buffer is not writable."));
+        }
+
+        if !buffer.is_c_contiguous() {
+            return Err(PyIOError::new_err("Buffer is not C contiguous."));
+        }
+
+        Python::with_gil(|_py| {
+            let ptr = buffer.buf_ptr();
+            let nbytes = buffer.len_bytes();
+            unsafe {
+                let view: &mut [u8] = std::slice::from_raw_parts_mut(ptr as *mut u8, nbytes);
+                let z = Read::read(reader, view)?;
+                Ok(z)
+            }
+        })
+    }
+
     /// Write bytes into the file.
     pub fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
         let writer = match &mut self.0 {
@@ -126,6 +163,11 @@ impl File {
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
     pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
+        if !self.seekable()? {
+            return Err(PyIOError::new_err(
+                "Seek operation is not supported by the backing service.",
+            ));
+        }
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -194,12 +236,54 @@ impl File {
     ) -> PyResult<()> {
         self.close()
     }
+
+    /// Flush the underlying writer. Is a no-op if the file is opened in reading mode.
+    pub fn flush(&mut self) -> PyResult<()> {
+        if matches!(self.0, FileState::Reader(_)) {
+            Ok(())
+        } else {
+            if let FileState::Writer(w) = &mut self.0 {
+                match w.flush() {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e.into()),
+                }
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Return True if the stream can be read from.
+    pub fn readable(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Reader(_)))
+    }
+
+    /// Return True if the stream can be written to.
+    pub fn writable(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Writer(_)))
+    }
+
+    /// Return True if the stream can be repositioned.
+    ///
+    /// In OpenDAL this is limited to only *readable* streams.
+    pub fn seekable(&self) -> PyResult<bool> {
+        match &self.0 {
+            FileState::Reader(_) => Ok(self.1.read_can_seek),
+            _ => Ok(false),
+        }
+    }
+
+    /// Return True if the stream is closed.
+    #[getter]
+    pub fn closed(&self) -> PyResult<bool> {
+        Ok(matches!(self.0, FileState::Closed))
+    }
 }
 
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
+pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
 
 enum AsyncFileState {
     Reader(ocore::Reader),
@@ -208,12 +292,18 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::Reader) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
+    pub fn new_reader(reader: ocore::Reader, capability: Capability) -> Self {
+        Self(
+            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
+            capability,
+        )
     }
 
-    pub fn new_writer(writer: ocore::Writer) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
+    pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
+        Self(
+            Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
+            capability,
+        )
     }
 }
 
@@ -391,5 +481,42 @@ impl AsyncFile {
         _traceback: &'a PyAny,
     ) -> PyResult<&'a PyAny> {
         self.close(py)
+    }
+
+    /// Check if the stream may be read from.
+    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Reader(_)))
+        })
+    }
+
+    /// Check if the stream may be written to.
+    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Writer(_)))
+        })
+    }
+
+    /// Check if the stream reader may be re-located.
+    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        if self.1.read_can_seek {
+            self.readable(py)
+        } else {
+            future_into_py(py, async move { Ok(false) })
+        }
+    }
+
+    /// Check if the stream is closed.
+    #[getter]
+    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+        let state = self.0.clone();
+        future_into_py(py, async move {
+            let state = state.lock().await;
+            Ok(matches!(*state, AsyncFileState::Closed))
+        })
     }
 }

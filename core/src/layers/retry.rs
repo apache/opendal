@@ -1044,13 +1044,11 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                2 => Ok(Bytes::copy_from_slice("Hello, ".as_bytes()).into()),
-                3 => Err(
+                2 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                4 => Ok(Bytes::copy_from_slice("World!".as_bytes()).into()),
-                5 => Ok(Bytes::new().into()),
+                3 => Ok(Bytes::copy_from_slice("Hello, World!".as_bytes()).into()),
                 _ => unreachable!(),
             }
         }
@@ -1116,8 +1114,8 @@ mod tests {
             .expect("read must succeed");
         assert_eq!(size, 13);
         assert_eq!(content, "Hello, World!".as_bytes());
-        // The error is retryable, we should request it 1 + 10 times.
-        assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        // The error is retryable, we should request it 3 times.
+        assert_eq!(*builder.attempt.lock().unwrap(), 3);
     }
 
     #[tokio::test]

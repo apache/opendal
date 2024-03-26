@@ -17,8 +17,8 @@
 
 use std::ffi::OsStr;
 use std::ffi::OsString;
-use std::ops::Deref;
 use std::num::NonZeroU32;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::SystemTime;

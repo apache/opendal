@@ -154,7 +154,12 @@ impl Operator {
     }
 
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
-        Ok(Box::new(Reader(self.0.reader(path)?)))
+        let meta = self.0.stat(path)?;
+        Ok(Box::new(Reader(
+            self.0
+                .reader(path)?
+                .into_std_io_read(0..meta.content_length()),
+        )))
     }
 
     fn lister(&self, path: &str) -> Result<Box<Lister>> {

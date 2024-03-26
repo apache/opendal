@@ -21,5 +21,6 @@ pub use backend::SftpConfig;
 mod backend;
 mod error;
 mod lister;
+mod reader;
 mod utils;
 mod writer;

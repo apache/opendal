@@ -16,8 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-
-use std::io::SeekFrom;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -25,6 +23,7 @@ use bytes::Bytes;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
+use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -256,22 +255,14 @@ impl<R> ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 }
 

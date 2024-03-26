@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bytes::Buf;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
@@ -70,7 +71,7 @@ impl Debug for B2Core {
 
 impl B2Core {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -105,9 +106,10 @@ impl B2Core {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
-                    let token = serde_json::from_slice::<AuthorizeAccountResponse>(resp_body)
-                        .map_err(new_json_deserialize_error)?;
+                    let resp_body = resp.into_body();
+                    let token: AuthorizeAccountResponse =
+                        serde_json::from_reader(resp_body.reader())
+                            .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
                         authorization_token: token.authorization_token.clone(),
                         api_url: token.api_url.clone(),
@@ -129,8 +131,9 @@ impl B2Core {
     pub async fn download_file_by_name(
         &self,
         path: &str,
-        args: &OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+        range: BytesRange,
+        _args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -147,7 +150,6 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -180,8 +182,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let resp = serde_json::from_slice::<GetUploadUrlResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
@@ -192,7 +194,6 @@ impl B2Core {
     pub async fn get_download_authorization(
         &self,
         path: &str,
-        args: &OpRead,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
         let path = build_abs_path(&self.root, path);
@@ -208,10 +209,6 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let range = args.range();
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
-        }
         let body = GetDownloadAuthorizationRequest {
             bucket_id: self.bucket_id.clone(),
             file_name_prefix: path,
@@ -229,8 +226,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let resp = serde_json::from_slice::<GetDownloadAuthorizationResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
@@ -244,7 +241,7 @@ impl B2Core {
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let resp = self.get_upload_url().await?;
 
         let p = build_abs_path(&self.root, path);
@@ -281,7 +278,7 @@ impl B2Core {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -335,8 +332,8 @@ impl B2Core {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let resp = serde_json::from_slice::<GetUploadPartUrlResponse>(resp_body)
+                let resp_body = resp.into_body();
+                let resp = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
@@ -350,7 +347,7 @@ impl B2Core {
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let resp = self.get_upload_part_url(file_id).await?;
 
         let mut req = Request::post(resp.upload_url);
@@ -373,7 +370,7 @@ impl B2Core {
         &self,
         file_id: &str,
         part_sha1_array: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let auth_info = self.get_auth_info().await?;
 
         let url = format!("{}/b2api/v2/b2_finish_large_file", auth_info.api_url);
@@ -397,7 +394,7 @@ impl B2Core {
         self.send(req).await
     }
 
-    pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<oio::Buffer>> {
         let auth_info = self.get_auth_info().await?;
 
         let url = format!("{}/b2api/v2/b2_cancel_large_file", auth_info.api_url);
@@ -426,7 +423,7 @@ impl B2Core {
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let auth_info = self.get_auth_info().await?;
 
         let mut url = format!(
@@ -470,7 +467,7 @@ impl B2Core {
         &self,
         source_file_id: String,
         to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let to = build_abs_path(&self.root, to);
 
         let auth_info = self.get_auth_info().await?;
@@ -497,7 +494,7 @@ impl B2Core {
         self.send(req).await
     }
 
-    pub async fn hide_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn hide_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;

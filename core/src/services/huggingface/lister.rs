@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
@@ -49,9 +51,9 @@ impl oio::PageList for HuggingfaceLister {
             return Err(error);
         }
 
-        let bytes = response.into_body().bytes().await?;
-        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&bytes)
-            .map_err(new_json_deserialize_error)?;
+        let bytes = response.into_body();
+        let decoded_response: Vec<HuggingfaceStatus> =
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         ctx.done = true;
 

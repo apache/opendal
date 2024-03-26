@@ -300,50 +300,18 @@ impl BatchOperation {
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    br: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
-    /// The maximum buffer capability.
-    /// `None` stand for disable buffer.
-    buffer: Option<usize>,
 }
 
 impl OpRead {
     /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// The into_deterministic function transforms the OpRead into a deterministic version.
-    ///
-    /// This API is utilized because it allows for internal optimizations such as dividing read
-    /// ranges or retrying the read request from where it failed. In these scenarios, the expected
-    /// `ETag` value differs from what users specify in `If-Match` or `If-None-Match`.Therefore,
-    /// we need to eliminate these conditional headers to ensure that the read operation is
-    /// deterministic.
-    ///
-    /// This API is not intended to be used by users and should never be exposed.
-    pub(crate) fn into_deterministic(self) -> Self {
-        Self {
-            if_match: None,
-            if_none_match: None,
-            ..self
-        }
-    }
-
-    /// Create a new OpRead with range.
-    pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.br = range;
-        self
-    }
-
-    /// Get range from OpRead.
-    pub fn range(&self) -> BytesRange {
-        self.br
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.
@@ -411,18 +379,6 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
-    }
-
-    /// Set the buffer capability.
-    pub fn with_buffer(mut self, buffer: usize) -> Self {
-        self.buffer = Some(buffer);
-
-        self
-    }
-
-    /// Get buffer from option.
-    pub fn buffer(&self) -> Option<usize> {
-        self.buffer
     }
 }
 

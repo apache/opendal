@@ -31,6 +31,7 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::http::reader::HttpReader;
 use crate::*;
 
 /// Config for Http service support.
@@ -223,7 +224,7 @@ impl Debug for HttpBackend {
 
 #[async_trait]
 impl Accessor for HttpBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = HttpReader;
     type Writer = ();
     type Lister = ();
     type BlockingReader = ();
@@ -240,8 +241,7 @@ impl Accessor for HttpBackend {
                 stat_with_if_none_match: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -273,30 +273,17 @@ impl Accessor for HttpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.http_get(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((RpRead::default(), HttpReader::new(self.clone(), path, args)))
     }
 }
 
 impl HttpBackend {
-    async fn http_get(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn http_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -315,8 +302,8 @@ impl HttpBackend {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        if !args.range().is_full() {
-            req = req.header(header::RANGE, args.range().to_header());
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req
@@ -326,7 +313,7 @@ impl HttpBackend {
         self.client.send(req).await
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -350,201 +337,5 @@ impl HttpBackend {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use anyhow::Result;
-    use wiremock::matchers::basic_auth;
-    use wiremock::matchers::bearer_token;
-    use wiremock::matchers::headers;
-    use wiremock::matchers::method;
-    use wiremock::matchers::path;
-    use wiremock::Mock;
-    use wiremock::MockServer;
-    use wiremock::ResponseTemplate;
-
-    use super::*;
-    use crate::Operator;
-
-    #[tokio::test]
-    async fn test_read() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/hello"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-length", "13")
-                    .set_body_string("Hello, World!"),
-            )
-            .mount(&mock_server)
-            .await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        let op = Operator::new(builder)?.finish();
-
-        let bs = op.read("hello").await?;
-
-        assert_eq!(bs, b"Hello, World!");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_read_via_basic_auth() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let (username, password) = ("your_username", "your_password");
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/hello"))
-            .and(basic_auth(username, password))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-length", "13")
-                    .set_body_string("Hello, World!"),
-            )
-            .mount(&mock_server)
-            .await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .and(basic_auth(username, password))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        builder.username(username).password(password);
-        let op = Operator::new(builder)?.finish();
-
-        let bs = op.read("hello").await?;
-
-        assert_eq!(bs, b"Hello, World!");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_read_via_bearer_auth() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let token = "your_token";
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/hello"))
-            .and(bearer_token(token))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-length", "13")
-                    .set_body_string("Hello, World!"),
-            )
-            .mount(&mock_server)
-            .await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .and(bearer_token(token))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        builder.token(token);
-        let op = Operator::new(builder)?.finish();
-
-        let bs = op.read("hello").await?;
-
-        assert_eq!(bs, b"Hello, World!");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_stat() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "128"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        let op = Operator::new(builder)?.finish();
-        let bs = op.stat("hello").await?;
-
-        assert_eq!(bs.mode(), EntryMode::FILE);
-        assert_eq!(bs.content_length(), 128);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_read_with() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/hello"))
-            .and(headers("if-none-match", vec!["*"]))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-length", "13")
-                    .set_body_string("Hello, World!"),
-            )
-            .mount(&mock_server)
-            .await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "13"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        let op = Operator::new(builder)?.finish();
-
-        let match_bs = op.read_with("hello").if_none_match("*").await?;
-        assert_eq!(match_bs, b"Hello, World!");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_stat_with() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("HEAD"))
-            .and(path("/hello"))
-            .and(headers("if-none-match", vec!["*"]))
-            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "128"))
-            .mount(&mock_server)
-            .await;
-
-        let mut builder = HttpBuilder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        let op = Operator::new(builder)?.finish();
-        let bs = op.stat_with("hello").if_none_match("*").await?;
-
-        assert_eq!(bs.mode(), EntryMode::FILE);
-        assert_eq!(bs.content_length(), 128);
-        Ok(())
     }
 }

@@ -17,3 +17,6 @@
 
 mod adaptive;
 pub use adaptive::AdaptiveBuf;
+
+mod buffer;
+pub use buffer::Buffer;

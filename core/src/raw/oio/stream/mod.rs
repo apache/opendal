@@ -19,9 +19,3 @@ mod api;
 pub use api::Stream;
 pub use api::StreamExt;
 pub use api::Streamer;
-
-mod into_stream_from_reader;
-pub use into_stream_from_reader::into_stream_from_reader;
-
-mod into_stream;
-pub use into_stream::into_stream;

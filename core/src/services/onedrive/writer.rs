@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -68,10 +69,7 @@ impl OneDriveWriter {
         match status {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -113,9 +111,7 @@ impl OneDriveWriter {
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {}
                 _ => return Err(parse_error(resp).await?),
             }
 
@@ -149,9 +145,9 @@ impl OneDriveWriter {
         match status {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let result: OneDriveUploadSessionCreationResponseBody =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
             _ => Err(parse_error(resp).await?),

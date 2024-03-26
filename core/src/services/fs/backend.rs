@@ -27,6 +27,7 @@ use uuid::Uuid;
 use super::lister::FsLister;
 use super::writer::FsWriter;
 use crate::raw::*;
+use crate::services::fs::reader::FsReader;
 use crate::*;
 
 /// POSIX file system support.
@@ -240,10 +241,10 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::TokioReader<tokio::fs::File>;
+    type Reader = FsReader;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
-    type BlockingReader = oio::StdReader<std::fs::File>;
+    type BlockingReader = FsReader;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
@@ -255,7 +256,6 @@ impl Accessor for FsBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
 
                 write: true,
                 write_can_empty: true,
@@ -327,7 +327,7 @@ impl Accessor for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let r = oio::TokioReader::new(f);
+        let r = FsReader::new(f.into_std().await);
         Ok((RpRead::new(), r))
     }
 
@@ -475,8 +475,7 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(new_std_io_error)?;
 
-        let r = oio::StdReader::new(f);
-
+        let r = FsReader::new(f);
         Ok((RpRead::new(), r))
     }
 

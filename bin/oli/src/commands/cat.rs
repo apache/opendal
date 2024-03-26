@@ -22,7 +22,7 @@ use anyhow::Result;
 use clap::Arg;
 use clap::ArgMatches;
 use clap::Command;
-use tokio::io;
+use futures::io;
 
 use crate::config::Config;
 
@@ -37,9 +37,11 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         .ok_or_else(|| anyhow!("missing target"))?;
     let (op, path) = cfg.parse_location(target)?;
 
-    let mut reader = op.reader(&path).await?;
-    let mut stdout = io::stdout();
-    io::copy(&mut reader, &mut stdout).await?;
+    let reader = op.reader(&path).await?;
+    let meta = op.stat(&path).await?;
+    let mut buf_reader = reader.into_futures_io_async_read(0..meta.content_length());
+    let mut stdout = io::AllowStdIo::new(std::io::stdout());
+    io::copy_buf(&mut buf_reader, &mut stdout).await?;
     Ok(())
 }
 

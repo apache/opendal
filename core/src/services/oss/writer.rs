@@ -56,10 +56,7 @@ impl oio::MultipartWrite for OssWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -80,7 +77,7 @@ impl oio::MultipartWrite for OssWriter {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let result: InitiateMultipartUploadResult =
                     quick_xml::de::from_reader(bytes::Buf::reader(bs))
@@ -120,8 +117,6 @@ impl oio::MultipartWrite for OssWriter {
                     })?
                     .to_string();
 
-                resp.into_body().consume().await?;
-
                 Ok(oio::MultipartPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
@@ -145,11 +140,7 @@ impl oio::MultipartWrite for OssWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -161,10 +152,7 @@ impl oio::MultipartWrite for OssWriter {
             .await?;
         match resp.status() {
             // OSS returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

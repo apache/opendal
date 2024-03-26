@@ -21,6 +21,7 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
@@ -31,6 +32,7 @@ use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
 use crate::raw::*;
+use crate::services::ipmfs::reader::IpmfsReader;
 use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
@@ -63,7 +65,7 @@ impl IpmfsBackend {
 
 #[async_trait]
 impl Accessor for IpmfsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = IpmfsReader;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type BlockingReader = ();
@@ -78,8 +80,6 @@ impl Accessor for IpmfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 delete: true,
@@ -98,10 +98,7 @@ impl Accessor for IpmfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -118,10 +115,10 @@ impl Accessor for IpmfsBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let res: IpfsStatResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 let mode = match res.file_type.as_str() {
                     "file" => EntryMode::FILE,
@@ -139,14 +136,10 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipmfs_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            IpmfsReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -162,10 +155,7 @@ impl Accessor for IpmfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::OK => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -177,7 +167,7 @@ impl Accessor for IpmfsBackend {
 }
 
 impl IpmfsBackend {
-    async fn ipmfs_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -194,11 +184,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -207,9 +193,7 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        if let Some(offset) = range.offset() {
-            write!(url, "&offset={offset}").expect("write into string must succeed")
-        }
+        write!(url, "&offset={}", range.offset()).expect("write into string must succeed");
         if let Some(count) = range.size() {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
@@ -222,7 +206,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -239,7 +223,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -256,7 +240,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -274,11 +258,7 @@ impl IpmfsBackend {
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(
-        &self,
-        path: &str,
-        body: Bytes,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

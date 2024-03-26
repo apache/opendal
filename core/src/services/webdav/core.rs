@@ -116,9 +116,9 @@ impl WebdavCore {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
-        let result: Multistatus = deserialize_multistatus(&bs)?;
+        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -133,8 +133,9 @@ impl WebdavCore {
     pub async fn webdav_get(
         &self,
         path: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+        range: BytesRange,
+        _: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -144,7 +145,6 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -162,7 +162,7 @@ impl WebdavCore {
         size: Option<u64>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -189,7 +189,7 @@ impl WebdavCore {
         self.client.send(req).await
     }
 
-    pub async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webdav_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -206,7 +206,7 @@ impl WebdavCore {
         self.client.send(req).await
     }
 
-    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -234,7 +234,7 @@ impl WebdavCore {
         self.client.send(req).await
     }
 
-    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -262,11 +262,7 @@ impl WebdavCore {
         self.client.send(req).await
     }
 
-    pub async fn webdav_list(
-        &self,
-        path: &str,
-        args: &OpList,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -357,7 +353,7 @@ impl WebdavCore {
             // The MKCOL method can only be performed on a deleted or non-existent resource.
             // This error means the directory already exists which is allowed by create_dir.
             | StatusCode::METHOD_NOT_ALLOWED => {
-                resp.into_body().consume().await?;
+
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

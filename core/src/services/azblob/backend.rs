@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use bytes::Buf;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
@@ -38,6 +39,7 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::reader::AzblobReader;
 use crate::services::azblob::writer::AzblobWriters;
 use crate::*;
 
@@ -543,7 +545,7 @@ pub struct AzblobBackend {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for AzblobBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = AzblobReader;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type BlockingReader = ();
@@ -561,8 +563,7 @@ impl Accessor for AzblobBackend {
                 stat_with_if_none_match: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
                 read_with_override_content_disposition: true,
@@ -607,25 +608,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azblob_get_blob(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            AzblobReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -667,10 +653,7 @@ impl Accessor for AzblobBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::ACCEPTED => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -678,7 +661,10 @@ impl Accessor for AzblobBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v)?,
-            PresignOperation::Read(v) => self.core.azblob_get_blob_request(path, v)?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .azblob_get_blob_request(path, BytesRange::default(), v)?
+            }
             PresignOperation::Write(_) => self.core.azblob_put_blob_request(
                 path,
                 None,
@@ -740,9 +726,10 @@ impl Accessor for AzblobBackend {
             )
         })?;
 
-        let multipart: Multipart<MixedPart> = Multipart::new()
-            .with_boundary(boundary)
-            .parse(resp.into_body().bytes().await?)?;
+        let mut bs = resp.into_body();
+        let bs = bs.copy_to_bytes(bs.remaining());
+
+        let multipart: Multipart<MixedPart> = Multipart::new().with_boundary(boundary).parse(bs)?;
         let parts = multipart.into_parts();
 
         if paths.len() != parts.len() {

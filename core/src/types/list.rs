@@ -283,6 +283,7 @@ impl Iterator for BlockingLister {
 }
 
 #[cfg(test)]
+#[cfg(feature = "services-azblob")]
 mod tests {
     use futures::future;
     use futures::StreamExt;

@@ -50,10 +50,7 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -79,10 +76,7 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -129,10 +123,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -141,9 +132,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         for block_id in block_ids {
             let resp = self.backend.webhdfs_delete(&block_id.to_string()).await?;
             match resp.status() {
-                StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::OK => {}
                 _ => return Err(parse_error(resp).await?),
             }
         }
@@ -179,8 +168,6 @@ impl oio::AppendWrite for WebhdfsWriter {
 
                 match status {
                     StatusCode::CREATED | StatusCode::OK => {
-                        resp.into_body().consume().await?;
-
                         location = self.backend.webhdfs_init_append_request(&self.path).await?;
                     }
                     _ => return Err(parse_error(resp).await?),
@@ -198,10 +185,7 @@ impl oio::AppendWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

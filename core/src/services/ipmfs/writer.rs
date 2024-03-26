@@ -20,7 +20,6 @@ use http::StatusCode;
 
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
-
 use crate::raw::*;
 use crate::*;
 
@@ -43,10 +42,7 @@ impl oio::OneShotWrite for IpmfsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

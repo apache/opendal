@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
@@ -63,8 +62,8 @@ where
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
-    type Reader = oio::Cursor;
-    type BlockingReader = oio::Cursor;
+    type Reader = Bytes;
+    type BlockingReader = Bytes;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
@@ -76,9 +75,6 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         let mut cap = am.native_capability();
         if cap.read {
-            cap.read_can_seek = true;
-            cap.read_can_next = true;
-            cap.read_with_range = true;
             cap.stat = true;
         }
 
@@ -96,7 +92,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         am
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
 
         let bs = match self.kv.get(&p).await? {
@@ -104,12 +100,12 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
+        let bs = Bytes::from(bs);
 
-        Ok((RpRead::new(), oio::Cursor::from(bs)))
+        Ok((RpRead::new(), bs))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+    fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_abs_path(&self.root, path);
 
         let bs = match self.kv.blocking_get(&p)? {
@@ -117,8 +113,8 @@ impl<S: Adapter> Accessor for Backend<S> {
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
-        let bs = self.apply_range(bs, args.range());
-        Ok((RpRead::new(), oio::Cursor::from(bs)))
+        let bs = Bytes::from(bs);
+        Ok((RpRead::new(), bs))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -195,26 +191,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-}
-
-impl<S> Backend<S>
-where
-    S: Adapter,
-{
-    fn apply_range(&self, mut bs: Vec<u8>, br: BytesRange) -> Vec<u8> {
-        match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                let mut bs = bs.split_off(offset as usize);
-                if (size as usize) < bs.len() {
-                    let _ = bs.split_off(size as usize);
-                }
-                bs
-            }
-            (Some(offset), None) => bs.split_off(offset as usize),
-            (None, Some(size)) => bs.split_off(bs.len() - size as usize),
-            (None, None) => bs,
-        }
     }
 }
 

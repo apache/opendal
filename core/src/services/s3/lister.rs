@@ -81,7 +81,7 @@ impl oio::PageList for S3Lister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let output: ListObjectsOutput =
             de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;

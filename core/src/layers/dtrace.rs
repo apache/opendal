@@ -19,9 +19,8 @@ use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use std::io;
-
 use async_trait::async_trait;
+use bytes::Buf;
 use bytes::Bytes;
 use probe::probe_lazy;
 
@@ -344,12 +343,12 @@ impl<R> DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.read(limit).await {
+        match self.inner.read_at(offset, limit).await {
             Ok(bs) => {
-                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.len());
+                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.remaining());
                 Ok(bs)
             }
             Err(e) => {
@@ -358,50 +357,25 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
             }
         }
     }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, reader_seek_start, c_path.as_ptr());
-        match self.inner.seek(pos).await {
-            Ok(n) => {
-                probe_lazy!(opendal, reader_seek_ok, c_path.as_ptr(), n);
-                Ok(n)
-            }
-            Err(e) => {
-                probe_lazy!(opendal, reader_seek_error, c_path.as_ptr());
-                Err(e)
-            }
-        }
-    }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
         self.inner
-            .read(limit)
+            .read_at(offset, limit)
             .map(|bs| {
-                probe_lazy!(opendal, blocking_reader_read_ok, c_path.as_ptr(), bs.len());
+                probe_lazy!(
+                    opendal,
+                    blocking_reader_read_ok,
+                    c_path.as_ptr(),
+                    bs.remaining()
+                );
                 bs
             })
             .map_err(|e| {
                 probe_lazy!(opendal, blocking_reader_read_error, c_path.as_ptr());
-                e
-            })
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_reader_seek_start, c_path.as_ptr());
-        self.inner
-            .seek(pos)
-            .map(|res| {
-                probe_lazy!(opendal, blocking_reader_seek_ok, c_path.as_ptr(), res);
-                res
-            })
-            .map_err(|e| {
-                probe_lazy!(opendal, blocking_reader_seek_error, c_path.as_ptr());
                 e
             })
     }

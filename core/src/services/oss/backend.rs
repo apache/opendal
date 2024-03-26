@@ -35,6 +35,7 @@ use super::error::parse_error;
 use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;
+use crate::services::oss::reader::OssReader;
 use crate::services::oss::writer::OssWriters;
 use crate::*;
 
@@ -376,7 +377,7 @@ pub struct OssBackend {
 
 #[async_trait]
 impl Accessor for OssBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = OssReader;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;
     type BlockingReader = ();
@@ -394,8 +395,7 @@ impl Accessor for OssBackend {
                 stat_with_if_none_match: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -456,34 +456,10 @@ impl Accessor for OssBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .oss_get_object(
-                path,
-                args.range(),
-                args.if_match(),
-                args.if_none_match(),
-                args.override_content_disposition(),
-            )
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            OssReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -502,10 +478,7 @@ impl Accessor for OssBackend {
         let resp = self.core.oss_delete_object(path).await?;
         let status = resp.status();
         match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -526,10 +499,7 @@ impl Accessor for OssBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -541,14 +511,10 @@ impl Accessor for OssBackend {
                 self.core
                     .oss_head_object_request(path, true, v.if_match(), v.if_none_match())?
             }
-            PresignOperation::Read(v) => self.core.oss_get_object_request(
-                path,
-                v.range(),
-                true,
-                v.if_match(),
-                v.if_none_match(),
-                v.override_content_disposition(),
-            )?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .oss_get_object_request(path, BytesRange::default(), true, v)?
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .oss_put_object_request(path, None, v, AsyncBody::Empty, true)?
@@ -595,7 +561,7 @@ impl Accessor for OssBackend {
         let status = resp.status();
 
         if let StatusCode::OK = status {
-            let bs = resp.into_body().bytes().await?;
+            let bs = resp.into_body();
 
             let result: DeleteObjectsResult =
                 quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;

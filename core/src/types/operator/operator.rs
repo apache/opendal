@@ -500,8 +500,8 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpRead::default(),
-            |inner, path, args| async move {
+            (OpRead::default(), BytesRange::default()),
+            |inner, path, (args, range)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -511,24 +511,11 @@ impl Operator {
                     );
                 }
 
-                let range = args.range();
-                let (size_hint, range) = if let Some(size) = range.size() {
-                    (size, range)
-                } else {
-                    let size = inner
-                        .stat(&path, OpStat::default())
-                        .await?
-                        .into_metadata()
-                        .content_length();
-                    let range = range.complete(size);
-                    (range.size().unwrap(), range)
-                };
+                let size_hint = range.size();
 
-                let (_, r) = inner.read(&path, args.with_range(range)).await?;
-                let mut r = Reader::new(r);
-                let mut buf = Vec::with_capacity(size_hint as usize);
-                r.read_to_end(&mut buf).await?;
-
+                let r = Reader::create(inner, &path, args).await?;
+                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
+                r.read_range(&mut buf, range.to_range()).await?;
                 Ok(buf)
             },
         )
@@ -570,86 +557,6 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// ## `range`
-    ///
-    /// Set `range` for this `read` request.
-    ///
-    /// If we have a file with size `n`.
-    ///
-    /// - `..` means read bytes in range `[0, n)` of file.
-    /// - `0..1024` means read bytes in range `[0, 1024)` of file
-    /// - `1024..` means read bytes in range `[1024, n)` of file
-    /// - `..1024` means read bytes in range `(n - 1024, n)` of file
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.reader_with("path/to/file").range(0..1024).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `buffer`
-    ///
-    /// Set `buffer` for the reader.
-    ///
-    /// OpenDAL by default to read file without buffer. This is not efficient for cases like `seek`
-    /// after read or reading file with small chunks. To improve performance, we can set a buffer.
-    ///
-    /// The following example will create a reader with 4 MiB buffer internally. All seek operations
-    /// happened in buffered data will be zero cost.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op
-    ///     .reader_with("path/to/file")
-    ///     .buffer(4 * 1024 * 1024)
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_match`
-    ///
-    /// Set `if_match` for this `read` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
-    ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.reader_with("path/to/file").if_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_none_match`
-    ///
-    /// Set `if_none_match` for this `read` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
-    ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.reader_with("path/to/file").if_none_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -657,11 +564,11 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").range(0..10).await?;
+    /// let r = op.reader_with("path/to/file").version("version_id").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Reader>>> {
+    pub fn reader_with(&self, path: &str) -> FutureReader<impl Future<Output = Result<Reader>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(

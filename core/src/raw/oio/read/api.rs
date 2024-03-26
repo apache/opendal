@@ -17,13 +17,12 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
-use std::ops::DerefMut;
+use std::ops::Deref;
 
 use bytes::Bytes;
 use futures::Future;
 
-use crate::raw::BoxedFuture;
+use crate::raw::*;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -87,63 +86,52 @@ pub type Reader = Box<dyn ReadDyn>;
 /// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
-    /// Fetch more bytes from underlying reader.
+    /// Read at the given offset with the given limit.
     ///
-    /// `limit` is used to hint the data that user want to read at most. Implementer
-    /// MUST NOT return more than `limit` bytes. However, implementer can decide
-    /// whether to split or merge the read requests underground.
+    /// # Notes
     ///
-    /// Returning `bytes`'s `length == 0` means:
-    ///
-    /// - This reader has reached its “end of file” and will likely no longer be able to produce bytes.
-    /// - The `limit` specified was `0`.
+    /// Storage services should try to read as much as possible, only return bytes less than the
+    /// limit while reaching the end of the file.
     #[cfg(not(target_arch = "wasm32"))]
-    fn read(&mut self, limit: usize) -> impl Future<Output = Result<Bytes>> + Send;
+    fn read_at(
+        &self,
+        offset: u64,
+        limit: usize,
+    ) -> impl Future<Output = Result<oio::Buffer>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn read(&mut self, size: usize) -> impl Future<Output = Result<Bytes>>;
-
-    /// Seek asynchronously.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn seek(&mut self, pos: io::SeekFrom) -> impl Future<Output = Result<u64>>;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<oio::Buffer>>;
 }
 
 impl Read for () {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let (_, _) = (offset, limit);
 
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support streaming",
         ))
     }
+}
 
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
+impl Read for Bytes {
+    /// TODO: we can check if the offset is out of range.
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(oio::Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
     }
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>>;
-
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>>;
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_dyn(&mut self, limit: usize) -> BoxedFuture<Result<Bytes>> {
-        Box::pin(self.read(limit))
-    }
-
-    fn seek_dyn(&mut self, pos: io::SeekFrom) -> BoxedFuture<Result<u64>> {
-        Box::pin(self.seek(pos))
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>> {
+        Box::pin(self.read_at(offset, limit))
     }
 }
 
@@ -152,12 +140,8 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.deref_mut().read_dyn(limit).await
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.deref_mut().seek_dyn(pos).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.deref().read_at_dyn(offset, limit).await
     }
 }
 
@@ -165,48 +149,40 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
 pub type BlockingReader = Box<dyn BlockingRead>;
 
 /// Read is the trait that OpenDAL returns to callers.
-///
-/// Read is compose of the following trait
-///
-/// - `Read`
-/// - `Seek`
-/// - `Iterator<Item = Result<Bytes>>`
-///
-/// `Read` is required to be implemented, `Seek` and `Iterator`
-/// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync {
-    /// Read synchronously.
-    fn read(&mut self, limit: usize) -> Result<Bytes>;
-
-    /// Seek synchronously.
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
+    /// Read data from the reader at the given offset with the given limit.
+    ///
+    /// # Notes
+    ///
+    /// Storage services should try to read as much as possible, only return bytes less than the
+    /// limit while reaching the end of the file.
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer>;
 }
 
 impl BlockingRead for () {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let _ = (offset, limit);
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
     }
+}
 
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output blocking reader doesn't support seeking",
-        ))
+impl BlockingRead for Bytes {
+    /// TODO: we can check if the offset is out of range.
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(oio::Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
     }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        (**self).read(limit)
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        (**self).seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        (**self).read_at(offset, limit)
     }
 }

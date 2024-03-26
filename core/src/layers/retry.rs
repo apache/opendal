@@ -17,22 +17,18 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
-use std::io;
-
 use std::sync::Arc;
-
 use std::time::Duration;
 
 use async_trait::async_trait;
 use backon::BlockingRetryable;
-
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
+use crate::raw::oio::Buffer;
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -665,20 +661,16 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        use backon::RetryableWithContext;
-
-        let inner = self.inner.take().expect("inner must be valid");
-
-        let (inner, res) = {
-            |mut r: R| async move {
-                let res = r.seek(pos).await;
-
-                (r, res)
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        {
+            || {
+                self.inner
+                    .as_ref()
+                    .expect("inner must be valid")
+                    .read_at(offset, limit)
             }
         }
         .retry(&self.builder)
-        .context(inner)
         .when(|e| e.is_temporary())
         .notify(|err, dur| {
             self.notify.intercept(
@@ -690,49 +682,14 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
                 ],
             )
         })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
-        .await;
-
-        self.inner = Some(inner);
-        res
-    }
-
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        use backon::RetryableWithContext;
-
-        let inner = self.inner.take().expect("inner must be valid");
-
-        let (inner, res) = {
-            |mut r: R| async move {
-                let res = r.read(limit).await;
-
-                (r, res)
-            }
-        }
-        .retry(&self.builder)
-        .when(|e| e.is_temporary())
-        .context(inner)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", ReadOperation::Read.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
-        .await;
-
-        self.inner = Some(inner);
-        res
+        .await
+        .map_err(|e| e.set_persistent())
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        { || self.inner.as_mut().unwrap().read(limit) }
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        { || self.inner.as_ref().unwrap().read_at(offset, limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -741,24 +698,6 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
                     dur,
                     &[
                         ("operation", ReadOperation::BlockingRead.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        { || self.inner.as_mut().unwrap().seek(pos) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::BlockingSeek.into_static()),
                         ("path", &self.path),
                     ],
                 );
@@ -961,7 +900,6 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -1024,7 +962,6 @@ mod tests {
                 RpRead::new(),
                 MockReader {
                     attempt: self.attempt.clone(),
-                    pos: 0,
                 },
             ))
         }
@@ -1095,21 +1032,10 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockReader {
         attempt: Arc<Mutex<usize>>,
-        pos: u64,
     }
 
     impl oio::Read for MockReader {
-        async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-            self.pos = match pos {
-                io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
-                io::SeekFrom::Start(n) => n,
-                io::SeekFrom::End(n) => (13 + n) as u64,
-            };
-
-            Ok(self.pos)
-        }
-
-        async fn read(&mut self, _: usize) -> Result<Bytes> {
+        async fn read_at(&self, _: u64, _: usize) -> Result<oio::Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -1118,19 +1044,11 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                2 => {
-                    self.pos += 7;
-                    Ok(Bytes::copy_from_slice("Hello, ".as_bytes()))
-                }
-                3 => Err(
+                2 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                4 => {
-                    self.pos += 6;
-                    Ok(Bytes::copy_from_slice("World!".as_bytes()))
-                }
-                5 => Ok(Bytes::new()),
+                3 => Ok(Bytes::copy_from_slice("Hello, World!".as_bytes()).into()),
                 _ => unreachable!(),
             }
         }
@@ -1188,7 +1106,7 @@ mod tests {
             .layer(RetryLayer::new())
             .finish();
 
-        let mut r = op.reader("retryable_error").await.unwrap();
+        let r = op.reader("retryable_error").await.unwrap();
         let mut content = Vec::new();
         let size = r
             .read_to_end(&mut content)
@@ -1196,8 +1114,8 @@ mod tests {
             .expect("read must succeed");
         assert_eq!(size, 13);
         assert_eq!(content, "Hello, World!".as_bytes());
-        // The error is retryable, we should request it 1 + 10 times.
-        assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        // The error is retryable, we should request it 3 times.
+        assert_eq!(*builder.attempt.lock().unwrap(), 3);
     }
 
     #[tokio::test]

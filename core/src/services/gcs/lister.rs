@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use serde_json;
 
 use super::core::*;
@@ -79,10 +80,10 @@ impl oio::PageList for GcsLister {
         if !resp.status().is_success() {
             return Err(parse_error(resp).await?);
         }
-        let bytes = resp.into_body().bytes().await?;
+        let bytes = resp.into_body();
 
         let output: ListResponse =
-            serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
             ctx.token = token.clone();

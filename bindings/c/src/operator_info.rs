@@ -42,12 +42,6 @@ pub struct opendal_capability {
 
     /// If operator supports read.
     pub read: bool,
-    /// If operator supports seek on returning reader.
-    pub read_can_seek: bool,
-    /// If operator supports next on returning reader.
-    pub read_can_next: bool,
-    /// If operator supports read with range.
-    pub read_with_range: bool,
     /// If operator supports read with if match.
     pub read_with_if_match: bool,
     /// If operator supports read with if none match.
@@ -237,9 +231,6 @@ impl From<core::Capability> for opendal_capability {
             stat_with_if_match: value.stat_with_if_match,
             stat_with_if_none_match: value.stat_with_if_none_match,
             read: value.read,
-            read_can_seek: value.read_can_seek,
-            read_can_next: value.read_can_next,
-            read_with_range: value.read_with_range,
             read_with_if_match: value.read_with_if_match,
             read_with_if_none_match: value.read_with_if_none_match,
             read_with_override_content_type: value.read_with_override_content_type,

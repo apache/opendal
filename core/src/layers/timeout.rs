@@ -16,8 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::io::SeekFrom;
-
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -294,14 +292,9 @@ impl<R> TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let fut = self.inner.read(limit);
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        let fut = self.inner.read_at(offset, limit);
         Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let fut = self.inner.seek(pos);
-        Self::io_timeout(self.timeout, ReadOperation::Seek.into_static(), fut).await
     }
 }
 
@@ -331,14 +324,12 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::future::{pending, Future};
-    use std::io::SeekFrom;
+    use std::future::pending;
+    use std::future::Future;
     use std::sync::Arc;
-
     use std::time::Duration;
 
     use async_trait::async_trait;
-    use bytes::Bytes;
     use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
@@ -393,11 +384,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn seek(&mut self, _: SeekFrom) -> impl Future<Output = Result<u64>> {
-            pending()
-        }
-
-        fn read(&mut self, _: usize) -> impl Future<Output = Result<Bytes>> {
+        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<oio::Buffer>> {
             pending()
         }
     }
@@ -436,9 +423,9 @@ mod tests {
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
-        let mut reader = op.reader("test").await.unwrap();
+        let reader = op.reader("test").await.unwrap();
 
-        let res = reader.read(4).await;
+        let res = reader.read(&mut Vec::default(), 0, 4).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

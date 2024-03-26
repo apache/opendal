@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -313,8 +314,9 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let body = resp.into_body().bytes().await?;
-                let d1_response = D1Response::parse(&body)?;
+                let mut body = resp.into_body();
+                let bs = body.copy_to_bytes(body.remaining());
+                let d1_response = D1Response::parse(&bs)?;
                 Ok(d1_response.get_result(&self.value_field))
             }
             _ => Err(parse_error(resp).await?),

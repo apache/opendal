@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -182,8 +183,6 @@ impl Accessor for DbfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 create_dir: true,
@@ -203,10 +202,7 @@ impl Accessor for DbfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -224,9 +220,9 @@ impl Accessor for DbfsBackend {
         match status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body().bytes().await?;
-                let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
-                    .map_err(new_json_deserialize_error)?;
+                let bs = resp.into_body();
+                let decoded_response: DbfsStatus =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
                     decoded_response.modification_time,
                 )?);
@@ -246,8 +242,8 @@ impl Accessor for DbfsBackend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = DbfsReader::new(self.core.clone(), args, path.to_string());
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let op = DbfsReader::new(self.core.clone(), path.to_string());
 
         Ok((RpRead::new(), op))
     }
@@ -285,10 +281,7 @@ impl Accessor for DbfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

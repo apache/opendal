@@ -79,10 +79,11 @@ jobs:
 
   test_core:
     name: core / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.core
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).core }}
     uses: ./.github/workflows/test_behavior_core.yml
@@ -92,10 +93,11 @@ jobs:
 
   test_binding_java:
     name: binding_java / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_java
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_java }}
     uses: ./.github/workflows/test_behavior_binding_java.yml
@@ -105,10 +107,11 @@ jobs:
 
   test_binding_python:
     name: binding_python / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_python
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_python }}
     uses: ./.github/workflows/test_behavior_binding_python.yml
@@ -118,10 +121,11 @@ jobs:
 
   test_binding_nodejs:
     name: binding_nodejs / ${{ matrix.os }}
-    needs: [plan]
+    needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).binding_nodejs }}
     uses: ./.github/workflows/test_behavior_binding_nodejs.yml

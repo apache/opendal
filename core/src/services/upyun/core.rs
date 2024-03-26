@@ -82,7 +82,7 @@ impl Debug for UpyunCore {
 
 impl UpyunCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -104,7 +104,11 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download_file(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -116,6 +120,7 @@ impl UpyunCore {
         let req = Request::get(url);
 
         let mut req = req
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -124,7 +129,7 @@ impl UpyunCore {
         self.send(req).await
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn info(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -185,7 +190,7 @@ impl UpyunCore {
         Ok(req)
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -205,7 +210,7 @@ impl UpyunCore {
         self.send(req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -233,7 +238,7 @@ impl UpyunCore {
         self.send(req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -261,7 +266,7 @@ impl UpyunCore {
         self.send(req).await
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
         let path = path[..path.len() - 1].to_string();
 
@@ -290,7 +295,7 @@ impl UpyunCore {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -364,7 +369,7 @@ impl UpyunCore {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -393,7 +398,7 @@ impl UpyunCore {
         path: &str,
         iter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(

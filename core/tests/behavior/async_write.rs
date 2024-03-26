@@ -31,7 +31,7 @@ use crate::*;
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if cap.write && cap.stat {
+    if cap.read && cap.write && cap.stat {
         tests.extend(async_trials!(
             op,
             test_write_only,
@@ -54,7 +54,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
-    if cap.write && cap.write_can_append && cap.stat {
+    if cap.read && cap.write && cap.write_can_append && cap.stat {
         tests.extend(async_trials!(
             op,
             test_write_with_append,

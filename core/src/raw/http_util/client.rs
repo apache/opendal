@@ -15,16 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::mem;
 use std::str::FromStr;
+use std::{future, mem};
 
+use bytes::Buf;
+use bytes::Bytes;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
 
-use super::body::IncomingAsyncBody;
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::AsyncBody;
@@ -78,7 +80,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -166,19 +168,42 @@ impl HttpClient {
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let stream = resp.bytes_stream().map_err(move |err| {
-            // If stream returns a body related error, we can convert
-            // it to interrupt so we can retry it.
-            Error::new(ErrorKind::Unexpected, "read data from http stream")
-                .map(|v| if err.is_body() { v.set_temporary() } else { v })
-                .with_context("url", uri.to_string())
-                .set_source(err)
-        });
+        let bs: Vec<Bytes> = resp
+            .bytes_stream()
+            .try_filter(|v| future::ready(!v.is_empty()))
+            .try_collect()
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read data from http response")
+                    .with_context("url", uri.to_string())
+                    .set_source(err)
+            })?;
 
-        let body = IncomingAsyncBody::new(Box::new(oio::into_stream(stream)), content_length);
+        let buffer = oio::Buffer::from(bs);
 
-        let resp = hr.body(body).expect("response must build succeed");
+        if let Some(expect) = content_length {
+            check(expect, buffer.remaining() as u64)?;
+        }
+
+        let resp = hr.body(buffer).expect("response must build succeed");
 
         Ok(resp)
+    }
+}
+
+#[inline]
+fn check(expect: u64, actual: u64) -> Result<()> {
+    match actual.cmp(&expect) {
+        Ordering::Equal => Ok(()),
+        Ordering::Less => Err(Error::new(
+            ErrorKind::ContentIncomplete,
+            &format!("reader got too little data, expect: {expect}, actual: {actual}"),
+        )
+        .set_temporary()),
+        Ordering::Greater => Err(Error::new(
+            ErrorKind::ContentTruncated,
+            &format!("reader got too much data, expect: {expect}, actual: {actual}"),
+        )
+        .set_temporary()),
     }
 }

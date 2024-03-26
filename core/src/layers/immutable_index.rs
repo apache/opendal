@@ -17,7 +17,6 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
@@ -244,6 +243,7 @@ impl oio::BlockingList for ImmutableDir {
 }
 
 #[cfg(test)]
+#[cfg(feature = "services-http")]
 mod tests {
     use std::collections::HashMap;
     use std::collections::HashSet;

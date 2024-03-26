@@ -18,19 +18,13 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::BufferReader;
-use crate::raw::oio::FileReader;
 use crate::raw::oio::FlatLister;
-use crate::raw::oio::LazyReader;
 use crate::raw::oio::PrefixLister;
-use crate::raw::oio::RangeReader;
-use crate::raw::oio::StreamableReader;
 use crate::raw::TwoWays;
 use crate::raw::*;
 use crate::*;
@@ -280,92 +274,6 @@ impl<A: Accessor> CompleteAccessor<A> {
         })
     }
 
-    async fn complete_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let capability = self.meta.native_capability();
-        if !capability.read {
-            return Err(self.new_unsupported_error(Operation::Read));
-        }
-
-        let seekable = capability.read_can_seek;
-        let streamable = capability.read_can_next;
-        let buffer_cap = args.buffer();
-
-        let r = match (seekable, streamable) {
-            (true, true) => {
-                let r = LazyReader::new(self.inner.clone(), path, args);
-                InnerCompleteReader::One(r)
-            }
-            (true, false) => {
-                let r = FileReader::new(self.inner.clone(), path, args);
-                InnerCompleteReader::Two(r)
-            }
-            _ => {
-                let r = RangeReader::new(self.inner.clone(), path, args);
-
-                if streamable {
-                    InnerCompleteReader::Three(r)
-                } else {
-                    let r = oio::into_streamable_read(r, 256 * 1024);
-                    InnerCompleteReader::Four(r)
-                }
-            }
-        };
-
-        let r = match buffer_cap {
-            None => CompleteReader::One(r),
-            Some(cap) => CompleteReader::Two(BufferReader::new(r, cap)),
-        };
-
-        Ok((RpRead::new(), r))
-    }
-
-    fn complete_blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let capability = self.meta.full_capability();
-        if !capability.read || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingRead));
-        }
-
-        let seekable = capability.read_can_seek;
-        let streamable = capability.read_can_next;
-        let buffer_cap = args.buffer();
-
-        let r = match (seekable, streamable) {
-            (true, true) => {
-                let r = LazyReader::new(self.inner.clone(), path, args);
-                InnerCompleteReader::One(r)
-            }
-            (true, false) => {
-                let r = FileReader::new(self.inner.clone(), path, args);
-                InnerCompleteReader::Two(r)
-            }
-            _ => {
-                let r = RangeReader::new(self.inner.clone(), path, args);
-
-                if streamable {
-                    InnerCompleteReader::Three(r)
-                } else {
-                    let r = oio::into_streamable_read(r, 256 * 1024);
-                    InnerCompleteReader::Four(r)
-                }
-            }
-        };
-
-        let r = match buffer_cap {
-            None => CompleteReader::One(r),
-            Some(cap) => CompleteReader::Two(BufferReader::new(r, cap)),
-        };
-
-        Ok((RpRead::new(), r))
-    }
-
     async fn complete_list(
         &self,
         path: &str,
@@ -467,8 +375,8 @@ impl<A: Accessor> CompleteAccessor<A> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
-    type Reader = CompleteReader<A, A::Reader>;
-    type BlockingReader = CompleteReader<A, A::BlockingReader>;
+    type Reader = CompleteReader<A::Reader>;
+    type BlockingReader = CompleteReader<A::BlockingReader>;
     type Writer =
         TwoWays<CompleteWriter<A::Writer>, oio::ExactBufWriter<CompleteWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
@@ -482,10 +390,6 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     fn metadata(&self) -> AccessorInfo {
         let mut meta = self.meta.clone();
         let cap = meta.full_capability_mut();
-        if cap.read {
-            cap.read_can_next = true;
-            cap.read_can_seek = true;
-        }
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
@@ -497,7 +401,14 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.complete_read(path, args).await
+        let capability = self.meta.full_capability();
+        if !capability.read {
+            return Err(self.new_unsupported_error(Operation::Read));
+        }
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| (rp, CompleteReader(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -606,7 +517,13 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_read(path, args)
+        let capability = self.meta.full_capability();
+        if !capability.read || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::Read));
+        }
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, CompleteReader(r)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -671,18 +588,30 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     }
 }
 
-pub type CompleteReader<A, R> =
-    TwoWays<InnerCompleteReader<A, R>, BufferReader<InnerCompleteReader<A, R>>>;
-
-type InnerCompleteReader<A, R> = FourWays<
-    LazyReader<A, R>,
-    FileReader<A, R>,
-    RangeReader<A, R>,
-    StreamableReader<RangeReader<A, R>>,
->;
-
 pub type CompleteLister<A, P> =
     FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
+
+pub struct CompleteReader<R>(R);
+
+impl<R: oio::Read> oio::Read for CompleteReader<R> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if limit == 0 {
+            return Ok(oio::Buffer::new());
+        }
+
+        self.0.read_at(offset, limit).await
+    }
+}
+
+impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        if limit == 0 {
+            return Ok(oio::Buffer::new());
+        }
+
+        self.0.read_at(offset, limit)
+    }
+}
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
@@ -806,7 +735,7 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(oio::Cursor::new())))
+            Ok((RpRead::new(), Box::new(Bytes::new())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -45,10 +45,7 @@ impl oio::OneShotWrite for GithubWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

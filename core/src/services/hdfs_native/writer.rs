@@ -16,11 +16,9 @@
 // under the License.
 
 use bytes::Bytes;
-
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;
-
 use crate::*;
 
 pub struct HdfsNativeWriter {

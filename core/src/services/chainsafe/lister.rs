@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::parse_info;
@@ -48,10 +49,10 @@ impl oio::PageList for ChainsafeLister {
 
         match resp.status() {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let output: Vec<Info> =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 for info in output {
                     let mut path = build_abs_path(&normalize_root(&self.path), &info.name);

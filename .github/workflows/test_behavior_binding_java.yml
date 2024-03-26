@@ -32,6 +32,7 @@ jobs:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
     strategy:
+      fail-fast: false
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:

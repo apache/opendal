@@ -22,7 +22,6 @@ use http::StatusCode;
 
 use super::core::SwiftCore;
 use super::error::parse_error;
-
 use crate::raw::*;
 use crate::*;
 
@@ -47,10 +46,7 @@ impl oio::OneShotWrite for SwiftWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

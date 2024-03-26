@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -32,6 +33,7 @@ use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
+use crate::services::pcloud::reader::PcloudReader;
 use crate::*;
 
 /// Config for backblaze Pcloud services support.
@@ -228,7 +230,7 @@ pub struct PcloudBackend {
 
 #[async_trait]
 impl Accessor for PcloudBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = PcloudReader;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type BlockingReader = ();
@@ -245,7 +247,6 @@ impl Accessor for PcloudBackend {
                 create_dir: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
 
@@ -273,9 +274,9 @@ impl Accessor for PcloudBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: StatResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
@@ -295,24 +296,13 @@ impl Accessor for PcloudBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let link = self.core.get_file_link(path).await?;
 
-        let resp = self.core.download(&link).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            PcloudReader::new(self.core.clone(), &link, args),
+        ))
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -334,9 +324,9 @@ impl Accessor for PcloudBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
                 // pCloud returns 2005 or 2009 if the file or folder is not found
@@ -368,9 +358,9 @@ impl Accessor for PcloudBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
@@ -398,9 +388,9 @@ impl Accessor for PcloudBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let resp: PcloudError =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));

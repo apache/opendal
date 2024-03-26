@@ -31,6 +31,7 @@ use uuid::Uuid;
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
 use crate::raw::*;
+use crate::services::hdfs::reader::HdfsReader;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
@@ -245,10 +246,10 @@ unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
-    type Reader = oio::FuturesReader<hdrs::AsyncFile>;
+    type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
-    type BlockingReader = oio::StdReader<hdrs::File>;
+    type BlockingReader = HdfsReader;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
 
@@ -260,7 +261,6 @@ impl Accessor for HdfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
 
                 write: true,
                 write_can_append: self.enable_append,
@@ -309,17 +309,27 @@ impl Accessor for HdfsBackend {
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self
-            .client
-            .open_file()
-            .read(true)
-            .async_open(&p)
-            .await
-            .map_err(new_std_io_error)?;
+        let client = self.client.clone();
+        let f = match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => runtime
+                .spawn_blocking(move || {
+                    client
+                        .open_file()
+                        .read(true)
+                        .open(&p)
+                        .map_err(new_std_io_error)
+                })
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
+                })?,
+            Err(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "no tokio runtime found, failed to run io task",
+            )),
+        }?;
 
-        let r = oio::FuturesReader::new(f);
-
-        Ok((RpRead::new(), r))
+        Ok((RpRead::new(), HdfsReader::new(f)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -508,9 +518,7 @@ impl Accessor for HdfsBackend {
             .open(&p)
             .map_err(new_std_io_error)?;
 
-        let r = oio::StdReader::new(f);
-
-        Ok((RpRead::new(), r))
+        Ok((RpRead::new(), HdfsReader::new(f)))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

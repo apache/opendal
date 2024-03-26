@@ -22,13 +22,11 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-
-use crate::raw::adapters::typed_kv;
-use crate::*;
-
 use serde::Deserialize;
 
 use self::raw::ConfigDeserializer;
+use crate::raw::adapters::typed_kv;
+use crate::*;
 
 ///Config for memory.
 #[derive(Default, Deserialize)]

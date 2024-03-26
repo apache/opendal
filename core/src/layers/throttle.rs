@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-
 use std::thread;
 
 use async_trait::async_trait;
@@ -185,24 +183,16 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read(limit).await
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await
+        self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read(limit)
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+        self.inner.read_at(offset, limit)
     }
 }
 

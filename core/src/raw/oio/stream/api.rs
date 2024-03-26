@@ -21,6 +21,7 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
 use bytes::Bytes;
 use bytes::BytesMut;
 
@@ -46,6 +47,16 @@ impl Stream for () {
     }
 }
 
+impl Stream for Bytes {
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.has_remaining() {
+            Poll::Ready(Some(Ok(self.copy_to_bytes(self.remaining()))))
+        } else {
+            Poll::Ready(None)
+        }
+    }
+}
+
 /// `Box<dyn Stream>` won't implement `Stream` automatically.
 /// To make Streamer work as expected, we must add this impl.
 impl<T: Stream + ?Sized> Stream for Box<T> {
@@ -53,12 +64,6 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
         (**self).poll_next(cx)
     }
 }
-
-// impl<T: raw::oio::Read> Stream for T {
-//     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-//         raw::oio::Read::poll_next(self, cx)
-//     }
-// }
 
 impl futures::Stream for dyn Stream {
     type Item = Result<Bytes>;

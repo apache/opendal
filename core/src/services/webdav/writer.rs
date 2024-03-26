@@ -22,7 +22,6 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-
 use crate::raw::*;
 use crate::*;
 
@@ -54,10 +53,7 @@ impl oio::OneShotWrite for WebdavWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

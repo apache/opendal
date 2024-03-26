@@ -15,16 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::FutureExt;
-use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use object_store::path::Path;
@@ -42,7 +36,7 @@ use opendal::Entry;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
-use opendal::Reader;
+use std::ops::Range;
 use tokio::io::AsyncWrite;
 
 #[derive(Debug)]
@@ -140,8 +134,15 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
+        let stream = r
+            .into_futures_bytes_stream(0..meta.size as u64)
+            .map_err(|err| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            });
+
         Ok(GetResult {
-            payload: GetResultPayload::Stream(Box::pin(OpendalReader { inner: r })),
+            payload: GetResultPayload::Stream(Box::pin(stream)),
             range: (0..meta.size),
             meta,
         })
@@ -338,24 +339,6 @@ async fn try_format_object_meta(res: Result<Entry, opendal::Error>) -> Result<Ob
     let meta = entry.metadata();
 
     Ok(format_object_meta(entry.path(), meta))
-}
-
-struct OpendalReader {
-    inner: Reader,
-}
-
-impl Stream for OpendalReader {
-    type Item = Result<Bytes>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let inner = Pin::new(&mut self.get_mut().inner);
-        inner
-            .poll_next(cx)
-            .map_err(|err| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            })
-    }
 }
 
 #[cfg(test)]

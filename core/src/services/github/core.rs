@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use base64::Engine;
+use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::request;
@@ -28,10 +29,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]
@@ -60,7 +60,7 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -100,7 +100,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -122,7 +122,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -137,14 +137,15 @@ impl GithubCore {
         let req = self.sign(req)?;
 
         let req = req
-            .header("Accept", "application/vnd.github.raw+json")
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);
@@ -241,9 +242,9 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let resp: ListResponse =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.entries)
             }

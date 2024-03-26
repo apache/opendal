@@ -22,7 +22,7 @@ use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;
 
-use crate::raw::{new_std_io_error, oio};
+use crate::raw::*;
 use crate::*;
 
 pub struct SftpWriter {

@@ -35,7 +35,7 @@ export function run(op) {
       }
     })
 
-    test.runIf(op.capability().write && op.capability().writeCanMulti)(
+    test.runIf(op.capability().read && op.capability().write && op.capability().writeCanMulti)(
       'blocking reader/writer stream pipeline',
       async () => {
         const filename = `random_file_${randomUUID()}`
@@ -59,7 +59,7 @@ export function run(op) {
       },
     )
 
-    test.runIf(op.capability().write)('blocking read stream', async () => {
+    test.runIf(op.capability().read && op.capability().write)('blocking read stream', async () => {
       let c = generateFixedBytes(3 * 1024 * 1024)
       const filename = `random_file_${randomUUID()}`
 

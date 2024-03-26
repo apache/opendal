@@ -264,20 +264,13 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    async fn read(&mut self, size: usize) -> crate::Result<Bytes> {
+    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
         if let Some(ref data) = self.data {
-            let size = min(size, data.len());
-            Ok(data.clone().split_to(size))
+            let size = min(limit, data.len());
+            Ok(data.clone().split_to(size).into())
         } else {
-            Ok(Bytes::new())
+            Ok(oio::Buffer::new())
         }
-    }
-
-    async fn seek(&mut self, _: SeekFrom) -> crate::Result<u64> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will be supported in the future",
-        ))
     }
 }
 

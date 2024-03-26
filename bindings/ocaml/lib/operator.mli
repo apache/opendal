@@ -22,7 +22,7 @@ val new_operator :
   (string * string) list ->
   (Opendal_core.Operator.operator, string) result
 (** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
-    
+
     @param scheme Supported services, for details, refer to https://opendal.apache.org/docs/category/services/
     @param config_map Configuration information required by the target service
     @return The block operator
@@ -38,7 +38,7 @@ val stat :
   string ->
   (Opendal_core.Operator.metadata, string) result
 (** [is_exist operator path] Get current path's metadata **without cache** directly.
-    
+
     @param operator The operator
     @param path want to stat
     @return metadata
@@ -46,7 +46,7 @@ val stat :
 
 val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
-    
+
     @param operator The operator
     @param path want to check
     @return is exists
@@ -55,15 +55,15 @@ val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 val create_dir :
   Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [create_dir operator path] Create a dir at given path.
-    
+
     # Notes
-    
+
     To indicate that a path is a directory, it is compulsory to include
     a trailing / in the path. Failure to do so may result in
     `NotADirectory` error being returned by OpenDAL.
-    
+
     # Behavior
-    
+
     - Create on existing dir will succeed.
     - Create dir is always recursive, works like `mkdir -p`
     @param operator The operator
@@ -73,7 +73,7 @@ val create_dir :
 val read :
   Opendal_core.Operator.operator -> string -> (char array, string) result
 (** [read operator path] Read the whole path into a bytes.
-    
+
     @param operator The operator
     @param path want to read
     @return data of path
@@ -84,7 +84,7 @@ val reader :
   string ->
   (Opendal_core.Operator.reader, string) result
 (** [read operator path] Create a new reader which can read the whole path.
-    
+
     @param operator The operator
     @param path want to read
     @return reader
@@ -146,15 +146,9 @@ val remove_all :
 *)
 
 module Reader : sig
-  val read : Opendal_core.Operator.reader -> bytes -> (int, string) result
+  val pread :
+    Opendal_core.Operator.reader -> bytes -> int64 -> (int, string) result
   (** [read reader buf] Read data to [buf] and return data size.*)
-
-  val seek :
-    Opendal_core.Operator.reader ->
-    int64 ->
-    Unix.seek_command ->
-    (int64, string) result
-  (** [seek reader pos mode] is a function that seeks data to the given position [pos].*)
 end
 
 module Metadata : sig

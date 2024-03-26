@@ -173,7 +173,7 @@ services-s3 = [
   "reqsign?/reqwest_request",
 ]
 services-seafile = []
-services-sftp = ["dep:openssh", "dep:openssh-sftp-client"]
+services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
 services-sled = ["dep:sled", "internal-tokio-rt"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2", "internal-tokio-rt"]
 services-supabase = []

@@ -38,3 +38,4 @@ runs:
         OPENDAL_SFTP_KEY=${{ github.workspace }}/fixtures/sftp/test_ssh_key
         OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY=accept
         EOF
+    

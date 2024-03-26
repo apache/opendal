@@ -22,12 +22,14 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use bb8::{PooledConnection, RunError};
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;
+use tokio::sync::OnceCell;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -39,7 +41,7 @@ use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Sftpservices support.
+/// Config for Sftp Service support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
@@ -209,6 +211,8 @@ impl Builder for SftpBuilder {
             key: self.config.key.clone(),
             known_hosts_strategy,
             copyable: self.config.enable_copy,
+
+            client: OnceCell::new(),
         })
     }
 
@@ -223,17 +227,117 @@ impl Builder for SftpBuilder {
 /// Backend is used to serve `Accessor` support for sftp.
 #[derive(Clone)]
 pub struct SftpBackend {
+    copyable: bool,
     endpoint: String,
     root: String,
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
-    copyable: bool,
+
+    client: OnceCell<bb8::Pool<Manager>>,
+}
+
+pub struct Manager {
+    endpoint: String,
+    root: String,
+    user: Option<String>,
+    key: Option<String>,
+    known_hosts_strategy: KnownHosts,
+}
+
+#[async_trait]
+impl bb8::ManageConnection for Manager {
+    type Connection = Sftp;
+    type Error = Error;
+
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        let mut session = SessionBuilder::default();
+
+        if let Some(user) = &self.user {
+            session.user(user.clone());
+        }
+
+        if let Some(key) = &self.key {
+            session.keyfile(key);
+        }
+
+        session.known_hosts_check(self.known_hosts_strategy.clone());
+
+        let session = session
+            .connect(&self.endpoint)
+            .await
+            .map_err(parse_ssh_error)?;
+
+        let sftp = Sftp::from_session(session, SftpOptions::default())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if !self.root.is_empty() {
+            let mut fs = sftp.fs();
+
+            let paths = Path::new(&self.root).components();
+            let mut current = PathBuf::new();
+            for p in paths {
+                current.push(p);
+                let res = fs.create_dir(p).await;
+
+                if let Err(e) = res {
+                    // ignore error if dir already exists
+                    if !is_sftp_protocol_error(&e) {
+                        return Err(parse_sftp_error(e));
+                    }
+                }
+                fs.set_cwd(&current);
+            }
+        }
+
+        debug!("sftp connection created at {}", self.root);
+        Ok(sftp)
+    }
+
+    // Check if connect valid by checking the root path.
+    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+        let _ = conn.fs().metadata("./").await.map_err(parse_sftp_error)?;
+
+        Ok(())
+    }
+
+    /// Always allow reuse conn.
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
+    }
 }
 
 impl Debug for SftpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish()
+    }
+}
+
+impl SftpBackend {
+    pub async fn connect(&self) -> Result<PooledConnection<'static, Manager>> {
+        let client = self
+            .client
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(Manager {
+                        endpoint: self.endpoint.clone(),
+                        root: self.root.clone(),
+                        user: self.user.clone(),
+                        key: self.key.clone(),
+                        known_hosts_strategy: self.known_hosts_strategy.clone(),
+                    })
+                    .await
+            })
+            .await?;
+
+        client.get_owned().await.map_err(|err| match err {
+            RunError::User(err) => err,
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+            }
+        })
     }
 }
 
@@ -417,67 +521,4 @@ impl Accessor for SftpBackend {
 
         Ok(RpRename::default())
     }
-}
-
-impl SftpBackend {
-    /// TODO: implement connection pool in the future.
-    pub async fn connect(&self) -> Result<Sftp> {
-        connect_sftp(
-            self.endpoint.as_str(),
-            self.root.clone(),
-            self.user.clone(),
-            self.key.clone(),
-            self.known_hosts_strategy.clone(),
-        )
-        .await
-    }
-}
-
-async fn connect_sftp(
-    endpoint: &str,
-    root: String,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: KnownHosts,
-) -> Result<Sftp> {
-    let mut session = SessionBuilder::default();
-
-    if let Some(user) = user {
-        session.user(user);
-    }
-
-    if let Some(key) = &key {
-        session.keyfile(key);
-    }
-
-    session.known_hosts_check(known_hosts_strategy);
-
-    let session = session.connect(&endpoint).await.map_err(parse_ssh_error)?;
-
-    let sftp = Sftp::from_session(session, SftpOptions::default())
-        .await
-        .map_err(parse_sftp_error)?;
-
-    if !root.is_empty() {
-        let mut fs = sftp.fs();
-
-        let paths = Path::new(&root).components();
-        let mut current = PathBuf::new();
-        for p in paths {
-            current.push(p);
-            let res = fs.create_dir(p).await;
-
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(parse_sftp_error(e));
-                }
-            }
-            fs.set_cwd(&current);
-        }
-    }
-
-    debug!("sftp connection created at {}", root);
-
-    Ok(sftp)
 }

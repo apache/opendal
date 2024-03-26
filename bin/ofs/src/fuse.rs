@@ -665,17 +665,23 @@ impl PathFilesystem for Fuse {
         &self,
         _req: Request,
         path: Option<&OsStr>,
-        _fh: u64,
+        fh: u64,
         offset: u64,
         whence: u32,
     ) -> Result<ReplyLSeek> {
         log::debug!(
             "lseek(path={:?}, fh={}, offset={}, whence={})",
             path,
-            _fh,
+            fh,
             offset,
             whence
         );
+
+        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
+
+        if !file.is_read && !file.is_write {
+            Err(Errno::from(libc::EACCES))?;
+        }
 
         let whence = whence as i32;
 

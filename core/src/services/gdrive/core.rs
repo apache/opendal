@@ -316,8 +316,10 @@ impl GdriveSigner {
                     let token: GdriveTokenResponse = serde_json::from_reader(resp_body.reader())
                         .map_err(new_json_deserialize_error)?;
                     self.access_token = token.access_token.clone();
-                    self.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in)
-                        - chrono::Duration::seconds(120);
+                    self.expires_in = Utc::now()
+                        + chrono::TimeDelta::try_seconds(token.expires_in)
+                            .expect("expires_in must be valid seconds")
+                        - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
                 }
                 _ => {
                     return Err(parse_error(resp).await?);

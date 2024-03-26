@@ -90,8 +90,8 @@ pub struct Lister {
 /// use opendal::Entry;
 /// use opendal::Result;
 ///
-/// assert_eq!(264, size_of::<(String, Result<opendal::raw::RpStat>)>());
-/// assert_eq!(264, size_of::<Option<Entry>>());
+/// assert_eq!(256, size_of::<(String, Result<opendal::raw::RpStat>)>());
+/// assert_eq!(256, size_of::<Option<Entry>>());
 /// ```
 ///
 /// So let's ignore this lint:

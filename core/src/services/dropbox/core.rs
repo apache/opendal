@@ -111,8 +111,10 @@ impl DropboxCore {
         signer.access_token = token.access_token.clone();
 
         // Refresh it 2 minutes earlier.
-        signer.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in as i64)
-            - chrono::Duration::seconds(120);
+        signer.expires_in = Utc::now()
+            + chrono::TimeDelta::try_seconds(token.expires_in as i64)
+                .expect("expires_in must be valid seconds")
+            - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
 
         let value = format!("Bearer {}", token.access_token)
             .parse()

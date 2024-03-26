@@ -433,7 +433,7 @@ impl BlockingOperator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").range(0..10).call()?;
+    /// let r = op.reader_with("path/to/file").version("version_id").call()?;
     /// # Ok(())
     /// # }
     /// ```

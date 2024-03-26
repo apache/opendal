@@ -564,7 +564,7 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").range(0..10).await?;
+    /// let r = op.reader_with("path/to/file").version("version_id").await?;
     /// # Ok(())
     /// # }
     /// ```

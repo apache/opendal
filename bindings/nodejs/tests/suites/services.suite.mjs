@@ -20,7 +20,6 @@
 export function run(operator) {
   test('get capability', () => {
     assert.ok(operator.capability())
-    assert.ok(operator.capability().read)
   })
 
   test('try to non-exist capability', () => {

@@ -25,7 +25,6 @@ use std::time::SystemTime;
 
 use bytes::Bytes;
 
-
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
@@ -735,7 +734,7 @@ impl PathFilesystem for Fuse {
             .await?;
 
         let ReplyWrite { written } = self
-            .write(req, to_path, fh_out, offset_out, &data.data, flags as _)
+            .write(req, to_path, fh_out, offset_out, &data.data, 0, flags as _)
             .await?;
 
         Ok(ReplyCopyFileRange {

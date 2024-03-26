@@ -17,13 +17,13 @@
 
 use std::ffi::OsStr;
 use std::ffi::OsString;
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
-use fuse3::async_trait;
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
@@ -127,14 +127,15 @@ impl Fuse {
     }
 }
 
-#[async_trait]
 impl PathFilesystem for Fuse {
-    type DirEntryStream = BoxStream<'static, Result<DirectoryEntry>>;
-    type DirEntryPlusStream = BoxStream<'static, Result<DirectoryEntryPlus>>;
+    type DirEntryStream<'a> = BoxStream<'a, Result<DirectoryEntry>>;
+    type DirEntryPlusStream<'a> = BoxStream<'a, Result<DirectoryEntryPlus>>;
 
     // Init a fuse filesystem
-    async fn init(&self, _req: Request) -> Result<()> {
-        Ok(())
+    async fn init(&self, _req: Request) -> Result<ReplyInit> {
+        Ok(ReplyInit {
+            max_write: NonZeroU32::new(16 * 1024).unwrap(),
+        })
     }
 
     // Callback when fs is being destroyed
@@ -474,6 +475,7 @@ impl PathFilesystem for Fuse {
         fh: u64,
         offset: u64,
         data: &[u8],
+        _write_flags: u32,
         flags: u32,
     ) -> Result<ReplyWrite> {
         log::debug!(
@@ -508,13 +510,13 @@ impl PathFilesystem for Fuse {
         })
     }
 
-    async fn readdir(
-        &self,
+    async fn readdir<'a>(
+        &'a self,
         _req: Request,
-        path: &OsStr,
+        path: &'a OsStr,
         fh: u64,
         offset: i64,
-    ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
+    ) -> Result<ReplyDirectory<Self::DirEntryStream<'a>>> {
         log::debug!("readdir(path={:?}, fh={}, offset={})", path, fh, offset);
 
         let mut current_dir = PathBuf::from(path);
@@ -565,14 +567,14 @@ impl PathFilesystem for Fuse {
         Ok(())
     }
 
-    async fn readdirplus(
-        &self,
+    async fn readdirplus<'a>(
+        &'a self,
         _req: Request,
-        parent: &OsStr,
+        parent: &'a OsStr,
         fh: u64,
         offset: u64,
         _lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {
+    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'a>>> {
         log::debug!(
             "readdirplus(parent={:?}, fh={}, offset={})",
             parent,

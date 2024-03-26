@@ -1,0 +1,212 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
+description = """
+Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
+"""
+
+[config.root]
+default = "/"
+description = """
+root of this backend.
+
+All operations will happen under this root.
+"""
+required = false
+type = "string"
+
+[config.bucket]
+description = """
+bucket name of this backend.
+"""
+required = true
+type = "string"
+
+[config.endpoint]
+default = "https://s3.amazonaws.com"
+description = """
+endpoint of this backend.
+
+Endpoint must be full uri, e.g.
+
+- AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
+- Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+- Aliyun OSS: `https://{region}.aliyuncs.com`
+- Tencent COS: `https://cos.{region}.myqcloud.com`
+- Minio: `http://127.0.0.1:9000`
+
+If user inputs endpoint without scheme like "s3.amazonaws.com", we will prepend "https://" before it.
+"""
+type = "string"
+
+[config.region]
+description = """
+Region represent the signing region of this endpoint.
+This is required if you are using the default AWS S3 endpoint.
+
+If using a custom endpoint,
+- If region is set, we will take user's input first.
+- If not, we will try to load it from environment.
+"""
+type = "string"
+
+[config.access_key_id]
+description = """
+access_key_id of this backend.
+"""
+sensitive = true
+type = "string"
+
+[config.secret_access_key]
+description = """
+secret_access_key of this backend.
+"""
+sensitive = true
+type = "string"
+
+[config.security_token]
+description = """
+security_token (aka, session token) of this backend.
+
+This token will expire after sometime, it's recommended not to set security_token by hand.
+"""
+sensitive = true
+type = "string"
+
+[config.role_arn]
+description = """
+role_arn of this backend.
+
+If `role_arn` is set, we will use already known config as source to assume role.
+"""
+type = "string"
+
+[config.external_id]
+description = """
+external_id of this backend.
+
+external_id is a unique identifier that is used by third parties to assume a role in their customers' accounts.
+"""
+type = "string"
+
+[config.disable_config_load]
+description = """
+Use this flag to make sure opendal don't load config from the environment.
+
+- envs like `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+- files like `~/.aws/config`
+"""
+type = "bool"
+
+[config.disable_ec2_metadata]
+description = """
+Use this flag to make sure opendal don't load credentials from the EC2 instance metadata service.
+"""
+type = "bool"
+
+[config.allow_anonymous]
+description = """
+Use this flag to allow anonymous access to the bucket.
+
+OpenDAL returns an permission error if credentials are not loaded by default. This flag allows users to send requests without signing.
+"""
+type = "bool"
+
+[config.server_side_encryption]
+available = ["AES256", "aws:kms"]
+description = """
+server_side_encryption for this backend.
+"""
+type = "string"
+
+[config.server_side_encryption_aws_kms_key_id]
+description = """
+server_side_encryption_aws_kms_key_id for this backend
+
+- If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is not set, S3 will use aws managed kms key to encrypt data.
+- If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is a valid kms key id, S3 will use the provided kms key to encrypt data.
+- If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be returned.
+- If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id` is a noop.
+"""
+type = "string"
+
+[config.server_side_encryption_customer_algorithm]
+available = ["AES256"]
+description = """
+server_side_encryption_customer_algorithm for this backend.
+"""
+type = "string"
+
+[config.server_side_encryption_customer_key]
+description = """
+server_side_encryption_customer_key for this backend.
+
+# Value
+
+base64 encoded key that matches algorithm specified in `server_side_encryption_customer_algorithm`.
+"""
+sensitive = true
+type = "string"
+
+[config.server_side_encryption_customer_key_md5]
+description = """
+server_side_encryption_customer_key_md5 for this backend.
+
+# Value
+
+MD5 digest of key specified in `server_side_encryption_customer_key`.
+"""
+sensitive = true
+type = "string"
+
+[config.default_storage_class]
+description = """
+default storage class for this backend.
+"""
+example = ["STANDARD", "STANDARD_IA"]
+type = "string"
+
+[config.enable_virtual_host_style]
+description = """
+Enable virtual host style so that opendal will send API requests in virtual host style instead of path style.
+
+- By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
+- After enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
+
+Some s3 compatible services like `oss` require virtual host style.
+"""
+type = "bool"
+
+[config.batch_max_operations]
+description = """
+Maximum batch operations of this backend.
+
+Some compatible services have a limit on the number of operations in a batch request.
+For example, R2 could return `Internal Error` while batch delete 1000 files.
+
+Please tune this value based on services' document.
+"""
+type = "usize"
+
+[config.disable_stat_with_override]
+description = """
+Disable stat with override so that opendal will not send stat request with override queries.
+
+For example, R2 doesn't support stat with `response_content_type` query.
+"""
+type = "bool"

@@ -115,7 +115,8 @@ impl B2Core {
                         api_url: token.api_url.clone(),
                         download_url: token.download_url.clone(),
                         // This authorization token is valid for at most 24 hours.
-                        expires_in: Utc::now() + chrono::Duration::hours(20),
+                        expires_in: Utc::now()
+                            + chrono::TimeDelta::try_hours(20).expect("20 hours must be valid"),
                     };
                 }
                 _ => {

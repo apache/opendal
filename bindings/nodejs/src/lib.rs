@@ -21,10 +21,12 @@ extern crate napi_derive;
 mod capability;
 
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
 
-use futures::TryStreamExt;
+use futures::{AsyncReadExt, TryStreamExt};
 use napi::bindgen_prelude::*;
 
 #[napi]
@@ -181,10 +183,10 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub async fn reader(&self, path: String) -> Result<Reader> {
+        let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r,
-            offset: 0,
+            inner: r.into_futures_io_async_read(0..meta.content_length()),
         })
     }
 
@@ -205,10 +207,10 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
+        let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
         let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
         Ok(BlockingReader {
-            inner: r,
-            offset: 0,
+            inner: r.into_std_io_read(0..meta.content_length()),
         })
     }
 
@@ -648,21 +650,15 @@ pub struct ListOptions {
 /// manner.
 #[napi]
 pub struct BlockingReader {
-    inner: opendal::BlockingReader,
-    offset: u64,
+    inner: opendal::StdIoReader,
 }
 
 #[napi]
 impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let mut buf = buf.as_mut();
-        let size = buf.len();
-        let n = self
-            .inner
-            .read(&mut buf, self.offset, size)
-            .map_err(format_napi_error)?;
-        self.offset += n as u64;
+        let buf = buf.as_mut();
+        let n = self.inner.read(buf).map_err(format_napi_error)?;
         Ok(n)
     }
 }
@@ -671,8 +667,7 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: opendal::Reader,
-    offset: u64,
+    inner: opendal::FuturesIoAsyncReader,
 }
 
 #[napi]
@@ -685,13 +680,7 @@ impl Reader {
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
         let mut buf = buf.as_mut();
-        let size = buf.len();
-        let n = self
-            .inner
-            .read(&mut buf, self.offset, size)
-            .await
-            .map_err(format_napi_error)?;
-        self.offset += n as u64;
+        let n = self.inner.read(&mut buf).await.map_err(format_napi_error)?;
         Ok(n)
     }
 }
@@ -1008,6 +997,8 @@ impl RetryLayer {
 }
 
 /// Format opendal error to napi error.
-fn format_napi_error(err: opendal::Error) -> Error {
+///
+/// FIXME: handle error correctly.
+fn format_napi_error(err: impl Display) -> Error {
     Error::from_reason(format!("{}", err))
 }

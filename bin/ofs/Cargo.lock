@@ -945,7 +945,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backon",
- "base64 0.21.7",
+ "base64 0.22.0",
  "bytes",
  "chrono",
  "flagset",

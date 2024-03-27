@@ -47,8 +47,6 @@ url = "2.5.0"
 chrono = "0.4.34"
 sharded-slab = "0.1.7"
 bytes = "1.5.0"
-
-[target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.151"
 fuse3 = { "version" = "0.7.1", "features" = ["tokio-runtime", "unprivileged"] }
 nix = { version = "0.27.1", features = ["user"] }

@@ -27,7 +27,6 @@ use tokio::signal;
 pub mod config;
 pub use config::Config;
 
-#[cfg(target_os = "linux")]
 mod fuse;
 
 pub async fn execute(cfg: Config) -> Result<()> {
@@ -49,7 +48,6 @@ pub async fn execute(cfg: Config) -> Result<()> {
     let backend = Operator::via_map(scheme, op_args)?;
 
     let args = Args {
-        #[cfg(target_os = "linux")]
         mount_path: cfg.mount_path,
         backend,
     };
@@ -58,18 +56,16 @@ pub async fn execute(cfg: Config) -> Result<()> {
 
 #[derive(Debug)]
 struct Args {
-    #[cfg(target_os = "linux")]
     mount_path: String,
     backend: Operator,
 }
-
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
 async fn execute_inner(args: Args) -> Result<()> {
     _ = args.backend;
     Err(anyhow::anyhow!("platform not supported"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 async fn execute_inner(args: Args) -> Result<()> {
     use fuse3::path::Session;
     use fuse3::MountOptions;

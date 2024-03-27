@@ -22,7 +22,6 @@ use url::Url;
 #[command(version, about)]
 pub struct Config {
     /// fuse mount path
-    #[cfg(target_os = "linux")]
     #[arg(env = "OFS_MOUNT_PATH", index = 1)]
     pub mount_path: String,
 

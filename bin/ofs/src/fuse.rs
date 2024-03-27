@@ -116,9 +116,10 @@ impl Fuse {
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
-            .read() {
-                Ok(file) => file.clone(),
-                Err(_) => Err(Errno::from(libc::EBADF))?,
+            .read()
+        {
+            Ok(file) => file.clone(),
+            Err(_) => Err(Errno::from(libc::EBADF))?,
         };
 
         if matches!(path, Some(path) if path != file.path) {
@@ -140,15 +141,15 @@ impl Fuse {
         path: Option<&OsStr>,
         offset: u64,
     ) -> Result<()> {
-
         let binding = self.opened_files.get(key.0);
         let mut file = match binding
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
-            .write() {
-                Ok(file) => file,
-                Err(_) => Err(Errno::from(libc::EBADF))?,
+            .write()
+        {
+            Ok(file) => file,
+            Err(_) => Err(Errno::from(libc::EBADF))?,
         };
         if matches!(path, Some(path) if path != file.path) {
             log::trace!(

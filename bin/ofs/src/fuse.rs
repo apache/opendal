@@ -676,15 +676,15 @@ impl PathFilesystem for Fuse {
             whence
         );
 
+        let whence = whence as i32;
+
         let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
 
         if !file.is_read && !file.is_write {
             Err(Errno::from(libc::EACCES))?;
         }
 
-        let whence = whence as i32;
-
-        let offset = if whence == libc::SEEK_CUR || whence == libc::SEEK_SET {
+        let offset = if whence == libc::SEEK_SET {
             offset
         } else if whence == libc::SEEK_END {
             let metadata = self
@@ -700,7 +700,7 @@ impl PathFilesystem for Fuse {
                 0
             }
         } else {
-            return Err(libc::EINVAL.into());
+            return Err(libc::ENOSYS.into());
         };
 
         Ok(ReplyLSeek { offset })

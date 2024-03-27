@@ -110,15 +110,17 @@ impl Fuse {
 
     // Get opened file and check given path
     fn get_opened_file(&self, key: FileKey, path: Option<&OsStr>) -> Result<OpenedFile> {
-        let file = self
+        let file = match self
             .opened_files
             .get(key.0)
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
-            .read()
-            .unwrap()
-            .clone();
+            .read() {
+                Ok(file) => file.clone(),
+                Err(_) => Err(Errno::from(libc::EBADF))?,
+        };
+
         if matches!(path, Some(path) if path != file.path) {
             log::trace!(
                 "get_opened_file: path not match: path={:?}, file={:?}",
@@ -138,13 +140,16 @@ impl Fuse {
         path: Option<&OsStr>,
         offset: u64,
     ) -> Result<()> {
+
         let binding = self.opened_files.get(key.0);
-        let mut file = binding
+        let mut file = match binding
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
-            .write()
-            .unwrap();
+            .write() {
+                Ok(file) => file,
+                Err(_) => Err(Errno::from(libc::EBADF))?,
+        };
         if matches!(path, Some(path) if path != file.path) {
             log::trace!(
                 "set_opened_file: path not match: path={:?}, file={:?}",

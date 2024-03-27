@@ -354,6 +354,10 @@ impl PathFilesystem for Fuse {
             name
         );
 
+        if !self.op.info().full_capability().rename {
+            return Err(Errno::from(libc::EACCES))?;
+        }
+
         let origin_path = PathBuf::from(origin_parent).join(origin_name);
         let path = PathBuf::from(parent).join(name);
 

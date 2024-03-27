@@ -48,7 +48,6 @@ pub async fn execute(cfg: Config) -> Result<()> {
     let backend = Operator::via_map(scheme, op_args)?;
 
     let args = Args {
-        #[cfg(target_os = "linux")]
         mount_path: cfg.mount_path,
         backend,
     };

@@ -132,3 +132,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+  
+  test_bin_ofs:
+    name: bin_ofs / ${{ matrix.os }}
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).components.bin_ofs
+    secrets: inherit
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).bin_ofs }}
+    uses: ./.github/workflows/test_behavior_bin_ofs.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

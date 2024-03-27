@@ -33,6 +33,7 @@ PROJECT_DIR = GITHUB_DIR.parent
 
 LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
+BIN = ["ofs"]
 
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
@@ -82,6 +83,8 @@ class Hint:
     binding_python: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
+    # Is bin ofs affected?
+    bin_ofs: bool = field(default=False, init=False)
 
     # Should we run all services test?
     all_service: bool = field(default=False, init=False)
@@ -137,6 +140,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
+            for bin in BIN:
+                setattr(hint, f"bin_{bin}", True)
             hint.services.add(match.group(1))
 
         # core test affected
@@ -145,6 +150,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
+            for bin in BIN:
+                setattr(hint, f"bin_{bin}", True)
             hint.services.add(match.group(1))
 
         # fixture affected
@@ -153,7 +160,14 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
+            for bin in BIN:
+                setattr(hint, f"bin_{bin}", True)
             hint.services.add(match.group(1))
+        
+        # bin affected
+        for bin in BIN:
+            if p.startswith(f"bin/{bin}"):
+                setattr(hint, f"bin_{bin}", True)
     return hint
 
 
@@ -206,13 +220,30 @@ def generate_language_binding_cases(
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 
-    # Return empty if core is False
+    # Return empty if this binding is False
     if not getattr(hint, f"binding_{language}"):
         return []
 
     # Return all services if all_service is True
     if hint.all_service:
         return cases
+
+    # Filter all cases that not shown un in changed files
+    cases = [v for v in cases if v["service"] in hint.services]
+    return cases
+
+def generate_bin_cases(
+    cases: list[dict[str, str]], hint: Hint, bin: str
+) -> list[dict[str, str]]:
+    cases = unique_cases(cases)
+
+    if bin == "ofs":
+        hint.services.add("fs")
+        hint.services.add("s3")
+
+    # Return empty if this bin is False
+    if not getattr(hint, f"bin_{bin}"):
+        return []
 
     # Filter all cases that not shown un in changed files
     cases = [v for v in cases if v["service"] in hint.services]
@@ -254,6 +285,13 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
             jobs["components"][f"binding_{language}"] = True
             jobs[f"binding_{language}"].append({"os": "ubuntu-latest", "cases": cases})
 
+    for bin in BIN:
+        jobs[f"bin_{bin}"] = []
+        jobs["components"][f"bin_{bin}"] = False
+        cases = generate_bin_cases(cases, hint, bin)
+        if len(cases) > 0:
+            jobs["components"][f"bin_{bin}"] = True
+            jobs[f"bin_{bin}"].append({"os": "ubuntu-latest", "cases": cases})
     return jobs
 
 

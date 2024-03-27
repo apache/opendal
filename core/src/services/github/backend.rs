@@ -45,8 +45,10 @@ pub struct GithubConfig {
     pub root: Option<String>,
     /// Github access_token.
     ///
-    /// required.
-    pub token: String,
+    /// optional.
+    /// If not provided, the backend will only support read operations for public repositories.
+    /// And rate limit will be limited to 60 requests per hour.
+    pub token: Option<String>,
     /// Github repo owner.
     ///
     /// required.
@@ -105,7 +107,7 @@ impl GithubBuilder {
     ///
     /// required.
     pub fn token(&mut self, token: &str) -> &mut Self {
-        self.config.token = token.to_string();
+        self.config.token = Some(token.to_string());
 
         self
     }
@@ -167,13 +169,6 @@ impl Builder for GithubBuilder {
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
-
-        // Handle token.
-        if self.config.token.is_empty() {
-            return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
-        }
 
         // Handle owner.
         if self.config.owner.is_empty() {

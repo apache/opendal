@@ -39,7 +39,7 @@ pub struct GithubCore {
     /// The root of this core.
     pub root: String,
     /// Github access_token.
-    pub token: String,
+    pub token: Option<String>,
     /// Github repo owner.
     pub owner: String,
     /// Github repo name.
@@ -65,19 +65,32 @@ impl GithubCore {
     }
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
-        let req = req
+        let mut req = req
             .header(header::USER_AGENT, format!("opendal-{}", VERSION))
             .header("X-GitHub-Api-Version", "2022-11-28");
 
-        Ok(req.header(
-            header::AUTHORIZATION,
-            format_authorization_by_bearer(&self.token)?,
-        ))
+        // Github access_token is optional.
+        if let Some(token) = &self.token {
+            req = req.header(
+                header::AUTHORIZATION,
+                format_authorization_by_bearer(token)?,
+            )
+        }
+
+        Ok(req)
     }
 }
 
 impl GithubCore {
     pub async fn get_file_sha(&self, path: &str) -> Result<Option<String>> {
+        // if the token is not set, we shhould not try to get the sha of the file.
+        if self.token.is_none() {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "Github access_token is not set",
+            ));
+        }
+
         let resp = self.stat(path).await?;
 
         match resp.status() {

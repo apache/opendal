@@ -59,7 +59,13 @@ struct Args {
     mount_path: String,
     backend: Operator,
 }
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+async fn execute_inner(args: Args) -> Result<()> {
+    _ = args.backend;
+    Err(anyhow::anyhow!("platform not supported"))
+}
 
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 async fn execute_inner(args: Args) -> Result<()> {
     use fuse3::path::Session;
     use fuse3::MountOptions;

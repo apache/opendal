@@ -20,6 +20,7 @@ use std::ffi::OsString;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::sync::RwLock;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -47,6 +48,7 @@ struct OpenedFile {
     is_read: bool,
     is_write: bool,
     is_append: bool,
+    offset: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +75,7 @@ pub(super) struct Fuse {
     op: Operator,
     gid: u32,
     uid: u32,
-    opened_files: Slab<OpenedFile>,
+    opened_files: Slab<RwLock<OpenedFile>>,
 }
 
 impl Fuse {
@@ -114,6 +116,8 @@ impl Fuse {
             .as_ref()
             .ok_or(Errno::from(libc::ENOENT))?
             .deref()
+            .read()
+            .unwrap()
             .clone();
         if matches!(path, Some(path) if path != file.path) {
             log::trace!(
@@ -125,6 +129,34 @@ impl Fuse {
         }
 
         Ok(file)
+    }
+
+    // Set opened file offset
+    fn set_opened_file_offset(
+        &self,
+        key: FileKey,
+        path: Option<&OsStr>,
+        offset: u64,
+    ) -> Result<()> {
+        let binding = self.opened_files.get(key.0);
+        let mut file = binding
+            .as_ref()
+            .ok_or(Errno::from(libc::ENOENT))?
+            .deref()
+            .write()
+            .unwrap();
+        if matches!(path, Some(path) if path != file.path) {
+            log::trace!(
+                "set_opened_file: path not match: path={:?}, file={:?}",
+                path,
+                file.path
+            );
+            Err(Errno::from(libc::EBADF))?;
+        }
+
+        file.offset = offset;
+
+        Ok(())
     }
 }
 
@@ -171,6 +203,7 @@ impl PathFilesystem for Fuse {
             self.opened_files
                 .get(FileKey::try_from(fh).ok()?.0)
                 .as_ref()
+                .and_then(|f| f.read().ok())
                 .map(|f| f.path.clone())
         });
 
@@ -371,12 +404,13 @@ impl PathFilesystem for Fuse {
 
         let key = self
             .opened_files
-            .insert(OpenedFile {
+            .insert(RwLock::new(OpenedFile {
                 path: path.into(),
                 is_read,
                 is_write,
                 is_append: flags & libc::O_APPEND as u32 != 0,
-            })
+                offset: 0,
+            }))
             .ok_or(Errno::from(libc::EBUSY))?;
 
         Ok(ReplyCreated {
@@ -409,6 +443,7 @@ impl PathFilesystem for Fuse {
         let file = self
             .opened_files
             .take(FileKey::try_from(fh)?.0)
+            .map(|f| f.read().unwrap().clone())
             .ok_or(Errno::from(libc::EBADF))?;
         if matches!(path, Some(ref p) if p != &file.path) {
             Err(Errno::from(libc::EBADF))?;
@@ -424,12 +459,13 @@ impl PathFilesystem for Fuse {
 
         let key = self
             .opened_files
-            .insert(OpenedFile {
+            .insert(RwLock::new(OpenedFile {
                 path: path.into(),
                 is_read,
                 is_write,
                 is_append: flags & libc::O_APPEND as u32 != 0,
-            })
+                offset: 0,
+            }))
             .ok_or(Errno::from(libc::EBUSY))?;
 
         Ok(ReplyOpen {
@@ -466,6 +502,8 @@ impl PathFilesystem for Fuse {
             .range(offset..offset + size as u64)
             .await
             .map_err(opendal_error2errno)?;
+
+        self.set_opened_file_offset(FileKey::try_from(fh)?, path, offset + data.len() as u64)?;
 
         Ok(ReplyData { data: data.into() })
     }
@@ -506,6 +544,8 @@ impl PathFilesystem for Fuse {
             .append(file.is_append)
             .await
             .map_err(opendal_error2errno)?;
+
+        self.set_opened_file_offset(FileKey::try_from(fh)?, path, offset + data.len() as u64)?;
 
         Ok(ReplyWrite {
             written: data.len() as _,
@@ -686,6 +726,8 @@ impl PathFilesystem for Fuse {
 
         let offset = if whence == libc::SEEK_SET {
             offset
+        } else if whence == libc::SEEK_CUR {
+            file.offset + offset
         } else if whence == libc::SEEK_END {
             let metadata = self
                 .op

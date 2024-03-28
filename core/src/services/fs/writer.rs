@@ -18,7 +18,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use bytes::Bytes;
+
 use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;

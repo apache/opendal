@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-
 use super::backend::GhacBackend;
 use super::error::parse_error;
 use crate::raw::*;

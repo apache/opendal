@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::Bytes;
+
 use futures::FutureExt;
 use log::warn;
 

@@ -23,7 +23,6 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use prometheus_client::metrics::counter::Counter;

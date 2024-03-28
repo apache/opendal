@@ -19,7 +19,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+
 
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;

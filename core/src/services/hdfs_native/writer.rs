@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;

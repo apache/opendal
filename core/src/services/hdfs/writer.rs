@@ -18,7 +18,6 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use crate::raw::*;

@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;

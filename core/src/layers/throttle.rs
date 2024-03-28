@@ -20,7 +20,6 @@ use std::sync::Arc;
 use std::thread;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use governor::clock::Clock;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;

@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use probe::probe_lazy;
 
 use crate::raw::Accessor;

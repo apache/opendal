@@ -38,7 +38,7 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-use bytes::Bytes;
+
 
 use crate::raw::oio::Buffer;
 use crate::raw::*;

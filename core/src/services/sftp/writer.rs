@@ -17,7 +17,6 @@
 
 use std::pin::Pin;
 
-use bytes::Bytes;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;

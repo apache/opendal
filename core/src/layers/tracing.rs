@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::future::Future;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::FutureExt;
 use tracing::Span;
 

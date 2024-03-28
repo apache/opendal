@@ -15,6 +15,12 @@ sudo pacman -S fuse3 --noconfirm # archlinux
 sudo apt-get -y install fuse     # debian/ubuntu
 ```
 
+### Load `FUSE` kernel module on FreeBSD
+
+```shell
+kldload fuse
+```
+
 ### Install `ofs`
 
 `ofs` could be installed by `cargo`:

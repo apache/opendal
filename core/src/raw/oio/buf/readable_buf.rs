@@ -26,8 +26,10 @@ use bytes::Bytes;
 ///
 /// # Safety
 ///
-/// Caller must make sure that input buffer lives longer than `ReadableBuf` otherwise `ReadableBuf`
-/// might point to invalid memory.
+/// - Caller MUST make sure that input buffer lives longer than `ReadableBuf`. Otherwise
+///   `ReadableBuf` might point to invalid memory.
+/// - Caller SHOULD NOT store `ReadableBuf` in anyway. The buf should only be passed to `oio::Write`
+///   or been copied out by [`ReadableBuf::to_bytes`].
 #[derive(Clone)]
 pub struct ReadableBuf(Inner);
 

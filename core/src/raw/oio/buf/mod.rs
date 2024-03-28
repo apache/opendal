@@ -20,3 +20,6 @@ pub use adaptive::AdaptiveBuf;
 
 mod buffer;
 pub use buffer::Buffer;
+
+mod readable_buf;
+pub use readable_buf::ReadableBuf;

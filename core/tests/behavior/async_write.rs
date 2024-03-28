@@ -16,12 +16,10 @@
 // under the License.
 
 use anyhow::Result;
-use bytes::Buf;
-use bytes::Bytes;
 use futures::io::BufReader;
 use futures::io::Cursor;
-use futures::stream;
 use futures::StreamExt;
+use futures::{stream, AsyncWriteExt};
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
@@ -45,8 +43,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_write_with_concurrent,
             test_writer_sink,
             test_writer_sink_with_concurrent,
-            test_writer_copy,
-            test_writer_copy_with_concurrent,
             test_writer_abort,
             test_writer_abort_with_concurrent,
             test_writer_futures_copy,
@@ -404,92 +400,6 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Reading data into writer
-pub async fn test_writer_copy(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-    if !(cap.write && cap.write_can_multi) {
-        return Ok(());
-    }
-
-    let path = TEST_FIXTURE.new_file_path();
-    let size = 5 * 1024 * 1024; // write file with 5 MiB
-    let content_a = gen_fixed_bytes(size);
-    let content_b = gen_fixed_bytes(size);
-
-    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
-
-    let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
-    while !content.is_empty() {
-        let reader = Cursor::new(content.clone());
-        let n = w.copy(reader).await?;
-        content.advance(n as usize);
-    }
-    w.close().await?;
-
-    let meta = op.stat(&path).await.expect("stat must succeed");
-    assert_eq!(meta.content_length(), (size * 2) as u64);
-
-    let bs = op.read(&path).await?;
-    assert_eq!(bs.len(), size * 2, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content_a)),
-        "read content a"
-    );
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", Sha256::digest(content_b)),
-        "read content b"
-    );
-
-    Ok(())
-}
-
-/// Reading data into writer
-pub async fn test_writer_copy_with_concurrent(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-    if !(cap.write && cap.write_can_multi) {
-        return Ok(());
-    }
-
-    let path = TEST_FIXTURE.new_file_path();
-    let size = 5 * 1024 * 1024; // write file with 5 MiB
-    let content_a = gen_fixed_bytes(size);
-    let content_b = gen_fixed_bytes(size);
-
-    let mut w = op
-        .writer_with(&path)
-        .buffer(5 * 1024 * 1024)
-        .concurrent(4)
-        .await?;
-
-    let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
-    while !content.is_empty() {
-        let reader = Cursor::new(content.clone());
-        let n = w.copy(reader).await?;
-        content.advance(n as usize);
-    }
-    w.close().await?;
-
-    let meta = op.stat(&path).await.expect("stat must succeed");
-    assert_eq!(meta.content_length(), (size * 2) as u64);
-
-    let bs = op.read(&path).await?;
-    assert_eq!(bs.len(), size * 2, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content_a)),
-        "read content a"
-    );
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", Sha256::digest(content_b)),
-        "read content b"
-    );
-
-    Ok(())
-}
-
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     if !(op.info().full_capability().write_can_multi) {
@@ -500,7 +410,11 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
+    let mut w = op
+        .writer_with(&path)
+        .buffer(8 * 1024 * 1024)
+        .await?
+        .into_futures_io_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -535,12 +449,13 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
         .writer_with(&path)
         .buffer(8 * 1024 * 1024)
         .concurrent(4)
-        .await?;
+        .await?
+        .into_futures_io_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
     futures::io::copy_buf(&mut cursor, &mut w).await?;
-    w.close().await?;
+    w.close().await.expect("close must succeed");
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
@@ -590,7 +505,11 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut a = op.writer_with(&path).append(true).await?;
+    let mut a = op
+        .writer_with(&path)
+        .append(true)
+        .await?
+        .into_futures_io_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));

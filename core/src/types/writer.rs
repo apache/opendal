@@ -17,10 +17,6 @@
 
 use std::io;
 use std::pin::pin;
-use std::pin::Pin;
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -72,15 +68,13 @@ use crate::*;
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
-    state: State,
+    inner: oio::Writer,
 }
 
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(w: oio::Writer) -> Self {
-        Writer {
-            state: State::Idle(Some(w)),
-        }
+        Writer { inner: w }
     }
 
     /// Create a new writer.
@@ -93,20 +87,14 @@ impl Writer {
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.write(path, op).await?;
 
-        Ok(Writer {
-            state: State::Idle(Some(w)),
-        })
+        Ok(Writer { inner: w })
     }
 
     /// Write into inner writer.
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        let State::Idle(Some(w)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "writer must be valid"));
-        };
-
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = w.write(bs.clone()).await?;
+            let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
 
@@ -145,60 +133,17 @@ impl Writer {
         S: futures::Stream<Item = Result<T>>,
         T: Into<Bytes>,
     {
-        let State::Idle(Some(w)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "writer must be valid"));
-        };
-
         let mut sink_from = pin!(sink_from);
         let mut written = 0;
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
             while !bs.is_empty() {
-                let n = w.write(bs.clone()).await?;
+                let n = self.inner.write(bs.clone()).await?;
                 bs.advance(n);
                 written += n as u64;
             }
         }
         Ok(written)
-    }
-
-    /// Copy into writer.
-    ///
-    /// copy will read data from given reader and write them into writer
-    /// directly with only one constant in-memory buffer.
-    ///
-    /// # Notes
-    ///
-    /// - Copy doesn't support to be used with write concurrently.
-    /// - Copy doesn't support to be used without content length now.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use bytes::Bytes;
-    /// use futures::io::Cursor;
-    /// use futures::stream;
-    /// use futures::StreamExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
-    ///
-    /// async fn copy_example(op: Operator) -> Result<()> {
-    ///     let mut w = op.writer_with("path/to/file").await?;
-    ///     let reader = Cursor::new(vec![0; 4096]);
-    ///     w.copy(reader).await?;
-    ///     w.close().await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn copy<R>(&mut self, read_from: R) -> Result<u64>
-    where
-        R: futures::AsyncRead,
-    {
-        futures::io::copy(read_from, self).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy into writer failed")
-                .with_operation("copy")
-                .set_source(err)
-        })
     }
 
     /// Abort the writer and clean up all written data.
@@ -208,11 +153,7 @@ impl Writer {
     /// Abort should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
     pub async fn abort(&mut self) -> Result<()> {
-        let State::Idle(Some(w)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "writer must be valid"));
-        };
-
-        w.abort().await
+        self.inner.abort().await
     }
 
     /// Close the writer and make sure all data have been committed.
@@ -222,133 +163,114 @@ impl Writer {
     /// Close should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
     pub async fn close(&mut self) -> Result<()> {
-        let State::Idle(Some(w)) = &mut self.state else {
-            return Err(Error::new(ErrorKind::Unexpected, "writer must be valid"));
-        };
+        self.inner.close().await
+    }
 
-        w.close().await
+    /// Convert writer into [`FuturesIoAsyncWriter`] which implements [`futures::AsyncWrite`],
+    pub fn into_futures_io_async_write(self) -> FuturesIoAsyncWriter {
+        FuturesIoAsyncWriter::new(self.inner)
     }
 }
 
-enum State {
-    Idle(Option<oio::Writer>),
-    Writing(BoxedStaticFuture<(oio::Writer, Result<usize>)>),
-    Closing(BoxedStaticFuture<(oio::Writer, Result<()>)>),
-}
+pub mod into_futures_async_write {
+    use std::io;
+    use std::pin::Pin;
+    use std::task::ready;
+    use std::task::Context;
+    use std::task::Poll;
 
-unsafe impl Sync for State {}
+    use bytes::Bytes;
+    use futures::AsyncWrite;
 
-impl futures::AsyncWrite for Writer {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        match &mut self.state {
-            State::Idle(w) => {
-                let mut w = w.take().expect("writer must be valid");
-                let bs = Bytes::copy_from_slice(buf);
-                let fut = async move {
-                    let res = w.write(bs).await;
-                    (w, res)
-                };
-                self.state = State::Writing(Box::pin(fut));
-                self.poll_write(cx, buf)
+    use crate::raw::oio::Write;
+    use crate::raw::*;
+    use crate::*;
+
+    /// FuturesIoAsyncWriter is the adapter of [`AsyncWrite`] for [`Writer`].
+    ///
+    /// Users can use this adapter in cases where they need to use [`AsyncWrite`] related trait.
+    ///
+    /// FuturesIoAsyncWriter also implements [`Unpin`], [`Send`] and [`Sync`]
+    pub struct FuturesIoAsyncWriter {
+        state: State,
+    }
+
+    enum State {
+        Idle(Option<oio::Writer>),
+        Writing(BoxedStaticFuture<(oio::Writer, Result<usize>)>),
+        Closing(BoxedStaticFuture<(oio::Writer, Result<()>)>),
+    }
+
+    /// # Safety
+    ///
+    /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
+    unsafe impl Sync for State {}
+
+    impl FuturesIoAsyncWriter {
+        /// NOTE: don't allow users to create FuturesIoAsyncWriter directly.
+        #[inline]
+        pub fn new(r: oio::Writer) -> Self {
+            FuturesIoAsyncWriter {
+                state: State::Idle(Some(r)),
             }
-            State::Writing(fut) => {
-                let (w, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(w));
-                Poll::Ready(res.map_err(format_std_io_error))
-            }
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "another io operation is in progress",
-            ))),
         }
     }
 
-    /// Writer makes sure that every write is flushed.
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match &mut self.state {
-            State::Idle(w) => {
-                let mut w = w.take().expect("writer must be valid");
-                let fut = async move {
-                    let res = w.close().await;
-                    (w, res)
-                };
-                self.state = State::Closing(Box::pin(fut));
-                self.poll_close(cx)
+    impl AsyncWrite for FuturesIoAsyncWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w.take().expect("writer must be valid");
+                    let bs = Bytes::copy_from_slice(buf);
+                    let fut = async move {
+                        let res = w.write(bs).await;
+                        (w, res)
+                    };
+                    self.state = State::Writing(Box::pin(fut));
+                    self.poll_write(cx, buf)
+                }
+                State::Writing(fut) => {
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    Poll::Ready(res.map_err(format_std_io_error))
+                }
+                _ => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
             }
-            State::Closing(fut) => {
-                let (w, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(w));
-                Poll::Ready(res.map_err(format_std_io_error))
-            }
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "another io operation is in progress",
-            ))),
         }
-    }
-}
 
-impl tokio::io::AsyncWrite for Writer {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        match &mut self.state {
-            State::Idle(w) => {
-                let mut w = w.take().expect("writer must be valid");
-                let bs = Bytes::copy_from_slice(buf);
-                let fut = async move {
-                    let res = w.write(bs).await;
-                    (w, res)
-                };
-                self.state = State::Writing(Box::pin(fut));
-                self.poll_write(cx, buf)
-            }
-            State::Writing(fut) => {
-                let (w, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(w));
-                Poll::Ready(res.map_err(format_std_io_error))
-            }
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "another io operation is in progress",
-            ))),
+        /// Writer makes sure that every write is flushed.
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
         }
-    }
 
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match &mut self.state {
-            State::Idle(w) => {
-                let mut w = w.take().expect("writer must be valid");
-                let fut = async move {
-                    let res = w.close().await;
-                    (w, res)
-                };
-                self.state = State::Closing(Box::pin(fut));
-                self.poll_shutdown(cx)
+        fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w.take().expect("writer must be valid");
+                    let fut = async move {
+                        let res = w.close().await;
+                        (w, res)
+                    };
+                    self.state = State::Closing(Box::pin(fut));
+                    self.poll_close(cx)
+                }
+                State::Closing(fut) => {
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    Poll::Ready(res.map_err(format_std_io_error))
+                }
+                _ => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
             }
-            State::Closing(fut) => {
-                let (w, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(w));
-                Poll::Ready(res.map_err(format_std_io_error))
-            }
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "another io operation is in progress",
-            ))),
         }
     }
 }

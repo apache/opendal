@@ -59,6 +59,17 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             return Ok(written);
         }
 
+        // Slow Path
+        //
+        // If buffer is full, flush the buffer first.
+        if self.buffer.len() >= self.buffer_size {
+            let written = self
+                .inner
+                .write(oio::ReadableBuf::from_slice(&self.buffer))
+                .await?;
+            self.buffer.advance(written);
+        }
+
         let remaining = self.buffer_size - self.buffer.len();
         if bs.len() >= remaining {
             self.buffer.put_slice(&bs[0..remaining]);

@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
 use std::ops::Deref;
+
+use bytes::Buf;
+use bytes::Bytes;
 
 /// ReadableBuf is the buf used in `oio::Write`.
 ///

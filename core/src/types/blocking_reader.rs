@@ -16,7 +16,8 @@
 // under the License.
 
 use std::collections::Bound;
-use std::ops::{Range, RangeBounds};
+use std::ops::Range;
+use std::ops::RangeBounds;
 
 use bytes::Buf;
 use bytes::BufMut;
@@ -129,13 +130,17 @@ impl BlockingReader {
 }
 
 pub mod into_std_read {
-    use crate::raw::{format_std_io_error, oio};
-    use bytes::Buf;
     use std::io;
+    use std::io::BufRead;
     use std::io::Read;
     use std::io::Seek;
-    use std::io::{BufRead, SeekFrom};
+    use std::io::SeekFrom;
     use std::ops::Range;
+
+    use bytes::Buf;
+
+    use crate::raw::format_std_io_error;
+    use crate::raw::oio;
 
     /// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
     ///
@@ -244,9 +249,12 @@ pub mod into_std_read {
 }
 
 pub mod into_std_iterator {
-    use crate::raw::*;
-    use bytes::{Buf, Bytes};
     use std::io;
+
+    use bytes::Buf;
+    use bytes::Bytes;
+
+    use crate::raw::*;
 
     /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].
     ///

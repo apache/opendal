@@ -18,8 +18,9 @@
 use anyhow::Result;
 use futures::io::BufReader;
 use futures::io::Cursor;
+use futures::stream;
+use futures::AsyncWriteExt;
 use futures::StreamExt;
-use futures::{stream, AsyncWriteExt};
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;

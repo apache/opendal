@@ -16,7 +16,8 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,8 +28,13 @@ use surrealdb::Surreal;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::{normalize_root, ConfigDeserializer};
-use crate::{Builder, Capability, Error, ErrorKind, Scheme};
+use crate::raw::normalize_root;
+use crate::raw::ConfigDeserializer;
+use crate::Builder;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Scheme;
 
 /// Config for Surrealdb services support.
 #[derive(Default, Deserialize)]
@@ -87,7 +93,6 @@ impl SurrealdbBuilder {
     /// - `wss://ip:port`
     /// - `http://ip:port`
     /// - `https://ip:port`
-    ///
     pub fn connection_string(&mut self, connection_string: &str) -> &mut Self {
         if !connection_string.is_empty() {
             self.config.connection_string = Some(connection_string.to_string());

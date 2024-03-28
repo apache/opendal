@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;

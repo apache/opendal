@@ -22,8 +22,9 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
+use bytes::Bytes;
 use bytes::BytesMut;
-use bytes::{Buf, Bytes};
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;

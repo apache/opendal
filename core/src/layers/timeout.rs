@@ -20,7 +20,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;

@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
+use bytes::Buf;
 use bytes::BufMut;
-
-use bytes::{Buf, BytesMut};
+use bytes::BytesMut;
 
 use crate::raw::*;
 use crate::*;

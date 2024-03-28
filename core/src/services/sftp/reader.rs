@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::SeekFrom;
+
+use bytes::BytesMut;
+use tokio::io::AsyncSeekExt;
+
 use super::backend::SftpBackend;
 use super::error::parse_sftp_error;
 use crate::raw::*;
 use crate::*;
-use bytes::BytesMut;
-use std::io::SeekFrom;
-use tokio::io::AsyncSeekExt;
 
 pub struct SftpReader {
     inner: SftpBackend,

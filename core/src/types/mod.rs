@@ -36,6 +36,7 @@ pub use blocking_reader::into_std_read::StdIoReader;
 pub use blocking_reader::BlockingReader;
 
 mod writer;
+pub use writer::into_futures_async_write::FuturesIoAsyncWriter;
 pub use writer::BlockingWriter;
 pub use writer::Writer;
 

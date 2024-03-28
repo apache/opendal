@@ -382,7 +382,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
@@ -430,7 +430,7 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_writer_write_start, c_path.as_ptr());
         self.inner

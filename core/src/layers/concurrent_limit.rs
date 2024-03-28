@@ -267,7 +267,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs).await
     }
 
@@ -281,7 +281,7 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

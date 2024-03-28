@@ -32,7 +32,7 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, _bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, _bs: oio::ReadableBuf) -> Result<usize> {
         todo!()
     }
 

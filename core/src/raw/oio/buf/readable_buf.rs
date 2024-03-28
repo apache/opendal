@@ -16,6 +16,7 @@
 // under the License.
 
 use bytes::{Buf, Bytes};
+use std::ops::Deref;
 
 /// ReadableBuf is the buf used in `oio::Write`.
 ///
@@ -25,8 +26,10 @@ use bytes::{Buf, Bytes};
 ///
 /// Caller must make sure that input buffer lives longer than `ReadableBuf` otherwise `ReadableBuf`
 /// might point to invalid memory.
+#[derive(Clone)]
 pub struct ReadableBuf(Inner);
 
+#[derive(Clone)]
 enum Inner {
     Slice {
         ptr: *const u8,
@@ -35,6 +38,11 @@ enum Inner {
     },
     Bytes(Bytes),
 }
+
+/// # Safety
+///
+/// We make sure that `ptr` will never be changed.
+unsafe impl Send for Inner {}
 
 impl ReadableBuf {
     /// Build a ReadableBuf from slice.
@@ -99,6 +107,25 @@ impl ReadableBuf {
             Inner::Bytes(buf) => buf.clone(),
         }
     }
+
+    /// Take the first limit bytes of the buffer.
+    pub fn take(self, limit: usize) -> Self {
+        match self.0 {
+            Inner::Slice { ptr, size, offset } => {
+                assert!(
+                    !ptr.is_null(),
+                    "ptr of slice must be valid across the lifetime of ReadableBuf"
+                );
+                assert!(size >= offset + limit, "limit exceeds the remaining size");
+                Self(Inner::Slice {
+                    ptr,
+                    size: limit,
+                    offset,
+                })
+            }
+            Inner::Bytes(buf) => Self(Inner::Bytes(buf.slice(0..limit))),
+        }
+    }
 }
 
 impl From<&[u8]> for ReadableBuf {
@@ -116,6 +143,20 @@ impl From<Bytes> for ReadableBuf {
 impl From<Vec<u8>> for ReadableBuf {
     fn from(value: Vec<u8>) -> Self {
         Self::from_bytes(Bytes::from(value))
+    }
+}
+
+impl AsRef<[u8]> for ReadableBuf {
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
+impl Deref for ReadableBuf {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
     }
 }
 

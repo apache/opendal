@@ -229,13 +229,13 @@ impl<W> oio::Write for MultipartWriter<W>
 where
     W: MultipartWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
                 // Fill cache with the first write.
                 if self.cache.is_none() {
-                    let size = self.fill_cache(bs);
+                    let size = self.fill_cache(bs.to_bytes());
                     return Ok(size);
                 }
 
@@ -258,7 +258,7 @@ where
                     part_number,
                     cache,
                 ));
-                let size = self.fill_cache(bs);
+                let size = self.fill_cache(bs.to_bytes());
                 return Ok(size);
             }
 
@@ -446,7 +446,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(Bytes::copy_from_slice(&bs)).await {
+                match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

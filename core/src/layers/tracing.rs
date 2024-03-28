@@ -290,7 +290,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: oio::ReadableBuf) -> impl Future<Output = Result<usize>> + Send {
         self.inner.write(bs)
     }
 
@@ -316,7 +316,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

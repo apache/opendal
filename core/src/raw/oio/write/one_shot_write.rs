@@ -55,7 +55,7 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 }
 
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match &self.buffer {
             Some(_) => Err(Error::new(
                 ErrorKind::Unsupported,
@@ -63,7 +63,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
             )),
             None => {
                 let size = bs.len();
-                self.buffer = Some(bs);
+                self.buffer = Some(bs.to_bytes());
                 Ok(size)
             }
         }

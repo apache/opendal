@@ -25,7 +25,6 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use futures::AsyncWriteExt;
 use futures::{AsyncReadExt, AsyncSeekExt};
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
@@ -292,10 +291,11 @@ impl AsyncFile {
                 }
             };
 
+            let len = bs.len();
             writer
-                .write_all(&bs)
+                .write(bs)
                 .await
-                .map(|_| bs.len())
+                .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))
         })
     }

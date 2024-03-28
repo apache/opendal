@@ -22,12 +22,14 @@ use bytes::Bytes;
 
 /// ReadableBuf is the buf used in `oio::Write`.
 ///
-/// This API is used internally by the `oio` crate. Users should never use it directly.
+/// This API is used internally by the `oio` crate. Users SHOULD never use it in any way.
 ///
 /// # Safety
 ///
-/// Caller must make sure that input buffer lives longer than `ReadableBuf` otherwise `ReadableBuf`
-/// might point to invalid memory.
+/// - Caller MUST make sure that input buffer lives longer than `ReadableBuf`. Otherwise
+///   `ReadableBuf` might point to invalid memory.
+/// - Caller SHOULD NOT store `ReadableBuf` in anyway. The buf should only be passed to `oio::Write`
+///   or been copied out by [`ReadableBuf::to_bytes`].
 #[derive(Clone)]
 pub struct ReadableBuf(Inner);
 
@@ -184,7 +186,7 @@ impl Buf for ReadableBuf {
                     "ptr of slice must be valid across the lifetime of ReadableBuf"
                 );
                 assert!(
-                    *size > *offset + cnt,
+                    *size >= *offset + cnt,
                     "cnt {cnt} exceeds the remaining size {}",
                     *size - *offset
                 );
@@ -202,7 +204,7 @@ impl Buf for ReadableBuf {
                     "ptr of slice must be valid across the lifetime of ReadableBuf"
                 );
                 assert!(
-                    *size > *offset + len,
+                    *size >= *offset + len,
                     "len {len} exceeds the remaining size {}",
                     *size - *offset
                 );
@@ -233,6 +235,12 @@ mod tests {
         assert_eq!(buf.remaining(), 6);
         assert_eq!(buf.chunk(), b" world");
         assert_eq!(buf.to_bytes(), Bytes::from_static(b" world"));
+
+        let mut buf = ReadableBuf::from_slice(b"hello world");
+        assert_eq!(buf.copy_to_bytes(11), Bytes::from_static(b"hello world"));
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), b"");
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b""));
     }
 
     #[test]
@@ -247,6 +255,12 @@ mod tests {
         assert_eq!(buf.remaining(), 6);
         assert_eq!(buf.chunk(), b" world");
         assert_eq!(buf.to_bytes(), Bytes::from_static(b" world"));
+
+        let mut buf = ReadableBuf::from_bytes("hello world");
+        assert_eq!(buf.copy_to_bytes(11), Bytes::from_static(b"hello world"));
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), b"");
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b""));
     }
 
     #[test]
@@ -262,6 +276,12 @@ mod tests {
         assert_eq!(buf.remaining(), 6);
         assert_eq!(buf.chunk(), b" world");
         assert_eq!(buf.to_bytes(), Bytes::from_static(b" world"));
+
+        let mut buf = ReadableBuf::from_slice(bs);
+        assert_eq!(buf.copy_to_bytes(11), Bytes::from_static(b"hello world"));
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), b"");
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b""));
     }
 
     #[test]
@@ -277,5 +297,11 @@ mod tests {
         assert_eq!(buf.remaining(), 6);
         assert_eq!(buf.chunk(), b" world");
         assert_eq!(buf.to_bytes(), Bytes::from_static(b" world"));
+
+        let mut buf = ReadableBuf::from_slice(&bs);
+        assert_eq!(buf.copy_to_bytes(11), Bytes::from_static(b"hello world"));
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), b"");
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b""));
     }
 }

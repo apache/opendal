@@ -23,3 +23,6 @@ pub use buffer::Buffer;
 
 mod readable_buf;
 pub use readable_buf::ReadableBuf;
+
+mod writable_buf;
+pub use writable_buf::WritableBuf;

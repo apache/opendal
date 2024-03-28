@@ -18,7 +18,6 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;
@@ -48,7 +47,7 @@ impl<F> FsWriter<F> {
 unsafe impl<F> Sync for FsWriter<F> {}
 
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         f.write(&bs).await.map_err(new_std_io_error)
@@ -82,7 +81,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         f.write(&bs).map_err(new_std_io_error)

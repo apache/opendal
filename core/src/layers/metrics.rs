@@ -22,7 +22,6 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use metrics::increment_counter;
@@ -789,7 +788,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let start = Instant::now();
 
         self.inner
@@ -823,7 +822,7 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

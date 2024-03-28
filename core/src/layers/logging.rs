@@ -21,7 +21,6 @@ use std::sync::atomic::Ordering;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
@@ -1076,7 +1075,7 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self.inner.write(bs.clone()).await {
             Ok(n) => {
                 self.written += n as u64;
@@ -1174,7 +1173,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;

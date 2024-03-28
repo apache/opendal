@@ -38,8 +38,6 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-use bytes::Bytes;
-
 use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
@@ -73,7 +71,7 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
 }
 
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self {
             Self::One(v) => v.write(bs).await,
             Self::Two(v) => v.write(bs).await,
@@ -132,7 +130,7 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> o
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWays<ONE, TWO, THREE>
 {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self {
             Self::One(v) => v.write(bs).await,
             Self::Two(v) => v.write(bs).await,

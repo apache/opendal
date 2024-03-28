@@ -17,7 +17,6 @@
 
 use std::pin::Pin;
 
-use bytes::Bytes;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;
@@ -39,8 +38,11 @@ impl SftpWriter {
 }
 
 impl oio::Write for SftpWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
-        self.file.write(&bs).await.map_err(new_std_io_error)
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+        self.file
+            .write(bs.as_slice())
+            .await
+            .map_err(new_std_io_error)
     }
 
     async fn close(&mut self) -> Result<()> {

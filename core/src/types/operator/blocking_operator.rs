@@ -433,7 +433,10 @@ impl BlockingOperator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").version("version_id").call()?;
+    /// let r = op
+    ///     .reader_with("path/to/file")
+    ///     .version("version_id")
+    ///     .call()?;
     /// # Ok(())
     /// # }
     /// ```
@@ -641,7 +644,7 @@ impl BlockingOperator {
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
                 while !bs.is_empty() {
-                    let n = w.write(bs.clone())?;
+                    let n = w.write(bs.clone().into())?;
                     bs.advance(n);
                 }
                 w.close()?;

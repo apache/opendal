@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-
 use super::backend::GhacBackend;
 use super::error::parse_error;
 use crate::raw::*;
@@ -40,13 +38,18 @@ impl GhacWriter {
 }
 
 impl oio::Write for GhacWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let size = bs.len();
         let offset = self.size;
 
         let req = self
             .backend
-            .ghac_upload(self.cache_id, offset, size as u64, AsyncBody::Bytes(bs))
+            .ghac_upload(
+                self.cache_id,
+                offset,
+                size as u64,
+                AsyncBody::Bytes(bs.to_bytes()),
+            )
             .await?;
 
         let resp = self.backend.client.send(req).await?;

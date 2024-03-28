@@ -19,7 +19,6 @@ use std::future::Future;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
@@ -299,7 +298,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let fut = self.inner.write(bs);
         Self::io_timeout(self.timeout, WriteOperation::Write.into_static(), fut).await
     }

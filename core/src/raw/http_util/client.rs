@@ -18,8 +18,9 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future;
+use std::mem;
 use std::str::FromStr;
-use std::{future, mem};
 
 use bytes::Buf;
 use bytes::Bytes;

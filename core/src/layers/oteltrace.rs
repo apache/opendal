@@ -18,7 +18,6 @@
 use std::future::Future;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
@@ -288,7 +287,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: oio::ReadableBuf) -> impl Future<Output = Result<usize>> + Send {
         self.inner.write(bs)
     }
 
@@ -302,7 +301,7 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

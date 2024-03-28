@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
-
 use bytes::Buf;
 use bytes::BufMut;
-use bytes::Bytes;
+use bytes::BytesMut;
 
 use crate::raw::*;
 use crate::*;
@@ -31,17 +29,12 @@ use crate::*;
 /// `buffer_size` bytes. It's useful when the underlying storage requires the size to be written.
 ///
 /// For example, R2 requires all parts must be the same size except the last part.
-///
-/// ## Notes
-///
-/// ExactBufWriter is not a good choice for most cases, because it will cause more network requests.
 pub struct ExactBufWriter<W: oio::Write> {
     inner: W,
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: Vec<u8>,
-    frozen: Option<Bytes>,
+    buffer: BytesMut,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -50,38 +43,36 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: Vec::new(),
-            frozen: None,
+            buffer: BytesMut::with_capacity(buffer_size),
         }
     }
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
-        if let Some(frozen) = self.frozen.as_mut() {
-            let written = self.inner.write(frozen.clone()).await?;
-            frozen.advance(written);
-            if !frozen.is_empty() {
-                // Return remaining bytes back to buffer
-                self.buffer = frozen.to_vec();
-            }
-            // Clean up the frozen.
-            self.frozen = None;
-        }
-
+    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         // Quick Path
         //
         // if buffer is empty and bs is larger than buffer_size, we can directly
         // freeze the first buffer_size bytes.
         if self.buffer.is_empty() && bs.len() >= self.buffer_size {
-            self.frozen = Some(bs.slice(0..self.buffer_size));
-            return Ok(self.buffer_size);
+            let written = self.inner.write(bs.take(self.buffer_size)).await?;
+            return Ok(written);
+        }
+
+        // Slow Path
+        //
+        // If buffer is full, flush the buffer first.
+        if self.buffer.len() >= self.buffer_size {
+            let written = self
+                .inner
+                .write(oio::ReadableBuf::from_slice(&self.buffer))
+                .await?;
+            self.buffer.advance(written);
         }
 
         let remaining = self.buffer_size - self.buffer.len();
         if bs.len() >= remaining {
             self.buffer.put_slice(&bs[0..remaining]);
-            self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
             Ok(remaining)
         } else {
             self.buffer.put_slice(&bs);
@@ -91,29 +82,21 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
     async fn close(&mut self) -> Result<()> {
         loop {
-            if let Some(bs) = self.frozen.as_mut() {
-                let written = self.inner.write(bs.clone()).await?;
-                bs.advance(written);
-                if bs.is_empty() {
-                    self.frozen = None;
-                }
+            if self.buffer.is_empty() {
+                break;
             }
 
-            if self.frozen.is_none() {
-                if !self.buffer.is_empty() {
-                    // freeze the remaining buffer
-                    self.frozen = Some(Bytes::from(mem::take(&mut self.buffer)));
-                } else {
-                    break;
-                }
-            }
+            let written = self
+                .inner
+                .write(oio::ReadableBuf::from_slice(&self.buffer))
+                .await?;
+            self.buffer.advance(written);
         }
 
         self.inner.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.frozen = None;
         self.buffer.clear();
         self.inner.abort().await
     }
@@ -138,11 +121,11 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Bytes) -> Result<usize> {
+        async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
             self.buf.extend_from_slice(&bs);
-            Ok(bs.len())
+            Ok(bs.remaining())
         }
 
         async fn close(&mut self) -> Result<()> {
@@ -170,7 +153,7 @@ mod tests {
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
-            let n = w.write(bs.clone()).await?;
+            let n = w.write(bs.clone().into()).await?;
             bs.advance(n);
         }
 
@@ -209,7 +192,7 @@ mod tests {
 
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
-                let n = writer.write(bs.clone()).await?;
+                let n = writer.write(bs.clone().into()).await?;
                 bs.advance(n);
             }
         }

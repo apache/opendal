@@ -94,7 +94,7 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
+            let n = self.inner.write(bs.clone().into()).await?;
             bs.advance(n);
         }
 
@@ -138,7 +138,7 @@ impl Writer {
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
             while !bs.is_empty() {
-                let n = self.inner.write(bs.clone()).await?;
+                let n = self.inner.write(bs.clone().into()).await?;
                 bs.advance(n);
                 written += n as u64;
             }
@@ -179,7 +179,6 @@ pub mod into_futures_async_write {
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::Bytes;
     use futures::AsyncWrite;
 
     use crate::raw::oio::Write;
@@ -191,6 +190,10 @@ pub mod into_futures_async_write {
     /// Users can use this adapter in cases where they need to use [`AsyncWrite`] related trait.
     ///
     /// FuturesIoAsyncWriter also implements [`Unpin`], [`Send`] and [`Sync`]
+    ///
+    /// # TODO
+    ///
+    /// We should insert checks if the input slice changed after future created.
     pub struct FuturesIoAsyncWriter {
         state: State,
     }
@@ -225,7 +228,7 @@ pub mod into_futures_async_write {
             match &mut self.state {
                 State::Idle(w) => {
                     let mut w = w.take().expect("writer must be valid");
-                    let bs = Bytes::copy_from_slice(buf);
+                    let bs = oio::ReadableBuf::from_slice(buf);
                     let fut = async move {
                         let res = w.write(bs).await;
                         (w, res)
@@ -299,7 +302,7 @@ impl BlockingWriter {
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone())?;
+            let n = self.inner.write(bs.clone().into())?;
             bs.advance(n);
         }
 
@@ -315,7 +318,7 @@ impl BlockingWriter {
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner
-            .write(Bytes::copy_from_slice(buf))
+            .write(buf.into())
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 

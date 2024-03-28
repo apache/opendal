@@ -22,7 +22,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use bb8::{PooledConnection, RunError};
+use bb8::PooledConnection;
+use bb8::RunError;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;

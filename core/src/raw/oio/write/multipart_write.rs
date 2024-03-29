@@ -229,7 +229,7 @@ impl<W> oio::Write for MultipartWriter<W>
 where
     W: MultipartWrite,
 {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
@@ -446,7 +446,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(bs.clone().into()).await {
+                match unsafe { w.write(bs.clone().into()).await } {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

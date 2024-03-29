@@ -788,7 +788,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let start = Instant::now();
 
         self.inner
@@ -822,7 +822,7 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

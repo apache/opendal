@@ -644,7 +644,7 @@ impl BlockingOperator {
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
                 while !bs.is_empty() {
-                    let n = w.write(bs.clone().into())?;
+                    let n = unsafe { w.write(bs.clone().into())? };
                     bs.advance(n);
                 }
                 w.close()?;

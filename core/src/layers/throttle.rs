@@ -196,7 +196,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
@@ -231,7 +231,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {

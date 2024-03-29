@@ -55,7 +55,7 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 }
 
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match &self.buffer {
             Some(_) => Err(Error::new(
                 ErrorKind::Unsupported,

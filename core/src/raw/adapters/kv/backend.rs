@@ -260,7 +260,7 @@ enum Buffer {
 unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match &mut self.buffer {
             Buffer::Active(buf) => {
                 buf.extend_from_slice(&bs);
@@ -290,7 +290,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match &mut self.buffer {
             Buffer::Active(buf) => {
                 buf.extend_from_slice(&bs);

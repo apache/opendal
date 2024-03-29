@@ -43,7 +43,7 @@ impl AlluxioWriter {
 }
 
 impl oio::Write for AlluxioWriter {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let stream_id = match self.stream_id {
             Some(stream_id) => stream_id,
             None => {

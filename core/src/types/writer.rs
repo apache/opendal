@@ -94,7 +94,8 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone().into()).await?;
+            // Safety: buf is valid before write return.
+            let n = unsafe { self.inner.write(bs.clone().into()).await? };
             bs.advance(n);
         }
 
@@ -138,7 +139,8 @@ impl Writer {
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
             while !bs.is_empty() {
-                let n = self.inner.write(bs.clone().into()).await?;
+                // Safety: bs must be valid before write return.
+                let n = unsafe { self.inner.write(bs.clone().into()).await? };
                 bs.advance(n);
                 written += n as u64;
             }
@@ -230,7 +232,8 @@ pub mod into_futures_async_write {
                     let mut w = w.take().expect("writer must be valid");
                     let bs = oio::ReadableBuf::from_slice(buf);
                     let fut = async move {
-                        let res = w.write(bs).await;
+                        // FIXME: we need to check if bs remains the same after future created.
+                        let res = unsafe { w.write(bs).await };
                         (w, res)
                     };
                     self.state = State::Writing(Box::pin(fut));
@@ -302,7 +305,8 @@ impl BlockingWriter {
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone().into())?;
+            // Safety: bs must be valid before write return.
+            let n = unsafe { self.inner.write(bs.clone().into())? };
             bs.advance(n);
         }
 
@@ -317,9 +321,12 @@ impl BlockingWriter {
 
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner
-            .write(buf.into())
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        // Safety: buf is valid before write return.
+        unsafe {
+            self.inner
+                .write(buf.into())
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {

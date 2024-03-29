@@ -86,7 +86,7 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    async fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let offset = match self.offset {
             Some(offset) => offset,
             None => {

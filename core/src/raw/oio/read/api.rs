@@ -31,14 +31,8 @@ use crate::*;
 pub enum ReadOperation {
     /// Operation for [`Read::read`]
     Read,
-    /// Operation for [`Read::seek`]
-    Seek,
     /// Operation for [`BlockingRead::read`]
     BlockingRead,
-    /// Operation for [`BlockingRead::seek`]
-    BlockingSeek,
-    /// Operation for [`BlockingRead::next`]
-    BlockingNext,
 }
 
 impl ReadOperation {
@@ -60,10 +54,7 @@ impl From<ReadOperation> for &'static str {
 
         match v {
             Read => "Reader::read",
-            Seek => "Reader::seek",
             BlockingRead => "BlockingReader::read",
-            BlockingSeek => "BlockingReader::seek",
-            BlockingNext => "BlockingReader::next",
         }
     }
 }

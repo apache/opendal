@@ -705,7 +705,7 @@ impl BlockingWriter {
     /// await writer.close();
     /// ```
     #[napi]
-    pub unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+    pub unsafe unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
@@ -752,7 +752,7 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+    pub async unsafe unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),

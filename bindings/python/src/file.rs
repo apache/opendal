@@ -96,7 +96,7 @@ impl File {
     }
 
     /// Write bytes into the file.
-    pub fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
+    pub unsafe fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
         let writer = match &mut self.0 {
             FileState::Reader(_) => {
                 return Err(PyIOError::new_err(

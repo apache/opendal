@@ -91,9 +91,9 @@ pub enum Scheme {
     Ipfs,
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
-    /// [memcached][crate::services::Memcached]: Memcached service support.
-    Icloud,
     /// [icloud][crate::services::Icloud]: APPLE icloud services.
+    Icloud,
+    /// [memcached][crate::services::Memcached]: Memcached service support.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
     Memory,

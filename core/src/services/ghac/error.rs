@@ -25,7 +25,7 @@ use crate::ErrorKind;
 use crate::Result;
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
 
     let (kind, retryable) = match parts.status {

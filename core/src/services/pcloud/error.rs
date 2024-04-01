@@ -44,9 +44,7 @@ impl Debug for PcloudError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let message = String::from_utf8_lossy(&bs).into_owned();
 
     let mut err = Error::new(ErrorKind::Unexpected, &message);

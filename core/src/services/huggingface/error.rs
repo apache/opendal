@@ -40,10 +40,7 @@ impl Debug for HuggingfaceError {
     }
 }
 
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
-
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),

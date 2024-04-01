@@ -41,8 +41,6 @@ struct WebHdfsError {
 }
 
 pub(super) async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }

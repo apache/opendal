@@ -36,10 +36,7 @@ struct SupabaseError {
 }
 
 /// Parse the supabase error type to the OpenDAL error type
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
-
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     // Check HTTP status code first/
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),

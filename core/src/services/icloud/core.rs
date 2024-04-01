@@ -572,10 +572,7 @@ impl PathQuery for IcloudPathQuery {
     }
 }
 
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
-
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let mut kind = match parts.status.as_u16() {
         421 | 450 | 500 => ErrorKind::NotFound,
         401 => ErrorKind::Unexpected,

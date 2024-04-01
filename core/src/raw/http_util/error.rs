@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
+use futures::Stream;
 use http::response::Parts;
-use http::Uri;
+use http::{Response, Uri};
 
-use crate::Error;
-use crate::ErrorKind;
+use crate::raw::ResponseBody;
+use crate::*;
 
 /// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {

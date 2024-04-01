@@ -263,7 +263,7 @@ impl Accessor for GhacBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let req = self.ghac_query(path).await?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body();
@@ -276,9 +276,9 @@ impl Accessor for GhacBackend {
 
         let req = Request::get(location)
             .header(header::RANGE, "bytes=0-0")
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         let status = resp.status();
         match status {
@@ -301,7 +301,7 @@ impl Accessor for GhacBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let req = self.ghac_query(path).await?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body();
@@ -321,7 +321,7 @@ impl Accessor for GhacBackend {
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let req = self.ghac_reserve(path).await?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body();
@@ -357,7 +357,7 @@ impl Accessor for GhacBackend {
 }
 
 impl GhacBackend {
-    async fn ghac_query(&self, path: &str) -> Result<Request<AsyncBody>> {
+    async fn ghac_query(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -372,7 +372,7 @@ impl GhacBackend {
         req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -382,17 +382,18 @@ impl GhacBackend {
         &self,
         location: &str,
         range: BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let mut req = Request::get(location);
 
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(RequestBody::Empty)
+            .map_err(new_request_build_error)
     }
 
-    async fn ghac_reserve(&self, path: &str) -> Result<Request<AsyncBody>> {
+    async fn ghac_reserve(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
@@ -410,7 +411,7 @@ impl GhacBackend {
         req = req.header(CONTENT_TYPE, "application/json");
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -421,8 +422,8 @@ impl GhacBackend {
         cache_id: i64,
         offset: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let mut req = Request::patch(&url);
@@ -442,7 +443,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    pub async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
+    pub async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<RequestBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let bs =
@@ -455,7 +456,7 @@ impl GhacBackend {
         req = req.header(CONTENT_LENGTH, bs.len());
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -477,7 +478,7 @@ impl GhacBackend {
         req = req.header("X-GitHub-Api-Version", GITHUB_API_VERSION);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

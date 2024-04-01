@@ -40,7 +40,7 @@ use http::Uri;
 use http::Version;
 
 use super::new_request_build_error;
-use super::AsyncBody;
+use super::RequestBody;
 use crate::raw::oio;
 use crate::raw::oio::Stream;
 use crate::*;
@@ -151,7 +151,7 @@ impl<T: Part> Multipart<T> {
     /// Consume the input and generate a request with multipart body.
     ///
     /// This function will make sure content_type and content_length set correctly.
-    pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<AsyncBody>> {
+    pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<RequestBody>> {
         let boundary = self.boundary.clone();
         let (content_length, stream) = self.build();
 
@@ -164,7 +164,7 @@ impl<T: Part> Multipart<T> {
         builder = builder.header(CONTENT_LENGTH, content_length);
 
         builder
-            .body(AsyncBody::Stream(Box::new(stream)))
+            .body(RequestBody::Stream(Box::new(stream)))
             .map_err(new_request_build_error)
     }
 }
@@ -374,7 +374,7 @@ impl MixedPart {
     }
 
     /// Build a mixed part from a request.
-    pub fn from_request(req: Request<AsyncBody>) -> Self {
+    pub fn from_request(req: Request<RequestBody>) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());
         part_headers.insert("content-transfer-encoding", "binary".parse().unwrap());
@@ -382,9 +382,9 @@ impl MixedPart {
         let (parts, body) = req.into_parts();
 
         let content = match body {
-            AsyncBody::Empty => None,
-            AsyncBody::Bytes(bs) => Some(bs),
-            AsyncBody::Stream(_) => {
+            RequestBody::Empty => None,
+            RequestBody::Bytes(bs) => Some(bs),
+            RequestBody::Stream(_) => {
                 unimplemented!("multipart upload does not support streaming body")
             }
         };
@@ -411,7 +411,7 @@ impl MixedPart {
     }
 
     /// Consume a mixed part to build a response.
-    pub fn into_response(mut self) -> Response<oio::Buffer> {
+    pub fn into_response(mut self) -> Response<Bytes> {
         let mut builder = Response::builder();
 
         builder = builder.status(self.status_code.unwrap_or(StatusCode::OK));
@@ -419,11 +419,7 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        let body = match self.content {
-            None => oio::Buffer::new(),
-            Some(bs) => oio::Buffer::from(bs),
-        };
-
+        let body = self.content.unwrap_or_default();
         builder
             .body(body)
             .expect("mixed part must be valid response")

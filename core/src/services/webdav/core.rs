@@ -108,10 +108,10 @@ impl WebdavCore {
         req = req.header(HEADER_DEPTH, "0");
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
+            .body(RequestBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         if !resp.status().is_success() {
             return Err(parse_error(resp).await?);
         }
@@ -150,7 +150,7 @@ impl WebdavCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -161,7 +161,7 @@ impl WebdavCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
@@ -200,7 +200,7 @@ impl WebdavCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -228,7 +228,7 @@ impl WebdavCore {
         req = req.header(HEADER_OVERWRITE, "T");
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -256,7 +256,7 @@ impl WebdavCore {
         req = req.header(HEADER_OVERWRITE, "T");
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -281,7 +281,7 @@ impl WebdavCore {
         }
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
+            .body(RequestBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -339,10 +339,10 @@ impl WebdavCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
 
         match status {

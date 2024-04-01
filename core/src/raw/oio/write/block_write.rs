@@ -67,9 +67,9 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
     #[cfg(not(target_arch = "wasm32"))]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
+    fn write_once(&self, size: u64, body: RequestBody) -> impl Future<Output = Result<()>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
+    fn write_once(&self, size: u64, body: RequestBody) -> impl Future<Output = Result<()>>;
 
     /// write_block will write a block of the data and returns the result
     /// [`Block`].
@@ -83,14 +83,14 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
         &self,
         block_id: Uuid,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> impl Future<Output = Result<()>> + Send;
     #[cfg(target_arch = "wasm32")]
     fn write_block(
         &self,
         block_id: Uuid,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> impl Future<Output = Result<()>>;
 
     /// complete_block will complete the block upload to build the final
@@ -137,7 +137,7 @@ impl WriteBlockFuture {
             w.write_block(
                 block_id,
                 bytes.len() as u64,
-                AsyncBody::Bytes(bytes.clone()),
+                RequestBody::Bytes(bytes.clone()),
             )
             .await
             // Return bytes while we got an error to allow retry.
@@ -224,8 +224,8 @@ where
         // No write block has been sent.
         if self.futures.is_empty() && self.block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
-                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
-                None => (0, AsyncBody::Empty),
+                Some(cache) => (cache.len(), RequestBody::Bytes(cache)),
+                None => (0, RequestBody::Empty),
             };
             self.w.write_once(size as u64, body).await?;
             // Cleanup cache after write succeed.
@@ -306,20 +306,20 @@ mod tests {
     }
 
     impl BlockWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, _: u64, _: AsyncBody) -> Result<()> {
+        async fn write_once(&self, _: u64, _: RequestBody) -> Result<()> {
             Ok(())
         }
 
-        async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+        async fn write_block(&self, block_id: Uuid, size: u64, body: RequestBody) -> Result<()> {
             // We will have 50% percent rate for write part to fail.
             if thread_rng().gen_bool(5.0 / 10.0) {
                 return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
             }
 
             let bs = match body {
-                AsyncBody::Empty => Bytes::new(),
-                AsyncBody::Bytes(bs) => bs,
-                AsyncBody::Stream(s) => s.collect().await.unwrap(),
+                RequestBody::Empty => Bytes::new(),
+                RequestBody::Bytes(bs) => bs,
+                RequestBody::Stream(s) => s.collect().await.unwrap(),
             };
 
             let mut this = self.lock().unwrap();

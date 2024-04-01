@@ -60,7 +60,12 @@ impl Reader {
     /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
-    pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
+    pub async fn read(
+        &self,
+        buf: &mut impl BufMut,
+        buf: oio::WritableBuf,
+        limit: usize,
+    ) -> Result<usize> {
         let bs = self.inner.read_at_dyn(offset, limit).await?;
         let n = bs.remaining();
         buf.put(bs);
@@ -173,7 +178,7 @@ pub mod into_futures_async_read {
 
     enum State {
         Idle(Option<oio::Reader>),
-        Fill(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+        Fill(BoxedStaticFuture<(oio::Reader, Result<usize>)>),
     }
 
     /// # Safety
@@ -322,7 +327,7 @@ pub mod into_futures_stream {
 
     enum State {
         Idle(Option<oio::Reader>),
-        Next(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+        Next(BoxedStaticFuture<(oio::Reader, Result<usize>)>),
     }
 
     /// # Safety

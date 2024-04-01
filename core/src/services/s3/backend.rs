@@ -747,7 +747,7 @@ impl S3Builder {
         }
 
         // Try to detect region by HeadBucket.
-        let req = http::Request::head(&url).body(AsyncBody::Empty).ok()?;
+        let req = http::Request::head(&url).body(RequestBody::Empty).ok()?;
 
         let client = HttpClient::new().ok()?;
         let res = client
@@ -1139,7 +1139,7 @@ impl Accessor for S3Backend {
                 path,
                 None,
                 &OpWrite::default(),
-                AsyncBody::Empty,
+                RequestBody::Empty,
             )?,
         };
 

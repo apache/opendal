@@ -41,7 +41,7 @@ impl WebdavReader {
 }
 
 impl oio::Read for WebdavReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.webdav_get(&self.path, range, &self.op).await?;

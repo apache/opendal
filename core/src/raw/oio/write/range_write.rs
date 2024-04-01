@@ -63,7 +63,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     /// RangeWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
+    fn write_once(&self, size: u64, body: RequestBody) -> impl Future<Output = Result<()>> + Send;
 
     /// Initiate range the range write, the returning value is the location.
     fn initiate_range(&self) -> impl Future<Output = Result<String>> + Send;
@@ -74,7 +74,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         location: &str,
         offset: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> impl Future<Output = Result<()>> + Send;
 
     /// complete_range will complete the range write by uploading the last chunk.
@@ -83,7 +83,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         location: &str,
         offset: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> impl Future<Output = Result<()>> + Send;
 
     /// abort_range will abort the range write by abort all already uploaded data.
@@ -121,7 +121,7 @@ impl WriteRangeFuture {
                 &location,
                 offset,
                 bytes.len() as u64,
-                AsyncBody::Bytes(bytes.clone()),
+                RequestBody::Bytes(bytes.clone()),
             )
             .await
             .map_err(|err| (offset, bytes, err))
@@ -211,8 +211,8 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
     async fn close(&mut self) -> Result<()> {
         let Some(location) = self.location.clone() else {
             let (size, body) = match self.buffer.clone() {
-                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
-                None => (0, AsyncBody::Empty),
+                Some(cache) => (cache.len(), RequestBody::Bytes(cache)),
+                None => (0, RequestBody::Empty),
             };
             // Call write_once if there is no data in buffer and no location.
             return self.w.write_once(size as u64, body).await;
@@ -239,7 +239,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     &location,
                     offset,
                     buffer.len() as u64,
-                    AsyncBody::Bytes(buffer),
+                    RequestBody::Bytes(buffer),
                 )
                 .await?;
             self.buffer = None;
@@ -291,7 +291,7 @@ mod tests {
     }
 
     impl RangeWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+        async fn write_once(&self, size: u64, _: RequestBody) -> Result<()> {
             let mut test = self.lock().unwrap();
             test.length += size;
             test.bytes.extend(0..size);
@@ -303,7 +303,7 @@ mod tests {
             Ok("test".to_string())
         }
 
-        async fn write_range(&self, _: &str, offset: u64, size: u64, _: AsyncBody) -> Result<()> {
+        async fn write_range(&self, _: &str, offset: u64, size: u64, _: RequestBody) -> Result<()> {
             // We will have 50% percent rate for write part to fail.
             if thread_rng().gen_bool(5.0 / 10.0) {
                 return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
@@ -328,7 +328,7 @@ mod tests {
             _: &str,
             offset: u64,
             size: u64,
-            _: AsyncBody,
+            _: RequestBody,
         ) -> Result<()> {
             let mut test = self.lock().unwrap();
             test.length += size;

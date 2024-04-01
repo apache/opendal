@@ -26,7 +26,8 @@ mod client;
 pub use client::HttpClient;
 
 mod body;
-pub use body::AsyncBody;
+pub use body::RequestBody;
+pub use body::ResponseBody;
 
 mod header;
 pub use header::build_header_value;

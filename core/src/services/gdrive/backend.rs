@@ -191,7 +191,7 @@ impl Accessor for GdriveBackend {
             "name": to_name,
             "parents": [to_parent_id],
         });
-        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(request_body.to_string()));
 
         let mut req = Request::post(&url)
             .body(body)

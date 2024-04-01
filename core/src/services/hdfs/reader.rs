@@ -35,7 +35,7 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let r = Self { f: self.f.clone() };
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
@@ -53,7 +53,7 @@ impl oio::Read for HdfsReader {
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let mut bs = Vec::with_capacity(limit);
 
         let buf = bs.spare_capacity_mut();

@@ -42,7 +42,7 @@ impl S3Reader {
 }
 
 impl oio::Read for S3Reader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let range = BytesRange::new(offset, Some(limit as u64));
         let resp = self.core.s3_get_object(&self.path, range, &self.op).await?;
 

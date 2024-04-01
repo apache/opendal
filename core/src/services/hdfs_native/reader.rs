@@ -30,7 +30,7 @@ impl HdfsNativeReader {
 }
 
 impl oio::Read for HdfsNativeReader {
-    async fn read_at(&self, _offset: u64, _limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, _offset: u64, _limit: usize) -> crate::Result<usize> {
         todo!()
     }
 }

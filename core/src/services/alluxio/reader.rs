@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
 use super::core::*;
@@ -40,14 +41,8 @@ impl AlluxioReader {
 }
 
 impl oio::Read for AlluxioReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let range = BytesRange::new(offset, Some(limit as u64));
-
-        let resp = self.core.read(self.stream_id, range).await?;
-
-        if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
-        }
-        Ok(resp.into_body())
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
+        self.core.read(self.stream_id, range, buf).await
     }
 }

@@ -230,10 +230,10 @@ impl kv::Adapter for Adapter {
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -253,7 +253,7 @@ impl kv::Adapter for Adapter {
             .part(FormDataPart::new("value").content(value.to_vec()));
         let mut req = multipart.apply(req)?;
         req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
@@ -266,10 +266,10 @@ impl kv::Adapter for Adapter {
         let mut req = Request::delete(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
@@ -285,10 +285,10 @@ impl kv::Adapter for Adapter {
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK => {

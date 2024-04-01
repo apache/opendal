@@ -51,10 +51,11 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
         &self,
         offset: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> impl Future<Output = Result<()>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn append(&self, offset: u64, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
+    fn append(&self, offset: u64, size: u64, body: RequestBody)
+        -> impl Future<Output = Result<()>>;
 }
 
 /// AppendWriter will implements [`Write`] based on append object.
@@ -98,7 +99,7 @@ where
 
         let size = bs.len();
         self.inner
-            .append(offset, size as u64, AsyncBody::Bytes(bs.to_bytes()))
+            .append(offset, size as u64, RequestBody::Bytes(bs.to_bytes()))
             .await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);

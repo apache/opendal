@@ -258,7 +258,11 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<AsyncBody>> {
+    fn create_d1_query_request(
+        &self,
+        sql: &str,
+        params: Vec<Value>,
+    ) -> Result<Request<RequestBody>> {
         let p = format!(
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
@@ -281,7 +285,7 @@ impl Adapter {
         });
 
         let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
-        req.body(AsyncBody::Bytes(body.into()))
+        req.body(RequestBody::Bytes(body.into()))
             .map_err(new_request_build_error)
     }
 }
@@ -310,7 +314,7 @@ impl kv::Adapter for Adapter {
         );
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
@@ -337,7 +341,7 @@ impl kv::Adapter for Adapter {
         let params = vec![path.into(), value.into()];
         let req = self.create_d1_query_request(&query, params)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
@@ -349,7 +353,7 @@ impl kv::Adapter for Adapter {
         let query = format!("DELETE FROM {} WHERE {} = ?", self.table, self.key_field);
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),

@@ -141,7 +141,7 @@ impl GcsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
@@ -152,7 +152,7 @@ impl GcsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -175,7 +175,7 @@ impl GcsCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -186,7 +186,7 @@ impl GcsCore {
         &self,
         path: &str,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
@@ -201,7 +201,7 @@ impl GcsCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -216,7 +216,7 @@ impl GcsCore {
         let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn gcs_insert_object_request(
@@ -224,8 +224,8 @@ impl GcsCore {
         path: &str,
         size: Option<u64>,
         op: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut metadata = HashMap::new();
@@ -287,8 +287,8 @@ impl GcsCore {
             }
 
             match body {
-                AsyncBody::Empty => {}
-                AsyncBody::Bytes(bytes) => {
+                RequestBody::Empty => {}
+                RequestBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
                 }
                 _ => {
@@ -311,8 +311,8 @@ impl GcsCore {
         &self,
         path: &str,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
@@ -336,7 +336,11 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
+    pub fn gcs_head_object_request(
+        &self,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -357,7 +361,7 @@ impl GcsCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -368,7 +372,7 @@ impl GcsCore {
         &self,
         path: &str,
         args: &OpStat,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
@@ -384,7 +388,7 @@ impl GcsCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -399,17 +403,17 @@ impl GcsCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let mut req = self.gcs_delete_object_request(path)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
-    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -420,7 +424,7 @@ impl GcsCore {
         );
 
         Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
@@ -441,7 +445,7 @@ impl GcsCore {
         let mut req = multipart.apply(req)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -459,11 +463,11 @@ impl GcsCore {
 
         let mut req = Request::post(req_uri)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gcs_list_objects(
@@ -506,12 +510,12 @@ impl GcsCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -523,11 +527,11 @@ impl GcsCore {
 
         let mut req = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn gcs_upload_in_resumable_upload(
@@ -535,8 +539,8 @@ impl GcsCore {
         location: &str,
         size: u64,
         written: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let mut req = Request::put(location);
 
         let range_header = format!("bytes {}-{}/*", written, written + size - 1);
@@ -556,7 +560,7 @@ impl GcsCore {
         location: &str,
         written: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::post(location)
             .header(CONTENT_LENGTH, size)
@@ -574,7 +578,7 @@ impl GcsCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gcs_abort_resumable_upload(
@@ -583,12 +587,12 @@ impl GcsCore {
     ) -> Result<Response<oio::Buffer>> {
         let mut req = Request::delete(location)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

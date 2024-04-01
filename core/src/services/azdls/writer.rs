@@ -42,94 +42,26 @@ impl AzdlsWriter {
 
 impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let mut req =
-            self.core
-                .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
+        self.core.azdls_create_file(&self.path, &self.op).await?;
 
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {}
-            _ => {
-                return Err(parse_error(resp)
-                    .await?
-                    .with_operation("Backend::azdls_create_request"));
-            }
-        }
-
-        let mut req = self.core.azdls_update_request(
-            &self.path,
-            Some(bs.len() as u64),
-            0,
-            AsyncBody::Bytes(bs),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdls_update_request")),
-        }
+        self.core
+            .azdls_update_request(&self.path, Some(bs.len() as u64), 0, RequestBody::Bytes(bs))
+            .await
     }
 }
 
 impl oio::AppendWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.azdls_get_properties(&self.path).await?;
-
-        let status = resp.status();
-        let headers = resp.headers();
-
-        match status {
-            StatusCode::OK => Ok(parse_content_length(headers)?.unwrap_or_default()),
-            StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp).await?),
-        }
+        let meta = self.core.azdls_get_properties(&self.path).await?;
+        Ok(meta.content_length())
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: RequestBody) -> Result<()> {
         if offset == 0 {
-            let mut req =
-                self.core
-                    .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
-
-            self.core.sign(&mut req).await?;
-
-            let resp = self.core.send(req).await?;
-
-            let status = resp.status();
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {}
-                _ => {
-                    return Err(parse_error(resp)
-                        .await?
-                        .with_operation("Backend::azdls_create_request"));
-                }
-            }
+            self.core.azdls_create_file(&self.path, &self.op).await?;
         }
 
-        let mut req = self
-            .core
-            .azdls_update_request(&self.path, Some(size), offset, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdls_update_request")),
-        }
+        self.core
+            .azdls_update_request(&self.path, Some(size), offset, body)
     }
 }

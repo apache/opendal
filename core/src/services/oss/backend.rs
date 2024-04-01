@@ -517,7 +517,7 @@ impl Accessor for OssBackend {
             }
             PresignOperation::Write(v) => {
                 self.core
-                    .oss_put_object_request(path, None, v, AsyncBody::Empty, true)?
+                    .oss_put_object_request(path, None, v, RequestBody::Empty, true)?
             }
         };
 

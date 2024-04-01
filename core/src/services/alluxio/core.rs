@@ -19,13 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Buf;
-use http::Request;
-use http::Response;
 use http::StatusCode;
+use http::{header, Request};
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::error::parse_error;
+use crate::raw::oio::WritableBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -117,15 +117,20 @@ impl AlluxioCore {
         req = req.header("Content-Type", "application/json");
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -144,23 +149,25 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        req = req.header("Content-Type", "application/json");
+        req = req.header(header::CONTENT_TYPE, "application/json");
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
+                let body = body.to_bytes().await?;
                 let steam_id: u64 =
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let body = body.to_bytes().await?;
+                Err(parse_error(parts, body)?)
+            }
         }
     }
 
@@ -173,20 +180,20 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
 
-        let status = resp.status();
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let steam_id: u64 =
-                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
+                let steam_id: u64 = body.to_json().await?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let body = body.to_bytes().await?;
+                Err(parse_error(parts, body)?)
+            }
         }
     }
 
@@ -199,16 +206,19 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
 
-        let status = resp.status();
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match status {
-            StatusCode::OK => Ok(()),
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
-                let err = parse_error(resp).await?;
+                let body = body.to_bytes().await?;
+                let err = parse_error(parts, body)?;
                 if err.kind() == ErrorKind::NotFound {
                     return Ok(());
                 }
@@ -229,16 +239,20 @@ impl AlluxioCore {
         ));
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -252,21 +266,20 @@ impl AlluxioCore {
         ));
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
+        match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let file_info: FileInfo =
-                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
+                let file_info: FileInfo = body.to_json().await?;
                 Ok(file_info)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -280,59 +293,64 @@ impl AlluxioCore {
         ));
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
+        match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let file_infos: Vec<FileInfo> =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+                let file_infos: Vec<FileInfo> = body.to_json().await?;
                 Ok(file_infos)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs).await?)
+            }
         }
     }
 
     /// TODO: we should implement range support correctly.
     ///
     /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn read(&self, stream_id: u64, _: BytesRange, buf: WritableBuf) -> Result<usize> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,
         ));
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        if !parts.status().is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        body.read(buf).await
     }
 
-    pub(super) async fn write(&self, stream_id: u64, body: AsyncBody) -> Result<usize> {
+    pub(super) async fn write(&self, stream_id: u64, body: RequestBody) -> Result<usize> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/write",
             self.endpoint, stream_id
         ));
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
+        match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let size: usize =
-                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
+                let size: usize = body.to_json().await?;
                 Ok(size)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -342,16 +360,20 @@ impl AlluxioCore {
             self.endpoint, stream_id
         ));
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs).await?)
+            }
         }
     }
 }

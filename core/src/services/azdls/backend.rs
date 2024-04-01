@@ -278,23 +278,10 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.azdls_create_request(
-            path,
-            "directory",
-            &OpWrite::default(),
-            AsyncBody::Empty,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core
+            .azdls_create_directory(path)
+            .await
+            .map(|_| RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -303,44 +290,7 @@ impl Accessor for AzdlsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.azdls_get_properties(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let mut meta = parse_into_metadata(path, resp.headers())?;
-        let resource = resp
-            .headers()
-            .get("x-ms-resource-type")
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's missing",
-                )
-            })?
-            .to_str()
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's not a valid string",
-                )
-                .set_source(err)
-            })?;
-
-        meta = match resource {
-            "file" => meta.with_mode(EntryMode::FILE),
-            "directory" => meta.with_mode(EntryMode::DIR),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls returns not supported x-ms-resource-type",
-                )
-                .with_context("resource", v))
-            }
-        };
-
-        Ok(RpStat::new(meta))
+        self.core.azdls_get_properties(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -361,14 +311,10 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.azdls_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core
+            .azdls_delete(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -378,22 +324,11 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
-            let status = resp.status();
-            match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp).await?),
-            }
-        }
-
-        let resp = self.core.azdls_rename(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core.azdls_ensure_parent_path(to).await?;
+        self.core
+            .azdls_rename(from, to)
+            .await
+            .map(|_| RpRename::default())
     }
 }
 

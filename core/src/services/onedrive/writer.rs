@@ -61,7 +61,7 @@ impl OneDriveWriter {
     async fn write_simple(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
-            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, AsyncBody::Bytes(bs))
+            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, RequestBody::Bytes(bs))
             .await?;
 
         let status = resp.status();
@@ -102,7 +102,7 @@ impl OneDriveWriter {
                     offset,
                     chunk_end,
                     total_len,
-                    AsyncBody::Bytes(Bytes::copy_from_slice(chunk)),
+                    RequestBody::Bytes(Bytes::copy_from_slice(chunk)),
                 )
                 .await?;
 

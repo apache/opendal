@@ -48,7 +48,7 @@ impl oio::Write for GhacWriter {
                 self.cache_id,
                 offset,
                 size as u64,
-                AsyncBody::Bytes(bs.to_bytes()),
+                RequestBody::Bytes(bs.to_bytes()),
             )
             .await?;
 

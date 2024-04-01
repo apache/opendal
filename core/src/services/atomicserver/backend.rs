@@ -38,11 +38,11 @@ use crate::raw::new_request_build_error;
 use crate::raw::normalize_path;
 use crate::raw::normalize_root;
 use crate::raw::percent_encode_path;
-use crate::raw::AsyncBody;
 use crate::raw::ConfigDeserializer;
 use crate::raw::FormDataPart;
 use crate::raw::HttpClient;
 use crate::raw::Multipart;
+use crate::raw::RequestBody;
 use crate::Builder;
 use crate::Scheme;
 use crate::*;
@@ -269,7 +269,7 @@ impl Adapter {
 }
 
 impl Adapter {
-    pub fn atomic_get_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn atomic_get_object_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -286,7 +286,7 @@ impl Adapter {
         req = req.header(http::header::ACCEPT, "application/ad+json");
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -296,7 +296,7 @@ impl Adapter {
         &self,
         path: &str,
         value: &[u8],
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -325,7 +325,7 @@ impl Adapter {
         Ok(req)
     }
 
-    pub fn atomic_delete_object_request(&self, subject: &str) -> Result<Request<AsyncBody>> {
+    pub fn atomic_delete_object_request(&self, subject: &str) -> Result<Request<RequestBody>> {
         let url = format!("{}/commit", self.endpoint);
 
         let timestamp = std::time::SystemTime::now()
@@ -364,7 +364,7 @@ impl Adapter {
 
         let body_bytes = body_string.as_bytes().to_owned();
         let req = req
-            .body(AsyncBody::Bytes(body_bytes.into()))
+            .body(RequestBody::Bytes(body_bytes.into()))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -373,12 +373,11 @@ impl Adapter {
     pub async fn download_from_url(&self, download_url: &String) -> Result<Bytes> {
         let req = Request::get(download_url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
-        let mut bytes_file = resp.into_body();
-
-        Ok(bytes_file.copy_to_bytes(bytes_file.remaining()))
+        // FIXME: we should check status code
+        let (_, body) = self.client.send(req).await?.into_parts();
+        body.to_bytes().await
     }
 }
 
@@ -389,10 +388,9 @@ impl Adapter {
         // See https://docs.atomicdata.dev/commits/intro.html#motivation
         for _i in 0..1000 {
             let req = self.atomic_get_object_request(path)?;
-            let resp = self.client.send(req).await?;
-            let bytes = resp.into_body();
-            let query_result: QueryResultStruct =
-                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+            let (_, body) = self.client.send(req).await?.into_parts();
+            // FIXME: we should check status code
+            let query_result: QueryResultStruct = body.to_json().await?;
             if !expect_exist && query_result.results.is_empty() {
                 break;
             }
@@ -423,11 +421,9 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let req = self.atomic_get_object_request(path)?;
-        let resp = self.client.send(req).await?;
-        let bytes = resp.into_body();
-
-        let query_result: QueryResultStruct =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+        // FIXME: status code not checked.
+        let (_, body) = self.client.send(req).await?.into_parts();
+        let query_result: QueryResultStruct = body.to_json().await?;
 
         if query_result.results.is_empty() {
             return Err(Error::new(

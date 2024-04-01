@@ -750,7 +750,7 @@ impl<R> MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
 
         match self.inner.read_at(offset, limit).await {
@@ -769,7 +769,7 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
 
         self.inner

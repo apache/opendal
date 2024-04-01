@@ -62,7 +62,7 @@ impl DbfsCore {
         let req_body = &json!({
             "path": percent_encode_path(&p),
         });
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -86,7 +86,7 @@ impl DbfsCore {
             "recursive": true,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(request_body.to_string()));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -108,7 +108,7 @@ impl DbfsCore {
             "destination_path": percent_encode_path(&target),
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -131,13 +131,17 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub fn dbfs_create_file_request(&self, path: &str, body: Bytes) -> Result<Request<AsyncBody>> {
+    pub fn dbfs_create_file_request(
+        &self,
+        path: &str,
+        body: Bytes,
+    ) -> Result<Request<RequestBody>> {
         let url = format!("{}/api/2.0/dbfs/put", self.endpoint);
 
         let contents = BASE64_STANDARD.encode(body);
@@ -152,7 +156,7 @@ impl DbfsCore {
             "overwrite": true,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         req.body(body).map_err(new_request_build_error)
     }
@@ -187,10 +191,10 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         let status = resp.status();
 
@@ -217,7 +221,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

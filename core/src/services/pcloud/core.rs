@@ -57,7 +57,7 @@ impl Debug for PcloudCore {
 
 impl PcloudCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
@@ -78,10 +78,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
         match status {
@@ -116,10 +116,10 @@ impl PcloudCore {
         // set body
         let req = req
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
@@ -169,10 +169,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn rename_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -192,10 +192,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -214,10 +214,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn delete_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -235,10 +235,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -256,10 +256,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -279,10 +279,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -302,10 +302,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -325,10 +325,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
@@ -349,10 +349,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn list_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -374,10 +374,10 @@ impl PcloudCore {
 
         // set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

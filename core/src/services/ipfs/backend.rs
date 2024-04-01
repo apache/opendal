@@ -360,7 +360,7 @@ impl IpfsBackend {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -374,7 +374,7 @@ impl IpfsBackend {
         let req = Request::head(&url);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -394,7 +394,7 @@ impl IpfsBackend {
         req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

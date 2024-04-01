@@ -93,7 +93,7 @@ impl AzfileCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -118,10 +118,10 @@ impl AzfileCore {
         }
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_create_file(
@@ -160,10 +160,10 @@ impl AzfileCore {
         }
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_update(
@@ -171,7 +171,7 @@ impl AzfileCore {
         path: &str,
         size: u64,
         position: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
@@ -197,7 +197,7 @@ impl AzfileCore {
 
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_get_file_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -212,10 +212,10 @@ impl AzfileCore {
         let req = Request::head(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_get_directory_properties(
@@ -234,10 +234,10 @@ impl AzfileCore {
         let req = Request::head(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_rename(&self, path: &str, new_path: &str) -> Result<Response<oio::Buffer>> {
@@ -286,10 +286,10 @@ impl AzfileCore {
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -309,10 +309,10 @@ impl AzfileCore {
         req = req.header(CONTENT_LENGTH, 0);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -330,10 +330,10 @@ impl AzfileCore {
         let req = Request::delete(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -351,10 +351,10 @@ impl AzfileCore {
         let req = Request::delete(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn azfile_list(
@@ -385,10 +385,10 @@ impl AzfileCore {
         let req = Request::get(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {

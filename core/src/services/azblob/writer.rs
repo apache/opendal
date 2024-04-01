@@ -88,7 +88,7 @@ impl oio::AppendWrite for AzblobWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: RequestBody) -> Result<()> {
         let mut req = self
             .core
             .azblob_append_blob_request(&self.path, offset, size, body)?;
@@ -106,46 +106,36 @@ impl oio::AppendWrite for AzblobWriter {
 }
 
 impl oio::BlockWrite for AzblobWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req: http::Request<AsyncBody> =
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
+        let mut req: http::Request<RequestBody> =
             self.core
                 .azblob_put_blob_request(&self.path, Some(size), &self.op, body)?;
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
-    async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
-        let resp = self
-            .core
+    async fn write_block(&self, block_id: Uuid, size: u64, body: RequestBody) -> Result<()> {
+        self.core
             .azblob_put_block(&self.path, block_id, Some(size), &self.op, body)
-            .await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
+            .await
     }
 
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
-            .await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
+            .await
     }
 
     async fn abort_block(&self, _block_ids: Vec<Uuid>) -> Result<()> {

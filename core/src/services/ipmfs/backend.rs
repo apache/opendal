@@ -178,7 +178,7 @@ impl IpmfsBackend {
 
         let req = Request::post(url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -200,7 +200,7 @@ impl IpmfsBackend {
 
         let req = Request::post(url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -217,7 +217,7 @@ impl IpmfsBackend {
 
         let req = Request::post(url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -234,7 +234,7 @@ impl IpmfsBackend {
 
         let req = Request::post(url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -251,7 +251,7 @@ impl IpmfsBackend {
 
         let req = Request::post(url);
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

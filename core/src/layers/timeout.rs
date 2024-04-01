@@ -291,7 +291,7 @@ impl<R> TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let fut = self.inner.read_at(offset, limit);
         Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
     }
@@ -383,7 +383,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<oio::Buffer>> {
+        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<usize>> {
             pending()
         }
     }

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use http::Response;
 use serde::Deserialize;
 
@@ -31,16 +31,13 @@ struct AlluxioError {
     message: String,
 }
 
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
-
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let mut kind = match parts.status.as_u16() {
         500 => ErrorKind::Unexpected,
         _ => ErrorKind::Unexpected,
     };
 
-    let (message, alluxio_err) = serde_json::from_reader::<_, AlluxioError>(bs.clone().reader())
+    let (message, alluxio_err) = serde_json::from_slice(&bs)
         .map(|alluxio_err| (format!("{alluxio_err:?}"), Some(alluxio_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 

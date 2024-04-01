@@ -74,7 +74,7 @@ impl Debug for VercelBlobCore {
 
 impl VercelBlobCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -110,10 +110,10 @@ impl VercelBlobCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn get_put_request(
@@ -121,8 +121,8 @@ impl VercelBlobCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -171,10 +171,10 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body.to_string())))
+            .body(RequestBody::Bytes(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
 
@@ -204,10 +204,10 @@ impl VercelBlobCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -235,10 +235,10 @@ impl VercelBlobCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn list(&self, prefix: &str, limit: Option<usize>) -> Result<ListResponse> {
@@ -259,10 +259,10 @@ impl VercelBlobCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
 
@@ -303,10 +303,10 @@ impl VercelBlobCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn upload_part(
@@ -315,7 +315,7 @@ impl VercelBlobCore {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -337,7 +337,7 @@ impl VercelBlobCore {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn complete_multipart_upload(
@@ -365,10 +365,10 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(parts_json.to_string())))
+            .body(RequestBody::Bytes(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

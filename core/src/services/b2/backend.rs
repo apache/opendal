@@ -458,7 +458,7 @@ impl Accessor for B2Backend {
                 let req = Request::get(url);
 
                 let req = req
-                    .body(AsyncBody::Empty)
+                    .body(RequestBody::Empty)
                     .map_err(new_request_build_error)?;
 
                 // We don't need this request anymore, consume
@@ -487,7 +487,7 @@ impl Accessor for B2Backend {
                 let req = Request::get(url);
 
                 let req = req
-                    .body(AsyncBody::Empty)
+                    .body(RequestBody::Empty)
                     .map_err(new_request_build_error)?;
 
                 // We don't need this request anymore, consume
@@ -510,7 +510,7 @@ impl Accessor for B2Backend {
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
                 let req = req
-                    .body(AsyncBody::Empty)
+                    .body(RequestBody::Empty)
                     .map_err(new_request_build_error)?;
                 // We don't need this request anymore, consume it directly.
                 let (parts, _) = req.into_parts();

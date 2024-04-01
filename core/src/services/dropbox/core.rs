@@ -98,7 +98,7 @@ impl DropboxCore {
         let request = Request::post(&url)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(request).await?;
@@ -146,7 +146,7 @@ impl DropboxCore {
         }
 
         let mut request = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
@@ -158,7 +158,7 @@ impl DropboxCore {
         path: &str,
         size: Option<usize>,
         args: &OpWrite,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
         let dropbox_update_args = DropboxUploadArgs {
@@ -197,7 +197,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
@@ -220,7 +220,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
@@ -236,7 +236,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
@@ -282,7 +282,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
@@ -312,7 +312,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;

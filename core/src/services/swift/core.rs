@@ -58,7 +58,7 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let body = AsyncBody::Empty;
+        let body = RequestBody::Empty;
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -96,7 +96,7 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -106,7 +106,7 @@ impl SwiftCore {
         &self,
         path: &str,
         length: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -153,7 +153,7 @@ impl SwiftCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -189,7 +189,7 @@ impl SwiftCore {
         // if use PUT method, we need to set the content-length to 0.
         req = req.header("Content-Length", "0");
 
-        let body = AsyncBody::Empty;
+        let body = RequestBody::Empty;
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -211,7 +211,7 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

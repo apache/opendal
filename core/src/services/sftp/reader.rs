@@ -38,7 +38,7 @@ impl SftpReader {
 }
 
 impl oio::Read for SftpReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let client = self.inner.connect().await?;
 
         let mut fs = client.fs();

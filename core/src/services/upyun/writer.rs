@@ -40,7 +40,7 @@ impl UpyunWriter {
 }
 
 impl oio::MultipartWrite for UpyunWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let req = self
             .core
             .upload(&self.path, Some(size), &self.op, body)
@@ -83,7 +83,7 @@ impl oio::MultipartWrite for UpyunWriter {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<oio::MultipartPart> {
         let req = self
             .core

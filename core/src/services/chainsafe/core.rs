@@ -52,7 +52,7 @@ impl Debug for ChainsafeCore {
 
 impl ChainsafeCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
@@ -73,7 +73,7 @@ impl ChainsafeCore {
         let req_body = &json!({
             "path": path,
         });
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -85,7 +85,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -100,7 +100,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -111,7 +111,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -127,7 +127,7 @@ impl ChainsafeCore {
             "path": from,
             "new_path": to,
         });
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -138,7 +138,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -153,7 +153,7 @@ impl ChainsafeCore {
             "paths": vec![path],
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -164,7 +164,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn upload_object(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
@@ -188,7 +188,7 @@ impl ChainsafeCore {
 
         let req = multipart.apply(req)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn list_objects(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -203,7 +203,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -214,7 +214,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -229,7 +229,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -240,7 +240,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

@@ -301,10 +301,10 @@ impl Adapter {
         })?;
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         if resp.status() != http::StatusCode::OK {
             return Err(parse_error(resp).await?);

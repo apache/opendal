@@ -254,13 +254,13 @@ impl<R> ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<Buffer> {
         self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         self.inner.read_at(offset, limit)
     }
 }

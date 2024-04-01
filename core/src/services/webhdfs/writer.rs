@@ -40,7 +40,7 @@ impl WebhdfsWriter {
 }
 
 impl oio::BlockWrite for WebhdfsWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let req = self
             .backend
             .webhdfs_create_object_request(&self.path, Some(size), &self.op, body)
@@ -55,7 +55,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
     }
 
-    async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_block(&self, block_id: Uuid, size: u64, body: RequestBody) -> Result<()> {
         let Some(ref atomic_write_dir) = self.backend.atomic_write_dir else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -145,7 +145,7 @@ impl oio::AppendWrite for WebhdfsWriter {
         Ok(0)
     }
 
-    async fn append(&self, _offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, _offset: u64, size: u64, body: RequestBody) -> Result<()> {
         let resp = self.backend.webhdfs_get_file_status(&self.path).await?;
 
         let status = resp.status();
@@ -159,7 +159,7 @@ impl oio::AppendWrite for WebhdfsWriter {
             StatusCode::NOT_FOUND => {
                 let req = self
                     .backend
-                    .webhdfs_create_object_request(&self.path, None, &self.op, AsyncBody::Empty)
+                    .webhdfs_create_object_request(&self.path, None, &self.op, RequestBody::Empty)
                     .await?;
 
                 let resp = self.backend.client.send(req).await?;

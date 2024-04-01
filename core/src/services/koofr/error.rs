@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use http::Response;
 
 use crate::raw::*;
@@ -24,10 +24,7 @@ use crate::ErrorKind;
 use crate::Result;
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
-
+pub async fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let (kind, retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),

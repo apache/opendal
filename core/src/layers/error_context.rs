@@ -342,7 +342,7 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         self.inner.read_at(offset, limit).await.map_err(|err| {
             err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)
@@ -354,7 +354,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         self.inner.read_at(offset, limit).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)

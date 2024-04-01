@@ -65,7 +65,7 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -89,10 +89,10 @@ impl SeafileCore {
             );
             let req = Request::post(format!("{}/api2/auth-token/", self.endpoint))
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(AsyncBody::Bytes(Bytes::from(body)))
+                .body(RequestBody::Bytes(Bytes::from(body)))
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let (parts, body) = self.client.send(req).await?.into_parts();
             let status = resp.status();
 
             match status {
@@ -118,10 +118,10 @@ impl SeafileCore {
                     header::AUTHORIZATION,
                     format!("Token {}", signer.auth_info.token),
                 )
-                .body(AsyncBody::Empty)
+                .body(RequestBody::Empty)
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let (parts, body) = self.client.send(req).await?.into_parts();
 
             let status = resp.status();
 
@@ -168,10 +168,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
         match status {
@@ -199,10 +199,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
         match status {
@@ -229,10 +229,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// file detail
@@ -249,10 +249,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
         match status {
@@ -280,10 +280,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
         match status {
@@ -315,10 +315,10 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
         match status {
@@ -350,10 +350,10 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
 

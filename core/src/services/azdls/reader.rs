@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -41,17 +42,8 @@ impl AzdlsReader {
 }
 
 impl oio::Read for AzdlsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
-        let range = BytesRange::new(offset, Some(limit as u64));
-
-        let resp = self.core.azdls_read(&self.path, range).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
+        self.core.azdls_read(&self.path, range, buf).await
     }
 }

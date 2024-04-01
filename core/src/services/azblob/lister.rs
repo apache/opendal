@@ -49,19 +49,10 @@ impl AzblobLister {
 
 impl oio::PageList for AzblobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .azblob_list_blobs(&self.path, &ctx.token, self.delimiter, self.limit)
             .await?;
-
-        if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let bs = resp.into_body();
-
-        let output: ListBlobsOutput =
-            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //

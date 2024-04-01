@@ -45,7 +45,7 @@ impl S3Writer {
 }
 
 impl oio::MultipartWrite for S3Writer {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let mut req = self
             .core
             .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
@@ -88,7 +88,7 @@ impl oio::MultipartWrite for S3Writer {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<oio::MultipartPart> {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;

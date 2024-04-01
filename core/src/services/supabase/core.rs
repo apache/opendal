@@ -84,8 +84,8 @@ impl SupabaseCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/{}/{}",
@@ -109,7 +109,7 @@ impl SupabaseCore {
         Ok(req)
     }
 
-    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/{}/{}",
@@ -119,7 +119,7 @@ impl SupabaseCore {
         );
 
         Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
@@ -127,7 +127,7 @@ impl SupabaseCore {
         &self,
         path: &str,
         _: BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/public/{}/{}",
@@ -138,14 +138,15 @@ impl SupabaseCore {
 
         let req = Request::get(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(RequestBody::Empty)
+            .map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_auth_request(
         &self,
         path: &str,
         _: BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/authenticated/{}/{}",
@@ -156,10 +157,11 @@ impl SupabaseCore {
 
         let req = Request::get(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(RequestBody::Empty)
+            .map_err(new_request_build_error)
     }
 
-    pub fn supabase_head_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_head_object_public_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/public/{}/{}",
@@ -169,11 +171,11 @@ impl SupabaseCore {
         );
 
         Request::head(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
-    pub fn supabase_head_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_head_object_auth_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/authenticated/{}/{}",
@@ -183,14 +185,14 @@ impl SupabaseCore {
         );
 
         Request::head(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_info_public_request(
         &self,
         path: &str,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/info/public/{}/{}",
@@ -200,11 +202,14 @@ impl SupabaseCore {
         );
 
         Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
-    pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_get_object_info_auth_request(
+        &self,
+        path: &str,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/info/authenticated/{}/{}",
@@ -214,14 +219,14 @@ impl SupabaseCore {
         );
 
         Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 }
 
 // core utils
 impl SupabaseCore {
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.http_client.send(req).await
     }
 
@@ -236,7 +241,7 @@ impl SupabaseCore {
             self.supabase_get_object_public_request(path, range)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn supabase_head_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -246,7 +251,7 @@ impl SupabaseCore {
             self.supabase_head_object_public_request(path)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn supabase_get_object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -256,12 +261,12 @@ impl SupabaseCore {
             self.supabase_get_object_info_public_request(path)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }

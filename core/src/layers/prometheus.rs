@@ -683,7 +683,7 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::Read.into_static(),
@@ -706,7 +706,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::BlockingRead.into_static(),

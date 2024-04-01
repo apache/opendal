@@ -68,7 +68,7 @@ impl Debug for KoofrCore {
 
 impl KoofrCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -80,10 +80,10 @@ impl KoofrCore {
                 let req = self.sign(req).await?;
 
                 let req = req
-                    .body(AsyncBody::Empty)
+                    .body(RequestBody::Empty)
                     .map_err(new_request_build_error)?;
 
-                let resp = self.send(req).await?;
+                let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
                 let status = resp.status();
 
@@ -127,7 +127,7 @@ impl KoofrCore {
 
         let auth_req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(auth_req).await?;
@@ -135,13 +135,12 @@ impl KoofrCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            let (parts, body) = resp.into_parts();
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs).await?);
         }
 
-        let bs = resp.into_body();
-        let resp: TokenResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
+        let resp: TokenResponse = resp.into_body().to_json().await?;
         signer.token = resp.token;
 
         Ok(req.header(
@@ -202,10 +201,10 @@ impl KoofrCore {
 
                 let req = req
                     .header(header::CONTENT_TYPE, "application/json")
-                    .body(AsyncBody::Bytes(Bytes::from(bs)))
+                    .body(RequestBody::Bytes(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
-                let resp = self.client.send(req).await?;
+                let (parts, body) = self.client.send(req).await?.into_parts();
 
                 let status = resp.status();
 
@@ -213,11 +212,19 @@ impl KoofrCore {
                     // When the directory already exists, Koofr returns 400 Bad Request.
                     // We should treat it as success.
                     StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => Ok(()),
-                    _ => Err(parse_error(resp).await?),
+                    _ => {
+                        let (parts, body) = resp.into_parts();
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs).await?)
+                    }
                 }
             }
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes().await?;
+                Err(parse_error(resp).await?)
+            }
         }
     }
 
@@ -236,10 +243,10 @@ impl KoofrCore {
         let req = self.sign(req).await?;
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
@@ -259,10 +266,10 @@ impl KoofrCore {
         let req = self.sign(req).await?;
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn put(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
@@ -298,7 +305,7 @@ impl KoofrCore {
 
         let req = multipart.apply(req)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn remove(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -318,10 +325,10 @@ impl KoofrCore {
         let req = self.sign(req).await?;
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -350,10 +357,10 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -382,10 +389,10 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn list(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -405,10 +412,10 @@ impl KoofrCore {
         let req = self.sign(req).await?;
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

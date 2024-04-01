@@ -50,7 +50,7 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -79,10 +79,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
 
@@ -113,10 +113,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
 
@@ -164,10 +164,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -186,10 +186,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -208,10 +208,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -228,10 +228,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn metainformation(
@@ -261,10 +261,10 @@ impl YandexDiskCore {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

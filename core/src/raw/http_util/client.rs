@@ -24,13 +24,16 @@ use std::str::FromStr;
 
 use bytes::Buf;
 use bytes::Bytes;
-use futures::TryStreamExt;
-use http::Request;
+use futures::{Stream, StreamExt, TryStreamExt};
+use http::response::Parts;
 use http::Response;
+use http::{HeaderMap, Request};
+use reqwest::Body;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
-use super::AsyncBody;
+use super::RequestBody;
+use crate::raw::http_util::body::ResponseBody;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
@@ -80,13 +83,14 @@ impl HttpClient {
         self.client.clone()
     }
 
-    /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    /// Send an http requests and got the response in streaming.
+    pub async fn send(
+        &self,
+        req: Request<RequestBody>,
+    ) -> Result<Response<ResponseBody<impl Stream<Item = Result<Bytes>>>>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
-        let is_head = req.method() == http::Method::HEAD;
-
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
@@ -104,9 +108,9 @@ impl HttpClient {
         }
 
         req_builder = match body {
-            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
-            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::Stream(s) => {
+            RequestBody::Empty => req_builder.body(reqwest::Body::from("")),
+            RequestBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
+            RequestBody::Stream(s) => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     req_builder.body(reqwest::Body::wrap_stream(s))
@@ -134,7 +138,7 @@ impl HttpClient {
             );
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
-                .with_operation("http_util::Client::send")
+                .with_operation("http_util::Client::execute")
                 .with_context("url", uri.to_string())
                 .set_source(err);
             if is_temporary {
@@ -143,16 +147,6 @@ impl HttpClient {
 
             oerr
         })?;
-
-        // Get content length from header so that we can check it.
-        //
-        // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit it's content length.
-        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
-            None
-        } else {
-            parse_content_length(resp.headers())?
-        };
 
         let mut hr = Response::builder()
             .status(resp.status())
@@ -169,42 +163,15 @@ impl HttpClient {
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let bs: Vec<Bytes> = resp
-            .bytes_stream()
-            .try_filter(|v| future::ready(!v.is_empty()))
-            .try_collect()
-            .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "read data from http response")
-                    .with_context("url", uri.to_string())
-                    .set_source(err)
-            })?;
+        let stream = resp.bytes_stream().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read data from http response")
+                .with_context("url", uri.to_string())
+                .set_source(err)
+        });
 
-        let buffer = oio::Buffer::from(bs);
-
-        if let Some(expect) = content_length {
-            check(expect, buffer.remaining() as u64)?;
-        }
-
-        let resp = hr.body(buffer).expect("response must build succeed");
-
+        let resp = hr
+            .body(ResponseBody::new(stream))
+            .expect("response must build succeed");
         Ok(resp)
-    }
-}
-
-#[inline]
-fn check(expect: u64, actual: u64) -> Result<()> {
-    match actual.cmp(&expect) {
-        Ordering::Equal => Ok(()),
-        Ordering::Less => Err(Error::new(
-            ErrorKind::ContentIncomplete,
-            &format!("reader got too little data, expect: {expect}, actual: {actual}"),
-        )
-        .set_temporary()),
-        Ordering::Greater => Err(Error::new(
-            ErrorKind::ContentTruncated,
-            &format!("reader got too much data, expect: {expect}, actual: {actual}"),
-        )
-        .set_temporary()),
     }
 }

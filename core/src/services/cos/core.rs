@@ -95,7 +95,7 @@ impl CosCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 }
@@ -111,7 +111,7 @@ impl CosCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn cos_get_object_request(
@@ -119,7 +119,7 @@ impl CosCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -139,7 +139,7 @@ impl CosCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -150,8 +150,8 @@ impl CosCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -185,10 +185,14 @@ impl CosCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
-    pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
+    pub fn cos_head_object_request(
+        &self,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -204,7 +208,7 @@ impl CosCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -218,12 +222,12 @@ impl CosCore {
         let req = Request::delete(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn cos_append_object_request(
@@ -232,8 +236,8 @@ impl CosCore {
         position: u64,
         size: u64,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}?append&position={}",
@@ -271,12 +275,12 @@ impl CosCore {
 
         let mut req = Request::put(&url)
             .header("x-cos-copy-source", &source)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn cos_list_objects(
@@ -309,12 +313,12 @@ impl CosCore {
         };
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn cos_initiate_multipart_upload(
@@ -341,12 +345,12 @@ impl CosCore {
         }
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn cos_upload_part_request(
@@ -355,7 +359,7 @@ impl CosCore {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -374,7 +378,7 @@ impl CosCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn cos_complete_multipart_upload(
@@ -402,12 +406,12 @@ impl CosCore {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(RequestBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Abort an on-going multipart upload.
@@ -426,10 +430,10 @@ impl CosCore {
         );
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

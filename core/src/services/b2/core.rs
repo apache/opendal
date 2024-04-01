@@ -71,7 +71,7 @@ impl Debug for B2Core {
 
 impl B2Core {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -98,10 +98,10 @@ impl B2Core {
                         &signer.application_key,
                     )?,
                 )
-                .body(AsyncBody::Empty)
+                .body(RequestBody::Empty)
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let (parts, body) = self.client.send(req).await?.into_parts();
             let status = resp.status();
 
             match status {
@@ -156,10 +156,10 @@ impl B2Core {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
@@ -176,10 +176,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -219,10 +219,10 @@ impl B2Core {
         let body = bytes::Bytes::from(body);
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
         match status {
@@ -241,7 +241,7 @@ impl B2Core {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let resp = self.get_upload_url().await?;
 
@@ -272,7 +272,7 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn start_large_file(
@@ -305,10 +305,10 @@ impl B2Core {
         let body = bytes::Bytes::from(body);
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn get_upload_part_url(&self, file_id: &str) -> Result<GetUploadPartUrlResponse> {
@@ -325,10 +325,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
         match status {
@@ -347,7 +347,7 @@ impl B2Core {
         file_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<Response<oio::Buffer>> {
         let resp = self.get_upload_part_url(file_id).await?;
 
@@ -364,7 +364,7 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn finish_large_file(
@@ -389,10 +389,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<oio::Buffer>> {
@@ -412,10 +412,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn list_file_names(
@@ -458,10 +458,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn copy_file(
@@ -489,10 +489,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn hide_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -516,10 +516,10 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

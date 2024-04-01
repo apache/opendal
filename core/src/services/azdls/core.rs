@@ -23,15 +23,18 @@ use std::fmt::Write;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderName, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use serde::Deserialize;
+use serde_json::de;
 
 use crate::raw::*;
+use crate::services::azdls::error::parse_error;
 use crate::*;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
@@ -89,15 +92,15 @@ impl AzdlsCore {
         );
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
-
-    #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -114,29 +117,64 @@ impl AzdlsCore {
         }
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(0),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    /// resource should be one of `file` or `directory`
-    ///
-    /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
-    pub fn azdls_create_request(
-        &self,
-        path: &str,
-        resource: &str,
-        args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+    /// Create a directory.
+    pub async fn azdls_create_directory(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
         let url = format!(
-            "{}/{}/{}?resource={resource}",
+            "{}/{}/{}?resource=directory",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url)
+            // Content length must be 0 for create request.
+            .header(CONTENT_LENGTH, 0)
+            .body(RequestBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::CONFLICT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
+    }
+
+    /// Create a file
+    pub async fn azdls_create_file(&self, path: &str, args: &OpWrite) -> Result<()> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let url = format!(
+            "{}/{}/{}?resource=file",
             self.endpoint,
             self.filesystem,
             percent_encode_path(&p)
@@ -156,12 +194,26 @@ impl AzdlsCore {
         }
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req
+            .body(RequestBody::Empty)
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
 
-        Ok(req)
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?.with_operation("Backend::azdls_create_request"))
+            }
+        }
     }
 
-    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -178,21 +230,32 @@ impl AzdlsCore {
                 format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
             )
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    pub fn azdls_update_request(
+    pub async fn azdls_update_request(
         &self,
         path: &str,
         size: Option<u64>,
         position: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         // - close: Make this is the final action to this file.
@@ -212,12 +275,24 @@ impl AzdlsCore {
         }
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
 
-        Ok(req)
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK | StatusCode::ACCEPTED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?.with_operation("Backend::azdls_update_request"))
+            }
+        }
     }
 
-    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_get_properties(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -232,14 +307,51 @@ impl AzdlsCore {
         let req = Request::head(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let mut meta = parse_into_metadata(path, parts.headers())?;
+        let resource = parts
+            .headers()
+            .get("x-ms-resource-type")
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's missing",
+                )
+            })?
+            .to_str()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's not a valid string",
+                )
+                .set_source(err)
+            })?;
+
+        meta = match resource {
+            "file" => meta.with_mode(EntryMode::FILE),
+            "directory" => meta.with_mode(EntryMode::DIR),
+            v => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls returns not supported x-ms-resource-type",
+                )
+                .with_context("resource", v))
+            }
+        };
+        Ok(meta)
     }
 
-    pub async fn azdls_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_delete(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -254,11 +366,22 @@ impl AzdlsCore {
         let req = Request::delete(&url);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn azdls_list(
@@ -266,7 +389,7 @@ impl AzdlsCore {
         path: &str,
         continuation: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Option<(String, ListOutput)>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -288,17 +411,29 @@ impl AzdlsCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK => {
+                let token = parse_header_to_str(parts.headers(), "x-ms-continuation")?
+                    .map(ToString::to_string)
+                    .unwrap_or_default();
+                let output: ListOutput = body.to_json().await?;
+                Ok(Some((token, output)))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azdls_ensure_parent_path(
-        &self,
-        path: &str,
-    ) -> Result<Option<Response<oio::Buffer>>> {
+    pub async fn azdls_ensure_parent_path(&self, path: &str) -> Result<()> {
         let abs_target_path = path.trim_end_matches('/').to_string();
         let abs_target_path = abs_target_path.as_str();
         let mut parts: Vec<&str> = abs_target_path
@@ -306,24 +441,71 @@ impl AzdlsCore {
             .filter(|x| !x.is_empty())
             .collect();
 
+        // FIXME: we should make code here more clear.
         if !parts.is_empty() {
             parts.pop();
         }
 
-        if !parts.is_empty() {
-            let parent_path = parts.join("/");
-            let mut req = self.azdls_create_request(
-                &parent_path,
-                "directory",
-                &OpWrite::default(),
-                AsyncBody::Empty,
-            )?;
-
-            self.sign(&mut req).await?;
-
-            Ok(Some(self.send(req).await?))
-        } else {
-            Ok(None)
+        if parts.is_empty() {
+            return Ok(());
         }
+
+        let parent_path = parts.join("/");
+        self.azdls_create_directory(&parent_path).await
+    }
+}
+
+/// # Examples
+///
+/// ```json
+/// {"paths":[{"contentLength":"1977097","etag":"0x8DACF9B0061305F","group":"$superuser","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725","owner":"$superuser","permissions":"rw-r-----"}]}
+/// ```
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+struct ListOutput {
+    pub paths: Vec<Path>,
+}
+
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+struct Path {
+    #[serde(rename = "contentLength")]
+    pub content_length: String,
+    #[serde(rename = "etag")]
+    pub etag: String,
+    /// Azdls will return `"true"` and `"false"` for is_directory.
+    #[serde(rename = "isDirectory")]
+    pub is_directory: String,
+    #[serde(rename = "lastModified")]
+    pub last_modified: String,
+    #[serde(rename = "name")]
+    pub name: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_path() {
+        let bs = Bytes::from(
+            r#"{"paths":[{"contentLength":"1977097","etag":"0x8DACF9B0061305F","group":"$superuser","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725","owner":"$superuser","permissions":"rw-r-----"}]}"#,
+        );
+        let out: ListOutput = de::from_slice(&bs).expect("must success");
+        println!("{out:?}");
+
+        assert_eq!(
+            out.paths[0],
+            Path {
+                content_length: "1977097".to_string(),
+                etag: "0x8DACF9B0061305F".to_string(),
+                is_directory: "".to_string(),
+                last_modified: "Sat, 26 Nov 2022 10:43:05 GMT".to_string(),
+                name: "c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725"
+                    .to_string()
+            }
+        );
     }
 }

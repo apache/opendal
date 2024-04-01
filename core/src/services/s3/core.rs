@@ -182,7 +182,7 @@ impl S3Core {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -249,7 +249,7 @@ impl S3Core {
 }
 
 impl S3Core {
-    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<AsyncBody>> {
+    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -294,7 +294,7 @@ impl S3Core {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -305,7 +305,7 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
@@ -356,7 +356,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -372,7 +372,7 @@ impl S3Core {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn s3_put_object_request(
@@ -380,8 +380,8 @@ impl S3Core {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -423,7 +423,7 @@ impl S3Core {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn s3_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -432,12 +432,12 @@ impl S3Core {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -490,12 +490,12 @@ impl S3Core {
 
         let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, &source)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn s3_list_objects(
@@ -538,12 +538,12 @@ impl S3Core {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn s3_initiate_multipart_upload(
@@ -578,12 +578,12 @@ impl S3Core {
         let req = self.insert_sse_headers(req, true);
 
         let mut req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub fn s3_upload_part_request(
@@ -592,8 +592,8 @@ impl S3Core {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -645,12 +645,12 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(RequestBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Abort an on-going multipart upload.
@@ -669,10 +669,10 @@ impl S3Core {
         );
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
@@ -698,12 +698,12 @@ impl S3Core {
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(RequestBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

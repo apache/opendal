@@ -660,7 +660,7 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<Buffer> {
         {
             || {
                 self.inner
@@ -687,7 +687,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         { || self.inner.as_ref().unwrap().read_at(offset, limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -1034,7 +1034,7 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, _: u64, _: usize) -> Result<oio::Buffer> {
+        async fn read_at(&self, _: u64, _: usize) -> Result<usize> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 

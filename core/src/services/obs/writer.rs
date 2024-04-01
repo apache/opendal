@@ -45,7 +45,7 @@ impl ObsWriter {
 }
 
 impl oio::MultipartWrite for ObsWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let mut req = self
             .core
             .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
@@ -89,7 +89,7 @@ impl oio::MultipartWrite for ObsWriter {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<MultipartPart> {
         // Obs service requires part number must between [1..=10000]
         let part_number = part_number + 1;
@@ -177,7 +177,7 @@ impl oio::AppendWrite for ObsWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: RequestBody) -> Result<()> {
         let mut req = self
             .core
             .obs_append_object_request(&self.path, offset, size, &self.op, body)?;

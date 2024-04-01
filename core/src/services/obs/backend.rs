@@ -379,7 +379,7 @@ impl Accessor for ObsBackend {
             }
             PresignOperation::Write(v) => {
                 self.core
-                    .obs_put_object_request(path, None, v, AsyncBody::Empty)?
+                    .obs_put_object_request(path, None, v, RequestBody::Empty)?
             }
         };
         self.core.sign_query(&mut req, args.expire()).await?;

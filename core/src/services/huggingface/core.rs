@@ -77,7 +77,7 @@ impl HuggingfaceCore {
         let req_body = format!("paths={}&expand=True", percent_encode_path(&p));
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(RequestBody::Bytes(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -115,7 +115,7 @@ impl HuggingfaceCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -158,7 +158,7 @@ impl HuggingfaceCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

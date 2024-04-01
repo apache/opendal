@@ -43,7 +43,7 @@ impl VercelBlobWriter {
 }
 
 impl oio::MultipartWrite for VercelBlobWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let req = self
             .core
             .get_put_request(&self.path, Some(size), &self.op, body)
@@ -85,7 +85,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<oio::MultipartPart> {
         let part_number = part_number + 1;
 

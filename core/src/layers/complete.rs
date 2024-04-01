@@ -593,7 +593,7 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         if limit == 0 {
             return Ok(oio::Buffer::new());
         }
@@ -603,7 +603,7 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         if limit == 0 {
             return Ok(oio::Buffer::new());
         }

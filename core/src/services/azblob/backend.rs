@@ -597,14 +597,8 @@ impl Accessor for AzblobBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
-        }
+        let meta = self.core.azblob_get_blob_properties(path, &args).await?;
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -626,14 +620,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.azblob_delete_blob(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core
+            .azblob_delete_blob(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -648,14 +638,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core
+            .azblob_copy_blob(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -669,7 +655,7 @@ impl Accessor for AzblobBackend {
                 path,
                 None,
                 &OpWrite::default(),
-                AsyncBody::Empty,
+                RequestBody::Empty,
             )?,
         };
 
@@ -695,41 +681,7 @@ impl Accessor for AzblobBackend {
         }
 
         // construct and complete batch request
-        let resp = self.core.azblob_batch_delete(&paths).await?;
-
-        // check response status
-        if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp).await?);
-        }
-
-        // get boundary from response header
-        let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "response data should have CONTENT_TYPE header",
-            )
-        })?;
-        let content_type = content_type
-            .to_str()
-            .map(|ty| ty.to_string())
-            .map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
-                )
-            })?;
-        let splits = content_type.split("boundary=").collect::<Vec<&str>>();
-        let boundary = splits.get(1).to_owned().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "No boundary message provided in CONTENT_TYPE",
-            )
-        })?;
-
-        let mut bs = resp.into_body();
-        let bs = bs.copy_to_bytes(bs.remaining());
-
-        let multipart: Multipart<MixedPart> = Multipart::new().with_boundary(boundary).parse(bs)?;
+        let multipart = self.core.azblob_batch_delete(&paths).await?;
         let parts = multipart.into_parts();
 
         if paths.len() != parts.len() {
@@ -749,7 +701,8 @@ impl Accessor for AzblobBackend {
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
                 results.push((path, Ok(RpDelete::default().into())));
             } else {
-                results.push((path, Err(parse_error(resp).await?)));
+                let (parts, bs) = resp.into_parts();
+                results.push((path, Err(parse_error(parts, bs)?)));
             }
         }
         Ok(RpBatch::new(results))

@@ -29,9 +29,9 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderValue, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -39,7 +39,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::raw::oio::WritableBuf;
 use crate::raw::*;
+use crate::services::azblob::error::parse_error;
 use crate::*;
 
 mod constants {
@@ -125,11 +127,6 @@ impl AzblobCore {
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
-    #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
-
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
         if let Some(v) = &self.encryption_key {
             let mut v = v.clone();
@@ -168,7 +165,7 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -208,7 +205,7 @@ impl AzblobCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -219,12 +216,22 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.azblob_get_blob_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(0),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn azblob_put_blob_request(
@@ -232,8 +239,8 @@ impl AzblobCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -291,7 +298,7 @@ impl AzblobCore {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -323,7 +330,7 @@ impl AzblobCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -345,8 +352,8 @@ impl AzblobCore {
         path: &str,
         position: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -376,8 +383,8 @@ impl AzblobCore {
         block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: RequestBody,
+    ) -> Result<Request<RequestBody>> {
         // To be written as part of a blob, a block must have been successfully written to the server in an earlier Put Block operation.
         // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
         let p = build_abs_path(&self.root, path);
@@ -417,12 +424,23 @@ impl AzblobCore {
         block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+        body: RequestBody,
+    ) -> Result<()> {
         let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn azblob_complete_put_block_list_request(
@@ -430,7 +448,7 @@ impl AzblobCore {
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?comp=blocklist",
@@ -461,7 +479,7 @@ impl AzblobCore {
         req = req.header(CONTENT_LENGTH, content.len());
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(RequestBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -472,21 +490,32 @@ impl AzblobCore {
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let mut req = self
             .azblob_complete_put_block_list_request(path, block_ids, args)
             .await?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
         args: &OpStat,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -510,24 +539,31 @@ impl AzblobCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         Ok(req)
     }
 
-    pub async fn azblob_get_blob_properties(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_get_blob_properties(&self, path: &str, args: &OpStat) -> Result<Metadata> {
         let mut req = self.azblob_head_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -540,18 +576,30 @@ impl AzblobCore {
         let req = Request::delete(&url);
 
         req.header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
 
-    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_delete_blob(&self, path: &str) -> Result<()> {
         let mut req = self.azblob_delete_blob_request(path)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -571,11 +619,21 @@ impl AzblobCore {
         let mut req = Request::put(&target)
             .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::ACCEPTED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn azblob_list_blobs(
@@ -584,7 +642,7 @@ impl AzblobCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListBlobsOutput> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -606,14 +664,22 @@ impl AzblobCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        if parts.status != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let output: ListBlobsOutput = body.to_xml().await?;
+        Ok(output)
     }
 
-    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Multipart<MixedPart>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
             self.endpoint, self.container
@@ -634,7 +700,42 @@ impl AzblobCore {
         let mut req = multipart.apply(req)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+
+        // check response status
+        if parts.status() != StatusCode::ACCEPTED {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        // get boundary from response header
+        let content_type = parts.headers().get(CONTENT_TYPE).ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "response data should have CONTENT_TYPE header",
+            )
+        })?;
+        let content_type = content_type
+            .to_str()
+            .map(|ty| ty.to_string())
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
+                )
+            })?;
+        let splits = content_type.split("boundary=").collect::<Vec<&str>>();
+        let boundary = splits.get(1).to_owned().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "No boundary message provided in CONTENT_TYPE",
+            )
+        })?;
+
+        let bs = body.to_bytes().await?;
+        let multipart: Multipart<MixedPart> = Multipart::new().with_boundary(boundary).parse(bs)?;
+        Ok(multipart)
     }
 }
 

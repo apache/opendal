@@ -43,7 +43,7 @@ impl YandexDiskReader {
 }
 
 impl oio::Read for YandexDiskReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         // TODO: move this out of reader.
@@ -51,7 +51,7 @@ impl oio::Read for YandexDiskReader {
 
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         let resp = self.core.send(req).await?;
 

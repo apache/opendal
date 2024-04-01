@@ -39,7 +39,7 @@ impl IpfsReader {
 }
 
 impl oio::Read for IpfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.ipfs_get(&self.path, range).await?;

@@ -43,7 +43,7 @@ impl GcsWriter {
 }
 
 impl oio::RangeWrite for GcsWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
             Some(size),
@@ -88,7 +88,7 @@ impl oio::RangeWrite for GcsWriter {
         location: &str,
         written: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<()> {
         let mut req = self
             .core
@@ -110,7 +110,7 @@ impl oio::RangeWrite for GcsWriter {
         location: &str,
         written: u64,
         size: u64,
-        body: AsyncBody,
+        body: RequestBody,
     ) -> Result<()> {
         let resp = self
             .core

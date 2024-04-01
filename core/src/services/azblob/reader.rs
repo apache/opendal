@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -42,20 +43,11 @@ impl AzblobReader {
 }
 
 impl oio::Read for AzblobReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let resp = self
-            .core
-            .azblob_get_blob(&self.path, range, &self.op)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core
+            .azblob_get_blob(&self.path, range, &self.op, buf)
+            .await
     }
 }

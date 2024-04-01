@@ -159,11 +159,11 @@ impl IcloudSigner {
 
         let mut req = Request::post(uri)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
         self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp).await?);
         }
@@ -186,11 +186,11 @@ impl IcloudSigner {
 
         let mut req = Request::post(uri)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
         self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp).await?);
         }
@@ -312,9 +312,9 @@ impl IcloudSigner {
     /// - Init the signer if it's not initiated.
     /// - Sign the request.
     /// - Update the session data if needed.
-    pub async fn send(&mut self, mut req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&mut self, mut req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.sign(&mut req)?;
-        let resp = self.client.send(req).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         Ok(resp)
     }
@@ -354,7 +354,7 @@ impl IcloudCore {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         let resp = signer.send(req).await?;
@@ -385,7 +385,7 @@ impl IcloudCore {
         );
 
         let req = Request::get(uri)
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         let resp = signer.send(req).await?;
@@ -413,7 +413,7 @@ impl IcloudCore {
         }
 
         let req = req
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
         let resp = signer.client.send(req).await?;
@@ -516,7 +516,7 @@ impl PathQuery for IcloudPathQuery {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         let resp = signer.send(req).await?;
@@ -557,7 +557,7 @@ impl PathQuery for IcloudPathQuery {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         let resp = signer.send(req).await?;

@@ -52,7 +52,12 @@ impl BlockingReader {
     /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
-    pub fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
+    pub fn read(
+        &self,
+        buf: &mut impl BufMut,
+        buf: oio::WritableBuf,
+        limit: usize,
+    ) -> Result<usize> {
         let bs = self.inner.read_at(offset, limit)?;
         let n = bs.remaining();
         buf.put(bs);

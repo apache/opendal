@@ -174,7 +174,7 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         if self.i_feel_lucky() {
             self.inner.read_at(offset, limit).await
         } else {
@@ -184,7 +184,7 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         if self.i_feel_lucky() {
             self.inner.read_at(offset, limit)
         } else {

@@ -60,7 +60,7 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -129,10 +129,10 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.raw+json")
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
@@ -152,10 +152,10 @@ impl GithubCore {
         let req = req
             .header(header::ACCEPT, "application/vnd.github.raw+json")
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
@@ -188,10 +188,10 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github+json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(RequestBody::Bytes(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
@@ -221,10 +221,10 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.object+json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(RequestBody::Bytes(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         match resp.status() {
             StatusCode::OK => Ok(()),
@@ -248,10 +248,10 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.object+json")
-            .body(AsyncBody::Empty)
+            .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         match resp.status() {
             StatusCode::OK => {

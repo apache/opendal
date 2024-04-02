@@ -21,10 +21,12 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
+use super::core::Entry;
 use super::core::GithubCore;
 use super::error::parse_error;
 use super::lister::GithubLister;
@@ -246,6 +248,7 @@ impl Accessor for GithubBackend {
                 delete: true,
 
                 list: true,
+                list_with_recursive: true,
 
                 ..Default::default()
             });
@@ -275,7 +278,21 @@ impl Accessor for GithubBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let body = resp.into_body();
+                let resp: Entry =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+
+                let m = if resp.type_field == "dir" {
+                    Metadata::new(EntryMode::DIR)
+                } else {
+                    Metadata::new(EntryMode::FILE)
+                        .with_content_length(resp.size)
+                        .with_etag(resp.sha)
+                };
+
+                Ok(RpStat::new(m))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -302,8 +319,8 @@ impl Accessor for GithubBackend {
         }
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GithubLister::new(self.core.clone(), path);
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = GithubLister::new(self.core.clone(), path, args.recursive());
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

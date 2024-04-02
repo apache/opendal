@@ -35,23 +35,6 @@ pub struct D1Response {
 }
 
 impl D1Response {
-    pub fn parse(bs: &Bytes) -> Result<D1Response, Error> {
-        let response: D1Response = serde_json::from_slice(bs).map_err(|e| {
-            Error::new(
-                crate::ErrorKind::Unexpected,
-                &format!("failed to parse error response: {}", e),
-            )
-        })?;
-
-        if !response.success {
-            return Err(Error::new(
-                crate::ErrorKind::Unexpected,
-                &String::from_utf8_lossy(bs),
-            ));
-        }
-        Ok(response)
-    }
-
     pub fn get_result(&self, key: &str) -> Option<Vec<u8>> {
         if self.result.is_empty() || self.result[0].results.is_empty() {
             return None;

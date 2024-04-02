@@ -50,7 +50,7 @@ impl DropboxLister {
 impl oio::PageList for DropboxLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         // The token is set when obtaining entries and returning `has_more` flag.
-        // When the token exists, We should retrieve more entries using the Dropbox continue API.
+        // When the token exists, we should retrieve more entries using the Dropbox continue API.
         // Refer: https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-continue
         let response = if !ctx.token.is_empty() {
             self.core.dropbox_list_continue(&ctx.token).await?

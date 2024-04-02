@@ -48,41 +48,13 @@ impl B2Writer {
 
 impl oio::MultipartWrite for B2Writer {
     async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .upload_file(&self.path, Some(size), &self.op, body)
-            .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        let resp = self.core.start_large_file(&self.path, &self.op).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: StartLargeFileResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                Ok(result.file_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.start_large_file(&self.path, &self.op).await
     }
 
     async fn write_part(
@@ -95,30 +67,14 @@ impl oio::MultipartWrite for B2Writer {
         // B2 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let resp = self
+        let result = self
             .core
             .upload_part(upload_id, part_number, size, body)
             .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: UploadPartResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                Ok(oio::MultipartPart {
-                    etag: result.content_sha1,
-                    part_number,
-                })
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(oio::MultipartPart {
+            etag: result.content_sha1,
+            part_number,
+        })
     }
 
     async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
@@ -134,31 +90,12 @@ impl oio::MultipartWrite for B2Writer {
             })
             .collect();
 
-        let resp = self
-            .core
+        self.core
             .finish_large_file(upload_id, part_sha1_array)
-            .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self.core.cancel_large_file(upload_id).await?;
-        match resp.status() {
-            // b2 returns code 200 if abort succeeds.
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.cancel_large_file(upload_id).await
     }
 }

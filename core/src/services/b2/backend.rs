@@ -335,25 +335,11 @@ impl Accessor for B2Backend {
             .list_file_names(Some(path), delimiter, None, None)
             .await?;
 
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-                let meta = parse_file_info(&resp.files[0]);
-                Ok(RpStat::new(meta))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        if resp.files.is_empty() {
+            return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
         }
+        let meta = parse_file_info(&resp.files[0]);
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -373,22 +359,7 @@ impl Accessor for B2Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.hide_file(path).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    // Representative deleted
-                    ErrorKind::AlreadyExists => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+        self.core.hide_file(path).await.map(|_| RpDelete::new())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -410,42 +381,17 @@ impl Accessor for B2Backend {
             .list_file_names(Some(from), None, None, None)
             .await?;
 
-        let status = resp.status();
-
-        let source_file_id = match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-
-                let file_id = resp.files[0].clone().file_id;
-                Ok(file_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }?;
-
-        let Some(source_file_id) = source_file_id else {
+        if resp.files.is_empty() {
+            return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
+        }
+        let Some(source_file_id) = resp.files[0].clone().file_id else {
             return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
         };
 
-        let resp = self.core.copy_file(source_file_id, to).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .copy_file(source_file_id, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

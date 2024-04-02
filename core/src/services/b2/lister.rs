@@ -59,7 +59,7 @@ impl B2Lister {
 
 impl oio::PageList for B2Lister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .list_file_names(
                 Some(&self.path),
@@ -74,18 +74,6 @@ impl oio::PageList for B2Lister {
                 },
             )
             .await?;
-
-        if resp.status() != http::StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-
-        let output: ListFileNamesResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = output.next_file_name {
             ctx.token = token;

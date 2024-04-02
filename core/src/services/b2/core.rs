@@ -70,11 +70,6 @@ impl Debug for B2Core {
 }
 
 impl B2Core {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
-
     /// [b2_authorize_account](https://www.backblaze.com/apidocs/b2-authorize-account)
     pub async fn get_auth_info(&self) -> Result<AuthInfo> {
         {
@@ -102,14 +97,9 @@ impl B2Core {
                 .map_err(new_request_build_error)?;
 
             let (parts, body) = self.client.send(req).await?.into_parts();
-            let status = resp.status();
-
-            match status {
+            match parts.status {
                 StatusCode::OK => {
-                    let resp_body = resp.into_body();
-                    let token: AuthorizeAccountResponse =
-                        serde_json::from_reader(resp_body.reader())
-                            .map_err(new_json_deserialize_error)?;
+                    let token: AuthorizeAccountResponse = body.to_json().await?;
                     signer.auth_info = AuthInfo {
                         authorization_token: token.authorization_token.clone(),
                         api_url: token.api_url.clone(),
@@ -118,13 +108,14 @@ impl B2Core {
                         expires_in: Utc::now()
                             + chrono::TimeDelta::try_hours(20).expect("20 hours must be valid"),
                     };
+                    Ok(signer.auth_info.clone())
                 }
                 _ => {
-                    return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)};
+                    let bs = body.to_bytes().await?;
+
+                    Err(parse_error(parts, bs)?)
                 }
             }
-            Ok(signer.auth_info.clone())
         }
     }
 }
@@ -135,7 +126,8 @@ impl B2Core {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -161,6 +153,17 @@ impl B2Core {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
@@ -180,17 +183,16 @@ impl B2Core {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let resp = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let resp = body.to_json().await?;
                 Ok(resp)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -224,18 +226,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let resp = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let resp = body.to_json().await?;
                 Ok(resp)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -245,7 +246,7 @@ Err(parse_error(parts, bs)?)},
         size: Option<u64>,
         args: &OpWrite,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let resp = self.get_upload_url().await?;
 
         let p = build_abs_path(&self.root, path);
@@ -276,13 +277,19 @@ Err(parse_error(parts, bs)?)},
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn start_large_file(
-        &self,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn start_large_file(&self, path: &str, args: &OpWrite) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -312,6 +319,16 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: StartLargeFileResponse = body.to_json().await?;
+                Ok(result.file_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn get_upload_part_url(&self, file_id: &str) -> Result<GetUploadPartUrlResponse> {
@@ -331,18 +348,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let resp = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let resp = body.to_json().await?;
                 Ok(resp)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -352,7 +368,7 @@ Err(parse_error(parts, bs)?)},
         part_number: usize,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<UploadPartResponse> {
         let resp = self.get_upload_part_url(file_id).await?;
 
         let mut req = Request::post(resp.upload_url);
@@ -369,13 +385,23 @@ Err(parse_error(parts, bs)?)},
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: UploadPartResponse = body.to_json().await?;
+                Ok(result)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn finish_large_file(
         &self,
         file_id: &str,
         part_sha1_array: Vec<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let auth_info = self.get_auth_info().await?;
 
         let url = format!("{}/b2api/v2/b2_finish_large_file", auth_info.api_url);
@@ -397,9 +423,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn cancel_large_file(&self, file_id: &str) -> Result<()> {
         let auth_info = self.get_auth_info().await?;
 
         let url = format!("{}/b2api/v2/b2_cancel_large_file", auth_info.api_url);
@@ -420,6 +456,17 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            // b2 returns code 200 if abort succeeds.
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn list_file_names(
@@ -428,7 +475,7 @@ Err(parse_error(parts, bs)?)},
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListFileNamesResponse> {
         let auth_info = self.get_auth_info().await?;
 
         let mut url = format!(
@@ -466,13 +513,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp = body.to_json().await?;
+                Ok(resp)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy_file(
-        &self,
-        source_file_id: String,
-        to: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn copy_file(&self, source_file_id: String, to: &str) -> Result<()> {
         let to = build_abs_path(&self.root, to);
 
         let auth_info = self.get_auth_info().await?;
@@ -497,9 +550,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn hide_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn hide_file(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -524,6 +587,22 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                let err = parse_error(parts, bs)?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(()),
+                    // Representative deleted
+                    ErrorKind::AlreadyExists => Ok(()),
+                    _ => Err(err),
+                }
+            }
+        }
     }
 }
 

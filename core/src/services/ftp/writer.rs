@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
@@ -23,11 +22,10 @@ use crate::raw::*;
 use crate::services::ftp::err::parse_error;
 use crate::*;
 
-pub type FtpWriters = oio::OneShotWriter<FtpWriter>;
-
 pub struct FtpWriter {
     backend: FtpBackend,
     path: String,
+    size: u64,
 }
 
 /// # TODO
@@ -37,23 +35,28 @@ pub struct FtpWriter {
 /// After we can use data stream, we should return it directly.
 impl FtpWriter {
     pub fn new(backend: FtpBackend, path: String) -> Self {
-        FtpWriter { backend, path }
+        FtpWriter {
+            backend,
+            path,
+            size: 0,
+        }
     }
 }
 
-/// # Safety
-///
-/// We will only take `&mut Self` reference for FtpWriter.
-unsafe impl Sync for FtpWriter {}
-
-impl oio::OneShotWrite for FtpWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+impl oio::Write for FtpWriter {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
-        let mut data_stream = ftp_stream
-            .append_with_stream(&self.path)
-            .await
-            .map_err(parse_error)?;
-        data_stream.write_all(&bs).await.map_err(|err| {
+        let mut data_stream = match self.size {
+            0 => ftp_stream
+                .put_with_stream(&self.path)
+                .await
+                .map_err(parse_error)?,
+            _ => ftp_stream
+                .append_with_stream(&self.path)
+                .await
+                .map_err(parse_error)?,
+        };
+        let size = data_stream.write(&bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
         })?;
 
@@ -61,6 +64,18 @@ impl oio::OneShotWrite for FtpWriter {
             .finalize_put_stream(data_stream)
             .await
             .map_err(parse_error)?;
+        self.size += size as u64;
+        Ok(size)
+    }
+
+    async fn close(&mut self) -> Result<()> {
         Ok(())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "FtpWriter doesn't support abort",
+        ))
     }
 }

@@ -42,7 +42,6 @@ use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
-use super::writer::FtpWriters;
 use crate::raw::*;
 use crate::*;
 
@@ -285,7 +284,7 @@ impl Debug for FtpBackend {
 #[async_trait]
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
-    type Writer = FtpWriters;
+    type Writer = FtpWriter;
     type Lister = FtpLister;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -301,6 +300,7 @@ impl Accessor for FtpBackend {
                 read: true,
 
                 write: true,
+                write_can_multi: true,
 
                 delete: true,
                 create_dir: true,
@@ -385,7 +385,6 @@ impl Accessor for FtpBackend {
         }
 
         let w = FtpWriter::new(self.clone(), path.to_string());
-        let w = oio::OneShotWriter::new(w);
 
         Ok((RpWrite::new(), w))
     }

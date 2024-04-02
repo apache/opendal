@@ -261,14 +261,17 @@ impl Accessor for HttpBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

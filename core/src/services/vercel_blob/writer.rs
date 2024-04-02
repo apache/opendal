@@ -53,9 +53,12 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -67,7 +70,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -76,7 +79,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
                 Ok(resp.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -96,7 +102,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -108,7 +114,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
                     etag: resp.etag,
                 })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -128,9 +137,12 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

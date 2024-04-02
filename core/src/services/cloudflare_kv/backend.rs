@@ -235,12 +235,15 @@ impl kv::Adapter for Adapter {
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let mut body = resp.into_body();
                 Ok(Some(body.copy_to_bytes(body.remaining()).to_vec()))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -255,9 +258,12 @@ impl kv::Adapter for Adapter {
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -271,9 +277,12 @@ impl kv::Adapter for Adapter {
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -290,7 +299,7 @@ impl kv::Adapter for Adapter {
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let body = resp.into_body();
                 let response: CfKvScanResponse =
@@ -302,7 +311,10 @@ impl kv::Adapter for Adapter {
                     })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

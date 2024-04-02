@@ -54,7 +54,10 @@ impl oio::PageList for CosLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();

@@ -86,7 +86,7 @@ impl YandexDiskCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bytes = resp.into_body();
 
@@ -95,7 +95,8 @@ impl YandexDiskCore {
 
                 Ok(resp.href)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -120,7 +121,7 @@ impl YandexDiskCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bytes = resp.into_body();
 
@@ -129,7 +130,8 @@ impl YandexDiskCore {
 
                 Ok(resp.href)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -146,7 +148,8 @@ impl YandexDiskCore {
 
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
             }
         }
         Ok(())

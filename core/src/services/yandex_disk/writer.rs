@@ -53,9 +53,12 @@ impl oio::OneShotWrite for YandexDiskWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

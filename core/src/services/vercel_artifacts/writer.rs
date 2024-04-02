@@ -49,9 +49,12 @@ impl oio::OneShotWrite for VercelArtifactsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

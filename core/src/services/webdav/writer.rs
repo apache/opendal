@@ -52,9 +52,12 @@ impl oio::OneShotWrite for WebdavWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

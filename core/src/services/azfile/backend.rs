@@ -298,47 +298,17 @@ impl Accessor for AzfileBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.core.ensure_parent_dir_exists(path).await?;
-        let resp = self.core.azfile_create_dir(path).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => {
-                // we cannot just check status code because 409 Conflict has two meaning:
-                // 1. If a directory by the same name is being deleted when Create Directory is called, the server returns status code 409 (Conflict)
-                // 2. If a directory or file with the same name already exists, the operation fails with status code 409 (Conflict).
-                // but we just need case 2 (already exists)
-                // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/create-directory
-                if resp
-                    .headers()
-                    .get("x-ms-error-code")
-                    .map(|value| value.to_str().unwrap_or(""))
-                    .unwrap_or_else(|| "")
-                    == "ResourceAlreadyExists"
-                {
-                    Ok(RpCreateDir::default())
-                } else {
-                    Err(parse_error(resp).await?)
-                }
-            }
-        }
+        self.core.azfile_create_dir(path).await?;
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = if path.ends_with('/') {
+        let meta = if path.ends_with('/') {
             self.core.azfile_get_directory_properties(path).await?
         } else {
             self.core.azfile_get_file_properties(path).await?
         };
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -360,17 +330,13 @@ impl Accessor for AzfileBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
+        if path.ends_with('/') {
             self.core.azfile_delete_dir(path).await?
         } else {
             self.core.azfile_delete_file(path).await?
         };
 
-        let status = resp.status();
-        match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -381,12 +347,8 @@ impl Accessor for AzfileBackend {
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
         self.core.ensure_parent_dir_exists(to).await?;
-        let resp = self.core.azfile_rename(from, to).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.core.azfile_rename(from, to).await?;
+        Ok(RpRename::default())
     }
 }
 

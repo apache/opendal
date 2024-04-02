@@ -51,7 +51,7 @@ impl oio::AppendWrite for AzblobWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
@@ -79,12 +79,18 @@ impl oio::AppendWrite for AzblobWriter {
                         // do nothing
                     }
                     _ => {
-                        return Err(parse_error(resp).await?);
+                        return {
+                            let bs = body.to_bytes().await?;
+                            Err(parse_error(parts, bs)?)
+                        };
                     }
                 }
                 Ok(0)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -98,9 +104,12 @@ impl oio::AppendWrite for AzblobWriter {
         let resp = self.core.send(req).await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

@@ -55,7 +55,10 @@ impl oio::PageList for KoofrLister {
         match resp.status() {
             http::StatusCode::OK => {}
             _ => {
-                return Err(parse_error(resp).await?);
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                };
             }
         }
 

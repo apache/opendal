@@ -107,7 +107,8 @@ impl SeafileCore {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)};
                 }
             }
 
@@ -148,7 +149,8 @@ impl SeafileCore {
                     }
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)};
                 }
             }
             Ok(signer.auth_info.clone())
@@ -174,14 +176,15 @@ impl SeafileCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();
                 let upload_url = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -205,7 +208,7 @@ impl SeafileCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();
                 let download_url = serde_json::from_reader(resp_body.reader())
@@ -213,7 +216,8 @@ impl SeafileCore {
 
                 Ok(download_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -255,14 +259,15 @@ impl SeafileCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();
                 let file_detail: FileDetail = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -286,14 +291,15 @@ impl SeafileCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();
                 let dir_detail: DirDetail = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -321,9 +327,10 @@ impl SeafileCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -357,9 +364,10 @@ impl SeafileCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 }

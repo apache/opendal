@@ -61,7 +61,10 @@ impl oio::PageList for WebdavLister {
             ctx.done = true;
             return Ok(());
         } else {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         };
 
         let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;

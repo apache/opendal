@@ -1066,9 +1066,12 @@ impl Accessor for S3Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -1093,13 +1096,16 @@ impl Accessor for S3Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
             // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -1119,9 +1125,12 @@ impl Accessor for S3Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -1198,7 +1207,10 @@ impl Accessor for S3Backend {
 
             Ok(RpBatch::new(batched_result))
         } else {
-            Err(parse_error(resp).await?)
+            {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

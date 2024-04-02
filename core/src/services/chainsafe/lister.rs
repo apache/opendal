@@ -70,7 +70,10 @@ impl oio::PageList for ChainsafeLister {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

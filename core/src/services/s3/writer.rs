@@ -56,9 +56,12 @@ impl oio::MultipartWrite for S3Writer {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -70,7 +73,7 @@ impl oio::MultipartWrite for S3Writer {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -79,7 +82,10 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -103,7 +109,7 @@ impl oio::MultipartWrite for S3Writer {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())?
                     .ok_or_else(|| {
@@ -116,7 +122,10 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(oio::MultipartPart { part_number, etag })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -136,9 +145,12 @@ impl oio::MultipartWrite for S3Writer {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -150,7 +162,10 @@ impl oio::MultipartWrite for S3Writer {
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

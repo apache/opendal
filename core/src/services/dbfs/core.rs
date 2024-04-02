@@ -198,9 +198,12 @@ impl DbfsCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(resp),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -235,7 +238,12 @@ impl DbfsCore {
             StatusCode::NOT_FOUND => {
                 self.dbfs_create_dir(path).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => {
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                }
+            }
         }
         Ok(())
     }

@@ -304,9 +304,12 @@ impl Accessor for WebdavBackend {
         let resp = self.core.webdav_delete(path).await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -322,9 +325,12 @@ impl Accessor for WebdavBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -332,11 +338,14 @@ impl Accessor for WebdavBackend {
         let resp = self.core.webdav_move(from, to).await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

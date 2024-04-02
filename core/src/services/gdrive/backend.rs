@@ -84,7 +84,10 @@ impl Accessor for GdriveBackend {
         let resp = self.core.gdrive_stat(path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();
@@ -141,7 +144,10 @@ impl Accessor for GdriveBackend {
         let resp = self.core.gdrive_trash(&file_id).await?;
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         self.core.path_cache.remove(&path).await;
@@ -176,7 +182,10 @@ impl Accessor for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                };
             }
 
             self.core.path_cache.remove(&to_path).await;
@@ -202,7 +211,10 @@ impl Accessor for GdriveBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -215,7 +227,10 @@ impl Accessor for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                };
             }
 
             self.core.path_cache.remove(&target).await;
@@ -228,7 +243,7 @@ impl Accessor for GdriveBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let body = resp.into_body();
                 let meta: GdriveFile =
@@ -243,7 +258,10 @@ impl Accessor for GdriveBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

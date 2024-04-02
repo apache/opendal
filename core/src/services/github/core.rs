@@ -109,7 +109,8 @@ impl GithubCore {
                 Ok(Some(sha.trim_matches('"').to_string()))
             }
             StatusCode::NOT_FOUND => Ok(None),
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -228,7 +229,8 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -261,7 +263,8 @@ impl GithubCore {
 
                 Ok(resp.entries)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 }

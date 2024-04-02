@@ -165,13 +165,19 @@ impl IcloudSigner {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
             let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
             if status_code != StatusCode::CONFLICT {
-                return Err(parse_error(resp).await?);
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                };
             }
         }
 
@@ -192,7 +198,10 @@ impl IcloudSigner {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
@@ -359,7 +368,10 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let body = resp.into_body();
@@ -390,7 +402,10 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let body = resp.into_body();
@@ -521,7 +536,10 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let body = resp.into_body();
@@ -562,7 +580,10 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let body = resp.into_body();

@@ -57,7 +57,10 @@ impl oio::OneShotWrite for SupabaseWriter {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

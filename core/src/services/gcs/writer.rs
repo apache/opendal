@@ -57,9 +57,12 @@ impl oio::RangeWrite for GcsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -67,7 +70,7 @@ impl oio::RangeWrite for GcsWriter {
         let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = parse_location(resp.headers())?;
                 if let Some(location) = bs {
@@ -79,7 +82,10 @@ impl oio::RangeWrite for GcsWriter {
                     ))
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -99,9 +105,12 @@ impl oio::RangeWrite for GcsWriter {
         let resp = self.core.send(req).await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -118,9 +127,12 @@ impl oio::RangeWrite for GcsWriter {
             .await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -131,7 +143,10 @@ impl oio::RangeWrite for GcsWriter {
             // gcs returns 499 if the upload aborted successfully
             // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
             499 => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

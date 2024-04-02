@@ -50,9 +50,12 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -64,7 +67,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT => {
                 let id =
                     parse_header_to_str(resp.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
@@ -74,7 +77,10 @@ impl oio::MultipartWrite for UpyunWriter {
 
                 Ok(id.to_string())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -94,12 +100,15 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT | StatusCode::CREATED => Ok(oio::MultipartPart {
                 part_number,
                 etag: "".to_string(),
             }),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -111,9 +120,12 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

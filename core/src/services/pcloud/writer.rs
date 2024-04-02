@@ -48,7 +48,7 @@ impl oio::OneShotWrite for PcloudWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
@@ -61,7 +61,10 @@ impl oio::OneShotWrite for PcloudWriter {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

@@ -224,12 +224,15 @@ impl Accessor for SwiftBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -253,10 +256,13 @@ impl Accessor for SwiftBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpDelete::default()),
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -278,9 +284,12 @@ impl Accessor for SwiftBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

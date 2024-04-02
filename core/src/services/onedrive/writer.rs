@@ -70,7 +70,10 @@ impl OneDriveWriter {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -112,7 +115,12 @@ impl OneDriveWriter {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
                 StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => {
+                    return {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    }
+                }
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
@@ -150,7 +158,10 @@ impl OneDriveWriter {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

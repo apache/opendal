@@ -286,7 +286,7 @@ impl Accessor for KoofrBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -307,7 +307,10 @@ impl Accessor for KoofrBackend {
 
                 Ok(RpStat::new(md))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -331,11 +334,14 @@ impl Accessor for KoofrBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -356,16 +362,22 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let resp = self.core.copy(from, to).await?;
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -381,16 +393,22 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let resp = self.core.move_object(from, to).await?;
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

@@ -56,9 +56,12 @@ impl oio::MultipartWrite for ObsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -70,7 +73,7 @@ impl oio::MultipartWrite for ObsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -80,7 +83,10 @@ impl oio::MultipartWrite for ObsWriter {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -101,7 +107,7 @@ impl oio::MultipartWrite for ObsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())?
                     .ok_or_else(|| {
@@ -114,7 +120,10 @@ impl oio::MultipartWrite for ObsWriter {
 
                 Ok(MultipartPart { part_number, etag })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -134,9 +143,12 @@ impl oio::MultipartWrite for ObsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -149,7 +161,10 @@ impl oio::MultipartWrite for ObsWriter {
             // Obs returns code 204 No Content if abort succeeds.
             // Reference: https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0103.html
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }
@@ -162,7 +177,7 @@ impl oio::AppendWrite for ObsWriter {
             .await?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
                     Error::new(
@@ -173,7 +188,10 @@ impl oio::AppendWrite for ObsWriter {
                 Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -188,9 +206,12 @@ impl oio::AppendWrite for ObsWriter {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

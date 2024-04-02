@@ -227,9 +227,12 @@ impl Accessor for YandexDiskBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -240,9 +243,12 @@ impl Accessor for YandexDiskBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -258,7 +264,7 @@ impl Accessor for YandexDiskBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -267,7 +273,10 @@ impl Accessor for YandexDiskBackend {
 
                 parse_info(mf).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -284,7 +293,7 @@ impl Accessor for YandexDiskBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             // Yandex Disk deleting a non-empty folder can take an unknown amount of time,
@@ -292,7 +301,10 @@ impl Accessor for YandexDiskBackend {
             StatusCode::ACCEPTED => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

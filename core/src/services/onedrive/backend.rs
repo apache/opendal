@@ -106,7 +106,7 @@ impl Accessor for OnedriveBackend {
         let response = self.onedrive_create_dir(&uri, body).await?;
 
         let status = response.status();
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(response).await?),
         }
@@ -146,7 +146,10 @@ impl Accessor for OnedriveBackend {
                 StatusCode::NOT_FOUND if path.ends_with('/') => {
                     Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                 }
-                _ => Err(parse_error(resp).await?),
+                _ => {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                }
             }
         }
     }
@@ -174,9 +177,12 @@ impl Accessor for OnedriveBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

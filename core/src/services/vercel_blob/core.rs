@@ -178,9 +178,10 @@ impl VercelBlobCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -267,7 +268,8 @@ impl VercelBlobCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)};
         }
 
         let body = resp.into_body();

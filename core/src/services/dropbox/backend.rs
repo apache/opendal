@@ -101,7 +101,7 @@ impl Accessor for DropboxBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let resp = self.core.dropbox_get_metadata(path).await?;
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bytes = resp.into_body();
                 let decoded_response: DropboxMetadataResponse =
@@ -132,7 +132,10 @@ impl Accessor for DropboxBackend {
                 }
                 Ok(RpStat::new(metadata))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -159,7 +162,7 @@ impl Accessor for DropboxBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
                 let err = parse_error(resp).await?;
@@ -185,7 +188,10 @@ impl Accessor for DropboxBackend {
 
         let resp = self.core.dropbox_delete_batch(paths).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();

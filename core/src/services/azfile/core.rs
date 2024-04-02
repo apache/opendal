@@ -27,8 +27,8 @@ use http::header::RANGE;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
-use http::Response;
 use http::StatusCode;
+use madsim::net::rpc::Deserialize;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -92,16 +92,12 @@ impl AzfileCore {
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
-
     pub async fn azfile_read(
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -121,15 +117,22 @@ impl AzfileCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azfile_create_file(
-        &self,
-        path: &str,
-        size: usize,
-        args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_create_file(&self, path: &str, size: usize, args: &OpWrite) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -164,6 +167,16 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?.with_operation("Backend::azfile_create_file"))
+            }
+        }
     }
 
     pub async fn azfile_update(
@@ -172,7 +185,7 @@ impl AzfileCore {
         size: u64,
         position: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -198,9 +211,19 @@ impl AzfileCore {
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?.with_operation("Backend::azfile_update"))
+            }
+        }
     }
 
-    pub async fn azfile_get_file_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_get_file_properties(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
@@ -215,13 +238,21 @@ impl AzfileCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, parts.headers())?;
+                Ok(meta)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azfile_get_directory_properties(
-        &self,
-        path: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_get_directory_properties(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -238,9 +269,20 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, parts.headers())?;
+                Ok(meta)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azfile_rename(&self, path: &str, new_path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_rename(&self, path: &str, new_path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -290,9 +332,19 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_create_dir(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -313,9 +365,31 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                // we cannot just check status code because 409 Conflict has two meaning:
+                // 1. If a directory by the same name is being deleted when Create Directory is called, the server returns status code 409 (Conflict)
+                // 2. If a directory or file with the same name already exists, the operation fails with status code 409 (Conflict).
+                // but we just need case 2 (already exists)
+                // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/create-directory
+                if parse_header_to_str(parts.headers(), "x-ms-error-code").unwrap_or_default()
+                    == "ResourceAlreadyExists"
+                {
+                    body.consume().await?;
+                    Ok(())
+                } else {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                }
+            }
+        }
     }
 
-    pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_delete_file(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -333,10 +407,21 @@ impl AzfileCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azfile_delete_dir(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -355,6 +440,16 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn azfile_list(
@@ -362,7 +457,7 @@ impl AzfileCore {
         path: &str,
         limit: &Option<usize>,
         continuation: &String,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Option<EnumerationResults>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -389,6 +484,20 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let results = body.to_xml().await?;
+                Ok(Some(results))
+            }
+            StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(None)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
@@ -411,25 +520,131 @@ impl AzfileCore {
         }
 
         for dir in dirs.iter().skip(pop_dir_count) {
-            let resp = self.azfile_create_dir(dir).await?;
-
-            if resp.status() == StatusCode::CREATED {
-                continue;
-            }
-
-            if resp
-                .headers()
-                .get("x-ms-error-code")
-                .map(|value| value.to_str().unwrap_or(""))
-                .unwrap_or_else(|| "")
-                == "ResourceAlreadyExists"
-            {
-                continue;
-            }
-
-            return Err(parse_error(resp).await?);
+            self.azfile_create_dir(dir).await?;
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+struct EnumerationResults {
+    pub marker: Option<String>,
+    pub prefix: Option<String>,
+    pub max_results: Option<u32>,
+    pub directory_id: Option<String>,
+    pub entries: Entries,
+    #[serde(default)]
+    pub next_marker: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+struct Entries {
+    #[serde(default)]
+    pub file: Vec<File>,
+    #[serde(default)]
+    pub directory: Vec<Directory>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+struct File {
+    #[serde(rename = "FileId")]
+    pub file_id: String,
+    pub name: String,
+    pub properties: Properties,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+struct Directory {
+    #[serde(rename = "FileId")]
+    pub file_id: String,
+    pub name: String,
+    pub properties: Properties,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+struct Properties {
+    #[serde(rename = "Content-Length")]
+    pub content_length: Option<u64>,
+    #[serde(rename = "CreationTime")]
+    pub creation_time: String,
+    #[serde(rename = "LastAccessTime")]
+    pub last_access_time: String,
+    #[serde(rename = "LastWriteTime")]
+    pub last_write_time: String,
+    #[serde(rename = "ChangeTime")]
+    pub change_time: String,
+    #[serde(rename = "Last-Modified")]
+    pub last_modified: String,
+    #[serde(rename = "Etag")]
+    pub etag: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use quick_xml::de::from_str;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_list_result() {
+        let xml = r#"
+<?xml version="1.0" encoding="utf-8"?>
+<EnumerationResults ServiceEndpoint="https://myaccount.file.core.windows.net/" ShareName="myshare" ShareSnapshot="date-time" DirectoryPath="directory-path">
+  <Marker>string-value</Marker>
+  <Prefix>string-value</Prefix>
+  <MaxResults>100</MaxResults>
+  <DirectoryId>directory-id</DirectoryId>
+  <Entries>
+     <File>
+        <Name>Rust By Example.pdf</Name>
+        <FileId>13835093239654252544</FileId>
+        <Properties>
+            <Content-Length>5832374</Content-Length>
+            <CreationTime>2023-09-25T12:43:05.8483527Z</CreationTime>
+            <LastAccessTime>2023-09-25T12:43:05.8483527Z</LastAccessTime>
+            <LastWriteTime>2023-09-25T12:43:08.6337775Z</LastWriteTime>
+            <ChangeTime>2023-09-25T12:43:08.6337775Z</ChangeTime>
+            <Last-Modified>Mon, 25 Sep 2023 12:43:08 GMT</Last-Modified>
+            <Etag>\"0x8DBBDC4F8AC4AEF\"</Etag>
+        </Properties>
+    </File>
+    <Directory>
+        <Name>test_list_rich_dir</Name>
+        <FileId>12105702186650959872</FileId>
+        <Properties>
+            <CreationTime>2023-10-15T12:03:40.7194774Z</CreationTime>
+            <LastAccessTime>2023-10-15T12:03:40.7194774Z</LastAccessTime>
+            <LastWriteTime>2023-10-15T12:03:40.7194774Z</LastWriteTime>
+            <ChangeTime>2023-10-15T12:03:40.7194774Z</ChangeTime>
+            <Last-Modified>Sun, 15 Oct 2023 12:03:40 GMT</Last-Modified>
+            <Etag>\"0x8DBCD76C58C3E96\"</Etag>
+        </Properties>
+    </Directory>
+  </Entries>
+  <NextMarker />
+</EnumerationResults>
+        "#;
+
+        let results: EnumerationResults = from_str(xml).unwrap();
+
+        assert_eq!(results.entries.file[0].name, "Rust By Example.pdf");
+
+        assert_eq!(
+            results.entries.file[0].properties.etag,
+            "\\\"0x8DBBDC4F8AC4AEF\\\""
+        );
+
+        assert_eq!(results.entries.directory[0].name, "test_list_rich_dir");
+
+        assert_eq!(
+            results.entries.directory[0].properties.etag,
+            "\\\"0x8DBCD76C58C3E96\\\""
+        );
     }
 }

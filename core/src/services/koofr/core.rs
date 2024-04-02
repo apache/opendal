@@ -88,7 +88,8 @@ impl KoofrCore {
                 let status = resp.status();
 
                 if status != StatusCode::OK {
-                    return Err(parse_error(resp).await?);
+                    return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)};
                 }
 
                 let bs = resp.into_body();
@@ -175,7 +176,7 @@ impl KoofrCore {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::NOT_FOUND => {
                 let name = get_basename(path).trim_end_matches('/');
                 let parent = get_parent(path);
@@ -223,7 +224,8 @@ impl KoofrCore {
             _ => {
                 let (parts, body) = resp.into_parts();
                 let bs = body.to_bytes().await?;
-                Err(parse_error(resp).await?)
+                {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)}
             }
         }
     }

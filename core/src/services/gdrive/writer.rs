@@ -61,7 +61,7 @@ impl oio::OneShotWrite for GdriveWriter {
         }?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::CREATED => {
                 // If we don't have the file id before, let's update the cache to avoid re-fetching.
                 if self.file_id.is_none() {
@@ -72,7 +72,10 @@ impl oio::OneShotWrite for GdriveWriter {
                 }
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

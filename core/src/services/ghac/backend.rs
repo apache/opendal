@@ -271,7 +271,10 @@ impl Accessor for GhacBackend {
                 serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         };
 
         let req = Request::get(location)
@@ -281,7 +284,7 @@ impl Accessor for GhacBackend {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
                 // Correct content length via returning content range.
@@ -294,7 +297,10 @@ impl Accessor for GhacBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -309,7 +315,10 @@ impl Accessor for GhacBackend {
                 serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         };
 
         Ok((
@@ -351,7 +360,10 @@ impl Accessor for GhacBackend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

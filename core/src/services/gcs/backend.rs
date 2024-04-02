@@ -391,7 +391,10 @@ impl Accessor for GcsBackend {
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let slc = resp.into_body();
@@ -440,7 +443,10 @@ impl Accessor for GcsBackend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -462,7 +468,10 @@ impl Accessor for GcsBackend {
         if resp.status().is_success() {
             Ok(RpCopy::default())
         } else {
-            Err(parse_error(resp).await?)
+            {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -536,7 +545,10 @@ impl Accessor for GcsBackend {
                 if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
                     batched_result.push((path, Ok(RpDelete::default().into())));
                 } else {
-                    batched_result.push((path, Err(parse_error(resp).await?)));
+                    batched_result.push((path, {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    }));
                 }
             }
 
@@ -544,7 +556,10 @@ impl Accessor for GcsBackend {
         } else {
             // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
             // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            Err(parse_error(resp).await?)
+            {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

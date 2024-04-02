@@ -266,7 +266,10 @@ impl WebhdfsBackend {
         let status = resp.status();
 
         if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();
@@ -307,7 +310,7 @@ impl WebhdfsBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: LocationResponse =
@@ -315,7 +318,10 @@ impl WebhdfsBackend {
 
                 Ok(resp.location)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -535,7 +541,12 @@ impl WebhdfsBackend {
             StatusCode::NOT_FOUND => {
                 self.create_dir("/", OpCreateDir::new()).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => {
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                }
+            }
         }
         Ok(())
     }
@@ -585,7 +596,7 @@ impl Accessor for WebhdfsBackend {
         // data before creating it.
         // According to the redirect policy of `reqwest` HTTP Client we are using,
         // the redirection should be done automatically.
-        match status {
+        match parts.status {
             StatusCode::CREATED | StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -601,7 +612,10 @@ impl Accessor for WebhdfsBackend {
                     ))
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -613,7 +627,7 @@ impl Accessor for WebhdfsBackend {
 
         let resp = self.webhdfs_get_file_status(path).await?;
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -633,7 +647,10 @@ impl Accessor for WebhdfsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -661,7 +678,10 @@ impl Accessor for WebhdfsBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

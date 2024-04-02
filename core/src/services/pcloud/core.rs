@@ -84,7 +84,7 @@ impl PcloudCore {
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: GetFileLinkResponse =
@@ -106,7 +106,8 @@ impl PcloudCore {
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
         }
     }
 
@@ -150,7 +151,8 @@ impl PcloudCore {
                         return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
                     }
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => return {let bs = body.to_bytes().await?;
+Err(parse_error(parts, bs)?)},
             }
         }
         Ok(())

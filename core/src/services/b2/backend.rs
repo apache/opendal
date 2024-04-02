@@ -337,7 +337,7 @@ impl Accessor for B2Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -349,7 +349,10 @@ impl Accessor for B2Backend {
                 let meta = parse_file_info(&resp.files[0]);
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -374,7 +377,7 @@ impl Accessor for B2Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
                 let err = parse_error(resp).await?;
@@ -409,7 +412,7 @@ impl Accessor for B2Backend {
 
         let status = resp.status();
 
-        let source_file_id = match status {
+        let source_file_id = match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -422,7 +425,10 @@ impl Accessor for B2Backend {
                 let file_id = resp.files[0].clone().file_id;
                 Ok(file_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }?;
 
         let Some(source_file_id) = source_file_id else {
@@ -433,9 +439,12 @@ impl Accessor for B2Backend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

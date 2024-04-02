@@ -298,7 +298,7 @@ impl Accessor for IpfsBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let mut m = Metadata::new(EntryMode::Unknown);
 
@@ -333,7 +333,10 @@ impl Accessor for IpfsBackend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -420,7 +423,10 @@ impl oio::PageList for DirStream {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();

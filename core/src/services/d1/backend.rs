@@ -316,14 +316,17 @@ impl kv::Adapter for Adapter {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let mut body = resp.into_body();
                 let bs = body.copy_to_bytes(body.remaining());
                 let d1_response = D1Response::parse(&bs)?;
                 Ok(d1_response.get_result(&self.value_field))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -343,9 +346,12 @@ impl kv::Adapter for Adapter {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -355,9 +361,12 @@ impl kv::Adapter for Adapter {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

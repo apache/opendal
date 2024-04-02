@@ -64,7 +64,10 @@ impl oio::PageList for UpyunLister {
                 return Ok(());
             }
             _ => {
-                return Err(parse_error(resp).await?);
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                };
             }
         }
 

@@ -278,7 +278,7 @@ impl Accessor for HuggingfaceBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
                 let bs = resp.into_body();
@@ -307,7 +307,10 @@ impl Accessor for HuggingfaceBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 

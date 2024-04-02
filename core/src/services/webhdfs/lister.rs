@@ -56,7 +56,12 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => {
+                    return {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    }
+                }
             }
         } else {
             let resp = self
@@ -83,7 +88,12 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => {
+                    return {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    }
+                }
             }
         };
 

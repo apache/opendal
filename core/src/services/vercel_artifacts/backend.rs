@@ -74,7 +74,7 @@ impl Accessor for VercelArtifactsBackend {
 
         let status = res.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let meta = parse_into_metadata(path, res.headers())?;
                 Ok(RpStat::new(meta))

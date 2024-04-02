@@ -198,7 +198,10 @@ impl Accessor for SupabaseBackend {
                     StatusCode::NOT_FOUND if path.ends_with('/') => {
                         Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                     }
-                    _ => Err(parse_error(resp).await?),
+                    _ => {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    }
                 }
             }
         }

@@ -17,13 +17,7 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use http::StatusCode;
-use quick_xml::de;
-use serde::Deserialize;
-
 use super::core::AzfileCore;
-use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
@@ -41,25 +35,14 @@ impl AzfileLister {
 
 impl oio::PageList for AzfileLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let Some(results) = self
             .core
             .azfile_list(&self.path, &self.limit, &ctx.token)
-            .await?;
-
-        let status = resp.status();
-
-        if status != StatusCode::OK {
-            if status == StatusCode::NOT_FOUND {
-                ctx.done = true;
-                return Ok(());
-            }
-            return Err(parse_error(resp).await?);
-        }
-
-        let bs = resp.into_body();
-
-        let results: EnumerationResults =
-            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+            .await?
+        else {
+            ctx.done = true;
+            return Ok(());
+        };
 
         if results.next_marker.is_empty() {
             ctx.done = true;
@@ -85,127 +68,5 @@ impl oio::PageList for AzfileLister {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
-struct EnumerationResults {
-    marker: Option<String>,
-    prefix: Option<String>,
-    max_results: Option<u32>,
-    directory_id: Option<String>,
-    entries: Entries,
-    #[serde(default)]
-    next_marker: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
-struct Entries {
-    #[serde(default)]
-    file: Vec<File>,
-    #[serde(default)]
-    directory: Vec<Directory>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
-struct File {
-    #[serde(rename = "FileId")]
-    file_id: String,
-    name: String,
-    properties: Properties,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
-struct Directory {
-    #[serde(rename = "FileId")]
-    file_id: String,
-    name: String,
-    properties: Properties,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
-struct Properties {
-    #[serde(rename = "Content-Length")]
-    content_length: Option<u64>,
-    #[serde(rename = "CreationTime")]
-    creation_time: String,
-    #[serde(rename = "LastAccessTime")]
-    last_access_time: String,
-    #[serde(rename = "LastWriteTime")]
-    last_write_time: String,
-    #[serde(rename = "ChangeTime")]
-    change_time: String,
-    #[serde(rename = "Last-Modified")]
-    last_modified: String,
-    #[serde(rename = "Etag")]
-    etag: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use quick_xml::de::from_str;
-
-    use super::*;
-
-    #[test]
-    fn test_parse_list_result() {
-        let xml = r#"
-<?xml version="1.0" encoding="utf-8"?>
-<EnumerationResults ServiceEndpoint="https://myaccount.file.core.windows.net/" ShareName="myshare" ShareSnapshot="date-time" DirectoryPath="directory-path">
-  <Marker>string-value</Marker>
-  <Prefix>string-value</Prefix>
-  <MaxResults>100</MaxResults>
-  <DirectoryId>directory-id</DirectoryId>
-  <Entries>
-     <File>
-        <Name>Rust By Example.pdf</Name>
-        <FileId>13835093239654252544</FileId>
-        <Properties>
-            <Content-Length>5832374</Content-Length>
-            <CreationTime>2023-09-25T12:43:05.8483527Z</CreationTime>
-            <LastAccessTime>2023-09-25T12:43:05.8483527Z</LastAccessTime>
-            <LastWriteTime>2023-09-25T12:43:08.6337775Z</LastWriteTime>
-            <ChangeTime>2023-09-25T12:43:08.6337775Z</ChangeTime>
-            <Last-Modified>Mon, 25 Sep 2023 12:43:08 GMT</Last-Modified>
-            <Etag>\"0x8DBBDC4F8AC4AEF\"</Etag>
-        </Properties>
-    </File>
-    <Directory>
-        <Name>test_list_rich_dir</Name>
-        <FileId>12105702186650959872</FileId>
-        <Properties>
-            <CreationTime>2023-10-15T12:03:40.7194774Z</CreationTime>
-            <LastAccessTime>2023-10-15T12:03:40.7194774Z</LastAccessTime>
-            <LastWriteTime>2023-10-15T12:03:40.7194774Z</LastWriteTime>
-            <ChangeTime>2023-10-15T12:03:40.7194774Z</ChangeTime>
-            <Last-Modified>Sun, 15 Oct 2023 12:03:40 GMT</Last-Modified>
-            <Etag>\"0x8DBCD76C58C3E96\"</Etag>
-        </Properties>
-    </Directory>
-  </Entries>
-  <NextMarker />
-</EnumerationResults>
-        "#;
-
-        let results: EnumerationResults = from_str(xml).unwrap();
-
-        assert_eq!(results.entries.file[0].name, "Rust By Example.pdf");
-
-        assert_eq!(
-            results.entries.file[0].properties.etag,
-            "\\\"0x8DBBDC4F8AC4AEF\\\""
-        );
-
-        assert_eq!(results.entries.directory[0].name, "test_list_rich_dir");
-
-        assert_eq!(
-            results.entries.directory[0].properties.etag,
-            "\\\"0x8DBCD76C58C3E96\\\""
-        );
     }
 }

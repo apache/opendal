@@ -68,7 +68,7 @@ impl oio::PageList for SeafileLister {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();
                 let infos: Vec<Info> = serde_json::from_reader(resp_body.reader())
@@ -102,7 +102,10 @@ impl oio::PageList for SeafileLister {
                 ctx.done = true;
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

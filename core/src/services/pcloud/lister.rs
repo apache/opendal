@@ -47,7 +47,7 @@ impl oio::PageList for PcloudLister {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
 
@@ -89,7 +89,10 @@ impl oio::PageList for PcloudLister {
                     &String::from_utf8_lossy(&bs.to_bytes()),
                 ));
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

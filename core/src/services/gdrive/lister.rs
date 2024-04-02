@@ -55,7 +55,12 @@ impl oio::PageList for GdriveLister {
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),
-            _ => return Err(parse_error(resp).await?),
+            _ => {
+                return {
+                    let bs = body.to_bytes().await?;
+                    Err(parse_error(parts, bs)?)
+                }
+            }
         };
 
         // Gdrive returns empty content when this dir is not exist.

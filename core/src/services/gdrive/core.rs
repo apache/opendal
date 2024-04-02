@@ -322,7 +322,10 @@ impl GdriveSigner {
                         - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return {
+                        let bs = body.to_bytes().await?;
+                        Err(parse_error(parts, bs)?)
+                    };
                 }
             }
         }
@@ -381,7 +384,7 @@ impl PathQuery for GdrivePathQuery {
         let (parts, body) = self.client.send(req).await?.into_parts();
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let body = resp.into_body();
                 let meta: GdriveFileList =
@@ -393,7 +396,10 @@ impl PathQuery for GdrivePathQuery {
                     Ok(None)
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -417,7 +423,10 @@ impl PathQuery for GdrivePathQuery {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let body = resp.into_body();

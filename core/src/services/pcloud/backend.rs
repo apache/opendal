@@ -272,7 +272,7 @@ impl Accessor for PcloudBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: StatResponse =
@@ -292,7 +292,10 @@ impl Accessor for PcloudBackend {
 
                 Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -322,7 +325,7 @@ impl Accessor for PcloudBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
@@ -336,7 +339,10 @@ impl Accessor for PcloudBackend {
 
                 Ok(RpDelete::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -356,7 +362,7 @@ impl Accessor for PcloudBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
@@ -371,7 +377,10 @@ impl Accessor for PcloudBackend {
 
                 Ok(RpCopy::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -386,7 +395,7 @@ impl Accessor for PcloudBackend {
 
         let status = resp.status();
 
-        match status {
+        match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
                 let resp: PcloudError =
@@ -401,7 +410,10 @@ impl Accessor for PcloudBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

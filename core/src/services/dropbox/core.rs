@@ -243,7 +243,10 @@ impl DropboxCore {
 
         let resp = self.client.send(request).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            };
         }
 
         let bs = resp.into_body();
@@ -288,7 +291,7 @@ impl DropboxCore {
         self.sign(&mut request).await?;
         let resp = self.client.send(request).await?;
         let status = resp.status();
-        match status {
+        match parts.status {
             StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {
                 let err = parse_error(resp).await?;

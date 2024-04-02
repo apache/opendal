@@ -62,7 +62,7 @@ impl GcsLister {
 
 impl oio::PageList for GcsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .gcs_list_objects(
                 &self.path,
@@ -76,17 +76,6 @@ impl oio::PageList for GcsLister {
                 },
             )
             .await?;
-
-        if !resp.status().is_success() {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-        let bytes = resp.into_body();
-
-        let output: ListResponse =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
             ctx.token = token.clone();

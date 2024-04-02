@@ -29,8 +29,8 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Request;
 use http::Response;
+use http::{Request, StatusCode};
 use once_cell::sync::Lazy;
 use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
@@ -42,6 +42,7 @@ use serde_json::json;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
+use crate::services::gcs::error::parse_error;
 use crate::*;
 
 pub struct GcsCore {
@@ -139,11 +140,6 @@ impl GcsCore {
 
         Ok(())
     }
-
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
 }
 
 impl GcsCore {
@@ -212,11 +208,23 @@ impl GcsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn gcs_insert_object_request(
@@ -394,23 +402,52 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub async fn gcs_get_object_metadata(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_get_object_metadata(&self, path: &str, args: &OpStat) -> Result<Metadata> {
         let mut req = self.gcs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if !parts.status().is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let meta: GetObjectJsonResponse = body.to_json().await?;
+
+        let mut m = Metadata::new(EntryMode::FILE);
+
+        m.set_etag(&meta.etag);
+        m.set_content_md5(&meta.md5_hash);
+
+        let size = meta
+            .size
+            .parse::<u64>()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
+        m.set_content_length(size);
+        if !meta.content_type.is_empty() {
+            m.set_content_type(&meta.content_type);
+        }
+
+        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        Ok(m)
     }
 
-    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_delete_object(&self, path: &str) -> Result<()> {
         let mut req = self.gcs_delete_object_request(path)?;
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        // deleting not existing objects is ok
+        if parts.status().is_success() || parts.status() == StatusCode::NOT_FOUND {
+            body.consume().await?;
+            Ok(())
+        } else {
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs)?)
+        }
     }
 
     pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<RequestBody>> {
@@ -428,7 +465,10 @@ impl GcsCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_delete_objects(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<Vec<(String, Result<BatchedReply>)>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -446,6 +486,51 @@ impl GcsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
+        // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
+        if !parts.status.is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let content_type = parse_content_type(parts.headers())?.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "gcs batch delete response content type is empty",
+            )
+        })?;
+        let boundary = content_type
+            .strip_prefix("multipart/mixed; boundary=")
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "gcs batch delete response content type is not multipart/mixed",
+                )
+            })?
+            .trim_matches('"');
+
+        let bs = body.to_bytes().await?;
+        let multipart: Multipart<MixedPart> = Multipart::new().with_boundary(boundary).parse(bs)?;
+        let parts = multipart.into_parts();
+
+        let mut batched_result = Vec::with_capacity(parts.len());
+
+        for (i, part) in parts.into_iter().enumerate() {
+            let resp = part.into_response();
+            // TODO: maybe we can take it directly?
+            let path = paths[i].clone();
+
+            // deleting not existing objects is ok
+            if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+                batched_result.push((path, Ok(RpDelete::default().into())));
+            } else {
+                let (parts, bs) = resp.into_parts();
+                batched_result.push((path, Err(parse_error(parts, bs)?)));
+            }
+        }
+
+        Ok(batched_result)
     }
 
     pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -468,6 +553,13 @@ impl GcsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status().is_success() {
+            body.consume().await?;
+            Ok(RpCopy::default())
+        } else {
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs)?)
+        }
     }
 
     pub async fn gcs_list_objects(
@@ -477,7 +569,7 @@ impl GcsCore {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListResponse> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -516,9 +608,16 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if !parts.status().is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let output = body.to_json().await?;
+        Ok(output)
     }
 
-    pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
@@ -531,7 +630,25 @@ impl GcsCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let bs = parse_location(parts.headers())?;
+                if let Some(location) = bs {
+                    Ok(location.to_string())
+                } else {
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "location is not in the response header",
+                    ))
+                }
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn gcs_upload_in_resumable_upload(
@@ -561,7 +678,7 @@ impl GcsCore {
         written: u64,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let mut req = Request::post(location)
             .header(CONTENT_LENGTH, size)
             .header(
@@ -579,12 +696,19 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PERMANENT_REDIRECT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn gcs_abort_resumable_upload(
-        &self,
-        location: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_abort_resumable_upload(&self, location: &str) -> Result<()> {
         let mut req = Request::delete(location)
             .header(CONTENT_LENGTH, 0)
             .body(RequestBody::Empty)
@@ -593,6 +717,18 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status().as_u16() {
+            // gcs returns 499 if the upload aborted successfully
+            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
+            499 => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 
@@ -623,6 +759,32 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+}
+
+/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GetObjectJsonResponse {
+    /// GCS will return size in string.
+    ///
+    /// For example: `"size": "56535"`
+    size: String,
+    /// etag is not quoted.
+    ///
+    /// For example: `"etag": "CKWasoTgyPkCEAE="`
+    etag: String,
+    /// RFC3339 styled datetime string.
+    ///
+    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
+    updated: String,
+    /// Content md5 hash
+    ///
+    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
+    md5_hash: String,
+    /// Content type of this object.
+    ///
+    /// For example: `"contentType": "image/png",`
+    content_type: String,
 }
 
 #[cfg(test)]
@@ -767,5 +929,37 @@ mod tests {
         assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
         assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
+    }
+
+    #[test]
+    fn test_deserialize_get_object_json_response() {
+        let content = r#"{
+  "kind": "storage#object",
+  "id": "example/1.png/1660563214863653",
+  "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+  "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+  "name": "1.png",
+  "bucket": "example",
+  "generation": "1660563214863653",
+  "metageneration": "1",
+  "contentType": "image/png",
+  "storageClass": "STANDARD",
+  "size": "56535",
+  "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+  "crc32c": "j/un9g==",
+  "etag": "CKWasoTgyPkCEAE=",
+  "timeCreated": "2022-08-15T11:33:34.866Z",
+  "updated": "2022-08-15T11:33:34.866Z",
+  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+}"#;
+
+        let meta: GetObjectJsonResponse =
+            serde_json::from_str(content).expect("json Deserialize must succeed");
+
+        assert_eq!(meta.size, "56535");
+        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(meta.content_type, "image/png");
     }
 }

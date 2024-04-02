@@ -388,37 +388,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gcs_get_object_metadata(path, &args).await?;
-
-        if !resp.status().is_success() {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let slc = resp.into_body();
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-
-        let mut m = Metadata::new(EntryMode::FILE);
-
-        m.set_etag(&meta.etag);
-        m.set_content_md5(&meta.md5_hash);
-
-        let size = meta
-            .size
-            .parse::<u64>()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        m.set_content_length(size);
-        if !meta.content_type.is_empty() {
-            m.set_content_type(&meta.content_type);
-        }
-
-        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
-
-        Ok(RpStat::new(m))
+        self.core
+            .gcs_get_object_metadata(path, &args)
+            .await
+            .map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -437,17 +410,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gcs_delete_object(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .gcs_delete_object(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -463,16 +429,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.gcs_copy_object(from, to).await?;
-
-        if resp.status().is_success() {
-            Ok(RpCopy::default())
-        } else {
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .gcs_copy_object(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -509,118 +469,9 @@ impl Accessor for GcsBackend {
         }
 
         let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
-        let resp = self.core.gcs_delete_objects(paths.clone()).await?;
-
-        if let StatusCode::OK = status {
-            let content_type = parse_content_type(resp.headers())?.ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "gcs batch delete response content type is empty",
-                )
-            })?;
-            let boundary = content_type
-                .strip_prefix("multipart/mixed; boundary=")
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "gcs batch delete response content type is not multipart/mixed",
-                    )
-                })?
-                .trim_matches('"');
-            let multipart: Multipart<MixedPart> = Multipart::new()
-                .with_boundary(boundary)
-                .parse(resp.into_body().to_bytes())?;
-            let parts = multipart.into_parts();
-
-            let mut batched_result = Vec::with_capacity(parts.len());
-
-            for (i, part) in parts.into_iter().enumerate() {
-                let resp = part.into_response();
-                // TODO: maybe we can take it directly?
-                let path = paths[i].clone();
-
-                // deleting not existing objects is ok
-                if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                    batched_result.push((path, Ok(RpDelete::default().into())));
-                } else {
-                    batched_result.push((path, {
-                        let bs = body.to_bytes().await?;
-                        Err(parse_error(parts, bs)?)
-                    }));
-                }
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
-            // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
-    }
-}
-
-/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct GetObjectJsonResponse {
-    /// GCS will return size in string.
-    ///
-    /// For example: `"size": "56535"`
-    size: String,
-    /// etag is not quoted.
-    ///
-    /// For example: `"etag": "CKWasoTgyPkCEAE="`
-    etag: String,
-    /// RFC3339 styled datetime string.
-    ///
-    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
-    updated: String,
-    /// Content md5 hash
-    ///
-    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
-    md5_hash: String,
-    /// Content type of this object.
-    ///
-    /// For example: `"contentType": "image/png",`
-    content_type: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_deserialize_get_object_json_response() {
-        let content = r#"{
-  "kind": "storage#object",
-  "id": "example/1.png/1660563214863653",
-  "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
-  "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
-  "name": "1.png",
-  "bucket": "example",
-  "generation": "1660563214863653",
-  "metageneration": "1",
-  "contentType": "image/png",
-  "storageClass": "STANDARD",
-  "size": "56535",
-  "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
-  "crc32c": "j/un9g==",
-  "etag": "CKWasoTgyPkCEAE=",
-  "timeCreated": "2022-08-15T11:33:34.866Z",
-  "updated": "2022-08-15T11:33:34.866Z",
-  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
-}"#;
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_str(content).expect("json Deserialize must succeed");
-
-        assert_eq!(meta.size, "56535");
-        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
-        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
-        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
-        assert_eq!(meta.content_type, "image/png");
+        self.core
+            .gcs_delete_objects(paths.clone())
+            .await
+            .map(RpBatch::new)
     }
 }

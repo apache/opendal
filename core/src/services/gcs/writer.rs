@@ -53,10 +53,12 @@ impl oio::RangeWrite for GcsWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
-
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -65,25 +67,7 @@ impl oio::RangeWrite for GcsWriter {
     }
 
     async fn initiate_range(&self) -> Result<String> {
-        let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = parse_location(resp.headers())?;
-                if let Some(location) = bs {
-                    Ok(location.to_string())
-                } else {
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "location is not in the response header",
-                    ))
-                }
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.gcs_initiate_resumable_upload(&self.path).await
     }
 
     async fn write_range(
@@ -93,21 +77,9 @@ impl oio::RangeWrite for GcsWriter {
         size: u64,
         body: RequestBody,
     ) -> Result<()> {
-        let mut req = self
-            .core
-            .gcs_upload_in_resumable_upload(location, size, written, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .gcs_upload_in_resumable_upload(location, size, written, body)
+            .await
     }
 
     async fn complete_range(
@@ -117,31 +89,12 @@ impl oio::RangeWrite for GcsWriter {
         size: u64,
         body: RequestBody,
     ) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .gcs_complete_resumable_upload(location, written, size, body)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_range(&self, location: &str) -> Result<()> {
-        let resp = self.core.gcs_abort_resumable_upload(location).await?;
-
-        match resp.status().as_u16() {
-            // gcs returns 499 if the upload aborted successfully
-            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
-            499 => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.gcs_abort_resumable_upload(location).await
     }
 }

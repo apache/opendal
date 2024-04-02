@@ -45,35 +45,22 @@ impl ChainsafeLister {
 
 impl oio::PageList for ChainsafeLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.list_objects(&self.path).await?;
+        let output = self.core.list_objects(&self.path).await?;
 
-        match resp.status() {
-            StatusCode::OK => {
-                let bs = resp.into_body();
+        for info in output {
+            let mut path = build_abs_path(&normalize_root(&self.path), &info.name);
 
-                let output: Vec<Info> =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+            let md = parse_info(info);
 
-                for info in output {
-                    let mut path = build_abs_path(&normalize_root(&self.path), &info.name);
-
-                    let md = parse_info(info);
-
-                    if md.mode() == EntryMode::DIR {
-                        path = format!("{}/", path);
-                    }
-
-                    ctx.entries.push_back(Entry::new(&path, md));
-                }
-
-                ctx.done = true;
-
-                Ok(())
+            if md.mode() == EntryMode::DIR {
+                path = format!("{}/", path);
             }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+
+            ctx.entries.push_back(Entry::new(&path, md));
         }
+
+        ctx.done = true;
+
+        Ok(())
     }
 }

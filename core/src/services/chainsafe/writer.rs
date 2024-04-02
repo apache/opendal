@@ -45,16 +45,6 @@ impl ChainsafeWriter {
 
 impl oio::OneShotWrite for ChainsafeWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self.core.upload_object(&self.path, bs).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.upload_object(&self.path, bs).await
     }
 }

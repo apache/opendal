@@ -19,13 +19,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
+use http::{header, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::raw::*;
+use crate::services::chainsafe::error::parse_error;
 use crate::*;
 
 /// Core of [chainsafe](https://storage.chainsafe.io/) services support.
@@ -51,18 +52,12 @@ impl Debug for ChainsafeCore {
 }
 
 impl ChainsafeCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
-}
-
-impl ChainsafeCore {
     pub async fn download_object(
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -86,9 +81,20 @@ impl ChainsafeCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn object_info(&self, path: &str) -> Result<Metadata> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -112,36 +118,19 @@ impl ChainsafeCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output: ObjectInfoResponse = body.to_json().await?;
+                Ok(parse_info(output.content))
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let url = format!(
-            "https://api.chainsafe.io/api/v1/bucket/{}/mv",
-            self.bucket_id
-        );
-
-        let req_body = &json!({
-            "path": from,
-            "new_path": to,
-        });
-        let body = RequestBody::Bytes(Bytes::from(req_body.to_string()));
-
-        let req = Request::post(url)
-            .header(
-                header::AUTHORIZATION,
-                format_authorization_by_bearer(&self.api_key)?,
-            )
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
-
-    pub async fn delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn delete_object(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -165,9 +154,21 @@ impl ChainsafeCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK |
+            // Allow 404 when deleting a non-existing object
+            StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn upload_object(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn upload_object(&self, path: &str, bs: Bytes) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -189,9 +190,19 @@ impl ChainsafeCore {
         let req = multipart.apply(req)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn list_objects(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn list_objects(&self, path: &str) -> Result<Vec<Info>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -215,9 +226,19 @@ impl ChainsafeCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output: Vec<Info> = body.to_json().await?;
+                Ok(output)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn create_dir(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -241,6 +262,17 @@ impl ChainsafeCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | // Allow 409 when creating a existing dir
+            StatusCode::CONFLICT=> {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

@@ -73,7 +73,10 @@ pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
 ///
 /// See <https://www.dropbox.com/developers/documentation/http/documentation#error-handling>
 pub fn parse_dropbox_error_summary(summary: &str) -> Option<(ErrorKind, bool)> {
-    if summary.starts_with("path/not_found") || summary.starts_with("path_lookup/not_found") {
+    if summary.starts_with("path/not_found")
+        || summary.starts_with("path_lookup/not_found")
+        || summary.starts_with("from_lookup/not_found")
+    {
         Some((ErrorKind::NotFound, false))
     } else if summary.starts_with("path/conflict") {
         Some((ErrorKind::AlreadyExists, false))

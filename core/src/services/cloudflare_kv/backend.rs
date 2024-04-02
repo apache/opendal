@@ -234,12 +234,8 @@ impl kv::Adapter for Adapter {
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
         match parts.status {
-            StatusCode::OK => {
-                let mut body = resp.into_body();
-                Ok(Some(body.copy_to_bytes(body.remaining()).to_vec()))
-            }
+            StatusCode::OK => Ok(Some(body.to_bytes().await?.to_vec())),
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -257,9 +253,11 @@ impl kv::Adapter for Adapter {
         let mut req = multipart.apply(req)?;
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -276,9 +274,11 @@ impl kv::Adapter for Adapter {
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -298,17 +298,9 @@ impl kv::Adapter for Adapter {
             .map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let response: CfKvScanResponse =
-                    serde_json::from_reader(body.reader()).map_err(|e| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("failed to parse error response: {}", e),
-                        )
-                    })?;
+                let response: CfKvScanResponse = body.to_json().await?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
             _ => {

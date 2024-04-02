@@ -81,35 +81,7 @@ impl Accessor for GdriveBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gdrive_stat(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-        let gdrive_file: GdriveFile =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        };
-
-        let mut meta = Metadata::new(EntryMode::FILE);
-        if let Some(v) = gdrive_file.size {
-            meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-            })?);
-        }
-        if let Some(v) = gdrive_file.modified_time {
-            meta = meta.with_last_modified(v.parse::<chrono::DateTime<Utc>>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?);
-        }
-        Ok(RpStat::new(meta))
+        self.core.gdrive_stat(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -179,15 +151,7 @@ impl Accessor for GdriveBackend {
 
         // copy will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&to_path).await? {
-            let resp = self.core.gdrive_trash(&id).await?;
-
-            if status != StatusCode::OK {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                };
-            }
-
+            self.core.gdrive_trash(&id).await?;
             self.core.path_cache.remove(&to_path).await;
         }
 
@@ -236,30 +200,16 @@ impl Accessor for GdriveBackend {
             self.core.path_cache.remove(&target).await;
         }
 
-        let resp = self
+        let meta = self
             .core
             .gdrive_patch_metadata_request(&source, &target)
             .await?;
+        let cache = &self.core.path_cache;
 
-        match parts.status {
-            StatusCode::OK => {
-                let body = resp.into_body();
-                let meta: GdriveFile =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-
-                let cache = &self.core.path_cache;
-
-                cache.remove(&build_abs_path(&self.core.root, from)).await;
-                cache
-                    .insert(&build_abs_path(&self.core.root, to), &meta.id)
-                    .await;
-
-                Ok(RpRename::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        cache.remove(&build_abs_path(&self.core.root, from)).await;
+        cache
+            .insert(&build_abs_path(&self.core.root, to), &meta.id)
+            .await;
+        Ok(RpRename::default())
     }
 }

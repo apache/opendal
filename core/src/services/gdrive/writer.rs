@@ -50,7 +50,7 @@ impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();
 
-        let resp = if let Some(file_id) = &self.file_id {
+        let file = if let Some(file_id) = &self.file_id {
             self.core
                 .gdrive_upload_overwrite_simple_request(file_id, size as u64, bs)
                 .await
@@ -60,21 +60,9 @@ impl oio::OneShotWrite for GdriveWriter {
                 .await
         }?;
 
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => {
-                // If we don't have the file id before, let's update the cache to avoid re-fetching.
-                if self.file_id.is_none() {
-                    let bs = resp.into_body();
-                    let file: GdriveFile =
-                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                    self.core.path_cache.insert(&self.path, &file.id).await;
-                }
-                Ok(())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        if self.file_id.is_none() {
+            self.core.path_cache.insert(&self.path, &file.id).await;
         }
+        Ok(())
     }
 }

@@ -197,15 +197,10 @@ impl Accessor for DbfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.dbfs_create_dir(path).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .dbfs_create_dir(path)
+            .await
+            .map(|_| RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -214,34 +209,7 @@ impl Accessor for DbfsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.dbfs_get_status(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body();
-                let decoded_response: DbfsStatus =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
-                    decoded_response.modification_time,
-                )?);
-                match decoded_response.is_dir {
-                    true => meta.set_mode(EntryMode::DIR),
-                    false => {
-                        meta.set_mode(EntryMode::FILE);
-                        meta.set_content_length(decoded_response.file_size as u64)
-                    }
-                };
-                Ok(RpStat::new(meta))
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.dbfs_get_status(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -259,15 +227,10 @@ impl Accessor for DbfsBackend {
 
     /// NOTE: Server will return 200 even if the path doesn't exist.
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dbfs_delete(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .dbfs_delete(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -277,17 +240,10 @@ impl Accessor for DbfsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.dbfs_ensure_parent_path(to).await?;
-
-        let resp = self.core.dbfs_rename(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpRename::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .dbfs_rename(from, to)
+            .await
+            .map(|_| RpRename::default())
     }
 }
 

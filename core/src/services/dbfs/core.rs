@@ -24,6 +24,7 @@ use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use madsim::net::rpc::Deserialize;
 use serde_json::json;
 
 use super::error::parse_error;
@@ -48,7 +49,7 @@ impl Debug for DbfsCore {
 }
 
 impl DbfsCore {
-    pub async fn dbfs_create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dbfs_create_dir(&self, path: &str) -> Result<()> {
         let url = format!("{}/api/2.0/dbfs/mkdirs", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -66,10 +67,20 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn dbfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dbfs_delete(&self, path: &str) -> Result<()> {
         let url = format!("{}/api/2.0/dbfs/delete", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -90,10 +101,20 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn dbfs_rename(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dbfs_rename(&self, from: &str, to: &str) -> Result<()> {
         let source = build_rooted_abs_path(&self.root, from);
         let target = build_rooted_abs_path(&self.root, to);
 
@@ -112,10 +133,20 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn dbfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dbfs_list(&self, path: &str) -> Result<Option<DbfsOutputList>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -134,7 +165,21 @@ impl DbfsCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output = body.to_json().await?;
+                Ok(Some(output))
+            }
+            StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(None)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn dbfs_create_file_request(
@@ -166,7 +211,8 @@ impl DbfsCore {
         path: &str,
         offset: u64,
         length: u64,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -197,7 +243,7 @@ impl DbfsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(resp),
+            StatusCode::OK => body.read(buf).await,
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -205,7 +251,7 @@ impl DbfsCore {
         }
     }
 
-    pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dbfs_get_status(&self, path: &str) -> Result<Metadata> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -225,24 +271,41 @@ impl DbfsCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
-    }
-
-    pub async fn dbfs_ensure_parent_path(&self, path: &str) -> Result<()> {
-        let resp = self.dbfs_get_status(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => return Ok(()),
-            StatusCode::NOT_FOUND => {
-                self.dbfs_create_dir(path).await?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let mut meta = parse_into_metadata(path, parts.headers())?;
+                let decoded_response: DbfsStatus = body.to_json().await?;
+                meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                    decoded_response.modification_time,
+                )?);
+                match decoded_response.is_dir {
+                    true => meta.set_mode(EntryMode::DIR),
+                    false => {
+                        meta.set_mode(EntryMode::FILE);
+                        meta.set_content_length(decoded_response.file_size as u64)
+                    }
+                };
+                Ok(meta)
             }
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok(Metadata::new(EntryMode::DIR)),
             _ => {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                }
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
             }
         }
-        Ok(())
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct DbfsOutputList {
+    pub files: Vec<DbfsStatus>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DbfsStatus {
+    pub path: String,
+    pub is_dir: bool,
+    pub file_size: i64,
+    pub modification_time: i64,
 }

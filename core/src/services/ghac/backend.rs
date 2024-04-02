@@ -492,7 +492,7 @@ impl GhacBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

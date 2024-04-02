@@ -58,8 +58,7 @@ impl Debug for PcloudCore {
 impl PcloudCore {
     #[inline]
     pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
+         let (parts, body) = self.client.send(req).await?.into_parts();}
 }
 
 impl PcloudCore {

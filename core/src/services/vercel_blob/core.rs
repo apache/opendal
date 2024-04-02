@@ -75,8 +75,7 @@ impl Debug for VercelBlobCore {
 impl VercelBlobCore {
     #[inline]
     pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
+         let (parts, body) = self.client.send(req).await?.into_parts();}
 
     pub fn sign(&self, req: request::Builder) -> request::Builder {
         req.header(header::AUTHORIZATION, format!("Bearer {}", self.token))

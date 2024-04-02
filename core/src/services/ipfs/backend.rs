@@ -364,7 +364,7 @@ impl IpfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -378,7 +378,7 @@ impl IpfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -398,7 +398,7 @@ impl IpfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

@@ -39,23 +39,10 @@ impl DbfsLister {
 
 impl oio::PageList for DbfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let response = self.core.dbfs_list(&self.path).await?;
-
-        let status_code = response.status();
-        if !status_code.is_success() {
-            if status_code == StatusCode::NOT_FOUND {
-                ctx.done = true;
-                return Ok(());
-            }
-            let error = parse_error(response).await?;
-            return Err(error);
-        }
-
-        let bytes = response.into_body();
-        let decoded_response: DbfsOutputList =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-
-        ctx.done = true;
+        let Some(decoded_response) = self.core.dbfs_list(&self.path).await? else {
+            ctx.done = true;
+            return Ok(());
+        };
 
         for status in decoded_response.files {
             let entry: oio::Entry = match status.is_dir {
@@ -78,19 +65,7 @@ impl oio::PageList for DbfsLister {
             };
             ctx.entries.push_back(entry);
         }
+        ctx.done = true;
         Ok(())
     }
-}
-
-#[derive(Debug, Deserialize)]
-struct DbfsOutputList {
-    files: Vec<DbfsStatus>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DbfsStatus {
-    path: String,
-    is_dir: bool,
-    file_size: i64,
-    modification_time: i64,
 }

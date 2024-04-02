@@ -156,7 +156,7 @@ impl WebdavCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webdav_put(
@@ -189,7 +189,7 @@ impl WebdavCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webdav_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -206,7 +206,7 @@ impl WebdavCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -234,7 +234,7 @@ impl WebdavCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
@@ -262,7 +262,7 @@ impl WebdavCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<oio::Buffer>> {
@@ -287,7 +287,7 @@ impl WebdavCore {
             .body(RequestBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Create dir recursively for given path.

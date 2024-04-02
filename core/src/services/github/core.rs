@@ -61,8 +61,7 @@ impl Debug for GithubCore {
 impl GithubCore {
     #[inline]
     pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
+         let (parts, body) = self.client.send(req).await?.into_parts();}
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
         let mut req = req

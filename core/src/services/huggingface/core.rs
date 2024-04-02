@@ -80,7 +80,7 @@ impl HuggingfaceCore {
             .body(RequestBody::Bytes(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<oio::Buffer>> {
@@ -118,7 +118,7 @@ impl HuggingfaceCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn hf_resolve(
@@ -161,7 +161,7 @@ impl HuggingfaceCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

@@ -311,7 +311,7 @@ impl HttpBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<oio::Buffer>> {
@@ -337,6 +337,6 @@ impl HttpBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }

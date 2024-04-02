@@ -184,7 +184,7 @@ impl IpmfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
@@ -206,7 +206,7 @@ impl IpmfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn ipmfs_rm(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -223,7 +223,7 @@ impl IpmfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -240,7 +240,7 @@ impl IpmfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -257,7 +257,7 @@ impl IpmfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Support write from reader.
@@ -275,7 +275,7 @@ impl IpmfsBackend {
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

@@ -78,7 +78,7 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn read_at(&self, _offset: u64, _limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, _buf: oio::WritableBuf, _offset: u64) -> Result<usize> {
         todo!()
     }
 }

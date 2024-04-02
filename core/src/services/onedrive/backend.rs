@@ -210,7 +210,7 @@ impl OnedriveBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(crate) async fn onedrive_get_next_list_page(
@@ -226,7 +226,7 @@ impl OnedriveBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn onedrive_get_content(
@@ -250,7 +250,7 @@ impl OnedriveBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn onedrive_upload_simple(
@@ -280,7 +280,7 @@ impl OnedriveBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(crate) async fn onedrive_chunked_upload(
@@ -309,7 +309,7 @@ impl OnedriveBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(crate) async fn onedrive_create_upload_session(
@@ -328,7 +328,7 @@ impl OnedriveBackend {
         let asyn_body = RequestBody::Bytes(Bytes::from(body_bytes));
         let req = req.body(asyn_body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn onedrive_create_dir(
@@ -346,7 +346,7 @@ impl OnedriveBackend {
         let async_body = RequestBody::Bytes(bytes::Bytes::from(body_bytes));
         let req = req.body(async_body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -365,6 +365,6 @@ impl OnedriveBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }

@@ -344,7 +344,7 @@ impl WebhdfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webhdfs_append_request(
@@ -440,7 +440,7 @@ impl WebhdfsBackend {
         let req = Request::get(&url)
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webhdfs_list_status_batch_request(
@@ -465,7 +465,7 @@ impl WebhdfsBackend {
         let req = Request::get(&url)
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webhdfs_read_file(
@@ -474,7 +474,7 @@ impl WebhdfsBackend {
         range: BytesRange,
     ) -> Result<Response<oio::Buffer>> {
         let req = self.webhdfs_open_request(path, &range).await?;
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub(super) async fn webhdfs_get_file_status(
@@ -496,7 +496,7 @@ impl WebhdfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -514,7 +514,7 @@ impl WebhdfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     async fn check_root(&self) -> Result<()> {

@@ -127,7 +127,7 @@ impl OssCore {
 
     #[inline]
     pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
+         let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Set sse headers
@@ -372,7 +372,7 @@ impl OssCore {
     ) -> Result<Response<oio::Buffer>> {
         let mut req = self.oss_get_object_request(path, range, false, args)?;
         self.sign(&mut req).await?;
-        let (parts, body) = self.client.send(req).await?.into_parts();
+        let (parts, body) =  let (parts, body) = self.client.send(req).await?.into_parts();?.into_parts();
     }
 
     pub async fn oss_head_object(

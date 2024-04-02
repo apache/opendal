@@ -69,8 +69,7 @@ impl Debug for KoofrCore {
 impl KoofrCore {
     #[inline]
     pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
+         let (parts, body) = self.client.send(req).await?.into_parts();}
 
     pub async fn get_mount_id(&self) -> Result<&String> {
         self.mount_id

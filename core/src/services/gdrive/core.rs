@@ -76,7 +76,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
@@ -97,7 +97,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gdrive_list(
@@ -121,7 +121,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     // Update with content and metadata
@@ -160,7 +160,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<oio::Buffer>> {
@@ -177,7 +177,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Create a file with the content.
@@ -223,7 +223,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Overwrite the file with the content.
@@ -251,7 +251,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {

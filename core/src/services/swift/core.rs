@@ -62,7 +62,7 @@ impl SwiftCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn swift_list(
@@ -99,7 +99,7 @@ impl SwiftCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn swift_create_object(
@@ -124,7 +124,7 @@ impl SwiftCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn swift_read(
@@ -156,7 +156,7 @@ impl SwiftCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<oio::Buffer>> {
@@ -193,7 +193,7 @@ impl SwiftCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
@@ -214,7 +214,7 @@ impl SwiftCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }
 

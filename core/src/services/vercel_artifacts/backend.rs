@@ -128,7 +128,7 @@ impl VercelArtifactsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn vercel_artifacts_put(
@@ -151,7 +151,7 @@ impl VercelArtifactsBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<oio::Buffer>> {
@@ -170,6 +170,6 @@ impl VercelArtifactsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 }

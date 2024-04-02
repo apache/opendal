@@ -40,12 +40,10 @@ impl GhacReader {
 
 impl oio::Read for GhacReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         let req = self.core.ghac_get_location(&self.location, range).await?;
         let resp = self.core.client.send(req).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),

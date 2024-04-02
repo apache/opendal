@@ -55,8 +55,6 @@ impl oio::RangeWrite for GcsWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
@@ -68,7 +66,6 @@ impl oio::RangeWrite for GcsWriter {
 
     async fn initiate_range(&self) -> Result<String> {
         let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -104,7 +101,6 @@ impl oio::RangeWrite for GcsWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
             _ => {
@@ -126,7 +122,6 @@ impl oio::RangeWrite for GcsWriter {
             .gcs_complete_resumable_upload(location, written, size, body)
             .await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {

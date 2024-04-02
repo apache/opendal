@@ -259,8 +259,6 @@ impl Accessor for HttpBackend {
 
         let resp = self.http_head(path, &args).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             // HTTP Server like nginx could return FORBIDDEN if auto-index

@@ -45,8 +45,6 @@ impl oio::PageList for PcloudLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.list_folder(&self.path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();

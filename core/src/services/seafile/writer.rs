@@ -77,8 +77,6 @@ impl oio::OneShotWrite for SeafileWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {

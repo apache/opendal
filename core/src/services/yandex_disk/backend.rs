@@ -225,8 +225,6 @@ impl Accessor for YandexDiskBackend {
 
         let resp = self.core.move_object(from, to).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
             _ => {
@@ -240,8 +238,6 @@ impl Accessor for YandexDiskBackend {
         self.core.ensure_dir_exists(to).await?;
 
         let resp = self.core.copy(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
@@ -261,8 +257,6 @@ impl Accessor for YandexDiskBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.metainformation(path, None, None).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -290,8 +284,6 @@ impl Accessor for YandexDiskBackend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.delete(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),

@@ -222,8 +222,6 @@ impl Accessor for SwiftBackend {
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.swift_get_metadata(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
@@ -254,8 +252,6 @@ impl Accessor for SwiftBackend {
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
         let resp = self.core.swift_delete(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpDelete::default()),
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
@@ -281,8 +277,6 @@ impl Accessor for SwiftBackend {
         // cannot copy objects larger than 5 GB.
         // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
         let resp = self.core.swift_copy(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),

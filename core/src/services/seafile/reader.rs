@@ -42,11 +42,9 @@ impl SeafileReader {
 
 impl oio::Read for SeafileReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         let resp = self.core.download_file(&self.path, range).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),

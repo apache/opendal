@@ -46,8 +46,6 @@ impl oio::OneShotWrite for PcloudWriter {
 
         let resp = self.core.upload_file(&self.path, bs).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();

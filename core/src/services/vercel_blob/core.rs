@@ -176,7 +176,7 @@ impl VercelBlobCore {
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => Ok(()),
@@ -265,7 +265,7 @@ Err(parse_error(parts, bs)?)},
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
 
         if status != StatusCode::OK {
             return {let bs = body.to_bytes().await?;

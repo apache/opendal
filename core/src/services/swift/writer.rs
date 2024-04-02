@@ -43,8 +43,6 @@ impl oio::OneShotWrite for SwiftWriter {
             .swift_create_object(&self.path, bs.len() as u64, RequestBody::Bytes(bs))
             .await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {

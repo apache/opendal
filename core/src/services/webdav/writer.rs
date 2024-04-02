@@ -50,8 +50,6 @@ impl oio::OneShotWrite for WebdavWriter {
             )
             .await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
             _ => {

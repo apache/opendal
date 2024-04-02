@@ -303,7 +303,6 @@ impl Accessor for WebdavBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.webdav_delete(path).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => {
@@ -323,8 +322,6 @@ impl Accessor for WebdavBackend {
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.webdav_copy(from, to).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
             _ => {
@@ -337,7 +334,6 @@ impl Accessor for WebdavBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let resp = self.core.webdav_move(from, to).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())

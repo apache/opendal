@@ -283,7 +283,6 @@ impl Accessor for GhacBackend {
             .map_err(new_request_build_error)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;

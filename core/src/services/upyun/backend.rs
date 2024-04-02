@@ -278,8 +278,6 @@ impl Accessor for UpyunBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self.core.create_dir(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {
@@ -291,8 +289,6 @@ impl Accessor for UpyunBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.info(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
@@ -322,8 +318,6 @@ impl Accessor for UpyunBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.delete(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
@@ -343,8 +337,6 @@ impl Accessor for UpyunBackend {
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.copy(from, to).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => {
@@ -356,8 +348,6 @@ impl Accessor for UpyunBackend {
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let resp = self.core.move_object(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpRename::default()),

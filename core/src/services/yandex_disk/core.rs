@@ -84,7 +84,7 @@ impl YandexDiskCore {
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -119,7 +119,7 @@ Err(parse_error(parts, bs)?)},
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -144,7 +144,7 @@ Err(parse_error(parts, bs)?)},
             let path = paths[..i + 1].join("/");
             let resp = self.create_dir(&path).await?;
 
-            let status = resp.status();
+
 
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}

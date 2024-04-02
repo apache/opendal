@@ -261,8 +261,6 @@ impl Accessor for GithubBackend {
             .upload(&format!("{}.gitkeep", path), empty_bytes)
             .await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
             _ => {
@@ -274,8 +272,6 @@ impl Accessor for GithubBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.stat(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),

@@ -26,8 +26,8 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Request;
 use http::Response;
+use http::{Request, StatusCode};
 use reqsign::TencentCosCredential;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
@@ -35,6 +35,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::*;
+use crate::services::cos::error::parse_error;
 use crate::*;
 
 pub struct CosCore {
@@ -93,11 +94,6 @@ impl CosCore {
             .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)
     }
-
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.client.send(req).await
-    }
 }
 
 impl CosCore {
@@ -106,12 +102,24 @@ impl CosCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.cos_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn cos_get_object_request(
@@ -176,16 +184,19 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_head_object(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn cos_head_object(&self, path: &str, args: &OpStat) -> Result<Metadata> {
         let mut req = self.cos_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => parse_into_metadata(path, parts.headers()),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn cos_head_object_request(
@@ -214,7 +225,7 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn cos_delete_object(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -228,6 +239,16 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn cos_append_object_request(
@@ -266,7 +287,7 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn cos_copy_object(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -281,6 +302,16 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn cos_list_objects(
@@ -289,7 +320,7 @@ impl CosCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListObjectsOutput> {
         let p = build_abs_path(&self.root, path);
 
         let mut queries = vec![];
@@ -319,13 +350,23 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output = body.to_json().await?;
+                Ok(output)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn cos_initiate_multipart_upload(
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -351,16 +392,26 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: InitiateMultipartUploadResult = body.to_xml().await?;
+                Ok(result.upload_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn cos_upload_part_request(
+    pub async fn cos_upload_part(
         &self,
         path: &str,
         upload_id: &str,
         part_number: usize,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -379,6 +430,25 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+
+                let etag = parse_etag(parts.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+                Ok(etag)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn cos_complete_multipart_upload(
@@ -386,7 +456,7 @@ impl CosCore {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -412,14 +482,20 @@ impl CosCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Abort an on-going multipart upload.
-    pub async fn cos_abort_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn cos_abort_multipart_upload(&self, path: &str, upload_id: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -434,6 +510,18 @@ impl CosCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            // cos returns code 204 if abort succeeds.
+            // Reference: https://www.tencentcloud.com/document/product/436/7740
+            StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

@@ -42,11 +42,9 @@ impl HuggingfaceReader {
 
 impl oio::Read for HuggingfaceReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         let resp = self.core.hf_resolve(&self.path, range, &self.op).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),

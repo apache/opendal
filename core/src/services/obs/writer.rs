@@ -54,8 +54,6 @@ impl oio::MultipartWrite for ObsWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
@@ -70,8 +68,6 @@ impl oio::MultipartWrite for ObsWriter {
             .core
             .obs_initiate_multipart_upload(&self.path, self.op.content_type())
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -104,8 +100,6 @@ impl oio::MultipartWrite for ObsWriter {
             .core
             .obs_upload_part_request(&self.path, upload_id, part_number, Some(size), body)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -141,8 +135,6 @@ impl oio::MultipartWrite for ObsWriter {
             .obs_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {
@@ -176,7 +168,6 @@ impl oio::AppendWrite for ObsWriter {
             .obs_head_object(&self.path, &OpStat::default())
             .await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => {
                 let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
@@ -203,8 +194,6 @@ impl oio::AppendWrite for ObsWriter {
         self.core.sign(&mut req).await?;
 
         let resp = self.core.send(req).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(()),

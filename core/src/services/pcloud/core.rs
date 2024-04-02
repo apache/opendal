@@ -83,7 +83,7 @@ impl PcloudCore {
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -132,7 +132,7 @@ Err(parse_error(parts, bs)?)},
             let path = paths[..i + 1].join("/");
             let resp = self.create_folder_if_not_exists(&path).await?;
 
-            let status = resp.status();
+
 
             match status {
                 StatusCode::OK => {

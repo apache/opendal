@@ -51,12 +51,12 @@ impl oio::MultipartWrite for CosWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -65,28 +65,9 @@ impl oio::MultipartWrite for CosWriter {
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        let resp = self
-            .core
+        self.core
             .cos_initiate_multipart_upload(&self.path, &self.op)
-            .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
-                        .map_err(new_xml_deserialize_error)?;
-
-                Ok(result.upload_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn write_part(
@@ -99,31 +80,11 @@ impl oio::MultipartWrite for CosWriter {
         // COS requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let resp = self
+        let etag = self
             .core
-            .cos_upload_part_request(&self.path, upload_id, part_number, size, body)
+            .cos_upload_part(&self.path, upload_id, part_number, size, body)
             .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
-                Ok(oio::MultipartPart { part_number, etag })
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(oio::MultipartPart { part_number, etag })
     }
 
     async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
@@ -135,63 +96,26 @@ impl oio::MultipartWrite for CosWriter {
             })
             .collect();
 
-        let resp = self
-            .core
+        self.core
             .cos_complete_multipart_upload(&self.path, upload_id, parts)
-            .await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .cos_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // cos returns code 204 if abort succeeds.
-            // Reference: https://www.tencentcloud.com/document/product/436/7740
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }
 
 impl oio::AppendWrite for CosWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self
+        let meta = self
             .core
             .cos_head_object(&self.path, &OpStat::default())
             .await?;
 
-        let status = resp.status();
-        match parts.status {
-            StatusCode::OK => {
-                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "Content-Length not present in returning response",
-                    )
-                })?;
-                Ok(content_length)
-            }
-            StatusCode::NOT_FOUND => Ok(0),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(meta.content_length())
     }
 
     async fn append(&self, offset: u64, size: u64, body: RequestBody) -> Result<()> {
@@ -201,12 +125,12 @@ impl oio::AppendWrite for CosWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

@@ -270,8 +270,6 @@ impl Accessor for PcloudBackend {
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.stat(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -323,8 +321,6 @@ impl Accessor for PcloudBackend {
             self.core.delete_file(path).await?
         };
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -360,8 +356,6 @@ impl Accessor for PcloudBackend {
             self.core.copy_file(from, to).await?
         };
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -392,8 +386,6 @@ impl Accessor for PcloudBackend {
         } else {
             self.core.rename_file(from, to).await?
         };
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {

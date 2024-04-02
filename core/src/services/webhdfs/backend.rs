@@ -263,8 +263,6 @@ impl WebhdfsBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
         if status != StatusCode::CREATED && status != StatusCode::OK {
             return {
                 let bs = body.to_bytes().await?;
@@ -307,8 +305,6 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -590,8 +586,6 @@ impl Accessor for WebhdfsBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
         // WebHDFS's has a two-step create/append to prevent clients to send out
         // data before creating it.
         // According to the redirect policy of `reqwest` HTTP Client we are using,
@@ -626,7 +620,7 @@ impl Accessor for WebhdfsBackend {
             .await?;
 
         let resp = self.webhdfs_get_file_status(path).await?;
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();

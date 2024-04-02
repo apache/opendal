@@ -44,8 +44,6 @@ impl oio::OneShotWrite for KoofrWriter {
 
         let resp = self.core.put(&self.path, bs).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK | StatusCode::CREATED => Ok(()),
             _ => {

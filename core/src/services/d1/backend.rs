@@ -315,7 +315,7 @@ impl kv::Adapter for Adapter {
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let mut body = resp.into_body();
@@ -345,7 +345,7 @@ impl kv::Adapter for Adapter {
         let req = self.create_d1_query_request(&query, params)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
             _ => {
@@ -360,7 +360,7 @@ impl kv::Adapter for Adapter {
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
             _ => {

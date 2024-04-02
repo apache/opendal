@@ -64,8 +64,6 @@ impl OneDriveWriter {
             .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, RequestBody::Bytes(bs))
             .await?;
 
-        let status = resp.status();
-
         match status {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
@@ -109,8 +107,6 @@ impl OneDriveWriter {
                 )
                 .await?;
 
-            let status = resp.status();
-
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
@@ -147,8 +143,6 @@ impl OneDriveWriter {
             .backend
             .onedrive_create_upload_session(&url, body)
             .await?;
-
-        let status = resp.status();
 
         match status {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response

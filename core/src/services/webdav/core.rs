@@ -346,7 +346,6 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
 
         match status {
             // 201 (Created) - The collection was created.

@@ -48,7 +48,6 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let resp = self.backend.client.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
@@ -77,7 +76,6 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let resp = self.backend.client.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
@@ -107,8 +105,6 @@ impl oio::BlockWrite for WebhdfsWriter {
 
             let resp = self.backend.client.send(req).await?;
 
-            let status = resp.status();
-
             if status != StatusCode::OK {
                 return {
                     let bs = body.to_bytes().await?;
@@ -118,7 +114,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
         // delete the path file
         let resp = self.backend.webhdfs_delete(&self.path).await?;
-        let status = resp.status();
+
         if status != StatusCode::OK {
             return {
                 let bs = body.to_bytes().await?;
@@ -131,8 +127,6 @@ impl oio::BlockWrite for WebhdfsWriter {
             .backend
             .webhdfs_rename_object(&first_block_id, &self.path)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(()),
@@ -168,8 +162,6 @@ impl oio::AppendWrite for WebhdfsWriter {
     async fn append(&self, _offset: u64, size: u64, body: RequestBody) -> Result<()> {
         let resp = self.backend.webhdfs_get_file_status(&self.path).await?;
 
-        let status = resp.status();
-
         let location;
 
         match parts.status {
@@ -183,8 +175,6 @@ impl oio::AppendWrite for WebhdfsWriter {
                     .await?;
 
                 let resp = self.backend.client.send(req).await?;
-
-                let status = resp.status();
 
                 match status {
                     StatusCode::CREATED | StatusCode::OK => {
@@ -213,7 +203,6 @@ impl oio::AppendWrite for WebhdfsWriter {
 
         let resp = self.backend.client.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {

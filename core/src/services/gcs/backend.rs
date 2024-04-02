@@ -511,8 +511,6 @@ impl Accessor for GcsBackend {
         let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
         let resp = self.core.gcs_delete_objects(paths.clone()).await?;
 
-        let status = resp.status();
-
         if let StatusCode::OK = status {
             let content_type = parse_content_type(resp.headers())?.ok_or_else(|| {
                 Error::new(

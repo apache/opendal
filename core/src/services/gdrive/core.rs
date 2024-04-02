@@ -308,7 +308,6 @@ impl GdriveSigner {
                 .map_err(new_request_build_error)?;
 
             let (parts, body) = self.client.send(req).await?.into_parts();
-            let status = resp.status();
 
             match status {
                 StatusCode::OK => {
@@ -382,7 +381,6 @@ impl PathQuery for GdrivePathQuery {
         self.signer.lock().await.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {

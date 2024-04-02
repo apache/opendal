@@ -296,8 +296,6 @@ impl Accessor for IpfsBackend {
 
         let resp = self.ipfs_head(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let mut m = Metadata::new(EntryMode::Unknown);

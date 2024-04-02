@@ -199,8 +199,6 @@ impl Accessor for DbfsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self.core.dbfs_create_dir(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {
@@ -217,8 +215,6 @@ impl Accessor for DbfsBackend {
         }
 
         let resp = self.core.dbfs_get_status(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -265,8 +261,6 @@ impl Accessor for DbfsBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.dbfs_delete(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
@@ -286,8 +280,6 @@ impl Accessor for DbfsBackend {
         self.core.dbfs_ensure_parent_path(to).await?;
 
         let resp = self.core.dbfs_rename(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpRename::default()),

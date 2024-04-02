@@ -39,8 +39,6 @@ impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {

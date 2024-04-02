@@ -51,8 +51,6 @@ impl oio::OneShotWrite for YandexDiskWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED => Ok(()),
             _ => {

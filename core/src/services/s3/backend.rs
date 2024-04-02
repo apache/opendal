@@ -1064,8 +1064,6 @@ impl Accessor for S3Backend {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.s3_head_object(path, args).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             _ => {
@@ -1094,8 +1092,6 @@ impl Accessor for S3Backend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.s3_delete_object(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
@@ -1122,8 +1118,6 @@ impl Accessor for S3Backend {
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.s3_copy_object(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
@@ -1177,8 +1171,6 @@ impl Accessor for S3Backend {
         let paths = ops.into_iter().map(|(p, _)| p).collect();
 
         let resp = self.core.s3_delete_objects(paths).await?;
-
-        let status = resp.status();
 
         if let StatusCode::OK = status {
             let bs = resp.into_body();

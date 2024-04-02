@@ -196,8 +196,6 @@ impl DbfsCore {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(resp),
             _ => {

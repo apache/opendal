@@ -284,8 +284,6 @@ impl Accessor for KoofrBackend {
         let path = build_rooted_abs_path(&self.core.root, path);
         let resp = self.core.info(&path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -332,8 +330,6 @@ impl Accessor for KoofrBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.remove(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
@@ -359,8 +355,6 @@ impl Accessor for KoofrBackend {
 
         let resp = self.core.remove(to).await?;
 
-        let status = resp.status();
-
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
             return {
                 let bs = body.to_bytes().await?;
@@ -369,8 +363,6 @@ impl Accessor for KoofrBackend {
         }
 
         let resp = self.core.copy(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),
@@ -390,8 +382,6 @@ impl Accessor for KoofrBackend {
 
         let resp = self.core.remove(to).await?;
 
-        let status = resp.status();
-
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
             return {
                 let bs = body.to_bytes().await?;
@@ -400,8 +390,6 @@ impl Accessor for KoofrBackend {
         }
 
         let resp = self.core.move_object(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpRename::default()),

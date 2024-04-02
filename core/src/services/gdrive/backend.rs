@@ -142,7 +142,7 @@ impl Accessor for GdriveBackend {
         };
 
         let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
+
         if status != StatusCode::OK {
             return {
                 let bs = body.to_bytes().await?;
@@ -180,7 +180,7 @@ impl Accessor for GdriveBackend {
         // copy will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&to_path).await? {
             let resp = self.core.gdrive_trash(&id).await?;
-            let status = resp.status();
+
             if status != StatusCode::OK {
                 return {
                     let bs = body.to_bytes().await?;
@@ -225,7 +225,7 @@ impl Accessor for GdriveBackend {
         // rename will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&target).await? {
             let resp = self.core.gdrive_trash(&id).await?;
-            let status = resp.status();
+
             if status != StatusCode::OK {
                 return {
                     let bs = body.to_bytes().await?;
@@ -240,8 +240,6 @@ impl Accessor for GdriveBackend {
             .core
             .gdrive_patch_metadata_request(&source, &target)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {

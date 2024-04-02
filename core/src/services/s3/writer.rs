@@ -54,8 +54,6 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
@@ -70,8 +68,6 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_initiate_multipart_upload(&self.path, &self.op)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -107,8 +103,6 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())?
@@ -142,8 +136,6 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(()),

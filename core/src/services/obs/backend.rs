@@ -310,8 +310,6 @@ impl Accessor for ObsBackend {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.obs_head_object(path, &args).await?;
 
-        let status = resp.status();
-
         // The response is very similar to azblob.
         match parts.status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
@@ -347,8 +345,6 @@ impl Accessor for ObsBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.obs_delete_object(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 Ok(RpDelete::default())
@@ -367,8 +363,6 @@ impl Accessor for ObsBackend {
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.obs_copy_object(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),

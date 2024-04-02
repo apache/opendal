@@ -100,7 +100,7 @@ impl Accessor for DropboxBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let resp = self.core.dropbox_get_metadata(path).await?;
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK => {
                 let bytes = resp.into_body();
@@ -159,8 +159,6 @@ impl Accessor for DropboxBackend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.dropbox_delete(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),

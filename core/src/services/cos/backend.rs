@@ -315,17 +315,10 @@ impl Accessor for CosBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.cos_head_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .cos_head_object(path, &args)
+            .await
+            .map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -348,19 +341,10 @@ impl Accessor for CosBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.cos_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .cos_delete_object(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -369,17 +353,10 @@ impl Accessor for CosBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.cos_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .cos_copy_object(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -55,8 +55,6 @@ impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self.core.azfile_get_file_properties(&self.path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(parse_content_length(resp.headers())?.unwrap_or_default()),
             _ => {

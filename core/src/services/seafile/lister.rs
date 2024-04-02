@@ -66,8 +66,6 @@ impl oio::PageList for SeafileLister {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let resp_body = resp.into_body();

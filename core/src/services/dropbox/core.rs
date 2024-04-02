@@ -290,7 +290,7 @@ impl DropboxCore {
 
         self.sign(&mut request).await?;
         let resp = self.client.send(request).await?;
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {

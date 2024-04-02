@@ -216,8 +216,6 @@ impl Accessor for VercelBlobBackend {
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.head(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -256,8 +254,6 @@ impl Accessor for VercelBlobBackend {
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.copy(from, to).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpCopy::default()),

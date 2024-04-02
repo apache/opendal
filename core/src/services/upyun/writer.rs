@@ -48,8 +48,6 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {
@@ -64,8 +62,6 @@ impl oio::MultipartWrite for UpyunWriter {
             .core
             .initiate_multipart_upload(&self.path, &self.op)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::NO_CONTENT => {
@@ -98,8 +94,6 @@ impl oio::MultipartWrite for UpyunWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::NO_CONTENT | StatusCode::CREATED => Ok(oio::MultipartPart {
                 part_number,
@@ -117,8 +111,6 @@ impl oio::MultipartWrite for UpyunWriter {
             .core
             .complete_multipart_upload(&self.path, upload_id)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::NO_CONTENT => Ok(()),

@@ -276,8 +276,6 @@ impl Accessor for HuggingfaceBackend {
 
         let resp = self.core.hf_path_info(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;

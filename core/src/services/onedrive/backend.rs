@@ -119,7 +119,6 @@ impl Accessor for OnedriveBackend {
         }
 
         let resp = self.onedrive_get_stat(path).await?;
-        let status = resp.status();
 
         if status.is_success() {
             let bytes = resp.into_body();
@@ -174,8 +173,6 @@ impl Accessor for OnedriveBackend {
     /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.onedrive_delete(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),

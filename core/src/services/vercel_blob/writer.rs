@@ -51,8 +51,6 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {
@@ -67,8 +65,6 @@ impl oio::MultipartWrite for VercelBlobWriter {
             .core
             .initiate_multipart_upload(&self.path, &self.op)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -99,8 +95,6 @@ impl oio::MultipartWrite for VercelBlobWriter {
             .core
             .upload_part(&self.path, upload_id, part_number, size, body)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -134,8 +128,6 @@ impl oio::MultipartWrite for VercelBlobWriter {
             .core
             .complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(()),

@@ -43,7 +43,7 @@ impl oio::OneShotWrite for DropboxWriter {
             .core
             .dropbox_update(&self.path, Some(bs.len()), &self.op, RequestBody::Bytes(bs))
             .await?;
-        let status = resp.status();
+
         match parts.status {
             StatusCode::OK => Ok(()),
             _ => {

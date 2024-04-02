@@ -54,7 +54,6 @@ impl oio::OneShotWrite for DbfsWriter {
 
         let resp = self.core.client.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {

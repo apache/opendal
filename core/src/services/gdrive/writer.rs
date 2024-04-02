@@ -60,7 +60,6 @@ impl oio::OneShotWrite for GdriveWriter {
                 .await
         }?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::OK | StatusCode::CREATED => {
                 // If we don't have the file id before, let's update the cache to avoid re-fetching.

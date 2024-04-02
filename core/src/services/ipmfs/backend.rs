@@ -95,8 +95,6 @@ impl Accessor for IpmfsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self.ipmfs_mkdir(path).await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {
@@ -113,8 +111,6 @@ impl Accessor for IpmfsBackend {
         }
 
         let resp = self.ipmfs_stat(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => {
@@ -157,8 +153,6 @@ impl Accessor for IpmfsBackend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.ipmfs_rm(path).await?;
-
-        let status = resp.status();
 
         match parts.status {
             StatusCode::OK => Ok(RpDelete::default()),

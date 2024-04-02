@@ -85,7 +85,7 @@ impl KoofrCore {
 
                 let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-                let status = resp.status();
+
 
                 if status != StatusCode::OK {
                     return {let bs = body.to_bytes().await?;
@@ -133,7 +133,7 @@ Err(parse_error(parts, bs)?)};
 
         let resp = self.client.send(auth_req).await?;
 
-        let status = resp.status();
+
 
         if status != StatusCode::OK {
             let (parts, body) = resp.into_parts();
@@ -174,7 +174,7 @@ impl KoofrCore {
     pub async fn create_dir(&self, path: &str) -> Result<()> {
         let resp = self.info(path).await?;
 
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::NOT_FOUND => {
@@ -207,7 +207,7 @@ impl KoofrCore {
 
                 let (parts, body) = self.client.send(req).await?.into_parts();
 
-                let status = resp.status();
+
 
                 match status {
                     // When the directory already exists, Koofr returns 400 Bad Request.

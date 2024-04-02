@@ -93,7 +93,7 @@ impl SeafileCore {
                 .map_err(new_request_build_error)?;
 
             let (parts, body) = self.client.send(req).await?.into_parts();
-            let status = resp.status();
+
 
             match status {
                 StatusCode::OK => {
@@ -124,7 +124,7 @@ Err(parse_error(parts, bs)?)};
 
             let (parts, body) = self.client.send(req).await?.into_parts();
 
-            let status = resp.status();
+
 
             match status {
                 StatusCode::OK => {
@@ -174,7 +174,7 @@ impl SeafileCore {
             .map_err(new_request_build_error)?;
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -206,7 +206,7 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -257,7 +257,7 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -289,7 +289,7 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => {
@@ -325,7 +325,7 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::CREATED => Ok(()),
@@ -362,7 +362,7 @@ Err(parse_error(parts, bs)?)},
 
         let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
 
-        let status = resp.status();
+
 
         match parts.status {
             StatusCode::OK => Ok(()),

@@ -49,8 +49,6 @@ impl oio::AppendWrite for AzblobWriter {
             .azblob_get_blob_properties(&self.path, &OpStat::default())
             .await?;
 
-        let status = resp.status();
-
         match parts.status {
             StatusCode::OK => {
                 let headers = resp.headers();
@@ -73,7 +71,6 @@ impl oio::AppendWrite for AzblobWriter {
 
                 let resp = self.core.client.send(req).await?;
 
-                let status = resp.status();
                 match status {
                     StatusCode::CREATED => {
                         // do nothing
@@ -103,7 +100,6 @@ impl oio::AppendWrite for AzblobWriter {
 
         let resp = self.core.send(req).await?;
 
-        let status = resp.status();
         match parts.status {
             StatusCode::CREATED => Ok(()),
             _ => {

@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
-use http::StatusCode;
-
 use super::core::DropboxCore;
-use super::error::parse_error;
 use crate::raw::*;
 
 pub struct DropboxReader {
@@ -44,15 +42,8 @@ impl oio::Read for DropboxReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let resp = self.core.dropbox_get(&self.path, range, &self.op).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .dropbox_get(&self.path, range, &self.op, buf)
+            .await
     }
 }

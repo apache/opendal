@@ -88,55 +88,18 @@ impl Accessor for DropboxBackend {
         // Dropbox has very, very, very strong limitation on the create_folder requests.
         //
         // Let's try our best to make sure it won't failed for rate limited issues.
-        let res = { || self.core.dropbox_create_folder(path) }
+        { || self.core.dropbox_create_folder(path) }
             .retry(&*BACKOFF)
             .when(|e| e.is_temporary())
             .await
             // Set this error to permanent to avoid retrying.
             .map_err(|e| e.set_permanent())?;
 
-        Ok(res)
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.dropbox_get_metadata(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bytes = resp.into_body();
-                let decoded_response: DropboxMetadataResponse =
-                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
-                    "file" => EntryMode::FILE,
-                    "folder" => EntryMode::DIR,
-                    _ => EntryMode::Unknown,
-                };
-
-                let mut metadata = Metadata::new(entry_mode);
-                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
-                // returns last_modified and size only for files.
-                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
-                if entry_mode == EntryMode::FILE {
-                    let date_utc_last_modified =
-                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
-                    metadata.set_last_modified(date_utc_last_modified);
-
-                    if let Some(size) = decoded_response.size {
-                        metadata.set_content_length(size);
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("no size found for file {}", path),
-                        ));
-                    }
-                }
-                Ok(RpStat::new(metadata))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.dropbox_get_metadata(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -158,18 +121,10 @@ impl Accessor for DropboxBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dropbox_delete(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+        self.core
+            .dropbox_delete(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -184,18 +139,7 @@ impl Accessor for DropboxBackend {
 
         let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
 
-        let resp = self.core.dropbox_delete_batch(paths).await?;
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
+        let decoded_response = self.core.dropbox_delete_batch(paths).await?;
         match decoded_response.tag.as_str() {
             "complete" => {
                 let entries = decoded_response.entries.unwrap_or_default();

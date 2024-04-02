@@ -101,11 +101,8 @@ impl DropboxCore {
             .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(request).await?;
-        let body = resp.into_body();
-
-        let token: DropboxTokenResponse =
-            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        let (_, body) = self.client.send(request).await?.into_parts();
+        let token: DropboxTokenResponse = body.to_json().await?;
 
         // Update signer after token refreshed.
         signer.access_token = token.access_token.clone();
@@ -129,7 +126,8 @@ impl DropboxCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -150,7 +148,18 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn dropbox_update(
@@ -159,7 +168,7 @@ impl DropboxCore {
         size: Option<usize>,
         args: &OpWrite,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
         let dropbox_update_args = DropboxUploadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -183,11 +192,21 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
-        let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
+    pub async fn dropbox_delete(&self, path: &str) -> Result<()> {
+        let url = "https://api.dropboxapi.com/2/files/delete_v2 ".to_string();
         let args = DropboxDeleteArgs {
             path: self.build_path(path),
         };
@@ -201,10 +220,24 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => Ok(()),
+            _ => {
+                let bs = body.to_bytes().await?;
+                let err = parse_error(parts, bs).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpDelete::default()),
+                    _ => Err(err),
+                }
+            }
+        }
     }
 
-    pub async fn dropbox_delete_batch(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_delete_batch(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<DropboxDeleteBatchResponse> {
         let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
         let args = DropboxDeleteBatchArgs {
             entries: paths
@@ -224,9 +257,20 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp = body.to_json().await?;
+                Ok(resp)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
+    /// REMOVE ME: duplicated with batch.
     pub async fn dropbox_delete_batch_check(&self, async_job_id: String) -> Result<RpBatch> {
         let url = "https://api.dropboxapi.com/2/files/delete_batch/check".to_string();
         let args = DropboxDeleteBatchCheckArgs { async_job_id };
@@ -241,18 +285,13 @@ impl DropboxCore {
 
         self.sign(&mut request).await?;
 
-        let resp = self.client.send(request).await?;
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        let bs = resp.into_body();
-
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+        let decoded_response: DropboxDeleteBatchResponse = body.to_json().await?;
         match decoded_response.tag.as_str() {
             "in_progress" => Err(Error::new(
                 ErrorKind::Unexpected,
@@ -274,7 +313,7 @@ impl DropboxCore {
         }
     }
 
-    pub async fn dropbox_create_folder(&self, path: &str) -> Result<RpCreateDir> {
+    pub async fn dropbox_create_folder(&self, path: &str) -> Result<()> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
         let args = DropboxCreateFolderArgs {
             path: self.build_path(path),
@@ -289,21 +328,24 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        let resp = self.client.send(request).await?;
-
+        let (parts, body) = self.client.send(request).await?.into_parts();
         match parts.status {
-            StatusCode::OK => Ok(RpCreateDir::default()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
-                let err = parse_error(resp).await?;
+                let bs = body.to_bytes().await?;
+                let err = parse_error(parts, bs)?;
                 match err.kind() {
-                    ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
+                    ErrorKind::AlreadyExists => Ok(()),
                     _ => Err(err),
                 }
             }
         }
     }
 
-    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Metadata> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
             path: self.build_path(path),
@@ -320,7 +362,41 @@ impl DropboxCore {
 
         self.sign(&mut request).await?;
 
-        self.client.send(request).await
+        let (parts, body) = self.client.send(request).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let decoded_response: DropboxMetadataResponse = body.to_json().await?;
+                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
+                    "file" => EntryMode::FILE,
+                    "folder" => EntryMode::DIR,
+                    _ => EntryMode::Unknown,
+                };
+
+                let mut metadata = Metadata::new(entry_mode);
+                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
+                // returns last_modified and size only for files.
+                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+                if entry_mode == EntryMode::FILE {
+                    let date_utc_last_modified =
+                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
+                    metadata.set_last_modified(date_utc_last_modified);
+
+                    if let Some(size) = decoded_response.size {
+                        metadata.set_content_length(size);
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("no size found for file {}", path),
+                        ));
+                    }
+                }
+                Ok(metadata)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn handle_batch_delete_complete_result(

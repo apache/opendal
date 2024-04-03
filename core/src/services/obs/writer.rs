@@ -52,10 +52,13 @@ impl oio::MultipartWrite for ObsWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -64,26 +67,9 @@ impl oio::MultipartWrite for ObsWriter {
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        let resp = self
-            .core
+        self.core
             .obs_initiate_multipart_upload(&self.path, self.op.content_type())
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
-                        .map_err(new_xml_deserialize_error)?;
-
-                Ok(result.upload_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn write_part(
@@ -96,29 +82,12 @@ impl oio::MultipartWrite for ObsWriter {
         // Obs service requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let resp = self
+        let etag = self
             .core
             .obs_upload_part_request(&self.path, upload_id, part_number, Some(size), body)
             .await?;
 
-        match parts.status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
-                Ok(MultipartPart { part_number, etag })
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(MultipartPart { part_number, etag })
     }
 
     async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<()> {
@@ -130,34 +99,15 @@ impl oio::MultipartWrite for ObsWriter {
             })
             .collect();
 
-        let resp = self
-            .core
+        self.core
             .obs_complete_multipart_upload(&self.path, upload_id, parts)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .obs_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // Obs returns code 204 No Content if abort succeeds.
-            // Reference: https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0103.html
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }
 
@@ -166,23 +116,12 @@ impl oio::AppendWrite for ObsWriter {
         let resp = self
             .core
             .obs_head_object(&self.path, &OpStat::default())
-            .await?;
+            .await;
 
-        match parts.status {
-            StatusCode::OK => {
-                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "Content-Length not present in returning response",
-                    )
-                })?;
-                Ok(content_length)
-            }
-            StatusCode::NOT_FOUND => Ok(0),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        match resp {
+            Ok(meta) => Ok(meta.content_length()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(0),
+            Err(err) => Err(err),
         }
     }
 
@@ -193,10 +132,13 @@ impl oio::AppendWrite for ObsWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

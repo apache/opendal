@@ -49,22 +49,10 @@ impl ObsLister {
 
 impl oio::PageList for ObsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .obs_list_objects(&self.path, &ctx.token, self.delimiter, self.limit)
             .await?;
-
-        if resp.status() != http::StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-
-        let output: ListObjectsOutput =
-            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //

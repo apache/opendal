@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -44,21 +45,8 @@ impl oio::Read for ObsReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let resp = self
-            .core
-            .obs_get_object(&self.path, range, &self.op)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                body.consume().await?;
-                Ok(0)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .obs_get_object(&self.path, range, &self.op, buf)
+            .await
     }
 }

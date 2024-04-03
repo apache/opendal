@@ -308,19 +308,10 @@ impl Accessor for ObsBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.obs_head_object(path, &args).await?;
-
-        // The response is very similar to azblob.
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .obs_head_object(path, &args)
+            .await
+            .map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -343,17 +334,10 @@ impl Accessor for ObsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.obs_delete_object(path).await?;
-
-        match parts.status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .obs_delete_object(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -362,15 +346,10 @@ impl Accessor for ObsBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.obs_copy_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .obs_copy_object(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -26,15 +26,17 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Request;
 use http::Response;
+use http::{Request, StatusCode};
 use reqsign::HuaweicloudObsCredential;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::raw::oio::MultipartPart;
 use crate::raw::*;
+use crate::services::obs::error::parse_error;
 use crate::*;
 
 pub struct ObsCore {
@@ -93,11 +95,6 @@ impl ObsCore {
             .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)
     }
-
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
 }
 
 impl ObsCore {
@@ -106,12 +103,24 @@ impl ObsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.obs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn obs_get_object_request(
@@ -174,16 +183,23 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_head_object(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn obs_head_object(&self, path: &str, args: &OpStat) -> Result<Metadata> {
         let mut req = self.obs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok(Metadata::new(EntryMode::DIR)),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn obs_head_object_request(
@@ -215,7 +231,7 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn obs_delete_object(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -229,6 +245,16 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn obs_append_object_request(
@@ -267,7 +293,7 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn obs_copy_object(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -282,6 +308,16 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn obs_list_objects(
@@ -290,7 +326,7 @@ impl ObsCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListObjectsOutput> {
         let p = build_abs_path(&self.root, path);
 
         let mut queries = vec![];
@@ -320,12 +356,20 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let output = body.to_xml().await?;
+        Ok(output)
     }
+
     pub async fn obs_initiate_multipart_upload(
         &self,
         path: &str,
         content_type: Option<&str>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -341,7 +385,18 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: InitiateMultipartUploadResult = body.to_xml().await?;
+                Ok(result.upload_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
+
     pub async fn obs_upload_part_request(
         &self,
         path: &str,
@@ -349,7 +404,7 @@ impl ObsCore {
         part_number: usize,
         size: Option<u64>,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -372,6 +427,24 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let etag = parse_etag(parts.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+
+                Ok(etag)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn obs_complete_multipart_upload(
@@ -379,7 +452,7 @@ impl ObsCore {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}?uploadId={}",
@@ -405,14 +478,20 @@ impl ObsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Abort an on-going multipart upload.
-    pub async fn obs_abort_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn obs_abort_multipart_upload(&self, path: &str, upload_id: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -428,6 +507,18 @@ impl ObsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            // Obs returns code 204 No Content if abort succeeds.
+            // Reference: https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0103.html
+            StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

@@ -39,6 +39,7 @@ pub enum RequestBody {
     Stream(oio::Streamer),
 }
 
+#[must_use]
 pub struct ResponseBody<B: Stream<Item = Result<Bytes>>> {
     inner: B,
     size: Option<usize>,

@@ -236,14 +236,15 @@ impl WebhdfsBackend {
         req.body(RequestBody::Empty)
             .map_err(new_request_build_error)
     }
+
     /// create object
-    pub async fn webhdfs_create_object_request(
+    pub async fn webhdfs_create_object(
         &self,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
         req_body: RequestBody,
-    ) -> Result<Request<RequestBody>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -280,7 +281,17 @@ impl WebhdfsBackend {
         };
         let req = req.body(req_body).map_err(new_request_build_error)?;
 
-        Ok(req)
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn webhdfs_init_append_request(&self, path: &str) -> Result<String> {

@@ -42,17 +42,8 @@ impl VercelArtifactsWriter {
 
 impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self
-            .backend
+        self.backend
             .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, RequestBody::Bytes(bs))
-            .await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }

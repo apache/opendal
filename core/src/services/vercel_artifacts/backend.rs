@@ -70,18 +70,7 @@ impl Accessor for VercelArtifactsBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let res = self.vercel_artifacts_stat(path).await?;
-
-        let status = res.status();
-
-        match parts.status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, res.headers())?;
-                Ok(RpStat::new(meta))
-            }
-
-            _ => Err(parse_error(res).await?),
-        }
+        self.vercel_artifacts_stat(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -109,7 +98,8 @@ impl VercelArtifactsBackend {
         hash: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -129,6 +119,17 @@ impl VercelArtifactsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn vercel_artifacts_put(
@@ -136,7 +137,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -152,9 +153,19 @@ impl VercelArtifactsBackend {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::ACCEPTED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Metadata> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -171,5 +182,15 @@ impl VercelArtifactsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(hash, parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }

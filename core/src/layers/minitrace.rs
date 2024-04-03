@@ -296,7 +296,7 @@ impl<R> MinitraceWrapper<R> {
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        self.inner.read_at(offset, limit).await
+        self.inner.read_at(buf, offset).await
     }
 }
 
@@ -304,7 +304,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
-        self.inner.read_at(offset, limit)
+        self.inner.read_at(buf, offset)
     }
 }
 

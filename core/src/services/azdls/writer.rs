@@ -63,5 +63,6 @@ impl oio::AppendWrite for AzdlsWriter {
 
         self.core
             .azdls_update_request(&self.path, Some(size), offset, body)
+            .await
     }
 }

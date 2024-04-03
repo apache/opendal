@@ -184,14 +184,14 @@ impl<R> ThrottleWrapper<R> {
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read_at(offset, limit).await
+        self.inner.read_at(buf, offset).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read_at(offset, limit)
+        self.inner.read_at(buf, offset)
     }
 }
 

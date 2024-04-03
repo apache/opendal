@@ -345,7 +345,7 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(buf, offset).await {
             Ok(bs) => {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.remaining());
                 Ok(bs)
@@ -363,7 +363,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
         self.inner
-            .read_at(offset, limit)
+            .read_at(buf, offset)
             .map(|bs| {
                 probe_lazy!(
                     opendal,

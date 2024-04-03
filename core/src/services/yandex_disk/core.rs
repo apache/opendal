@@ -262,7 +262,7 @@ impl YandexDiskCore {
         path: &str,
         limit: Option<usize>,
         offset: Option<String>,
-    ) -> Result<Metadata> {
+    ) -> Result<MetainformationResponse> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -291,7 +291,7 @@ impl YandexDiskCore {
         match parts.status {
             StatusCode::OK => {
                 let mf: MetainformationResponse = body.to_json().await?;
-                parse_info(mf)
+                Ok(mf)
             }
             _ => {
                 let bs = body.to_bytes().await?;

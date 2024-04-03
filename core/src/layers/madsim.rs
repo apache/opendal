@@ -265,12 +265,7 @@ pub struct MadsimReader {
 
 impl oio::Read for MadsimReader {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
-        if let Some(ref data) = self.data {
-            let size = min(limit, data.len());
-            Ok(data.clone().split_to(size).into())
-        } else {
-            Ok(oio::Buffer::new())
-        }
+        todo!()
     }
 }
 

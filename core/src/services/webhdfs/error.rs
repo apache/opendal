@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use http::response::Parts;
 use http::Response;
 use http::StatusCode;

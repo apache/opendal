@@ -243,10 +243,8 @@ impl Accessor for YandexDiskBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        self.core
-            .metainformation(path, None, None)
-            .await
-            .map(RpStat::new)
+        let info = self.core.metainformation(path, None, None).await?;
+        parse_info(info).map(RpStat::new)
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

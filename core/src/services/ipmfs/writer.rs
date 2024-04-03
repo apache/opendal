@@ -37,14 +37,6 @@ impl IpmfsWriter {
 
 impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.backend.ipmfs_write(&self.path, bs).await
     }
 }

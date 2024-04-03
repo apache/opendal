@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use std::sync::Arc;
 
 use http::header;
@@ -53,7 +54,7 @@ impl oio::Read for YandexDiskReader {
             .header(header::RANGE, range.to_header())
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,

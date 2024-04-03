@@ -53,14 +53,12 @@ impl oio::OneShotWrite for AzfileWriter {
 
 impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.azfile_get_file_properties(&self.path).await?;
+        let resp = self.core.azfile_get_file_properties(&self.path).await;
 
-        match parts.status {
-            StatusCode::OK => Ok(parse_content_length(resp.headers())?.unwrap_or_default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        match resp {
+            Ok(meta) => Ok(meta.content_length()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(0),
+            Err(err) => Err(err),
         }
     }
 

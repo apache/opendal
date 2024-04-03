@@ -598,7 +598,7 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
             return Ok(oio::Buffer::new());
         }
 
-        self.0.read_at(offset, limit).await
+        self.0.read_at(buf, offset).await
     }
 }
 
@@ -608,7 +608,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
             return Ok(oio::Buffer::new());
         }
 
-        self.0.read_at(offset, limit)
+        self.0.read_at(buf, offset)
     }
 }
 

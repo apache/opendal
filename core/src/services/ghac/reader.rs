@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use http::StatusCode;
 
 use super::error::parse_error;
@@ -43,7 +44,7 @@ impl oio::Read for GhacReader {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         let req = self.core.ghac_get_location(&self.location, range).await?;
-        let resp = self.core.client.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,

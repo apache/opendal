@@ -982,7 +982,7 @@ impl<R> Drop for LoggingReader<R> {
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(buf, offset).await {
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
@@ -1018,7 +1018,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        match self.inner.read_at(offset, limit) {
+        match self.inner.read_at(buf, offset) {
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);

@@ -60,7 +60,7 @@ impl oio::Read for FsReader {
 
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, offset, limit))
+                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, buf, offset))
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
@@ -75,32 +75,6 @@ impl oio::Read for FsReader {
 
 impl oio::BlockingRead for FsReader {
     fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        let mut bs = Vec::with_capacity(limit);
-
-        let buf = bs.spare_capacity_mut();
-        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
-
-        // SAFETY: Read at most `size` bytes into `read_buf`.
-        unsafe {
-            read_buf.assume_init(limit);
-        }
-
-        loop {
-            // If the buffer is full, we are done.
-            if read_buf.initialize_unfilled().is_empty() {
-                break;
-            }
-            let n = self.read_at_inner(read_buf.initialize_unfilled(), offset)?;
-            if n == 0 {
-                break;
-            }
-            read_buf.advance(n);
-            offset += n as u64;
-        }
-
-        // Safety: We make sure that bs contains `n` more bytes.
-        let filled = read_buf.filled().len();
-        unsafe { bs.set_len(filled) }
-        Ok(oio::Buffer::from(bs))
+        self.read_at_inner(buf.as_slice(), offset)
     }
 }

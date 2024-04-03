@@ -52,10 +52,12 @@ impl oio::OneShotWrite for DbfsWriter {
 
         let req = self.core.dbfs_create_file_request(&self.path, bs)?;
 
-        let resp = self.core.client.send(req).await?;
-
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

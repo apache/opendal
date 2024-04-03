@@ -47,47 +47,32 @@ impl oio::AppendWrite for AzblobWriter {
         let resp = self
             .core
             .azblob_get_blob_properties(&self.path, &OpStat::default())
-            .await?;
+            .await;
 
-        match parts.status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
-                if blob_type != Some("AppendBlob") {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "the blob is not an appendable blob.",
-                    ));
-                }
-
-                Ok(parse_content_length(headers)?.unwrap_or_default())
-            }
-            StatusCode::NOT_FOUND => {
+        match resp {
+            Ok(meta) => Ok(meta.content_length()),
+            Err(err) if err.kind() == ErrorKind::NotFound => {
                 let mut req = self
                     .core
                     .azblob_init_appendable_blob_request(&self.path, &self.op)?;
 
                 self.core.sign(&mut req).await?;
 
-                let resp = self.core.client.send(req).await?;
+                let (parts, body) = self.core.client.send(req).await?.into_parts();
 
-                match status {
+                match parts.status {
                     StatusCode::CREATED => {
                         // do nothing
+                        body.consume().await?;
                     }
                     _ => {
-                        return {
-                            let bs = body.to_bytes().await?;
-                            Err(parse_error(parts, bs)?)
-                        };
+                        let bs = body.to_bytes().await?;
+                        return Err(parse_error(parts, bs)?);
                     }
                 }
                 Ok(0)
             }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+            Err(err) => Err(err),
         }
     }
 
@@ -98,10 +83,12 @@ impl oio::AppendWrite for AzblobWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
-
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::CREATED => Ok(()),
+            StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

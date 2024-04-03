@@ -75,10 +75,13 @@ impl oio::OneShotWrite for SeafileWriter {
 
         let req = multipart.apply(req)?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

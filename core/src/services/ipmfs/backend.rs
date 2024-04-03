@@ -284,7 +284,7 @@ impl IpmfsBackend {
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -299,6 +299,16 @@ impl IpmfsBackend {
         let req = multipart.apply(req)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

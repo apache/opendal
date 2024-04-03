@@ -60,16 +60,8 @@ impl Reader {
     /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
-    pub async fn read(
-        &self,
-        buf: &mut impl BufMut,
-        buf: oio::WritableBuf,
-        limit: usize,
-    ) -> Result<usize> {
-        let bs = self.inner.read_at_dyn(offset, limit).await?;
-        let n = bs.remaining();
-        buf.put(bs);
-        Ok(n)
+    pub async fn read(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
+        self.inner.read_at_dyn(buf.into(), offset).await
     }
 
     /// Read given range bytes of data from reader.
@@ -104,7 +96,7 @@ impl Reader {
         loop {
             // TODO: use service preferred io size instead.
             let limit = size.unwrap_or(4 * 1024 * 1024) as usize;
-            let bs = self.inner.read_at_dyn(offset, limit).await?;
+            let bs = self.inner.read_at_dyn(buf.into(), offset).await?;
             let n = bs.remaining();
             read += n;
             buf.put(bs);
@@ -152,7 +144,7 @@ pub mod into_futures_async_read {
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::Buf;
+    use bytes::{Buf, BytesMut};
     use futures::AsyncBufRead;
     use futures::AsyncRead;
     use futures::AsyncSeek;
@@ -173,7 +165,7 @@ pub mod into_futures_async_read {
         cap: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: BytesMut,
     }
 
     enum State {
@@ -198,7 +190,7 @@ pub mod into_futures_async_read {
                 cap: 4 * 1024 * 1024,
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: BytesMut::new(),
             }
         }
 
@@ -227,6 +219,7 @@ pub mod into_futures_async_read {
                         let r = r.take().expect("reader must be present");
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let buf = oio::WritableBuf::from(&mut self.buf);
                         let fut = async move {
                             let res = r.read_at_dyn(next_offset, next_size).await;
                             (r, res)

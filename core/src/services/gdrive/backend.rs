@@ -113,15 +113,7 @@ impl Accessor for GdriveBackend {
             return Ok(RpDelete::default());
         };
 
-        let resp = self.core.gdrive_trash(&file_id).await?;
-
-        if status != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
+        self.core.gdrive_trash(&file_id).await?;
         self.core.path_cache.remove(&path).await;
 
         return Ok(RpDelete::default());
@@ -171,10 +163,13 @@ impl Accessor for GdriveBackend {
             .map_err(new_request_build_error)?;
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.client.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
-        match resp.status() {
-            StatusCode::OK => Ok(RpCopy::default()),
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(RpCopy::default())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -188,15 +183,7 @@ impl Accessor for GdriveBackend {
 
         // rename will overwrite `to`, delete it if exist
         if let Some(id) = self.core.path_cache.get(&target).await? {
-            let resp = self.core.gdrive_trash(&id).await?;
-
-            if status != StatusCode::OK {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                };
-            }
-
+            self.core.gdrive_trash(&id).await?;
             self.core.path_cache.remove(&target).await;
         }
 

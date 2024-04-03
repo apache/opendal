@@ -292,7 +292,7 @@ impl<R> TimeoutWrapper<R> {
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        let fut = self.inner.read_at(offset, limit);
+        let fut = self.inner.read_at(buf, offset);
         Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
     }
 }

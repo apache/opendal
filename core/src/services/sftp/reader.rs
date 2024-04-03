@@ -17,7 +17,7 @@
 
 use std::io::SeekFrom;
 
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use tokio::io::AsyncSeekExt;
 
 use super::backend::SftpBackend;
@@ -38,7 +38,8 @@ impl SftpReader {
 }
 
 impl oio::Read for SftpReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    /// FIXME: we should write into buf directly.
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let client = self.inner.connect().await?;
 
         let mut fs = client.fs();
@@ -58,25 +59,27 @@ impl oio::Read for SftpReader {
             .await
             .map_err(new_std_io_error)?;
 
-        let mut size = limit;
+        let mut size = buf.remaining_mut();
         if size == 0 {
-            return Ok(oio::Buffer::new());
+            return Ok(0);
         }
 
-        let mut buf = BytesMut::with_capacity(limit);
+        let mut bs = BytesMut::with_capacity(buf.remaining_mut());
         while size > 0 {
-            let len = buf.len();
+            let len = bs.len();
             if let Some(bytes) = f
-                .read(size as u32, buf.split_off(len))
+                .read(size as u32, bs.split_off(len))
                 .await
                 .map_err(parse_sftp_error)?
             {
                 size -= bytes.len();
-                buf.unsplit(bytes);
+                bs.unsplit(bytes);
             } else {
                 break;
             }
         }
-        Ok(oio::Buffer::from(buf.freeze()))
+        let n = bs.len();
+        buf.put(bs);
+        Ok(n)
     }
 }

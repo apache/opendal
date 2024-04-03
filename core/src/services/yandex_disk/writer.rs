@@ -49,10 +49,13 @@ impl oio::OneShotWrite for YandexDiskWriter {
             .body(RequestBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::CREATED => Ok(()),
+            StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

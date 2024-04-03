@@ -64,13 +64,11 @@ impl oio::PageList for SeafileLister {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let infos: Vec<Info> = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let infos: Vec<Info> = body.to_json().await?;
 
                 for info in infos {
                     if !info.name.is_empty() {

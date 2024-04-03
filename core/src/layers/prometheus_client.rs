@@ -539,7 +539,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
 
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(buf, offset).await {
             Ok(bs) => {
                 self.metrics
                     .observe_bytes_total(self.scheme, self.op, bs.remaining());
@@ -560,7 +560,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
         self.inner
-            .read_at(offset, limit)
+            .read_at(buf, offset)
             .map(|bs| {
                 self.metrics
                     .observe_bytes_total(self.scheme, self.op, bs.remaining());

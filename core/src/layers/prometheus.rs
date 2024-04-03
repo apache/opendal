@@ -689,7 +689,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             Operation::Read.into_static(),
             &self.path,
         );
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(buf, offset).await {
             Ok(bytes) => {
                 self.stats
                     .bytes_total
@@ -713,7 +713,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             &self.path,
         );
         self.inner
-            .read_at(offset, limit)
+            .read_at(buf, offset)
             .map(|bs| {
                 self.stats
                     .bytes_total

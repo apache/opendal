@@ -57,58 +57,32 @@ impl oio::PageList for YandexDiskLister {
             .metainformation(&self.path, self.limit, offset)
             .await?;
 
-        if resp.status() == http::StatusCode::NOT_FOUND {
-            ctx.done = true;
-            return Ok(());
-        }
+        if let Some(embedded) = resp.embedded {
+            let n = embedded.items.len();
 
-        match resp.status() {
-            http::StatusCode::OK => {
-                let body = resp.into_body();
+            for mf in embedded.items {
+                let path = mf.path.strip_prefix("disk:");
 
-                let resp: MetainformationResponse =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+                if let Some(path) = path {
+                    let mut path = build_rel_path(&self.core.root, path);
 
-                if let Some(embedded) = resp.embedded {
-                    let n = embedded.items.len();
+                    let md = parse_info(mf)?;
 
-                    for mf in embedded.items {
-                        let path = mf.path.strip_prefix("disk:");
-
-                        if let Some(path) = path {
-                            let mut path = build_rel_path(&self.core.root, path);
-
-                            let md = parse_info(mf)?;
-
-                            if md.mode().is_dir() {
-                                path = format!("{}/", path);
-                            }
-
-                            ctx.entries.push_back(Entry::new(&path, md));
-                        };
+                    if md.mode().is_dir() {
+                        path = format!("{}/", path);
                     }
 
-                    let current_len = ctx.token.parse::<usize>().unwrap_or(0) + n;
-
-                    if current_len >= embedded.total {
-                        ctx.done = true;
-                    }
-
-                    ctx.token = current_len.to_string();
-
-                    return Ok(());
-                }
-            }
-            http::StatusCode::NOT_FOUND => {
-                ctx.done = true;
-                return Ok(());
-            }
-            _ => {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
+                    ctx.entries.push_back(Entry::new(&path, md));
                 };
             }
+
+            let current_len = ctx.token.parse::<usize>().unwrap_or(0) + n;
+
+            if current_len >= embedded.total {
+                ctx.done = true;
+            }
+
+            ctx.token = current_len.to_string();
         }
 
         Ok(())

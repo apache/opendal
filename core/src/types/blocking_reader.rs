@@ -58,7 +58,7 @@ impl BlockingReader {
         buf: oio::WritableBuf,
         limit: usize,
     ) -> Result<usize> {
-        let bs = self.inner.read_at(offset, limit)?;
+        let bs = self.inner.read_at(buf, offset)?;
         let n = bs.remaining();
         buf.put(bs);
         Ok(n)

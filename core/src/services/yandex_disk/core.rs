@@ -50,10 +50,6 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-
-    #[inline]
     pub fn sign(&self, req: request::Builder) -> request::Builder {
         req.header(
             header::AUTHORIZATION,
@@ -81,21 +77,16 @@ impl YandexDiskCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let bytes = resp.into_body();
-
-                let resp: GetUploadUrlResponse =
-                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-
+                let resp: GetUploadUrlResponse = body.to_json().await?;
                 Ok(resp.href)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -116,21 +107,16 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let bytes = resp.into_body();
-
-                let resp: GetUploadUrlResponse =
-                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-
+                let resp: GetUploadUrlResponse = body.to_json().await?;
                 Ok(resp.href)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -141,20 +127,12 @@ Err(parse_error(parts, bs)?)},
 
         for i in 0..paths.len() - 1 {
             let path = paths[..i + 1].join("/");
-            let resp = self.create_dir(&path).await?;
-
-
-
-            match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
-            }
+            self.create_dir(&path).await?;
         }
         Ok(())
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn create_dir(&self, path: &str) -> Result<()> {
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path=/{}",
             percent_encode_path(path),
@@ -170,9 +148,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::CONFLICT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -192,9 +180,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<()> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -214,9 +212,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn delete(&self, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -234,6 +242,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK |
+            StatusCode::NO_CONTENT |
+            // Yandex Disk deleting a non-empty folder can take an unknown amount of time,
+            // So the API responds with the code 202 Accepted (the deletion process has started).
+            StatusCode::ACCEPTED|
+            // Allow 404 when deleting a non-existing object
+            StatusCode::NOT_FOUND=> Ok(()),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn metainformation(
@@ -241,7 +262,7 @@ Err(parse_error(parts, bs)?)},
         path: &str,
         limit: Option<usize>,
         offset: Option<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Metadata> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -267,6 +288,16 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let mf: MetainformationResponse = body.to_json().await?;
+                parse_info(mf)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

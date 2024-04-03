@@ -223,29 +223,16 @@ impl Accessor for YandexDiskBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         self.core.ensure_dir_exists(to).await?;
 
-        let resp = self.core.move_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .move_object(from, to)
+            .await
+            .map(|_| RpRename::default())
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         self.core.ensure_dir_exists(to).await?;
 
-        let resp = self.core.copy(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.copy(from, to).await.map(|_| RpCopy::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -256,22 +243,10 @@ impl Accessor for YandexDiskBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.metainformation(path, None, None).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let mf: MetainformationResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                parse_info(mf).map(RpStat::new)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .metainformation(path, None, None)
+            .await
+            .map(RpStat::new)
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -283,21 +258,7 @@ impl Accessor for YandexDiskBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Yandex Disk deleting a non-empty folder can take an unknown amount of time,
-            // So the API responds with the code 202 Accepted (the deletion process has started).
-            StatusCode::ACCEPTED => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

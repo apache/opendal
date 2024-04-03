@@ -58,6 +58,15 @@ impl WritableBuf {
             offset: 0,
         }
     }
+
+    /// Get the slice represents of the buffer.
+    ///
+    /// This op is zero cost.
+    pub fn as_slice(&mut self) -> &mut [u8] {
+        unsafe {
+            std::slice::from_raw_parts_mut(self.ptr.add(self.offset), self.size - self.offset)
+        }
+    }
 }
 
 unsafe impl BufMut for WritableBuf {

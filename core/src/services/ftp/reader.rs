@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use futures::AsyncReadExt;
 
 use super::backend::FtpBackend;
@@ -40,7 +41,7 @@ impl FtpReader {
 }
 
 impl oio::Read for FtpReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         if offset != 0 {
@@ -54,9 +55,8 @@ impl oio::Read for FtpReader {
             .retr_as_stream(&self.path)
             .await
             .map_err(parse_error)?
-            .take(limit as _);
-        let mut bs = Vec::with_capacity(limit);
-        ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
-        Ok(oio::Buffer::from(bs))
+            .take(buf.remaining_mut() as _);
+        let n = ds.read(buf.as_slice()).await.map_err(new_std_io_error)?;
+        Ok(n)
     }
 }

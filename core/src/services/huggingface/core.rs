@@ -18,13 +18,14 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
+use http::{header, StatusCode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
 use crate::raw::*;
+use crate::services::huggingface::error::parse_error;
 use crate::*;
 
 pub struct HuggingfaceCore {
@@ -49,7 +50,7 @@ impl Debug for HuggingfaceCore {
 }
 
 impl HuggingfaceCore {
-    pub async fn hf_path_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn hf_path_info(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -81,9 +82,41 @@ impl HuggingfaceCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let mut meta = parse_into_metadata(path, parts.headers())?;
+
+                let decoded_response: Vec<HuggingfaceStatus> = body.to_json().await?;
+
+                // NOTE: if the file is not found, the server will return 200 with an empty array
+                if let Some(status) = decoded_response.first() {
+                    if let Some(commit_info) = status.last_commit.as_ref() {
+                        meta.set_last_modified(parse_datetime_from_rfc3339(
+                            commit_info.date.as_str(),
+                        )?);
+                    }
+
+                    meta.set_content_length(status.size);
+
+                    match status.type_.as_str() {
+                        "directory" => meta.set_mode(EntryMode::DIR),
+                        "file" => meta.set_mode(EntryMode::FILE),
+                        _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
+                    };
+                } else {
+                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
+                }
+
+                Ok(meta)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<oio::Buffer>> {
+    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Vec<HuggingfaceStatus>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -119,6 +152,13 @@ impl HuggingfaceCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if !parts.status.is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let decoded_response: Vec<HuggingfaceStatus> = body.to_json().await?;
+        Ok(decoded_response)
     }
 
     pub async fn hf_resolve(
@@ -126,7 +166,8 @@ impl HuggingfaceCore {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -162,6 +203,17 @@ impl HuggingfaceCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

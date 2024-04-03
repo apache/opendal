@@ -274,42 +274,7 @@ impl Accessor for HuggingfaceBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.hf_path_info(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body();
-
-                let decoded_response: Vec<HuggingfaceStatus> =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                // NOTE: if the file is not found, the server will return 200 with an empty array
-                if let Some(status) = decoded_response.first() {
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
-                    }
-
-                    meta.set_content_length(status.size);
-
-                    match status.type_.as_str() {
-                        "directory" => meta.set_mode(EntryMode::DIR),
-                        "file" => meta.set_mode(EntryMode::FILE),
-                        _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
-                    };
-                } else {
-                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
-                }
-
-                Ok(RpStat::new(meta))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.hf_path_info(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

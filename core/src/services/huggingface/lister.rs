@@ -43,17 +43,7 @@ impl HuggingfaceLister {
 
 impl oio::PageList for HuggingfaceLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let response = self.core.hf_list(&self.path, self.recursive).await?;
-
-        let status_code = response.status();
-        if !status_code.is_success() {
-            let error = parse_error(response).await?;
-            return Err(error);
-        }
-
-        let bytes = response.into_body();
-        let decoded_response: Vec<HuggingfaceStatus> =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+        let decoded_response = self.core.hf_list(&self.path, self.recursive).await?;
 
         ctx.done = true;
 

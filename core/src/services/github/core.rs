@@ -19,12 +19,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use base64::Engine;
-use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::request;
 use http::Request;
-use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
@@ -59,10 +57,6 @@ impl Debug for GithubCore {
 }
 
 impl GithubCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
         let mut req = req
             .header(header::USER_AGENT, format!("opendal-{}", VERSION))
@@ -90,30 +84,11 @@ impl GithubCore {
             ));
         }
 
-        let resp = self.stat(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => {
-                let headers = resp.headers();
-
-                let sha = parse_etag(headers)?;
-
-                let Some(sha) = sha else {
-                    return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "No ETag found in response headers",
-                    ));
-                };
-
-                Ok(Some(sha.trim_matches('"').to_string()))
-            }
-            StatusCode::NOT_FOUND => Ok(None),
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
-        }
+        let meta = self.stat(path).await??;
+        Ok(meta.etag().map(|v| v.trim_matches('"').to_string()))
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn stat(&self, path: &str) -> Result<Option<Metadata>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -133,9 +108,17 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => parse_into_metadata(&path, parts.headers()).map(Some),
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange, buf: oio::WritableBuf) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -156,9 +139,20 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<()> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);
@@ -192,6 +186,16 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
@@ -224,12 +228,13 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Bytes(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-        match resp.status() {
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
             StatusCode::OK => Ok(()),
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -252,18 +257,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match resp.status() {
+        match parts.status() {
             StatusCode::OK => {
-                let body = resp.into_body();
-                let resp: ListResponse =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-
+                let resp: ListResponse = body.to_json().await?;
                 Ok(resp.entries)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

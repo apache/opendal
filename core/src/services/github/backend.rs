@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -254,32 +255,18 @@ impl Accessor for GithubBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let empty_bytes = bytes::Bytes::new();
-
-        let resp = self
-            .core
-            .upload(&format!("{}.gitkeep", path), empty_bytes)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .upload(&format!("{}.gitkeep", path), Bytes::new())
+            .await
+            .map(|_| RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.stat(path).await?;
+        let Some(meta) = self.core.stat(path).await? else {
+            return Err(Error::new(ErrorKind::NotFound, "file not found"));
+        };
 
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -298,10 +285,7 @@ impl Accessor for GithubBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        match self.core.delete(path).await {
-            Ok(_) => Ok(RpDelete::default()),
-            Err(err) => Err(err),
-        }
+        self.core.delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

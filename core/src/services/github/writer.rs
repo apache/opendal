@@ -40,14 +40,6 @@ impl GithubWriter {
 
 impl oio::OneShotWrite for GithubWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self.core.upload(&self.path, bs).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.upload(&self.path, bs).await
     }
 }

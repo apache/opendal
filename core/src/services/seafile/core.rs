@@ -64,10 +64,6 @@ impl Debug for SeafileCore {
 }
 
 impl SeafileCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-
     /// get auth info
     pub async fn get_auth_info(&self) -> Result<AuthInfo> {
         {
@@ -93,21 +89,19 @@ impl SeafileCore {
 
             let (parts, body) = self.client.send(req).await?.into_parts();
 
-
-            match status {
+            match parts.status {
                 StatusCode::OK => {
-                    let resp_body = resp.into_body();
-                    let auth_response: AuthTokenResponse =
-                        serde_json::from_reader(resp_body.reader())
-                            .map_err(new_json_deserialize_error)?;
+                    let auth_response: AuthTokenResponse = body.to_json().await?;
                     signer.auth_info = AuthInfo {
                         token: auth_response.token,
                         repo_id: "".to_string(),
                     };
                 }
                 _ => {
-                    return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)};
+                    {
+                        let bs = body.to_bytes().await?;
+                        return Err(parse_error(parts, bs)?);
+                    };
                 }
             }
 
@@ -123,14 +117,9 @@ Err(parse_error(parts, bs)?)};
 
             let (parts, body) = self.client.send(req).await?.into_parts();
 
-
-
-            match status {
+            match parts.status {
                 StatusCode::OK => {
-                    let resp_body = resp.into_body();
-                    let list_library_response: Vec<ListLibraryResponse> =
-                        serde_json::from_reader(resp_body.reader())
-                            .map_err(new_json_deserialize_error)?;
+                    let list_library_response: Vec<ListLibraryResponse> = body.to_json().await?;
 
                     for library in list_library_response {
                         if library.name == self.repo_name {
@@ -148,8 +137,10 @@ Err(parse_error(parts, bs)?)};
                     }
                 }
                 _ => {
-                    return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)};
+                    {
+                        let bs = body.to_bytes().await?;
+                        return Err(parse_error(parts, bs)?);
+                    };
                 }
             }
             Ok(signer.auth_info.clone())
@@ -172,18 +163,18 @@ impl SeafileCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let upload_url = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                // FIXME: use to_json here seems incorrect.
+                let upload_url = body.to_json().await?;
                 Ok(upload_url)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -204,19 +195,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let download_url = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
-
+                let download_url = body.to_json().await?;
                 Ok(download_url)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -225,7 +214,8 @@ Err(parse_error(parts, bs)?)},
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let download_url = self.get_download_url(path).await?;
 
         let req = Request::get(download_url);
@@ -236,6 +226,17 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// file detail
@@ -255,18 +256,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let file_detail: FileDetail = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let file_detail: FileDetail = body.to_json().await?;
                 Ok(file_detail)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -287,18 +287,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let dir_detail: DirDetail = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
+                let dir_detail: DirDetail = body.to_json().await?;
                 Ok(dir_detail)
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -323,13 +322,16 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::CREATED => Ok(()),
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
@@ -359,14 +361,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 }

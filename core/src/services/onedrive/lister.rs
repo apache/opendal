@@ -63,24 +63,14 @@ impl oio::PageList for OnedriveLister {
             ctx.token.clone()
         };
 
-        let resp = self
+        let Some(decoded_response) = self
             .backend
             .onedrive_get_next_list_page(&request_url)
-            .await?;
-
-        let status_code = resp.status();
-        if !status_code.is_success() {
-            if status_code == http::StatusCode::NOT_FOUND {
-                ctx.done = true;
-                return Ok(());
-            }
-            let error = parse_error(resp).await?;
-            return Err(error);
-        }
-
-        let bytes = resp.into_body();
-        let decoded_response: GraphApiOnedriveListResponse =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+            .await?
+        else {
+            ctx.done = true;
+            return Ok(());
+        };
 
         if let Some(next_link) = decoded_response.next_link {
             ctx.token = next_link;

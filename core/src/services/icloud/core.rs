@@ -78,6 +78,12 @@ pub struct SessionData {
     docws_url: String,
 }
 
+impl Default for SessionData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionData {
     pub fn new() -> SessionData {
         Self {
@@ -192,9 +198,9 @@ impl IcloudSigner {
         // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
         self.update(&resp)?;
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let auth_info: IcloudWebservicesResponse =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         // Check if we have extra challenge to take.
         if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
@@ -269,7 +275,7 @@ impl IcloudSigner {
     }
 
     /// Update signer's data after request sent out.
-    fn update(&mut self, resp: &Response<IncomingAsyncBody>) -> Result<()> {
+    fn update(&mut self, resp: &Response<oio::Buffer>) -> Result<()> {
         if let Some(account_country) = parse_header_to_str(resp.headers(), ACCOUNT_COUNTRY_HEADER)?
         {
             self.data.account_country = Some(account_country.to_string());
@@ -306,10 +312,7 @@ impl IcloudSigner {
     /// - Init the signer if it's not initiated.
     /// - Sign the request.
     /// - Update the session data if needed.
-    pub async fn send(
-        &mut self,
-        mut req: Request<AsyncBody>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&mut self, mut req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.sign(&mut req)?;
         let resp = self.client.send(req).await?;
 
@@ -359,7 +362,7 @@ impl IcloudCore {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let drive_node: Vec<IcloudRoot> =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
         Ok(drive_node[0].clone())
@@ -369,8 +372,9 @@ impl IcloudCore {
         &self,
         id: &str,
         zone: &str,
+        range: BytesRange,
         args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let mut signer = self.signer.lock().await;
 
         let uri = format!(
@@ -389,7 +393,7 @@ impl IcloudCore {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let object: IcloudObject =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
@@ -401,8 +405,7 @@ impl IcloudCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let range = args.range();
-        if !range.is_full() {
+        if range.is_full() {
             req = req.header(header::RANGE, range.to_header())
         }
         if let Some(if_none_match) = args.if_none_match() {
@@ -418,7 +421,12 @@ impl IcloudCore {
         Ok(resp)
     }
 
-    pub async fn read(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 
@@ -429,7 +437,7 @@ impl IcloudCore {
 
         if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
             Ok(self
-                .get_file(docwsid, "com.apple.CloudDocs", args.clone())
+                .get_file(docwsid, "com.apple.CloudDocs", range, args.clone())
                 .await?)
         } else {
             Err(Error::new(
@@ -516,7 +524,7 @@ impl PathQuery for IcloudPathQuery {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let root: Vec<IcloudRoot> =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
 
@@ -557,16 +565,16 @@ impl PathQuery for IcloudPathQuery {
             return Err(parse_error(resp).await?);
         }
 
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
         let create_folder: IcloudCreateFolder =
             serde_json::from_slice(body.chunk()).map_err(new_json_deserialize_error)?;
         Ok(create_folder.destination_drivews_id)
     }
 }
 
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
     let mut kind = match parts.status.as_u16() {
         421 | 450 | 500 => ErrorKind::NotFound,
@@ -711,9 +719,10 @@ pub struct IcloudCreateFolder {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::IcloudRoot;
     use super::IcloudWebservicesResponse;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_icloud_drive_root_json() {

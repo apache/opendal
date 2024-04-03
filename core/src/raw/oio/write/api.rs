@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
@@ -83,10 +82,16 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
+    ///
+    /// # Safety
+    ///
+    /// - The caller MUST ensure that the buffer is valid before `write` returns `Ready`.
+    /// - The implementor SHOULD NOT store [`oio::ReadableBuf`] in anyways. The buf MUST
+    ///   be passed by or copied out to an owned buffer.
     #[cfg(not(target_arch = "wasm32"))]
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send;
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> impl Future<Output = Result<usize>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>>;
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> impl Future<Output = Result<usize>>;
 
     /// Close the writer and make sure all data has been flushed.
     #[cfg(not(target_arch = "wasm32"))]
@@ -102,7 +107,7 @@ pub trait Write: Unpin + Send + Sync {
 }
 
 impl Write for () {
-    async fn write(&mut self, _: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, _: oio::ReadableBuf) -> Result<usize> {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
@@ -122,7 +127,7 @@ impl Write for () {
 }
 
 pub trait WriteDyn: Unpin + Send + Sync {
-    fn write_dyn(&mut self, bs: Bytes) -> BoxedFuture<Result<usize>>;
+    fn write_dyn(&mut self, bs: oio::ReadableBuf) -> BoxedFuture<Result<usize>>;
 
     fn close_dyn(&mut self) -> BoxedFuture<Result<()>>;
 
@@ -130,8 +135,8 @@ pub trait WriteDyn: Unpin + Send + Sync {
 }
 
 impl<T: Write + ?Sized> WriteDyn for T {
-    fn write_dyn(&mut self, bs: Bytes) -> BoxedFuture<Result<usize>> {
-        Box::pin(self.write(bs))
+    fn write_dyn(&mut self, bs: oio::ReadableBuf) -> BoxedFuture<Result<usize>> {
+        unsafe { Box::pin(self.write(bs)) }
     }
 
     fn close_dyn(&mut self) -> BoxedFuture<Result<()>> {
@@ -144,7 +149,7 @@ impl<T: Write + ?Sized> WriteDyn for T {
 }
 
 impl<T: WriteDyn + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.deref_mut().write_dyn(bs).await
     }
 
@@ -163,14 +168,28 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    fn write(&mut self, bs: Bytes) -> Result<usize>;
+    ///
+    /// # Behavior
+    ///
+    /// - `Ok(n)` means `n` bytes has been written successfully.
+    /// - `Err(err)` means error happens and no bytes has been written.
+    ///
+    /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
+    /// repeatedly until all bytes has been written.
+    ///
+    /// # Safety
+    ///
+    /// - The caller MUST ensure that the buffer is valid before `write` returns `Ready`.
+    /// - The implementor SHOULD NOT store [`oio::ReadableBuf`] in anyways. The buf MUST
+    ///   be passed by or copied out to an owned buffer.
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -188,7 +207,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         (**self).write(bs)
     }
 

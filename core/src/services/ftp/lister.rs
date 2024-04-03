@@ -17,7 +17,6 @@
 
 use std::str;
 use std::str::FromStr;
-
 use std::vec::IntoIter;
 
 use suppaftp::list::File;

@@ -48,7 +48,7 @@ impl Debug for DbfsCore {
 }
 
 impl DbfsCore {
-    pub async fn dbfs_create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dbfs_create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = format!("{}/api/2.0/dbfs/mkdirs", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -69,7 +69,7 @@ impl DbfsCore {
         self.client.send(req).await
     }
 
-    pub async fn dbfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dbfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = format!("{}/api/2.0/dbfs/delete", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -93,7 +93,7 @@ impl DbfsCore {
         self.client.send(req).await
     }
 
-    pub async fn dbfs_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dbfs_rename(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let source = build_rooted_abs_path(&self.root, from);
         let target = build_rooted_abs_path(&self.root, to);
 
@@ -115,7 +115,7 @@ impl DbfsCore {
         self.client.send(req).await
     }
 
-    pub async fn dbfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dbfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -162,7 +162,7 @@ impl DbfsCore {
         path: &str,
         offset: u64,
         length: u64,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -200,7 +200,7 @@ impl DbfsCore {
         }
     }
 
-    pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();

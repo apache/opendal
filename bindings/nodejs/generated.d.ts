@@ -62,12 +62,6 @@ export class Capability {
   get statWithIfNoneMatch(): boolean
   /** If operator supports read. */
   get read(): boolean
-  /** If operator supports seek on returning reader. */
-  get readCanSeek(): boolean
-  /** If operator supports next on returning reader. */
-  get readCanNext(): boolean
-  /** If operator supports read with range. */
-  get readWithRange(): boolean
   /** If operator supports read with if match. */
   get readWithIfMatch(): boolean
   /** If operator supports read with if none match. */
@@ -563,8 +557,6 @@ export class Reader {
    * > &mut self in async napi methods should be marked as unsafe
    *
    * Read bytes from this reader into given buffer.
-   *
-   * TODO: change api into stream based.
    */
   read(buf: Buffer): Promise<bigint>
 }

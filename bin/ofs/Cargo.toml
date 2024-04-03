@@ -36,20 +36,19 @@ env_logger = "0.11.2"
 futures-util = "0.3.30"
 log = "0.4.21"
 opendal = { version = "0.45.1", path = "../../core" }
-tokio = { version = "1.34", features = [
+tokio = { version = "1.37", features = [
   "fs",
   "macros",
   "rt-multi-thread",
   "io-std",
+  "signal",
 ] }
 url = "2.5.0"
 chrono = "0.4.34"
 sharded-slab = "0.1.7"
 bytes = "1.5.0"
-
-[target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.151"
-fuse3 = { "version" = "0.6.1", "features" = ["tokio-runtime", "unprivileged"] }
+fuse3 = { "version" = "0.7.1", "features" = ["tokio-runtime", "unprivileged"] }
 nix = { version = "0.27.1", features = ["user"] }
 
 [features]

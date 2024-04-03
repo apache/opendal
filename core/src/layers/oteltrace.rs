@@ -16,10 +16,8 @@
 // under the License.
 
 use std::future::Future;
-use std::io;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
@@ -277,27 +275,19 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit)
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit)
     }
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> impl Future<Output = Result<usize>> + Send {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> impl Future<Output = Result<usize>> + Send {
         self.inner.write(bs)
     }
 
@@ -311,7 +301,7 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

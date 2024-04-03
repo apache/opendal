@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
@@ -35,9 +36,9 @@ struct SupabaseError {
 }
 
 /// Parse the supabase error type to the OpenDAL error type
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
     // Check HTTP status code first/
     let (mut kind, mut retryable) = match parts.status.as_u16() {

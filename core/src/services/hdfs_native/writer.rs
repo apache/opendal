@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-
 use hdfs_native::file::FileWriter;
 
 use crate::raw::oio;
-
 use crate::*;
 
 pub struct HdfsNativeWriter {
@@ -34,7 +31,7 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, _bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, _bs: oio::ReadableBuf) -> Result<usize> {
         todo!()
     }
 

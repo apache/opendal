@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
@@ -56,10 +57,7 @@ impl oio::MultipartWrite for S3Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -74,11 +72,10 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
-                        .map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
                 Ok(result.upload_id)
             }
@@ -117,8 +114,6 @@ impl oio::MultipartWrite for S3Writer {
                     })?
                     .to_string();
 
-                resp.into_body().consume().await?;
-
                 Ok(oio::MultipartPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
@@ -142,11 +137,7 @@ impl oio::MultipartWrite for S3Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -158,10 +149,7 @@ impl oio::MultipartWrite for S3Writer {
             .await?;
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

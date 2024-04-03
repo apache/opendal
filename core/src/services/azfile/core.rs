@@ -93,7 +93,7 @@ impl AzfileCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -101,7 +101,7 @@ impl AzfileCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -114,16 +114,6 @@ impl AzfileCore {
         let mut req = Request::get(&url);
 
         if !range.is_full() {
-            // azfile doesn't support read with suffix range.
-            //
-            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-file-service-operations
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
             req = req.header(RANGE, range.to_header());
         }
 
@@ -139,7 +129,7 @@ impl AzfileCore {
         path: &str,
         size: usize,
         args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -182,7 +172,7 @@ impl AzfileCore {
         size: u64,
         position: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -210,10 +200,7 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_get_file_properties(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_get_file_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
@@ -234,7 +221,7 @@ impl AzfileCore {
     pub async fn azfile_get_directory_properties(
         &self,
         path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -253,11 +240,7 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_rename(
-        &self,
-        path: &str,
-        new_path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_rename(&self, path: &str, new_path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -309,7 +292,7 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -332,7 +315,7 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -353,7 +336,7 @@ impl AzfileCore {
         self.send(req).await
     }
 
-    pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -379,7 +362,7 @@ impl AzfileCore {
         path: &str,
         limit: &Option<usize>,
         continuation: &String,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();

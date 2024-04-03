@@ -34,7 +34,14 @@ pub fn parse_sftp_error(e: SftpClientError) -> Error {
         _ => ErrorKind::Unexpected,
     };
 
-    Error::new(kind, "sftp error").set_source(e)
+    let mut err = Error::new(kind, "sftp error").set_source(e);
+
+    // Mark error as temporary if it's unexpected.
+    if kind == ErrorKind::Unexpected {
+        err = err.set_temporary();
+    }
+
+    err
 }
 
 pub fn parse_ssh_error(e: SshError) -> Error {

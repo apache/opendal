@@ -34,6 +34,7 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
+use crate::services::azdls::reader::AzdlsReader;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -245,7 +246,7 @@ pub struct AzdlsBackend {
 
 #[async_trait]
 impl Accessor for AzdlsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = AzdlsReader;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type BlockingReader = ();
@@ -261,8 +262,6 @@ impl Accessor for AzdlsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_append: true,
@@ -293,10 +292,7 @@ impl Accessor for AzdlsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -348,25 +344,10 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            AzdlsReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -400,9 +381,7 @@ impl Accessor for AzdlsBackend {
         if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
             let status = resp.status();
             match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::CREATED | StatusCode::CONFLICT => {}
                 _ => return Err(parse_error(resp).await?),
             }
         }
@@ -412,10 +391,7 @@ impl Accessor for AzdlsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

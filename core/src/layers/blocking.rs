@@ -16,9 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes;
-use bytes::Bytes;
-
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -288,17 +285,13 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.handle.block_on(self.inner.read(limit))
-    }
-
-    fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
-        self.handle.block_on(self.inner.seek(pos))
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.handle.block_on(self.inner.read_at(offset, limit))
     }
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.handle.block_on(self.inner.write(bs))
     }
 

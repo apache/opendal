@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -30,6 +31,7 @@ use super::core::ChainsafeCore;
 use super::core::ObjectInfoResponse;
 use super::error::parse_error;
 use super::lister::ChainsafeLister;
+use super::reader::ChainsafeReader;
 use super::writer::ChainsafeWriter;
 use super::writer::ChainsafeWriters;
 use crate::raw::*;
@@ -203,16 +205,11 @@ pub struct ChainsafeBackend {
 
 #[async_trait]
 impl Accessor for ChainsafeBackend {
-    type Reader = IncomingAsyncBody;
-
+    type Reader = ChainsafeReader;
     type Writer = ChainsafeWriters;
-
     type Lister = oio::PageLister<ChainsafeLister>;
-
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -258,32 +255,21 @@ impl Accessor for ChainsafeBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let output: ObjectInfoResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(RpStat::new(parse_info(output.content)))
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            ChainsafeReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

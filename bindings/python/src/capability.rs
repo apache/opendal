@@ -30,12 +30,6 @@ pub struct Capability {
 
     /// If operator supports read.
     pub read: bool,
-    /// If operator supports seek on returning reader.
-    pub read_can_seek: bool,
-    /// If operator supports next on returning reader.
-    pub read_can_next: bool,
-    /// If operator supports read with range.
-    pub read_with_range: bool,
     /// If operator supports read with if match.
     pub read_with_if_match: bool,
     /// If operator supports read with if none match.
@@ -126,9 +120,6 @@ impl Capability {
             stat_with_if_match: capability.stat_with_if_match,
             stat_with_if_none_match: capability.stat_with_if_none_match,
             read: capability.read,
-            read_can_seek: capability.read_can_seek,
-            read_can_next: capability.read_can_next,
-            read_with_range: capability.read_with_range,
             read_with_if_match: capability.read_with_if_match,
             read_with_if_none_match: capability.read_with_if_none_match,
             read_with_override_cache_control: capability.read_with_override_cache_control,

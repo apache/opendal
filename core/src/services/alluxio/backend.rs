@@ -29,6 +29,7 @@ use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
+use crate::services::alluxio::reader::AlluxioReader;
 use crate::*;
 
 /// Config for alluxio services support.
@@ -181,7 +182,7 @@ pub struct AlluxioBackend {
 
 #[async_trait]
 impl Accessor for AlluxioBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = AlluxioReader;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type BlockingReader = ();
@@ -195,7 +196,11 @@ impl Accessor for AlluxioBackend {
             .set_native_capability(Capability {
                 stat: true,
 
-                read: true,
+                // FIXME:
+                //
+                // alluxio's read support is not implemented correctly
+                // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+                read: false,
 
                 write: true,
                 write_can_multi: true,
@@ -225,10 +230,8 @@ impl Accessor for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let stream_id = self.core.open_file(path).await?;
 
-        let resp = self.core.read(stream_id, args.range()).await?;
-
-        let size = parse_content_length(resp.headers())?;
-        Ok((RpRead::new().with_size(size), resp.into_body()))
+        let r = AlluxioReader::new(self.core.clone(), stream_id, args.clone());
+        Ok((RpRead::new(), r))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;
@@ -76,9 +78,9 @@ impl oio::PageList for OnedriveLister {
             return Err(error);
         }
 
-        let bytes = resp.into_body().bytes().await?;
-        let decoded_response = serde_json::from_slice::<GraphApiOnedriveListResponse>(&bytes)
-            .map_err(new_json_deserialize_error)?;
+        let bytes = resp.into_body();
+        let decoded_response: GraphApiOnedriveListResponse =
+            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(next_link) = decoded_response.next_link {
             ctx.token = next_link;

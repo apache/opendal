@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+
 use super::core::parse_info;
 use super::core::MetainformationResponse;
 use super::core::YandexDiskCore;
@@ -62,10 +64,10 @@ impl oio::PageList for YandexDiskLister {
 
         match resp.status() {
             http::StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
 
                 let resp: MetainformationResponse =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 if let Some(embedded) = resp.embedded {
                     let n = embedded.items.len();

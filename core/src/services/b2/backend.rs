@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::Request;
 use http::StatusCode;
 use log::debug;
@@ -37,6 +38,7 @@ use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::b2::core::B2Signer;
 use crate::services::b2::core::ListFileNamesResponse;
+use crate::services::b2::reader::B2Reader;
 use crate::*;
 
 /// Config for backblaze b2 services support.
@@ -267,7 +269,7 @@ pub struct B2Backend {
 
 #[async_trait]
 impl Accessor for B2Backend {
-    type Reader = IncomingAsyncBody;
+    type Reader = B2Reader;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type BlockingReader = ();
@@ -282,8 +284,6 @@ impl Accessor for B2Backend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_empty: true,
@@ -339,10 +339,10 @@ impl Accessor for B2Backend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: ListFileNamesResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 if resp.files.is_empty() {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
@@ -354,25 +354,10 @@ impl Accessor for B2Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_file_by_name(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            B2Reader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -426,10 +411,10 @@ impl Accessor for B2Backend {
 
         let source_file_id = match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
                 let resp: ListFileNamesResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 if resp.files.is_empty() {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
@@ -459,7 +444,7 @@ impl Accessor for B2Backend {
             PresignOperation::Stat(_) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, &OpRead::default(), args.expire())
+                    .get_download_authorization(path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 
@@ -485,10 +470,10 @@ impl Accessor for B2Backend {
                     parts.headers,
                 )))
             }
-            PresignOperation::Read(op) => {
+            PresignOperation::Read(_) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, op, args.expire())
+                    .get_download_authorization(path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
@@ -45,8 +46,8 @@ impl oio::PageList for WebhdfsLister {
                 StatusCode::OK => {
                     ctx.done = true;
 
-                    let bs = resp.into_body().bytes().await?;
-                    serde_json::from_slice::<FileStatusesWrapper>(&bs)
+                    let bs = resp.into_body();
+                    serde_json::from_reader::<_, FileStatusesWrapper>(bs.reader())
                         .map_err(new_json_deserialize_error)?
                         .file_statuses
                         .file_status
@@ -64,10 +65,10 @@ impl oio::PageList for WebhdfsLister {
                 .await?;
             match resp.status() {
                 StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-                    let directory_listing = serde_json::from_slice::<DirectoryListingWrapper>(&bs)
-                        .map_err(new_json_deserialize_error)?
-                        .directory_listing;
+                    let bs = resp.into_body();
+                    let res: DirectoryListingWrapper =
+                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    let directory_listing = res.directory_listing;
                     let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
 
                     if directory_listing.remaining_entries == 0 {

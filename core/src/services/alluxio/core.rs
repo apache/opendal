@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use http::header::RANGE;
+use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -155,9 +155,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let steam_id: u64 =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
             _ => Err(parse_error(resp).await?),
@@ -181,9 +181,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let steam_id: u64 =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
             _ => Err(parse_error(resp).await?),
@@ -261,9 +261,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let file_info: FileInfo =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(file_info)
             }
             _ => Err(parse_error(resp).await?),
@@ -289,36 +289,23 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let file_infos: Vec<FileInfo> =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
                 Ok(file_infos)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    pub async fn read(
-        &self,
-        stream_id: u64,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::post(format!(
+    /// TODO: we should implement range support correctly.
+    ///
+    /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<oio::Buffer>> {
+        let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
-            self.endpoint, stream_id
+            self.endpoint, stream_id,
         ));
-
-        if !range.is_full() {
-            // alluxio doesn't support read with suffix range.
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
-            req = req.header(RANGE, range.to_header());
-        }
 
         let req = req
             .body(AsyncBody::Empty)
@@ -340,9 +327,9 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let size: usize =
-                    serde_json::from_slice(&body).map_err(new_json_serialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(size)
             }
             _ => Err(parse_error(resp).await?),

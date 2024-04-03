@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use bytes::Buf;
 use http::header;
 use http::request;
 use http::Request;
@@ -49,7 +50,7 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -87,10 +88,10 @@ impl YandexDiskCore {
 
         match status {
             StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
+                let bytes = resp.into_body();
 
                 let resp: GetUploadUrlResponse =
-                    serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.href)
             }
@@ -121,10 +122,10 @@ impl YandexDiskCore {
 
         match status {
             StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
+                let bytes = resp.into_body();
 
                 let resp: GetUploadUrlResponse =
-                    serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.href)
             }
@@ -144,16 +145,14 @@ impl YandexDiskCore {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::CONFLICT => {
-                    resp.into_body().consume().await?;
-                }
+                StatusCode::CREATED | StatusCode::CONFLICT => {}
                 _ => return Err(parse_error(resp).await?),
             }
         }
         Ok(())
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path=/{}",
             percent_encode_path(path),
@@ -171,7 +170,7 @@ impl YandexDiskCore {
         self.send(req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -193,7 +192,7 @@ impl YandexDiskCore {
         self.send(req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -215,7 +214,7 @@ impl YandexDiskCore {
         self.send(req).await
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -240,7 +239,7 @@ impl YandexDiskCore {
         path: &str,
         limit: Option<usize>,
         offset: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(

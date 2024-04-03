@@ -56,10 +56,8 @@ let test_operator_reader test_ctxt =
     (test_check_result
        (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
   let reader = Operator.reader bo "tempfile" |> test_check_result in
-  let s = Operator.Reader.seek reader 5L SEEK_CUR |> test_check_result in
-  assert_equal 5 (Int64.to_int s);
   let data = Bytes.create 5 in
-  let i = Operator.Reader.read reader data |> test_check_result in
+  let i = Operator.Reader.pread reader data 5L |> test_check_result in
   assert_equal 5 i;
   assert_equal "world" (Bytes.to_string data)
 

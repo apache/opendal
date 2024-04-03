@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::InitiateMultipartUploadResponse;
@@ -53,10 +54,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -71,10 +69,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
-                let resp = serde_json::from_slice::<InitiateMultipartUploadResponse>(&bs)
-                    .map_err(new_json_deserialize_error)?;
+                let resp: InitiateMultipartUploadResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.upload_id)
             }
@@ -100,10 +98,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
-                let resp = serde_json::from_slice::<UploadPartResponse>(&bs)
-                    .map_err(new_json_deserialize_error)?;
+                let resp: UploadPartResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(oio::MultipartPart {
                     part_number,
@@ -131,11 +129,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

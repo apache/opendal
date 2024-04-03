@@ -17,8 +17,6 @@
 
 use std::future::Future;
 
-use bytes::Bytes;
-
 use crate::raw::*;
 use crate::*;
 
@@ -88,7 +86,7 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let offset = match self.offset {
             Some(offset) => offset,
             None => {
@@ -100,7 +98,7 @@ where
 
         let size = bs.len();
         self.inner
-            .append(offset, size as u64, AsyncBody::Bytes(bs))
+            .append(offset, size as u64, AsyncBody::Bytes(bs.to_bytes()))
             .await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);

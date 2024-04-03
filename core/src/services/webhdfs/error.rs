@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::response::Parts;
 use http::Response;
 use http::StatusCode;
@@ -39,9 +40,9 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }
@@ -79,7 +80,6 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-    use futures::stream;
     use serde_json::from_reader;
 
     use super::*;
@@ -99,10 +99,7 @@ mod tests {
 }
     "#,
         );
-        let body = IncomingAsyncBody::new(
-            Box::new(oio::into_stream(stream::iter(vec![Ok(ill_args.clone())]))),
-            None,
-        );
+        let body = oio::Buffer::from(ill_args.clone());
         let resp = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(body)

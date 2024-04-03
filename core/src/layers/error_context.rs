@@ -18,10 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use std::io::SeekFrom;
-
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;
@@ -93,8 +90,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let br = args.range();
-
         self.inner
             .read(path, args)
             .map_ok(|(rp, r)| {
@@ -111,7 +106,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 err.with_operation(Operation::Read)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
-                    .with_context("range", br.to_string())
             })
             .await
     }
@@ -348,45 +342,31 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).await.map_err(|err| {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).await.map_err(|err| {
             err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-        })
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).await.map_err(|err| {
-            err.with_operation(ReadOperation::Seek)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
+                .with_context("offset", offset.to_string())
+                .with_context("limit", limit.to_string())
         })
     }
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        self.inner.read(limit).map_err(|err| {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        self.inner.read_at(offset, limit).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("offset", offset.to_string())
                 .with_context("limit", limit.to_string())
-        })
-    }
-
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner.seek(pos).map_err(|err| {
-            err.with_operation(ReadOperation::BlockingSeek)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context("seek", format!("{pos:?}"))
         })
     }
 }
 
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs.clone()).await.map_err(|err| {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
@@ -413,7 +393,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         self.inner.write(bs.clone()).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
                 .with_context("service", self.scheme)

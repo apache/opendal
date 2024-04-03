@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-
-use std::io;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
@@ -284,14 +284,11 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} range={} -> started",
+            "service={} operation={} path={} -> started",
             self.ctx.scheme,
             Operation::Read,
             path,
-            args.range()
         );
-
-        let range = args.range();
 
         self.inner
             .read(path, args)
@@ -299,11 +296,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, r)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} range={} -> got reader",
+                    "service={} operation={} path={} -> got reader",
                     self.ctx.scheme,
                     Operation::Read,
                     path,
-                    range
                 );
                 (
                     rp,
@@ -315,11 +311,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}",
+                        "service={} operation={} path={} -> {}",
                         self.ctx.scheme,
                         Operation::Read,
                         path,
-                        range,
                         self.ctx.error_print(&err)
                     )
                 }
@@ -683,11 +678,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} range={} -> started",
+            "service={} operation={} path={} -> started",
             self.ctx.scheme,
             Operation::BlockingRead,
             path,
-            args.range(),
         );
 
         self.inner
@@ -695,11 +689,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, r)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} range={} -> got reader",
+                    "service={} operation={} path={} -> got reader",
                     self.ctx.scheme,
                     Operation::BlockingRead,
                     path,
-                    args.range(),
                 );
                 let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
                 (rp, r)
@@ -709,11 +702,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}",
+                        "service={} operation={} path={} -> {}",
                         self.ctx.scheme,
                         Operation::BlockingRead,
                         path,
-                        args.range(),
                         self.ctx.error_print(&err)
                     );
                 }
@@ -958,7 +950,7 @@ pub struct LoggingReader<R> {
     path: String,
     op: Operation,
 
-    read: u64,
+    read: AtomicU64,
     inner: R,
 }
 
@@ -969,7 +961,7 @@ impl<R> LoggingReader<R> {
             op,
             path: path.to_string(),
 
-            read: 0,
+            read: AtomicU64::new(0),
             inner: reader,
         }
     }
@@ -983,24 +975,25 @@ impl<R> Drop for LoggingReader<R> {
             self.ctx.scheme,
             self.op,
             self.path,
-            self.read
+            self.read.load(Ordering::Relaxed)
         );
     }
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self.inner.read(limit).await {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        match self.inner.read_at(offset, limit).await {
             Ok(bs) => {
-                self.read += bs.len() as u64;
+                self.read
+                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> next returns {}B",
+                    "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
                     ReadOperation::Read,
                     self.path,
-                    self.read,
-                    bs.len()
+                    self.read.load(Ordering::Relaxed),
+                    bs.remaining()
                 );
                 Ok(bs)
             }
@@ -1009,42 +1002,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> next failed: {}",
+                        "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
                         ReadOperation::Read,
                         self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        match self.inner.seek(pos).await {
-            Ok(n) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> seek to {pos:?}, current offset {n}",
-                    self.ctx.scheme,
-                    ReadOperation::Seek,
-                    self.path,
-                    self.read,
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> seek to {pos:?} failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::Seek,
-                        self.path,
-                        self.read,
+                        self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
                     )
                 }
@@ -1055,18 +1017,19 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
-    fn read(&mut self, limit: usize) -> Result<Bytes> {
-        match self.inner.read(limit) {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+        match self.inner.read_at(offset, limit) {
             Ok(bs) => {
-                self.read += bs.len() as u64;
+                self.read
+                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data read {}B",
+                    "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
                     ReadOperation::BlockingRead,
                     self.path,
-                    self.read,
-                    bs.len()
+                    self.read.load(Ordering::Relaxed),
+                    bs.remaining()
                 );
                 Ok(bs)
             }
@@ -1075,43 +1038,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
+                        "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
                         ReadOperation::BlockingRead,
                         self.path,
-                        self.read,
-                        self.ctx.error_print(&err),
-                    );
-                }
-                Err(err)
-            }
-        }
-    }
-
-    #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        match self.inner.seek(pos) {
-            Ok(n) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> data seek to offset {n}",
-                    self.ctx.scheme,
-                    ReadOperation::BlockingSeek,
-                    self.path,
-                    self.read,
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::BlockingSeek,
-                        self.path,
-                        self.read,
+                        self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
                     );
                 }
@@ -1144,7 +1075,7 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self.inner.write(bs.clone()).await {
             Ok(n) => {
                 self.written += n as u64;
@@ -1242,7 +1173,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;

@@ -34,6 +34,7 @@ use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
 use crate::services::azfile::lister::AzfileLister;
+use crate::services::azfile::reader::AzfileReader;
 use crate::*;
 
 /// Default endpoint of Azure File services.
@@ -266,7 +267,7 @@ pub struct AzfileBackend {
 
 #[async_trait]
 impl Accessor for AzfileBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = AzfileReader;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type BlockingReader = ();
@@ -281,8 +282,6 @@ impl Accessor for AzfileBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 create_dir: true,
@@ -303,10 +302,7 @@ impl Accessor for AzfileBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
+            StatusCode::CREATED => Ok(RpCreateDir::default()),
             _ => {
                 // we cannot just check status code because 409 Conflict has two meaning:
                 // 1. If a directory by the same name is being deleted when Create Directory is called, the server returns status code 409 (Conflict)
@@ -346,25 +342,10 @@ impl Accessor for AzfileBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azfile_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            AzfileReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -387,10 +368,7 @@ impl Accessor for AzfileBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                resp.into_body().consume().await?;
-                Ok(RpDelete::default())
-            }
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -406,10 +384,7 @@ impl Accessor for AzfileBackend {
         let resp = self.core.azfile_rename(from, to).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

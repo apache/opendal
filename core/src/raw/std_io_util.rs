@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
 use std::io;
+
+use crate::*;
 
 /// Parse std io error into opendal::Error.
 ///

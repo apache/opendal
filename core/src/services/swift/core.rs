@@ -44,7 +44,7 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn swift_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -71,7 +71,7 @@ impl SwiftCore {
         delimiter: &str,
         limit: Option<usize>,
         marker: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
@@ -107,7 +107,7 @@ impl SwiftCore {
         path: &str,
         length: u64,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -127,9 +127,12 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_read(&self, path: &str, arg: OpRead) -> Result<Response<IncomingAsyncBody>> {
-        let range = arg.range();
-
+    pub async fn swift_read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        _arg: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -146,7 +149,7 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
 
         if !range.is_full() {
-            req = req.header("Range", &range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req
@@ -156,11 +159,7 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_copy(
-        &self,
-        src_p: &str,
-        dst_p: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<oio::Buffer>> {
         // NOTE: current implementation is limited to same container and root
 
         let src_p = format!(
@@ -197,7 +196,7 @@ impl SwiftCore {
         self.client.send(req).await
     }
 
-    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

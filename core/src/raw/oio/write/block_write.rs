@@ -17,7 +17,6 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-
 use std::task::Context;
 use std::task::Poll;
 
@@ -184,12 +183,12 @@ impl<W> oio::Write for BlockWriter<W>
 where
     W: BlockWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         loop {
             if self.futures.has_remaining() {
                 // Fill cache with the first write.
                 if self.cache.is_none() {
-                    let size = self.fill_cache(bs);
+                    let size = self.fill_cache(bs.to_bytes());
                     return Ok(size);
                 }
 
@@ -200,7 +199,7 @@ where
                     cache,
                 ));
 
-                let size = self.fill_cache(bs);
+                let size = self.fill_cache(bs.to_bytes());
                 return Ok(size);
             } else if let Some(res) = self.futures.next().await {
                 match res {
@@ -364,7 +363,7 @@ mod tests {
             expected_content.extend_from_slice(&bs);
 
             loop {
-                match w.write(Bytes::copy_from_slice(&bs)).await {
+                match unsafe { w.write(bs.clone().into()).await } {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

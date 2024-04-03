@@ -21,4 +21,5 @@ pub use backend::ObsBuilder as Obs;
 mod core;
 mod error;
 mod lister;
+mod reader;
 mod writer;

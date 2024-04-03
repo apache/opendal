@@ -24,7 +24,7 @@ import lombok.Data;
 @Data
 public class Capability {
     /**
-     *  If operator supports stat.
+     * If operator supports stat.
      */
     public final boolean stat;
 
@@ -42,21 +42,6 @@ public class Capability {
      * If operator supports read.
      */
     public final boolean read;
-
-    /**
-     * If operator supports seek on returning reader.
-     */
-    public final boolean readCanSeek;
-
-    /**
-     * If operator supports next on returning reader.
-     */
-    public final boolean readCanNext;
-
-    /**
-     * If operator supports read with range.
-     */
-    public final boolean readWithRange;
 
     /**
      * If operator supports read with if matched.
@@ -216,9 +201,6 @@ public class Capability {
             boolean statWithIfMatch,
             boolean statWithIfNoneMatch,
             boolean read,
-            boolean readCanSeek,
-            boolean readCanNext,
-            boolean readWithRange,
             boolean readWithIfMatch,
             boolean readWithIfNoneMatch,
             boolean readWithOverrideCacheControl,
@@ -253,9 +235,6 @@ public class Capability {
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
         this.read = read;
-        this.readCanSeek = readCanSeek;
-        this.readCanNext = readCanNext;
-        this.readWithRange = readWithRange;
         this.readWithIfMatch = readWithIfMatch;
         this.readWithIfNoneMatch = readWithIfNoneMatch;
         this.readWithOverrideCacheControl = readWithOverrideCacheControl;

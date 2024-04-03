@@ -31,6 +31,7 @@ use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
+use crate::services::github::reader::GithubReader;
 use crate::*;
 
 /// Config for backblaze Github services support.
@@ -44,8 +45,10 @@ pub struct GithubConfig {
     pub root: Option<String>,
     /// Github access_token.
     ///
-    /// required.
-    pub token: String,
+    /// optional.
+    /// If not provided, the backend will only support read operations for public repositories.
+    /// And rate limit will be limited to 60 requests per hour.
+    pub token: Option<String>,
     /// Github repo owner.
     ///
     /// required.
@@ -104,7 +107,7 @@ impl GithubBuilder {
     ///
     /// required.
     pub fn token(&mut self, token: &str) -> &mut Self {
-        self.config.token = token.to_string();
+        self.config.token = Some(token.to_string());
 
         self
     }
@@ -167,13 +170,6 @@ impl Builder for GithubBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        // Handle token.
-        if self.config.token.is_empty() {
-            return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
-        }
-
         // Handle owner.
         if self.config.owner.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "owner is empty")
@@ -221,7 +217,7 @@ pub struct GithubBackend {
 
 #[async_trait]
 impl Accessor for GithubBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = GithubReader;
 
     type Writer = GithubWriters;
 
@@ -284,22 +280,11 @@ impl Accessor for GithubBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.get(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            GithubReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
 use std::sync::Arc;
 
 use base64::engine::general_purpose;
@@ -24,6 +23,7 @@ use bytes::Bytes;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
+use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -35,24 +35,16 @@ use crate::*;
 pub struct DbfsReader {
     core: Arc<DbfsCore>,
     path: String,
-    offset: u64,
     has_filled: u64,
 }
 
 impl DbfsReader {
-    pub fn new(core: Arc<DbfsCore>, op: OpRead, path: String) -> Self {
+    pub fn new(core: Arc<DbfsCore>, path: String) -> Self {
         DbfsReader {
             core,
             path,
-            offset: op.range().offset().unwrap_or(0),
             has_filled: 0,
         }
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    fn set_offset(&mut self, offset: u64) {
-        self.offset = offset;
     }
 
     #[allow(dead_code)]
@@ -86,22 +78,8 @@ impl DbfsReader {
 unsafe impl Sync for DbfsReader {}
 
 impl oio::Read for DbfsReader {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
-        ))
+    async fn read_at(&self, _offset: u64, _limit: usize) -> Result<Buffer> {
+        todo!()
     }
 }
 

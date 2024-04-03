@@ -23,6 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
+use bytes::Buf;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -101,17 +102,19 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(request).await?;
-        let body = resp.into_body().bytes().await?;
+        let body = resp.into_body();
 
         let token: DropboxTokenResponse =
-            serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
         // Update signer after token refreshed.
         signer.access_token = token.access_token.clone();
 
         // Refresh it 2 minutes earlier.
-        signer.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in as i64)
-            - chrono::Duration::seconds(120);
+        signer.expires_in = Utc::now()
+            + chrono::TimeDelta::try_seconds(token.expires_in as i64)
+                .expect("expires_in must be valid seconds")
+            - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
 
         let value = format!("Bearer {}", token.access_token)
             .parse()
@@ -124,8 +127,9 @@ impl DropboxCore {
     pub async fn dropbox_get(
         &self,
         path: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+        range: BytesRange,
+        _: &OpRead,
+    ) -> Result<Response<oio::Buffer>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -137,7 +141,6 @@ impl DropboxCore {
             .header("Dropbox-API-Arg", request_payload)
             .header(CONTENT_LENGTH, 0);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -156,7 +159,7 @@ impl DropboxCore {
         size: Option<usize>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<oio::Buffer>> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
         let dropbox_update_args = DropboxUploadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -183,7 +186,7 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
         let args = DropboxDeleteArgs {
             path: self.build_path(path),
@@ -201,10 +204,7 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_delete_batch(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dropbox_delete_batch(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
         let args = DropboxDeleteBatchArgs {
             entries: paths
@@ -246,10 +246,10 @@ impl DropboxCore {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
-        let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
-            .map_err(new_json_deserialize_error)?;
+        let decoded_response: DropboxDeleteBatchResponse =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
         match decoded_response.tag.as_str() {
             "in_progress" => Err(Error::new(
                 ErrorKind::Unexpected,
@@ -300,7 +300,7 @@ impl DropboxCore {
         }
     }
 
-    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
             path: self.build_path(path),

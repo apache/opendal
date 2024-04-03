@@ -35,12 +35,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_full,
             test_read_range,
             test_read_large_range,
-            test_reader_range,
-            test_reader_range_with_buffer,
-            test_reader_from,
-            test_reader_from_with_buffer,
-            test_reader_tail,
-            test_reader_tail_with_buffer,
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
@@ -48,8 +42,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_with_special_chars,
             test_read_with_override_cache_control,
             test_read_with_override_content_disposition,
-            test_read_with_override_content_type,
-            test_read_with_invalid_seek
+            test_read_with_override_content_type
         ))
     }
 
@@ -59,9 +52,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_only_read_full,
             test_read_only_read_full_with_special_chars,
             test_read_only_read_with_range,
-            test_read_only_reader_with_range,
-            test_read_only_reader_from,
-            test_read_only_reader_tail,
             test_read_only_read_not_exist,
             test_read_only_read_with_dir_path,
             test_read_only_read_with_if_match,
@@ -91,10 +81,6 @@ pub async fn test_read_full(op: Operator) -> anyhow::Result<()> {
 
 /// Read range content should match.
 pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
     let (offset, length) = gen_offset_length(size);
 
@@ -118,10 +104,6 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
 
 /// Read large range content should match.
 pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
     let (offset, _) = gen_offset_length(size);
 
@@ -139,198 +121,6 @@ pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[offset as usize..])),
         "read content with large range"
-    );
-
-    Ok(())
-}
-
-/// Read range content should match.
-pub async fn test_reader_range(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (offset, length) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(offset..offset + length).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!(
-            "{:x}",
-            Sha256::digest(&content[offset as usize..(offset + length) as usize])
-        ),
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range content should match.
-pub async fn test_reader_range_with_buffer(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (offset, length) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op
-        .reader_with(&path)
-        .range(offset..offset + length)
-        .buffer(4096)
-        .await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!(
-            "{:x}",
-            Sha256::digest(&content[offset as usize..(offset + length) as usize])
-        ),
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range from should match.
-pub async fn test_reader_from(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (offset, _) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(offset..).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), size - offset as usize, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[offset as usize..])),
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range from should match.
-pub async fn test_reader_from_with_buffer(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (offset, _) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader_with(&path).range(offset..).buffer(4096).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), size - offset as usize, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[offset as usize..])),
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range tail should match.
-pub async fn test_reader_tail(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (_, length) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = match op.reader_with(&path).range(..length).await {
-        Ok(r) => r,
-        // Not all services support range with tail range, let's tolerate this.
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support range with tail");
-            return Ok(());
-        }
-        Err(err) => return Err(err.into()),
-    };
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), length as usize, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[size - length as usize..])),
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range tail should match.
-pub async fn test_reader_tail_with_buffer(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_range {
-        return Ok(());
-    }
-
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (_, length) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = match op.reader_with(&path).range(..length).buffer(4096).await {
-        Ok(r) => r,
-        // Not all services support range with tail range, let's tolerate this.
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support range with tail");
-            return Ok(());
-        }
-        Err(err) => return Err(err.into()),
-    };
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), length as usize, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[size - length as usize..])),
-        "read content"
     );
 
     Ok(())
@@ -596,28 +386,6 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
     Ok(())
 }
 
-/// seeking a negative position should return a InvalidInput error
-pub async fn test_read_with_invalid_seek(op: Operator) -> anyhow::Result<()> {
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let mut r = op.reader(&path).await?;
-    let res = r.seek(std::io::SeekFrom::Current(-1024)).await;
-
-    assert!(res.is_err());
-
-    assert_eq!(
-        res.unwrap_err().kind(),
-        ErrorKind::InvalidInput,
-        "seeking a negative position should return a InvalidInput error"
-    );
-
-    Ok(())
-}
-
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
     let bs = op.read("normal_file.txt").await?;
@@ -651,57 +419,6 @@ pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> 
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read range should match.
-pub async fn test_read_only_reader_with_range(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(1024..2048).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), 1024, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read from should match.
-pub async fn test_read_only_reader_from(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(29458..).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), 1024, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",
-        "read content"
-    );
-
-    Ok(())
-}
-
-/// Read tail should match.
-pub async fn test_read_only_reader_tail(op: Operator) -> anyhow::Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(..1024).await?;
-
-    let mut bs = Vec::new();
-    r.read_to_end(&mut bs).await?;
-
-    assert_eq!(bs.len(), 1024, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",
         "read content"
     );
 

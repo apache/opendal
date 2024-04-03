@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use bytes::Buf;
 use http::Response;
 use serde::Deserialize;
 
@@ -43,9 +44,9 @@ impl Debug for PcloudError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
     let message = String::from_utf8_lossy(&bs).into_owned();
 
     let mut err = Error::new(ErrorKind::Unexpected, &message);
@@ -57,7 +58,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
 #[cfg(test)]
 mod test {
-    use futures::stream;
     use http::StatusCode;
 
     use super::*;
@@ -70,9 +70,9 @@ mod test {
                 <head>
                     <title>Invalid link</title>
                 </head>
-                
+
                 <body>This link was generated for another IP address. Try previous step again.</body>
-                
+
                 </html> "#,
             ErrorKind::Unexpected,
             StatusCode::GONE,
@@ -80,10 +80,7 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = IncomingAsyncBody::new(
-                Box::new(oio::into_stream(stream::iter(vec![Ok(bs.clone())]))),
-                None,
-            );
+            let body = oio::Buffer::from(bs);
             let resp = Response::builder().status(res.2).body(body).unwrap();
 
             let err = parse_error(resp).await;

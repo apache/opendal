@@ -16,10 +16,7 @@
 // under the License.
 
 use std::io::Write;
-
 use std::sync::Arc;
-
-use bytes::Bytes;
 
 use futures::AsyncWriteExt;
 
@@ -55,7 +52,7 @@ impl<F> HdfsWriter<F> {
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
         f.write(&bs).await.map_err(new_std_io_error)
@@ -84,7 +81,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: Bytes) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
         f.write(&bs).map_err(new_std_io_error)
     }

@@ -51,10 +51,7 @@ impl oio::MultipartWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -98,14 +95,10 @@ impl oio::MultipartWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-
-                Ok(oio::MultipartPart {
-                    part_number,
-                    etag: "".to_string(),
-                })
-            }
+            StatusCode::NO_CONTENT | StatusCode::CREATED => Ok(oio::MultipartPart {
+                part_number,
+                etag: "".to_string(),
+            }),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -119,11 +112,7 @@ impl oio::MultipartWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

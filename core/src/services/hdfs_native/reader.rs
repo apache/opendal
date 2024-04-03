@@ -15,13 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
-
-use bytes::Bytes;
 use hdfs_native::file::FileReader;
 
-use crate::raw::oio::Read;
-use crate::*;
+use crate::raw::oio;
 
 pub struct HdfsNativeReader {
     _f: FileReader,
@@ -33,19 +29,8 @@ impl HdfsNativeReader {
     }
 }
 
-impl Read for HdfsNativeReader {
-    async fn read(&mut self, limit: usize) -> Result<Bytes> {
-        let _ = limit;
-
+impl oio::Read for HdfsNativeReader {
+    async fn read_at(&self, _offset: u64, _limit: usize) -> crate::Result<oio::Buffer> {
         todo!()
-    }
-
-    async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let _ = pos;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "HdfsNativeReader doesn't support seeking",
-        ))
     }
 }

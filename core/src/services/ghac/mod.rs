@@ -19,4 +19,5 @@ mod backend;
 pub use backend::GhacBuilder as Ghac;
 
 mod error;
+mod reader;
 mod writer;

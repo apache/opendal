@@ -54,7 +54,7 @@ impl oio::PageList for GdriveLister {
             .await?;
 
         let bytes = match resp.status() {
-            StatusCode::OK => resp.into_body().bytes().await?,
+            StatusCode::OK => resp.into_body().to_bytes(),
             _ => return Err(parse_error(resp).await?),
         };
 

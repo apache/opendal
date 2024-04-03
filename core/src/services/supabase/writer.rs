@@ -22,7 +22,6 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-
 use crate::raw::*;
 use crate::*;
 
@@ -57,10 +56,7 @@ impl oio::OneShotWrite for SupabaseWriter {
         let resp = self.core.send(req).await?;
 
         match resp.status() {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

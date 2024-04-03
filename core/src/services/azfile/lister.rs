@@ -17,8 +17,9 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
-use quick_xml::de::from_str;
+use quick_xml::de;
 use serde::Deserialize;
 
 use super::core::AzfileCore;
@@ -55,11 +56,10 @@ impl oio::PageList for AzfileLister {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
-        let text = String::from_utf8(bs.to_vec()).expect("response convert to string must success");
-
-        let results: EnumerationResults = from_str(&text).map_err(new_xml_deserialize_error)?;
+        let results: EnumerationResults =
+            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         if results.next_marker.is_empty() {
             ctx.done = true;
@@ -148,6 +148,8 @@ struct Properties {
 
 #[cfg(test)]
 mod tests {
+    use quick_xml::de::from_str;
+
     use super::*;
 
     #[test]

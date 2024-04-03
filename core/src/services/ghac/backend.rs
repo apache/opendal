@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::env;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::header::ACCEPT;
@@ -37,6 +38,7 @@ use serde::Serialize;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
+use crate::services::ghac::reader::GhacReader;
 use crate::*;
 
 /// The base url for cache url.
@@ -227,7 +229,7 @@ pub struct GhacBackend {
 
 #[async_trait]
 impl Accessor for GhacBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = GhacReader;
     type Writer = GhacWriter;
     type Lister = ();
     type BlockingReader = ();
@@ -243,8 +245,6 @@ impl Accessor for GhacBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 write: true,
                 write_can_multi: true,
@@ -266,9 +266,9 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
             return Err(parse_error(resp).await?);
@@ -292,7 +292,6 @@ impl Accessor for GhacBackend {
                         .expect("content range must contains size"),
                 );
 
-                resp.into_body().consume().await?;
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp).await?),
@@ -305,33 +304,18 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
             return Err(parse_error(resp).await?);
         };
 
-        let req = self.ghac_get_location(&location, args.range()).await?;
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            GhacReader::new(self.clone(), &location, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -340,9 +324,9 @@ impl Accessor for GhacBackend {
         let resp = self.client.send(req).await?;
 
         let cache_id = if resp.status().is_success() {
-            let slc = resp.into_body().bytes().await?;
+            let slc = resp.into_body();
             let reserve_resp: GhacReserveResponse =
-                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
         } else {
             return Err(parse_error(resp)
@@ -394,7 +378,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_get_location(
+    pub async fn ghac_get_location(
         &self,
         location: &str,
         range: BytesRange,
@@ -402,18 +386,7 @@ impl GhacBackend {
         let mut req = Request::get(location);
 
         if !range.is_full() {
-            // ghac is backed by azblob, and azblob doesn't support
-            // read with suffix range
-            //
-            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "ghac doesn't support read with suffix range",
-                ));
-            }
-
-            req = req.header(http::header::RANGE, range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         req.body(AsyncBody::Empty).map_err(new_request_build_error)
@@ -488,7 +461,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ghac_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

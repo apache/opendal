@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -29,12 +28,12 @@ use tokio::sync::RwLock;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::core::SeafileCore;
-use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
 use crate::services::seafile::core::SeafileSigner;
+use crate::services::seafile::reader::SeafileReader;
 use crate::*;
 
 /// Config for backblaze seafile services support.
@@ -256,7 +255,7 @@ pub struct SeafileBackend {
 
 #[async_trait]
 impl Accessor for SeafileBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = SeafileReader;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type BlockingReader = ();
@@ -271,7 +270,6 @@ impl Accessor for SeafileBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
 
                 write: true,
                 write_can_empty: true,
@@ -303,22 +301,11 @@ impl Accessor for SeafileBackend {
         metadata.map(RpStat::new)
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_file(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            SeafileReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

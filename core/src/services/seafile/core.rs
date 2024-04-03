@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::Request;
@@ -64,7 +65,7 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
@@ -96,9 +97,10 @@ impl SeafileCore {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
-                    let auth_response = serde_json::from_slice::<AuthTokenResponse>(resp_body)
-                        .map_err(new_json_deserialize_error)?;
+                    let resp_body = resp.into_body();
+                    let auth_response: AuthTokenResponse =
+                        serde_json::from_reader(resp_body.reader())
+                            .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
                         token: auth_response.token,
                         repo_id: "".to_string(),
@@ -125,9 +127,9 @@ impl SeafileCore {
 
             match status {
                 StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
-                    let list_library_response =
-                        serde_json::from_slice::<Vec<ListLibraryResponse>>(resp_body)
+                    let resp_body = resp.into_body();
+                    let list_library_response: Vec<ListLibraryResponse> =
+                        serde_json::from_reader(resp_body.reader())
                             .map_err(new_json_deserialize_error)?;
 
                     for library in list_library_response {
@@ -174,8 +176,8 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let upload_url = serde_json::from_slice::<String>(resp_body)
+                let resp_body = resp.into_body();
+                let upload_url = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
             }
@@ -205,8 +207,8 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let download_url = serde_json::from_slice::<String>(resp_body)
+                let resp_body = resp.into_body();
+                let download_url = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
 
                 Ok(download_url)
@@ -216,22 +218,21 @@ impl SeafileCore {
     }
 
     /// download file
-    pub async fn download_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn download_file(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<oio::Buffer>> {
         let download_url = self.get_download_url(path).await?;
 
         let req = Request::get(download_url);
 
         let req = req
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(resp),
-            _ => Err(parse_error(resp).await?),
-        }
+        self.send(req).await
     }
 
     /// file detail
@@ -256,8 +257,8 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let file_detail = serde_json::from_slice::<FileDetail>(resp_body)
+                let resp_body = resp.into_body();
+                let file_detail: FileDetail = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
             }
@@ -287,8 +288,8 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => {
-                let resp_body = &resp.into_body().bytes().await?;
-                let dir_detail = serde_json::from_slice::<DirDetail>(resp_body)
+                let resp_body = resp.into_body();
+                let dir_detail: DirDetail = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)
             }

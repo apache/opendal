@@ -145,12 +145,6 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
- * BlockingReader is designed to read data from given path in an blocking
- * manner.
- */
-typedef struct BlockingReader BlockingReader;
-
-/**
  * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
  *
  * # Notes
@@ -210,6 +204,15 @@ typedef struct Metadata Metadata;
  * Metadata for operator, users can use this metadata to get information of operator.
  */
 typedef struct OperatorInfo OperatorInfo;
+
+/**
+ * StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
+ *
+ * Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
+ *
+ * StdReader also implements [`Send`] and [`Sync`].
+ */
+typedef struct StdIoReader StdIoReader;
 
 /**
  * \brief opendal_bytes carries raw-bytes with its length
@@ -405,7 +408,7 @@ typedef struct opendal_result_read {
  * a opendal::BlockingReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
-  struct BlockingReader *inner;
+  struct StdIoReader *inner;
 } opendal_reader;
 
 /**
@@ -511,18 +514,6 @@ typedef struct opendal_capability {
    * If operator supports read.
    */
   bool read;
-  /**
-   * If operator supports seek on returning reader.
-   */
-  bool read_can_seek;
-  /**
-   * If operator supports next on returning reader.
-   */
-  bool read_can_next;
-  /**
-   * If operator supports read with range.
-   */
-  bool read_with_range;
   /**
    * If operator supports read with if match.
    */

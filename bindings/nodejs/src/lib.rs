@@ -21,10 +21,12 @@ extern crate napi_derive;
 mod capability;
 
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
 
-use futures::TryStreamExt;
+use futures::{AsyncReadExt, TryStreamExt};
 use napi::bindgen_prelude::*;
 
 #[napi]
@@ -181,8 +183,11 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub async fn reader(&self, path: String) -> Result<Reader> {
+        let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
-        Ok(Reader(r))
+        Ok(Reader {
+            inner: r.into_futures_io_async_read(0..meta.content_length()),
+        })
     }
 
     /// Read the whole path into a buffer synchronously.
@@ -202,8 +207,11 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
+        let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
         let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
-        Ok(BlockingReader(r))
+        Ok(BlockingReader {
+            inner: r.into_std_io_read(0..meta.content_length()),
+        })
     }
 
     /// Write bytes into path.
@@ -641,23 +649,26 @@ pub struct ListOptions {
 /// BlockingReader is designed to read data from given path in an blocking
 /// manner.
 #[napi]
-pub struct BlockingReader(opendal::BlockingReader);
+pub struct BlockingReader {
+    inner: opendal::StdIoReader,
+}
 
 #[napi]
 impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
         let buf = buf.as_mut();
-        let bs = self.0.read(buf.len()).map_err(format_napi_error)?;
-        buf[..bs.len()].copy_from_slice(&bs);
-        Ok(bs.len())
+        let n = self.inner.read(buf).map_err(format_napi_error)?;
+        Ok(n)
     }
 }
 
 /// Reader is designed to read data from given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Reader(opendal::Reader);
+pub struct Reader {
+    inner: opendal::FuturesIoAsyncReader,
+}
 
 #[napi]
 impl Reader {
@@ -666,14 +677,11 @@ impl Reader {
     /// > &mut self in async napi methods should be marked as unsafe
     ///
     /// Read bytes from this reader into given buffer.
-    ///
-    /// TODO: change api into stream based.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let bs = self.0.read(buf.len()).await.map_err(format_napi_error)?;
-        buf[..bs.len()].copy_from_slice(&bs);
-        Ok(bs.len())
+        let mut buf = buf.as_mut();
+        let n = self.inner.read(&mut buf).await.map_err(format_napi_error)?;
+        Ok(n)
     }
 }
 
@@ -989,6 +997,8 @@ impl RetryLayer {
 }
 
 /// Format opendal error to napi error.
-fn format_napi_error(err: opendal::Error) -> Error {
+///
+/// FIXME: handle error correctly.
+fn format_napi_error(err: impl Display) -> Error {
     Error::from_reason(format!("{}", err))
 }

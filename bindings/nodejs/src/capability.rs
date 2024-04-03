@@ -60,24 +60,6 @@ impl Capability {
         self.0.read
     }
 
-    /// If operator supports seek on returning reader.
-    #[napi(getter)]
-    pub fn read_can_seek(&self) -> bool {
-        self.0.read_can_seek
-    }
-
-    /// If operator supports next on returning reader.
-    #[napi(getter)]
-    pub fn read_can_next(&self) -> bool {
-        self.0.read_can_next
-    }
-
-    /// If operator supports read with range.
-    #[napi(getter)]
-    pub fn read_with_range(&self) -> bool {
-        self.0.read_with_range
-    }
-
     /// If operator supports read with if match.
     #[napi(getter)]
     pub fn read_with_if_match(&self) -> bool {

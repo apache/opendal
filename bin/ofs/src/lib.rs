@@ -22,14 +22,14 @@ use anyhow::anyhow;
 use anyhow::Result;
 use opendal::Operator;
 use opendal::Scheme;
+use tokio::signal;
 
 pub mod config;
 pub use config::Config;
 
-#[cfg(target_os = "linux")]
 mod fuse;
 
-pub async fn new_app(cfg: Config) -> Result<()> {
+pub async fn execute(cfg: Config) -> Result<()> {
     if cfg.backend.has_host() {
         log::warn!("backend host will be ignored");
     }
@@ -48,28 +48,25 @@ pub async fn new_app(cfg: Config) -> Result<()> {
     let backend = Operator::via_map(scheme, op_args)?;
 
     let args = Args {
-        #[cfg(target_os = "linux")]
         mount_path: cfg.mount_path,
         backend,
     };
-    execute(args).await
+    execute_inner(args).await
 }
 
 #[derive(Debug)]
 struct Args {
-    #[cfg(target_os = "linux")]
     mount_path: String,
     backend: Operator,
 }
-
-#[cfg(not(target_os = "linux"))]
-async fn execute(args: Args) -> Result<()> {
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+async fn execute_inner(args: Args) -> Result<()> {
     _ = args.backend;
     Err(anyhow::anyhow!("platform not supported"))
 }
 
-#[cfg(target_os = "linux")]
-async fn execute(args: Args) -> Result<()> {
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+async fn execute_inner(args: Args) -> Result<()> {
     use fuse3::path::Session;
     use fuse3::MountOptions;
 
@@ -81,13 +78,20 @@ async fn execute(args: Args) -> Result<()> {
     mount_option.gid(gid.into());
     mount_option.no_open_dir_support(true);
 
-    let ofs = fuse::Ofs::new(args.backend, uid.into(), gid.into());
+    let adapter = fuse::Fuse::new(args.backend, uid.into(), gid.into());
 
-    let mount_handle = Session::new(mount_option)
-        .mount_with_unprivileged(ofs, args.mount_path)
+    let mut mount_handle = Session::new(mount_option)
+        .mount_with_unprivileged(adapter, args.mount_path)
         .await?;
 
-    mount_handle.await?;
+    let handle = &mut mount_handle;
+
+    tokio::select! {
+        res = handle => res?,
+        _ = signal::ctrl_c() => {
+            mount_handle.unmount().await?
+        }
+    }
 
     Ok(())
 }

@@ -34,9 +34,6 @@ pub use stream::*;
 mod list;
 pub use list::*;
 
-mod cursor;
-pub use cursor::Cursor;
-
 mod entry;
 pub use entry::Entry;
 

@@ -17,7 +17,6 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-
 use std::task::Context;
 use std::task::Poll;
 
@@ -164,13 +163,13 @@ impl<W: RangeWrite> RangeWriter<W> {
 }
 
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let location = match self.location.clone() {
             Some(location) => location,
             None => {
                 // Fill cache with the first write.
                 if self.buffer.is_none() {
-                    let size = self.fill_cache(bs);
+                    let size = self.fill_cache(bs.to_bytes());
                     return Ok(size);
                 }
 
@@ -193,7 +192,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     cache,
                 ));
 
-                let size = self.fill_cache(bs);
+                let size = self.fill_cache(bs.to_bytes());
                 return Ok(size);
             }
 
@@ -364,7 +363,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(Bytes::copy_from_slice(&bs)).await {
+                match unsafe { w.write(bs.clone().into()).await } {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

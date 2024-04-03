@@ -17,10 +17,7 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
-
 use super::core::AlluxioCore;
-
 use crate::raw::*;
 use crate::*;
 
@@ -46,7 +43,7 @@ impl AlluxioWriter {
 }
 
 impl oio::Write for AlluxioWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
         let stream_id = match self.stream_id {
             Some(stream_id) => stream_id,
             None => {
@@ -55,7 +52,9 @@ impl oio::Write for AlluxioWriter {
                 stream_id
             }
         };
-        self.core.write(stream_id, AsyncBody::Bytes(bs)).await
+        self.core
+            .write(stream_id, AsyncBody::Bytes(bs.to_bytes()))
+            .await
     }
 
     async fn close(&mut self) -> Result<()> {

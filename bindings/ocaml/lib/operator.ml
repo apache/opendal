@@ -32,16 +32,7 @@ let remove = Opendal_core.Operator.blocking_remove
 let remove_all = Opendal_core.Operator.blocking_remove_all
 
 module Reader = struct
-  let read = Opendal_core.Operator.reader_read
-
-  let seek reader pos mode =
-    let inner_pos =
-      match mode with
-      | Unix.SEEK_CUR -> Opendal_core.Seek_from.Current pos
-      | Unix.SEEK_END -> Opendal_core.Seek_from.End pos
-      | Unix.SEEK_SET -> Opendal_core.Seek_from.Start pos
-    in
-    Opendal_core.Operator.reader_seek reader inner_pos
+  let pread = Opendal_core.Operator.reader_pread
 end
 
 module Metadata = struct

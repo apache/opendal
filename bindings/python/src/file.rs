@@ -25,11 +25,9 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use futures::AsyncSeekExt;
-use futures::AsyncWriteExt;
 use pyo3::buffer::PyBuffer;
-use pyo3::exceptions::PyIOError;
-use pyo3::exceptions::PyValueError;
+use futures::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use pyo3::exceptions::{PyValueError, PyIOError};
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
@@ -42,14 +40,14 @@ use crate::*;
 pub struct File(FileState, Capability);
 
 enum FileState {
-    Reader(ocore::BlockingReader),
+    Reader(ocore::StdIoReader),
     Writer(ocore::BlockingWriter),
     Closed,
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::BlockingReader, capability: Capability) -> Self {
-        Self(FileState::Reader(reader), capability)
+    pub fn new_reader(reader: ocore::BlockingReader, size: u64, capability: Capability) -> Self {
+        Self(FileState::Reader(reader.into_std_io_read(0..size)), capability)
     }
 
     pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
@@ -78,10 +76,12 @@ impl File {
 
         let buffer = match size {
             Some(size) => {
-                let bs = reader
-                    .read(size)
+                let mut bs = vec![0; size];
+                let n = reader
+                    .read(&mut bs)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                bs.to_vec()
+                bs.truncate(n);
+                bs
             }
             None => {
                 let mut buffer = Vec::new();
@@ -286,17 +286,17 @@ impl File {
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
 
 enum AsyncFileState {
-    Reader(ocore::Reader),
+    Reader(ocore::FuturesIoAsyncReader),
     Writer(ocore::Writer),
     Closed,
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::Reader, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
+    pub fn new_reader(reader: ocore::Reader, size: u64, capability: Capability) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(
+            reader.into_futures_io_async_read(0..size),
             capability,
-        )
+        ))))
     }
 
     pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
@@ -331,11 +331,14 @@ impl AsyncFile {
 
             let buffer = match size {
                 Some(size) => {
-                    let buffer = reader
-                        .read(size)
+                    // TODO: optimize here by using uninit slice.
+                    let mut bs = vec![0; size];
+                    let n = reader
+                        .read(&mut bs)
                         .await
                         .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    buffer.to_vec()
+                    bs.truncate(n);
+                    bs
                 }
                 None => {
                     let mut buffer = Vec::new();
@@ -374,10 +377,11 @@ impl AsyncFile {
                 }
             };
 
+            let len = bs.len();
             writer
-                .write_all(&bs)
+                .write(bs)
                 .await
-                .map(|_| bs.len())
+                .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))
         })
     }

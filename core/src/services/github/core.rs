@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use base64::Engine;
+use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::request;
@@ -28,10 +29,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_error;
 
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]
@@ -39,7 +39,7 @@ pub struct GithubCore {
     /// The root of this core.
     pub root: String,
     /// Github access_token.
-    pub token: String,
+    pub token: Option<String>,
     /// Github repo owner.
     pub owner: String,
     /// Github repo name.
@@ -60,24 +60,37 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
         self.client.send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
-        let req = req
+        let mut req = req
             .header(header::USER_AGENT, format!("opendal-{}", VERSION))
             .header("X-GitHub-Api-Version", "2022-11-28");
 
-        Ok(req.header(
-            header::AUTHORIZATION,
-            format_authorization_by_bearer(&self.token)?,
-        ))
+        // Github access_token is optional.
+        if let Some(token) = &self.token {
+            req = req.header(
+                header::AUTHORIZATION,
+                format_authorization_by_bearer(token)?,
+            )
+        }
+
+        Ok(req)
     }
 }
 
 impl GithubCore {
     pub async fn get_file_sha(&self, path: &str) -> Result<Option<String>> {
+        // if the token is not set, we shhould not try to get the sha of the file.
+        if self.token.is_none() {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "Github access_token is not set",
+            ));
+        }
+
         let resp = self.stat(path).await?;
 
         match resp.status() {
@@ -100,7 +113,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -122,7 +135,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -137,14 +150,15 @@ impl GithubCore {
         let req = self.sign(req)?;
 
         let req = req
-            .header("Accept", "application/vnd.github.raw+json")
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .header(header::RANGE, range.to_header())
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);
@@ -241,9 +255,9 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
+                let body = resp.into_body();
                 let resp: ListResponse =
-                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 Ok(resp.entries)
             }

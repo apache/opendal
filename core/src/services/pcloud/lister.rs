@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
@@ -48,10 +49,10 @@ impl oio::PageList for PcloudLister {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
-                let resp: ListFolderResponse =
-                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                let resp: ListFolderResponse = serde_json::from_reader(bs.clone().reader())
+                    .map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
                 if result == 2005 {
@@ -85,7 +86,7 @@ impl oio::PageList for PcloudLister {
 
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    &String::from_utf8_lossy(&bs),
+                    &String::from_utf8_lossy(&bs.to_bytes()),
                 ));
             }
             _ => Err(parse_error(resp).await?),

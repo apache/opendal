@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -30,6 +31,7 @@ use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
+use crate::services::huggingface::reader::HuggingfaceReader;
 use crate::*;
 
 /// Configuration for Huggingface service support.
@@ -243,7 +245,7 @@ pub struct HuggingfaceBackend {
 
 #[async_trait]
 impl Accessor for HuggingfaceBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = HuggingfaceReader;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
     type BlockingReader = ();
@@ -257,8 +259,6 @@ impl Accessor for HuggingfaceBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 list: true,
                 list_with_recursive: true,
@@ -281,10 +281,10 @@ impl Accessor for HuggingfaceBackend {
         match status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
-                let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&bs)
-                    .map_err(new_json_deserialize_error)?;
+                let decoded_response: Vec<HuggingfaceStatus> =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 // NOTE: if the file is not found, the server will return 200 with an empty array
                 if let Some(status) = decoded_response.first() {
@@ -312,25 +312,10 @@ impl Accessor for HuggingfaceBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.hf_resolve(path, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            HuggingfaceReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

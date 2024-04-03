@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+
 use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::error::parse_error;
@@ -57,10 +59,10 @@ impl oio::PageList for KoofrLister {
             }
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
 
         let response: ListResponse =
-            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         for file in response.files {
             let path = build_abs_path(&normalize_root(&self.path), &file.name);

@@ -33,6 +33,7 @@ use super::error::parse_error;
 use super::lister::CosLister;
 use super::writer::CosWriter;
 use crate::raw::*;
+use crate::services::cos::reader::CosReader;
 use crate::services::cos::writer::CosWriters;
 use crate::*;
 
@@ -254,7 +255,7 @@ pub struct CosBackend {
 
 #[async_trait]
 impl Accessor for CosBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = CosReader;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;
     type BlockingReader = ();
@@ -272,8 +273,7 @@ impl Accessor for CosBackend {
                 stat_with_if_none_match: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -326,25 +326,10 @@ impl Accessor for CosBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.cos_get_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                resp.into_body().consume().await?;
-                Ok((RpRead::new().with_size(Some(0)), IncomingAsyncBody::empty()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((
+            RpRead::default(),
+            CosReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -383,10 +368,7 @@ impl Accessor for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -394,7 +376,10 @@ impl Accessor for CosBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v)?,
-            PresignOperation::Read(v) => self.core.cos_get_object_request(path, v)?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .cos_get_object_request(path, BytesRange::default(), v)?
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .cos_put_object_request(path, None, v, AsyncBody::Empty)?

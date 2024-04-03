@@ -70,12 +70,6 @@ pub struct Capability {
 
     /// If operator supports read.
     pub read: bool,
-    /// If operator supports seek on returning reader.
-    pub read_can_seek: bool,
-    /// If operator supports next on returning reader.
-    pub read_can_next: bool,
-    /// If operator supports read with range.
-    pub read_with_range: bool,
     /// If operator supports read with if match.
     pub read_with_if_match: bool,
     /// If operator supports read with if none match.

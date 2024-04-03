@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
+use serde::Deserialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -31,8 +32,6 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-use serde::Deserialize;
 
 /// [foundationdb](https://www.foundationdb.org/) service support.
 ///Config for FoundationDB.

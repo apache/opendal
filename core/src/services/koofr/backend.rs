@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -35,6 +36,7 @@ use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
+use crate::services::koofr::reader::KoofrReader;
 use crate::*;
 
 /// Config for backblaze Koofr services support.
@@ -235,7 +237,7 @@ pub struct KoofrBackend {
 
 #[async_trait]
 impl Accessor for KoofrBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = KoofrReader;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type BlockingReader = ();
@@ -286,9 +288,10 @@ impl Accessor for KoofrBackend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
 
-                let file: File = serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+                let file: File =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 let mode = if file.ty == "dir" {
                     EntryMode::DIR
@@ -308,22 +311,11 @@ impl Accessor for KoofrBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.get(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let size = parse_content_length(resp.headers())?;
-                let range = parse_content_range(resp.headers())?;
-                Ok((
-                    RpRead::new().with_size(size).with_range(range),
-                    resp.into_body(),
-                ))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            KoofrReader::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -372,11 +364,7 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCopy::default())
-            }
+            StatusCode::OK => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -401,11 +389,7 @@ impl Accessor for KoofrBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

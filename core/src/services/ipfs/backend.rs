@@ -30,6 +30,7 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
+use crate::services::ipfs::reader::IpfsReader;
 use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
@@ -161,7 +162,7 @@ impl Debug for IpfsBackend {
 
 #[async_trait]
 impl Accessor for IpfsBackend {
-    type Reader = IncomingAsyncBody;
+    type Reader = IpfsReader;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
     type BlockingReader = ();
@@ -176,8 +177,6 @@ impl Accessor for IpfsBackend {
                 stat: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
 
                 list: true,
 
@@ -339,14 +338,7 @@ impl Accessor for IpfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipfs_get(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -356,7 +348,7 @@ impl Accessor for IpfsBackend {
 }
 
 impl IpfsBackend {
-    async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -374,7 +366,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -388,7 +380,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -431,7 +423,7 @@ impl oio::PageList for DirStream {
             return Err(parse_error(resp).await?);
         }
 
-        let bs = resp.into_body().bytes().await?;
+        let bs = resp.into_body();
         let pb_node = PBNode::decode(bs).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize protobuf from response").set_source(e)
         })?;

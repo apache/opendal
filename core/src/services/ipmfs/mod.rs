@@ -21,4 +21,5 @@ pub use builder::IpmfsBuilder as Ipmfs;
 
 mod error;
 mod lister;
+mod reader;
 mod writer;

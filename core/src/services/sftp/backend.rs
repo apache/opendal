@@ -20,28 +20,29 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
-use std::pin::Pin;
 
 use async_trait::async_trait;
-use futures::StreamExt;
+use bb8::PooledConnection;
+use bb8::RunError;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
-use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;
+use tokio::sync::OnceCell;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
 use super::lister::SftpLister;
+use super::reader::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Sftpservices support.
+/// Config for Sftp Service support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
@@ -71,7 +72,7 @@ impl Debug for SftpConfig {
 
 /// SFTP services support. (only works on unix)
 ///
-/// If you are interested in working on windows, please refer to [this](https://github.com/apache/opendal/issues/2963) issue.
+/// If you are interested in working on windows, pl ease refer to [this](https://github.com/apache/opendal/issues/2963) issue.
 /// Welcome to leave your comments or make contributions.
 ///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.
@@ -211,7 +212,8 @@ impl Builder for SftpBuilder {
             key: self.config.key.clone(),
             known_hosts_strategy,
             copyable: self.config.enable_copy,
-            client: tokio::sync::OnceCell::new(),
+
+            client: OnceCell::new(),
         })
     }
 
@@ -224,14 +226,87 @@ impl Builder for SftpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
+#[derive(Clone)]
 pub struct SftpBackend {
+    copyable: bool,
     endpoint: String,
     root: String,
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
-    copyable: bool,
-    client: tokio::sync::OnceCell<Sftp>,
+
+    client: OnceCell<bb8::Pool<Manager>>,
+}
+
+pub struct Manager {
+    endpoint: String,
+    root: String,
+    user: Option<String>,
+    key: Option<String>,
+    known_hosts_strategy: KnownHosts,
+}
+
+#[async_trait]
+impl bb8::ManageConnection for Manager {
+    type Connection = Sftp;
+    type Error = Error;
+
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        let mut session = SessionBuilder::default();
+
+        if let Some(user) = &self.user {
+            session.user(user.clone());
+        }
+
+        if let Some(key) = &self.key {
+            session.keyfile(key);
+        }
+
+        session.known_hosts_check(self.known_hosts_strategy.clone());
+
+        let session = session
+            .connect(&self.endpoint)
+            .await
+            .map_err(parse_ssh_error)?;
+
+        let sftp = Sftp::from_session(session, SftpOptions::default())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if !self.root.is_empty() {
+            let mut fs = sftp.fs();
+
+            let paths = Path::new(&self.root).components();
+            let mut current = PathBuf::new();
+            for p in paths {
+                current.push(p);
+                let res = fs.create_dir(p).await;
+
+                if let Err(e) = res {
+                    // ignore error if dir already exists
+                    if !is_sftp_protocol_error(&e) {
+                        return Err(parse_sftp_error(e));
+                    }
+                }
+                fs.set_cwd(&current);
+            }
+        }
+
+        debug!("sftp connection created at {}", self.root);
+        Ok(sftp)
+    }
+
+    // Check if connect valid by checking the root path.
+    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+        let _ = conn.fs().metadata("./").await.map_err(parse_sftp_error)?;
+
+        Ok(())
+    }
+
+    /// Always allow reuse conn.
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
+    }
 }
 
 impl Debug for SftpBackend {
@@ -240,9 +315,36 @@ impl Debug for SftpBackend {
     }
 }
 
+impl SftpBackend {
+    pub async fn connect(&self) -> Result<PooledConnection<'static, Manager>> {
+        let client = self
+            .client
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(Manager {
+                        endpoint: self.endpoint.clone(),
+                        root: self.root.clone(),
+                        user: self.user.clone(),
+                        key: self.key.clone(),
+                        known_hosts_strategy: self.known_hosts_strategy.clone(),
+                    })
+                    .await
+            })
+            .await?;
+
+        client.get_owned().await.map_err(|err| match err {
+            RunError::User(err) => err,
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+            }
+        })
+    }
+}
+
 #[async_trait]
 impl Accessor for SftpBackend {
-    type Reader = oio::TokioReader<Pin<Box<TokioCompatFile>>>;
+    type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type BlockingReader = ();
@@ -257,7 +359,6 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
 
                 write: true,
                 write_can_multi: true,
@@ -311,26 +412,10 @@ impl Accessor for SftpBackend {
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        // Sorry for the ugly code...
-        //
-        // - `f` is a openssh file.
-        // - `TokioCompatFile::new(f)` makes it implements tokio AsyncRead + AsyncSeek for openssh File.
-        // - `Box::pin(x)` to make sure this reader implements `Unpin`, since `TokioCompatFile` is not.
-        // - `oio::TokioReader::new(x)` makes it a `oio::TokioReader` which implements `oio::Read`.
-        let r = oio::TokioReader::new(Box::pin(TokioCompatFile::new(f)));
-
-        Ok((RpRead::new(), r))
+        Ok((
+            RpRead::default(),
+            SftpReader::new(self.clone(), self.root.clone(), path.to_owned()),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -363,54 +448,17 @@ impl Accessor for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
-        if path.ends_with('/') {
-            let file_path = format!("./{}", path);
-            let mut dir = match fs.open_dir(&file_path).await {
-                Ok(dir) => dir,
-                Err(e) => {
-                    if is_not_found(&e) {
-                        return Ok(RpDelete::default());
-                    } else {
-                        return Err(parse_sftp_error(e));
-                    }
-                }
-            }
-            .read_dir()
-            .boxed();
-
-            while let Some(file) = dir.next().await {
-                let file = file.map_err(parse_sftp_error)?;
-                let file_name = file.filename().to_str();
-                if file_name == Some(".") || file_name == Some("..") {
-                    continue;
-                }
-                let file_path = Path::new(&self.root).join(file.filename());
-                self.delete(
-                    file_path.to_str().ok_or(Error::new(
-                        ErrorKind::Unexpected,
-                        "unable to convert file path to str",
-                    ))?,
-                    OpDelete::default(),
-                )
-                .await?;
-            }
-
-            match fs.remove_dir(path).await {
-                Err(e) if !is_not_found(&e) => {
-                    return Err(parse_sftp_error(e));
-                }
-                _ => {}
-            }
+        let res = if path.ends_with('/') {
+            fs.remove_dir(path).await
         } else {
-            match fs.remove_file(path).await {
-                Err(e) if !is_not_found(&e) => {
-                    return Err(parse_sftp_error(e));
-                }
-                _ => {}
-            }
+            fs.remove_file(path).await
         };
 
-        Ok(RpDelete::default())
+        match res {
+            Ok(()) => Ok(RpDelete::default()),
+            Err(e) if is_not_found(&e) => Ok(RpDelete::default()),
+            Err(e) => Err(parse_sftp_error(e)),
+        }
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -474,72 +522,4 @@ impl Accessor for SftpBackend {
 
         Ok(RpRename::default())
     }
-}
-
-impl SftpBackend {
-    async fn connect(&self) -> Result<&Sftp> {
-        let sftp = self
-            .client
-            .get_or_try_init(|| {
-                Box::pin(connect_sftp(
-                    self.endpoint.as_str(),
-                    self.root.clone(),
-                    self.user.clone(),
-                    self.key.clone(),
-                    self.known_hosts_strategy.clone(),
-                ))
-            })
-            .await?;
-
-        Ok(sftp)
-    }
-}
-
-async fn connect_sftp(
-    endpoint: &str,
-    root: String,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: KnownHosts,
-) -> Result<Sftp> {
-    let mut session = SessionBuilder::default();
-
-    if let Some(user) = user {
-        session.user(user);
-    }
-
-    if let Some(key) = &key {
-        session.keyfile(key);
-    }
-
-    session.known_hosts_check(known_hosts_strategy);
-
-    let session = session.connect(&endpoint).await.map_err(parse_ssh_error)?;
-
-    let sftp = Sftp::from_session(session, SftpOptions::default())
-        .await
-        .map_err(parse_sftp_error)?;
-
-    if !root.is_empty() {
-        let mut fs = sftp.fs();
-
-        let paths = Path::new(&root).components();
-        let mut current = PathBuf::new();
-        for p in paths {
-            current.push(p);
-            let res = fs.create_dir(p).await;
-
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(parse_sftp_error(e));
-                }
-            }
-            fs.set_cwd(&current);
-        }
-    }
-
-    debug!("sftp connection created at {}", root);
-
-    Ok(sftp)
 }

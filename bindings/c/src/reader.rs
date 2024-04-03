@@ -16,6 +16,7 @@
 // under the License.
 
 use ::opendal as core;
+use std::io::Read;
 
 use super::*;
 
@@ -25,13 +26,13 @@ use super::*;
 /// a opendal::BlockingReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
-    inner: *mut core::BlockingReader,
+    inner: *mut core::StdIoReader,
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::BlockingReader) -> Self {
+    pub(crate) fn new(reader: core::BlockingReader, size: u64) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader)),
+            inner: Box::into_raw(Box::new(reader.into_std_io_read(0..size))),
         }
     }
 
@@ -49,15 +50,12 @@ impl opendal_reader {
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
 
         let inner = unsafe { &mut *(*reader).inner };
-        let r = inner.read(buf.len());
-        match r {
-            Ok(bs) => {
-                buf[..bs.len()].copy_from_slice(&bs);
-                opendal_result_reader_read {
-                    size: bs.len(),
-                    error: std::ptr::null_mut(),
-                }
-            }
+        let n = inner.read(buf);
+        match n {
+            Ok(n) => opendal_result_reader_read {
+                size: n,
+                error: std::ptr::null_mut(),
+            },
             Err(e) => opendal_result_reader_read {
                 size: 0,
                 error: opendal_error::new(

@@ -112,16 +112,13 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if !resp.status().is_success() {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        if !parts.status().is_success() {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        let bs = resp.into_body();
-
-        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
+        let bs = body.to_bytes().await?;
+        let result: Multistatus = deserialize_multistatus(&bs)?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -138,7 +135,8 @@ impl WebdavCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -157,6 +155,17 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn webdav_put(
@@ -165,7 +174,7 @@ impl WebdavCore {
         size: Option<u64>,
         args: &OpWrite,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -190,9 +199,19 @@ impl WebdavCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn webdav_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_delete(&self, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -207,9 +226,19 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<()> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -235,9 +264,19 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<()> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -263,9 +302,24 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<oio::Buffer>> {
+    /// Returns (is_jfrog_artifactory, Multistatus)
+    pub async fn webdav_list(
+        &self,
+        path: &str,
+        args: &OpList,
+    ) -> Result<Option<(bool, Multistatus)>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -288,6 +342,27 @@ impl WebdavCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status().is_success() {
+            let bs = body.to_bytes().await?;
+            let result: Multistatus = deserialize_multistatus(&bs)?;
+
+            // jfrog artifactory's webdav services have some strange behavior.
+            // We add this flag to check if the server is jfrog artifactory.
+            //
+            // Example: `"x-jfrog-version": "Artifactory/7.77.5 77705900"`
+            let is_jfrog_artifactory = if let Some(v) = parts.headers().get("x-jfrog-version") {
+                v.to_str().unwrap_or_default().starts_with("Artifactory")
+            } else {
+                false
+            };
+
+            Ok(Some((is_jfrog_artifactory, result)))
+        } else if parts.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
+            Ok(None)
+        } else {
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs)?)
+        }
     }
 
     /// Create dir recursively for given path.
@@ -347,7 +422,7 @@ impl WebdavCore {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match status {
+        match parts.status {
             // 201 (Created) - The collection was created.
             StatusCode::CREATED
             // 405 (Method Not Allowed) - MKCOL can only be executed on an unmapped URL.
@@ -355,7 +430,7 @@ impl WebdavCore {
             // The MKCOL method can only be performed on a deleted or non-existent resource.
             // This error means the directory already exists which is allowed by create_dir.
             | StatusCode::METHOD_NOT_ALLOWED => {
-
+                body.consume().await?;
                 Ok(())
             }
             _ => {let bs = body.to_bytes().await?;

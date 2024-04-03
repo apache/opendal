@@ -301,15 +301,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.webdav_delete(path).await?;
-
-        match parts.status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .webdav_delete(path)
+            .await
+            .map(|_| RpDelete::default())?;
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -320,28 +315,16 @@ impl Accessor for WebdavBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.webdav_copy(from, to).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .webdav_copy(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.webdav_move(from, to).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
-                Ok(RpRename::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .webdav_move(from, to)
+            .await
+            .map(|_| RpRename::default())?;
     }
 }

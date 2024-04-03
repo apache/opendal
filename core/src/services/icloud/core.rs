@@ -349,7 +349,7 @@ impl IcloudCore {
 
         signer.sign(&mut req).await?;
         let resp = signer.send(req).await?;
-        if resp.status() != Stat    usCode::OK {
+        if resp.status() != StatusCode::OK {
             return {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

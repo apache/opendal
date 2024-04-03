@@ -43,31 +43,12 @@ impl WebdavLister {
 
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.webdav_list(&self.path, &self.args).await?;
-
-        // jfrog artifactory's webdav services have some strange behavior.
-        // We add this flag to check if the server is jfrog artifactory.
-        //
-        // Example: `"x-jfrog-version": "Artifactory/7.77.5 77705900"`
-        let is_jfrog_artifactory = if let Some(v) = resp.headers().get("x-jfrog-version") {
-            v.to_str().unwrap_or_default().starts_with("Artifactory")
-        } else {
-            false
-        };
-
-        let bs = if resp.status().is_success() {
-            resp.into_body()
-        } else if resp.status() == StatusCode::NOT_FOUND && self.path.ends_with('/') {
+        let Some((is_jfrog_artifactory, result)) =
+            self.core.webdav_list(&self.path, &self.args).await?
+        else {
             ctx.done = true;
             return Ok(());
-        } else {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
         };
-
-        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
 
         for res in result.response {
             let mut path = res

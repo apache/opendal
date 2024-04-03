@@ -40,22 +40,13 @@ impl WebdavWriter {
 
 impl oio::OneShotWrite for WebdavWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .webdav_put(
                 &self.path,
                 Some(bs.len() as u64),
                 &self.op,
                 RequestBody::Bytes(bs),
             )
-            .await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }

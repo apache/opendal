@@ -265,10 +265,8 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body();
-            let query_resp: GhacQueryResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
+        let location = if parts.status() == StatusCode::OK {
+            let query_resp: GhacQueryResponse = body.to_json().await?;
             query_resp.archive_location
         } else {
             return {
@@ -285,7 +283,8 @@ impl Accessor for GhacBackend {
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
+                body.consume().await?;
+                let mut meta = parse_into_metadata(path, parts.headers())?;
                 // Correct content length via returning content range.
                 meta.set_content_length(
                     meta.content_range()
@@ -308,16 +307,12 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body();
-            let query_resp: GhacQueryResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
+        let location = if parts.status() == StatusCode::OK {
+            let query_resp: GhacQueryResponse = body.to_json().await?;
             query_resp.archive_location
         } else {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         };
 
         Ok((
@@ -331,15 +326,14 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let cache_id = if resp.status().is_success() {
-            let slc = resp.into_body();
-            let reserve_resp: GhacReserveResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
+        let cache_id = if parts.status().is_success() {
+            let reserve_resp: GhacReserveResponse = body.to_json().await?;
             reserve_resp.cache_id
         } else {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
+            let bs = body.to_bytes().await?;
+            return Err(
+                parse_error(parts, bs)?.map(|err| err.with_operation("Backend::ghac_reserve"))
+            );
         };
 
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
@@ -353,17 +347,7 @@ impl Accessor for GhacBackend {
             ));
         }
 
-        let resp = self.ghac_delete(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.ghac_delete(path).await.map(|_| RpDelete::default())
     }
 }
 
@@ -473,7 +457,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ghac_delete(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -493,6 +477,15 @@ impl GhacBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        // deleting not existing objects is ok
+        if parts.status().is_success() || parts.status() == StatusCode::NOT_FOUND {
+            body.consume().await?;
+            Ok(())
+        } else {
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs)?)
+        }
     }
 }
 

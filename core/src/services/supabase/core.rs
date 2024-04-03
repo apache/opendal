@@ -19,11 +19,12 @@ use std::fmt::Debug;
 
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderValue, StatusCode};
 
 use crate::raw::*;
+use crate::services::supabase::error::parse_error;
 use crate::*;
 
 pub struct SupabaseCore {
@@ -36,7 +37,7 @@ pub struct SupabaseCore {
     /// If you want to read the public resources, please do not set the key.
     pub key: Option<String>,
 
-    pub http_client: HttpClient,
+    pub client: HttpClient,
 }
 
 impl Debug for SupabaseCore {
@@ -62,7 +63,7 @@ impl SupabaseCore {
             bucket: bucket.to_string(),
             endpoint: endpoint.to_string(),
             key,
-            http_client: client,
+            client,
         }
     }
 
@@ -226,15 +227,12 @@ impl SupabaseCore {
 
 // core utils
 impl SupabaseCore {
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.http_client.send(req).await
-    }
-
     pub async fn supabase_get_object(
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?
         } else {
@@ -242,9 +240,20 @@ impl SupabaseCore {
         };
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_head_object(&self, path: &str) -> Result<Metadata> {
         let mut req = if self.key.is_some() {
             self.supabase_head_object_auth_request(path)?
         } else {
@@ -252,9 +261,16 @@ impl SupabaseCore {
         };
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            _ => self.supabase_get_object_info(path).await,
+        }
     }
 
-    pub async fn supabase_get_object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_get_object_info(&self, path: &str) -> Result<Metadata> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_info_auth_request(path)?
         } else {
@@ -262,11 +278,30 @@ impl SupabaseCore {
         };
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok(Metadata::new(EntryMode::DIR)),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_delete_object(&self, path: &str) -> Result<()> {
         let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status.is_success() {
+            Ok(())
+        } else {
+            let bs = body.to_bytes().await?;
+            // deleting not existing objects is ok
+            let e = parse_error(parts, bs).await?;
+            if e.kind() == ErrorKind::NotFound {
+                Ok(())
+            } else {
+                Err(e)
+            }
+        }
     }
 }

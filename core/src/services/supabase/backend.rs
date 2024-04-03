@@ -192,18 +192,7 @@ impl Accessor for SupabaseBackend {
 
         match resp.status() {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => {
-                resp = self.core.supabase_get_object_info(path).await?;
-                match resp.status() {
-                    StatusCode::NOT_FOUND if path.ends_with('/') => {
-                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                    }
-                    _ => {
-                        let bs = body.to_bytes().await?;
-                        Err(parse_error(parts, bs)?)
-                    }
-                }
-            }
+            _ => self.core.supabase_get_object_info(path).await?,
         }
     }
 
@@ -222,18 +211,9 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.supabase_delete_object(path).await?;
-
-        if resp.status().is_success() {
-            Ok(RpDelete::default())
-        } else {
-            // deleting not existing objects is ok
-            let e = parse_error(resp).await?;
-            if e.kind() == ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(e)
-            }
-        }
+        self.core
+            .supabase_delete_object(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 }

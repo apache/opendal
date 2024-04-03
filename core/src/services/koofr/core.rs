@@ -67,10 +67,6 @@ impl Debug for KoofrCore {
 }
 
 impl KoofrCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-
     pub async fn get_mount_id(&self) -> Result<&String> {
         self.mount_id
             .get_or_try_init(|| async {
@@ -82,20 +78,14 @@ impl KoofrCore {
                     .body(RequestBody::Empty)
                     .map_err(new_request_build_error)?;
 
-                let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
+                let (parts, body) = self.client.send(req).await?.into_parts();
 
-
-
-                if status != StatusCode::OK {
-                    return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)};
+                if parts.status != StatusCode::OK {
+                    let bs = body.to_bytes().await?;
+                    return Err(parse_error(parts, bs)?);
                 }
 
-                let bs = resp.into_body();
-
-                let resp: MountsResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
+                let resp: MountsResponse = body.to_json().await?;
                 for mount in resp.mounts {
                     if mount.is_primary {
                         return Ok(mount.id);
@@ -130,17 +120,14 @@ Err(parse_error(parts, bs)?)};
             .body(RequestBody::Bytes(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(auth_req).await?;
+        let (parts, body) = self.client.send(auth_req).await?.into_parts();
 
-
-
-        if status != StatusCode::OK {
-            let (parts, body) = resp.into_parts();
+        if parts.status != StatusCode::OK {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs).await?);
         }
 
-        let resp: TokenResponse = resp.into_body().to_json().await?;
+        let resp: TokenResponse = body.to_json().await?;
         signer.token = resp.token;
 
         Ok(req.header(
@@ -171,65 +158,56 @@ impl KoofrCore {
     }
 
     pub async fn create_dir(&self, path: &str) -> Result<()> {
-        let resp = self.info(path).await?;
+        let resp = self.info(path).await;
+        match resp {
+            Ok(_) => return Ok(()),
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+            _ => (),
+        };
 
+        let name = get_basename(path).trim_end_matches('/');
+        let parent = get_parent(path);
 
+        let mount_id = self.get_mount_id().await?;
 
+        let url = format!(
+            "{}/api/v2/mounts/{}/files/folder?path={}",
+            self.endpoint,
+            mount_id,
+            percent_encode_path(parent)
+        );
+
+        let body = json!({
+            "name": name
+        });
+
+        let bs = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+
+        let req = Request::post(url);
+
+        let req = self.sign(req).await?;
+
+        let req = req
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(RequestBody::Bytes(Bytes::from(bs)))
+            .map_err(new_request_build_error)?;
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::NOT_FOUND => {
-                let name = get_basename(path).trim_end_matches('/');
-                let parent = get_parent(path);
-
-                let mount_id = self.get_mount_id().await?;
-
-                let url = format!(
-                    "{}/api/v2/mounts/{}/files/folder?path={}",
-                    self.endpoint,
-                    mount_id,
-                    percent_encode_path(parent)
-                );
-
-                let body = json!({
-                    "name": name
-                });
-
-                let bs = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-
-                let req = Request::post(url);
-
-                let req = self.sign(req).await?;
-
-                let req = req
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(RequestBody::Bytes(Bytes::from(bs)))
-                    .map_err(new_request_build_error)?;
-
-                let (parts, body) = self.client.send(req).await?.into_parts();
-
-
-
-                match status {
-                    // When the directory already exists, Koofr returns 400 Bad Request.
-                    // We should treat it as success.
-                    StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => Ok(()),
-                    _ => {
-                        let (parts, body) = resp.into_parts();
-                        let bs = body.to_bytes().await?;
-                        Err(parse_error(parts, bs).await?)
-                    }
-                }
+            // When the directory already exists, Koofr returns 400 Bad Request.
+            // We should treat it as success.
+            StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => {
+                body.consume().await?;
+                Ok(())
             }
-            StatusCode::OK => Ok(()),
             _ => {
-                let (parts, body) = resp.into_parts();
                 let bs = body.to_bytes().await?;
-                {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)}
+                Err(parse_error(parts, bs)?)
             }
         }
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn info(&self, path: &str) -> Result<Metadata> {
         let mount_id = self.get_mount_id().await?;
 
         let url = format!(
@@ -248,9 +226,32 @@ Err(parse_error(parts, bs)?)}
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let file: File = body.to_json().await?;
+
+                let mode = if file.ty == "dir" {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::FILE
+                };
+
+                let mut md = Metadata::new(mode);
+
+                md.set_content_length(file.size)
+                    .set_content_type(&file.content_type)
+                    .set_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+
+                Ok(md)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange, buf: oio::WritableBuf) -> Result<usize> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -271,9 +272,20 @@ Err(parse_error(parts, bs)?)}
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn put(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn put(&self, path: &str, bs: Bytes) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let filename = get_basename(&path);
@@ -307,9 +319,19 @@ Err(parse_error(parts, bs)?)}
         let req = multipart.apply(req)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::CREATED => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn remove(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn remove(&self, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -330,9 +352,21 @@ Err(parse_error(parts, bs)?)}
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK |
+            // Allow 404 when deleting a non-existing object
+            StatusCode::NOT_FOUND  => {
+                body.consume().await?;
+                Ok(())
+            },
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -362,9 +396,19 @@ Err(parse_error(parts, bs)?)}
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<()> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -394,6 +438,16 @@ Err(parse_error(parts, bs)?)}
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn list(&self, path: &str) -> Result<Response<oio::Buffer>> {

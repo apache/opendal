@@ -42,14 +42,6 @@ impl oio::OneShotWrite for KoofrWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;
 
-        let resp = self.core.put(&self.path, bs).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.put(&self.path, bs).await
     }
 }

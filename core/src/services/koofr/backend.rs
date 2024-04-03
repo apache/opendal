@@ -282,34 +282,7 @@ impl Accessor for KoofrBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let path = build_rooted_abs_path(&self.core.root, path);
-        let resp = self.core.info(&path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let file: File =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                let mode = if file.ty == "dir" {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::FILE
-                };
-
-                let mut md = Metadata::new(mode);
-
-                md.set_content_length(file.size)
-                    .set_content_type(&file.content_type)
-                    .set_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
-
-                Ok(RpStat::new(md))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.info(&path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -328,17 +301,7 @@ impl Accessor for KoofrBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.remove(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.remove(path).await.map(|_| RpDelete::new())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -353,24 +316,9 @@ impl Accessor for KoofrBackend {
             return Ok(RpCopy::default());
         }
 
-        let resp = self.core.remove(to).await?;
+        self.core.remove(to).await?;
 
-        if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let resp = self.core.copy(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.copy(from, to).await.map(|_| RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
@@ -380,23 +328,11 @@ impl Accessor for KoofrBackend {
             return Ok(RpRename::default());
         }
 
-        let resp = self.core.remove(to).await?;
+        self.core.remove(to).await?;
 
-        if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let resp = self.core.move_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpRename::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .move_object(from, to)
+            .await
+            .map(|_| RpRename::default())
     }
 }

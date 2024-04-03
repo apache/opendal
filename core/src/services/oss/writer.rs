@@ -45,26 +45,13 @@ impl OssWriter {
 
 impl oio::MultipartWrite for OssWriter {
     async fn write_once(&self, size: u64, body: RequestBody) -> Result<()> {
-        let mut req =
-            self.core
-                .oss_put_object_request(&self.path, Some(size), &self.op, body, false)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .oss_put_object(&self.path, Some(size), &self.op, body)
+            .await
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        let resp = self
-            .core
+        self.core
             .oss_initiate_upload(
                 &self.path,
                 self.op.content_type(),
@@ -72,23 +59,7 @@ impl oio::MultipartWrite for OssWriter {
                 self.op.cache_control(),
                 false,
             )
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
-                        .map_err(new_xml_deserialize_error)?;
-
-                Ok(result.upload_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn write_part(
@@ -101,29 +72,11 @@ impl oio::MultipartWrite for OssWriter {
         // OSS requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let resp = self
+        let etag = self
             .core
             .oss_upload_part_request(&self.path, upload_id, part_number, false, size, body)
             .await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
-                Ok(oio::MultipartPart { part_number, etag })
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(oio::MultipartPart { part_number, etag })
     }
 
     async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
@@ -135,55 +88,26 @@ impl oio::MultipartWrite for OssWriter {
             })
             .collect();
 
-        let resp = self
-            .core
+        self.core
             .oss_complete_multipart_upload_request(&self.path, upload_id, false, parts)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .oss_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // OSS returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }
 
 impl oio::AppendWrite for OssWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.oss_head_object(&self.path, None, None).await?;
+        let resp = self.core.oss_head_object(&self.path, None, None).await;
 
-        match parts.status {
-            StatusCode::OK => {
-                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "Content-Length not present in returning response",
-                    )
-                })?;
-                Ok(content_length)
-            }
-            StatusCode::NOT_FOUND => Ok(0),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        match resp {
+            Ok(meta) => Ok(meta.content_length()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(0),
+            Err(err) => Err(err),
         }
     }
 
@@ -194,10 +118,13 @@ impl oio::AppendWrite for OssWriter {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

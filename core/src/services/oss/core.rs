@@ -28,10 +28,10 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
-use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderName, StatusCode};
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -39,6 +39,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::*;
+use crate::services::oss::error::parse_error;
 use crate::*;
 
 mod constants {
@@ -123,11 +124,6 @@ impl OssCore {
         self.signer
             .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)
-    }
-
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// Set sse headers
@@ -369,10 +365,23 @@ impl OssCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.oss_get_object_request(path, range, false, args)?;
         self.sign(&mut req).await?;
-        let (parts, body) =  let (parts, body) = self.client.send(req).await?.into_parts();?.into_parts();
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn oss_head_object(
@@ -380,11 +389,21 @@ impl OssCore {
         path: &str,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Metadata> {
         let mut req = self.oss_head_object_request(path, false, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn oss_put_object(
@@ -393,14 +412,24 @@ impl OssCore {
         size: Option<u64>,
         args: &OpWrite,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let mut req = self.oss_put_object_request(path, size, args, body, false)?;
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -423,6 +452,16 @@ impl OssCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn oss_list_object(
@@ -432,20 +471,42 @@ impl OssCore {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListObjectsOutput> {
         let mut req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
 
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output: ListObjectsOutput = body.to_xml().await?;
+                Ok(output)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn oss_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn oss_delete_object(&self, path: &str) -> Result<()> {
         let mut req = self.oss_delete_object_request(path)?;
         self.sign(&mut req).await?;
+
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
+    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<DeleteObjectsResult> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -474,6 +535,16 @@ impl OssCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result = body.to_xml().await?;
+                Ok(result)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     fn get_endpoint(&self, is_presign: bool) -> &str {
@@ -491,7 +562,7 @@ impl OssCore {
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
         is_presign: bool,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
@@ -511,6 +582,16 @@ impl OssCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: InitiateMultipartUploadResult = body.to_xml().await?;
+                Ok(result.upload_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Creates a request to upload a part
@@ -522,7 +603,7 @@ impl OssCore {
         is_presign: bool,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
 
@@ -539,6 +620,25 @@ impl OssCore {
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                let etag = parse_etag(parts.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+
+                Ok(etag)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn oss_complete_multipart_upload_request(
@@ -547,7 +647,7 @@ impl OssCore {
         upload_id: &str,
         is_presign: bool,
         parts: Vec<MultipartUploadPart>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!(
@@ -574,15 +674,21 @@ impl OssCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Abort an on-going multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
-    pub async fn oss_abort_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn oss_abort_multipart_upload(&self, path: &str, upload_id: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -597,6 +703,17 @@ impl OssCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            // OSS returns code 204 if abort succeeds.
+            StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

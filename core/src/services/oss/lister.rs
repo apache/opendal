@@ -57,7 +57,7 @@ impl OssLister {
 
 impl oio::PageList for OssLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .oss_list_object(
                 &self.path,
@@ -71,18 +71,6 @@ impl oio::PageList for OssLister {
                 },
             )
             .await?;
-
-        if resp.status() != http::StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-
-        let output: ListObjectsOutput = de::from_reader(bs.reader())
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
         ctx.done = !output.is_truncated;
         ctx.token = output.next_continuation_token.unwrap_or_default();

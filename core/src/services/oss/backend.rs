@@ -442,18 +442,10 @@ impl Accessor for OssBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self
-            .core
+        self.core
             .oss_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
+            .map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -476,15 +468,10 @@ impl Accessor for OssBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.oss_delete_object(path).await?;
-
-        match parts.status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .oss_delete_object(path)
+            .await
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -499,15 +486,10 @@ impl Accessor for OssBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.oss_copy_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .oss_copy_object(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -562,37 +544,24 @@ impl Accessor for OssBackend {
             })
             .collect();
 
-        let resp = self.core.oss_delete_objects(paths).await?;
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(ops_len);
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                keys.remove(&path);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            // TODO: we should handle those errors with code.
-            for i in keys {
-                batched_result.push((
-                    i,
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "oss delete this key failed for reason we don't know",
-                    )),
-                ));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        let result = self.core.oss_delete_objects(paths).await?;
+        let mut batched_result = Vec::with_capacity(ops_len);
+        for i in result.deleted {
+            let path = build_rel_path(&self.core.root, &i.key);
+            keys.remove(&path);
+            batched_result.push((path, Ok(RpDelete::default().into())));
         }
+        // TODO: we should handle those errors with code.
+        for i in keys {
+            batched_result.push((
+                i,
+                Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "oss delete this key failed for reason we don't know",
+                )),
+            ));
+        }
+
+        Ok(RpBatch::new(batched_result))
     }
 }

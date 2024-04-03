@@ -45,21 +45,10 @@ impl SwiftLister {
 
 impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let response = self
+        let decoded_response = self
             .core
             .swift_list(&self.path, self.delimiter, self.limit, &ctx.token)
             .await?;
-
-        let status_code = response.status();
-
-        if !status_code.is_success() {
-            let error = parse_error(response).await?;
-            return Err(error);
-        }
-
-        let bytes = response.into_body();
-        let decoded_response: Vec<ListOpResponse> =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         // Update token and done based on resp.
         if let Some(entry) = decoded_response.last() {

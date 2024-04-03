@@ -17,12 +17,13 @@
 
 use std::fmt::Debug;
 
-use http::header;
 use http::Request;
 use http::Response;
+use http::{header, StatusCode};
 use serde::Deserialize;
 
 use crate::raw::*;
+use crate::services::swift::error::parse_error;
 use crate::*;
 
 pub struct SwiftCore {
@@ -44,7 +45,7 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_delete(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -63,6 +64,16 @@ impl SwiftCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT | StatusCode::OK | StatusCode::NOT_FOUND => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn swift_list(
@@ -71,7 +82,7 @@ impl SwiftCore {
         delimiter: &str,
         limit: Option<usize>,
         marker: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Vec<ListOpResponse>> {
         let p = build_abs_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
@@ -100,6 +111,16 @@ impl SwiftCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let decoded_response: Vec<ListOpResponse> = body.to_json().await?;
+                Ok(decoded_response)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn swift_create_object(
@@ -107,7 +128,7 @@ impl SwiftCore {
         path: &str,
         length: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -125,6 +146,16 @@ impl SwiftCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn swift_read(
@@ -132,7 +163,8 @@ impl SwiftCore {
         path: &str,
         range: BytesRange,
         _arg: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -157,9 +189,20 @@ impl SwiftCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<()> {
         // NOTE: current implementation is limited to same container and root
 
         let src_p = format!(
@@ -194,9 +237,20 @@ impl SwiftCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_get_metadata(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -215,6 +269,16 @@ impl SwiftCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

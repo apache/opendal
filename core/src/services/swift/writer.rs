@@ -38,17 +38,8 @@ impl SwiftWriter {
 
 impl oio::OneShotWrite for SwiftWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .swift_create_object(&self.path, bs.len() as u64, RequestBody::Bytes(bs))
-            .await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }

@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use http::StatusCode;
+use bytes::BufMut;
 
-use super::error::parse_error;
 use crate::raw::*;
 use crate::services::http::backend::HttpBackend;
+use crate::*;
 
 pub struct HttpReader {
     core: HttpBackend,
@@ -39,21 +39,9 @@ impl HttpReader {
 }
 
 impl oio::Read for HttpReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let resp = self.core.http_get(&self.path, range, &self.op).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                body.consume().await?;
-                Ok(0)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.http_get(&self.path, range, &self.op, buf).await
     }
 }

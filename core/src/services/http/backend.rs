@@ -257,20 +257,7 @@ impl Accessor for HttpBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.http_head(path, &args).await?;
-
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            // HTTP Server like nginx could return FORBIDDEN if auto-index
-            // is not enabled, we should ignore them.
-            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.http_head(path, &args).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -284,7 +271,8 @@ impl HttpBackend {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -312,9 +300,20 @@ impl HttpBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<oio::Buffer>> {
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Metadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -338,5 +337,20 @@ impl HttpBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            // HTTP Server like nginx could return FORBIDDEN if auto-index
+            // is not enabled, we should ignore them.
+            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
+                Ok(Metadata::new(EntryMode::DIR))
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }

@@ -73,10 +73,6 @@ impl Debug for VercelBlobCore {
 }
 
 impl VercelBlobCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-
     pub fn sign(&self, req: request::Builder) -> request::Builder {
         req.header(header::AUTHORIZATION, format!("Bearer {}", self.token))
     }
@@ -88,7 +84,8 @@ impl VercelBlobCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
@@ -113,6 +110,17 @@ impl VercelBlobCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn get_put_request(
@@ -173,18 +181,21 @@ impl VercelBlobCore {
             .body(RequestBody::Bytes(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
-    pub async fn head(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn head(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path);
 
         let resp = self.list(&p, Some(1)).await?;
@@ -208,9 +219,19 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: Blob = body.to_json().await?;
+                parse_blob(&resp)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
 
         let resp = self.list(&from, Some(1)).await?;
@@ -239,6 +260,16 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn list(&self, prefix: &str, limit: Option<usize>) -> Result<ListResponse> {
@@ -262,28 +293,17 @@ Err(parse_error(parts, bs)?)},
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
-
-
-        if status != StatusCode::OK {
-            return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)};
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        let body = resp.into_body();
-
-        let resp: ListResponse =
-            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-
+        let resp: ListResponse = body.to_json().await?;
         Ok(resp)
     }
 
-    pub async fn initiate_multipart_upload(
-        &self,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn initiate_multipart_upload(&self, path: &str, args: &OpWrite) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -308,6 +328,16 @@ Err(parse_error(parts, bs)?)};
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: InitiateMultipartUploadResponse = body.to_json().await?;
+                Ok(resp.upload_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn upload_part(
@@ -317,7 +347,7 @@ Err(parse_error(parts, bs)?)};
         part_number: usize,
         size: u64,
         body: RequestBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -339,6 +369,16 @@ Err(parse_error(parts, bs)?)};
         let req = req.body(body).map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: UploadPartResponse = body.to_json().await?;
+                Ok(resp.etag)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn complete_multipart_upload(
@@ -346,7 +386,7 @@ Err(parse_error(parts, bs)?)};
         path: &str,
         upload_id: &str,
         parts: Vec<Part>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -370,6 +410,16 @@ Err(parse_error(parts, bs)?)};
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

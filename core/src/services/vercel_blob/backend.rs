@@ -214,22 +214,7 @@ impl Accessor for VercelBlobBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.head(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: Blob =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                parse_blob(&resp).map(RpStat::new)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.head(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -253,15 +238,7 @@ impl Accessor for VercelBlobBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.copy(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.copy(from, to).await.map(|_| RpCopy::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

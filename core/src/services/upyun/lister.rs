@@ -47,34 +47,14 @@ impl UpyunLister {
 
 impl oio::PageList for UpyunLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let Some(response) = self
             .core
             .list_objects(&self.path, &ctx.token, self.limit)
-            .await?;
-
-        if resp.status() == http::StatusCode::NOT_FOUND {
+            .await?
+        else {
             ctx.done = true;
             return Ok(());
-        }
-
-        match resp.status() {
-            http::StatusCode::OK => {}
-            http::StatusCode::NOT_FOUND => {
-                ctx.done = true;
-                return Ok(());
-            }
-            _ => {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                };
-            }
-        }
-
-        let bs = resp.into_body();
-
-        let response: ListObjectsResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+        };
 
         // ref https://help.upyun.com/knowledge-base/rest_api/#e88eb7e58f96e79baee5bd95e69687e4bbb6e58897e8a1a8
         // when iter is "g2gCZAAEbmV4dGQAA2VvZg", it means the list is done.

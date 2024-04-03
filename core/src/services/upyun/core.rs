@@ -21,16 +21,17 @@ use std::fmt::Formatter;
 use base64::Engine;
 use hmac::Hmac;
 use hmac::Mac;
-use http::header;
 use http::HeaderMap;
 use http::Request;
 use http::Response;
+use http::{header, StatusCode};
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
 
 use self::constants::*;
 use crate::raw::*;
+use crate::services::upyun::error::parse_error;
 use crate::*;
 
 pub(super) mod constants {
@@ -81,11 +82,6 @@ impl Debug for UpyunCore {
 }
 
 impl UpyunCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
-
     pub async fn sign(&self, req: &mut Request<RequestBody>) -> Result<()> {
         // get rfc1123 date
         let date = chrono::Utc::now()
@@ -108,7 +104,8 @@ impl UpyunCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -127,9 +124,20 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn info(&self, path: &str) -> Result<Metadata> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -147,6 +155,16 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_info(parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn upload(
@@ -190,7 +208,7 @@ impl UpyunCore {
         Ok(req)
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn delete(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -208,9 +226,21 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK|
+            // Allow 404 when deleting a non-existing object
+            StatusCode::NOT_FOUND  => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -236,9 +266,19 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn move_object(&self, from: &str, to: &str) -> Result<()> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -264,9 +304,19 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn create_dir(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
         let path = path[..path.len() - 1].to_string();
 
@@ -289,13 +339,19 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn initiate_multipart_upload(
-        &self,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn initiate_multipart_upload(&self, path: &str, args: &OpWrite) -> Result<String> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -329,6 +385,21 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT => {
+                let id =
+                    parse_header_to_str(parts.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("{} header is missing", X_UPYUN_MULTI_UUID),
+                    ))?;
+
+                Ok(id.to_string())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn upload_part(
@@ -365,11 +436,7 @@ impl UpyunCore {
         Ok(req)
     }
 
-    pub async fn complete_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn complete_multipart_upload(&self, path: &str, upload_id: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -391,6 +458,16 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn list_objects(
@@ -398,7 +475,7 @@ impl UpyunCore {
         path: &str,
         iter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Option<ListObjectsResponse>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -430,6 +507,17 @@ impl UpyunCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let response: ListObjectsResponse = body.to_json().await?;
+                Ok(Some(response))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

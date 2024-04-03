@@ -276,27 +276,14 @@ impl Accessor for UpyunBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.create_dir(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .create_dir(path)
+            .await
+            .map(|_| RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.info(path).await?;
-
-        match parts.status {
-            StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.info(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -316,17 +303,7 @@ impl Accessor for UpyunBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -335,26 +312,13 @@ impl Accessor for UpyunBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.copy(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.copy(from, to).await.map(|_| RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.move_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpRename::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .move_object(from, to)
+            .await
+            .map(|_| RpRename::default())
     }
 }

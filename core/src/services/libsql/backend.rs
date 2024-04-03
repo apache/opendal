@@ -306,19 +306,12 @@ impl Adapter {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        if resp.status() != http::StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        if parts.status() != http::StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        let bs = resp.into_body();
-
-        let resp: ServerMsg = serde_json::from_reader(bs.reader()).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize json from response").set_source(e)
-        })?;
-
+        let resp: ServerMsg = body.to_json().await?;
         if resp.results.is_empty() {
             return Err(Error::new(
                 ErrorKind::Unexpected,

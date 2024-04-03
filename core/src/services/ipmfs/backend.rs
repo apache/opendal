@@ -93,15 +93,7 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.ipmfs_mkdir(path).await?;
-
-        match parts.status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.ipmfs_mkdir(path).await.map(|_| RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -110,31 +102,7 @@ impl Accessor for IpmfsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.ipmfs_stat(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let res: IpfsStatResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                let mode = match res.file_type.as_str() {
-                    "file" => EntryMode::FILE,
-                    "directory" => EntryMode::DIR,
-                    _ => EntryMode::Unknown,
-                };
-
-                let mut meta = Metadata::new(mode);
-                meta.set_content_length(res.size);
-
-                Ok(RpStat::new(meta))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.ipmfs_stat(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -152,15 +120,7 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.ipmfs_rm(path).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.ipmfs_rm(path).await.map(|_| RpDelete::new())
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -170,7 +130,7 @@ impl Accessor for IpmfsBackend {
 }
 
 impl IpmfsBackend {
-    async fn ipmfs_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Metadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -185,9 +145,34 @@ impl IpmfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let res: IpfsStatResponse = body.to_json().await?;
+
+                let mode = match res.file_type.as_str() {
+                    "file" => EntryMode::FILE,
+                    "directory" => EntryMode::DIR,
+                    _ => EntryMode::Unknown,
+                };
+
+                let mut meta = Metadata::new(mode);
+                meta.set_content_length(res.size);
+
+                Ok(meta)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn ipmfs_read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -207,9 +192,20 @@ impl IpmfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -224,9 +220,19 @@ impl IpmfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<IpfsLsResponse> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -241,9 +247,16 @@ impl IpmfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
+        }
+
+        let output: IpfsLsResponse = body.to_json().await?;
+        Ok(output)
     }
 
-    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -258,6 +271,16 @@ impl IpmfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::CREATED | StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Support write from reader.
@@ -286,4 +309,44 @@ struct IpfsStatResponse {
     size: u64,
     #[serde(rename = "Type")]
     file_type: String,
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsLsResponseEntry {
+    #[serde(rename = "Name")]
+    pub name: String,
+    #[serde(rename = "Type")]
+    pub file_type: i64,
+    #[serde(rename = "Size")]
+    pub size: u64,
+}
+
+impl IpfsLsResponseEntry {
+    /// ref: <https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format>
+    ///
+    /// ```protobuf
+    /// enum DataType {
+    ///     Raw = 0;
+    ///     Directory = 1;
+    ///     File = 2;
+    ///     Metadata = 3;
+    ///     Symlink = 4;
+    ///     HAMTShard = 5;
+    /// }
+    /// ```
+    pub fn mode(&self) -> EntryMode {
+        match &self.file_type {
+            1 => EntryMode::DIR,
+            0 | 2 => EntryMode::FILE,
+            _ => EntryMode::Unknown,
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsLsResponse {
+    #[serde(rename = "Entries")]
+    pub entries: Option<Vec<IpfsLsResponseEntry>>,
 }

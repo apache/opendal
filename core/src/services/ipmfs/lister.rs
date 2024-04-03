@@ -46,23 +46,12 @@ impl IpmfsLister {
 
 impl oio::PageList for IpmfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.backend.ipmfs_ls(&self.path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-        let entries_body: IpfsLsResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+        let output = self.backend.ipmfs_ls(&self.path).await?;
 
         // Mark dir stream has been consumed.
         ctx.done = true;
 
-        for object in entries_body.entries.unwrap_or_default() {
+        for object in output.entries.unwrap_or_default() {
             let path = match object.mode() {
                 EntryMode::FILE => format!("{}{}", &self.path, object.name),
                 EntryMode::DIR => format!("{}{}/", &self.path, object.name),
@@ -79,44 +68,4 @@ impl oio::PageList for IpmfsLister {
 
         Ok(())
     }
-}
-
-#[derive(Deserialize, Default, Debug)]
-#[serde(default)]
-struct IpfsLsResponseEntry {
-    #[serde(rename = "Name")]
-    name: String,
-    #[serde(rename = "Type")]
-    file_type: i64,
-    #[serde(rename = "Size")]
-    size: u64,
-}
-
-impl IpfsLsResponseEntry {
-    /// ref: <https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format>
-    ///
-    /// ```protobuf
-    /// enum DataType {
-    ///     Raw = 0;
-    ///     Directory = 1;
-    ///     File = 2;
-    ///     Metadata = 3;
-    ///     Symlink = 4;
-    ///     HAMTShard = 5;
-    /// }
-    /// ```
-    fn mode(&self) -> EntryMode {
-        match &self.file_type {
-            1 => EntryMode::DIR,
-            0 | 2 => EntryMode::FILE,
-            _ => EntryMode::Unknown,
-        }
-    }
-}
-
-#[derive(Deserialize, Default, Debug)]
-#[serde(default)]
-struct IpfsLsResponse {
-    #[serde(rename = "Entries")]
-    entries: Option<Vec<IpfsLsResponseEntry>>,
 }

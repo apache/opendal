@@ -41,60 +41,33 @@ impl WebhdfsLister {
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_status = if self.backend.disable_list_batch {
-            let resp = self.backend.webhdfs_list_status_request(&self.path).await?;
-            match resp.status() {
-                StatusCode::OK => {
-                    ctx.done = true;
+            let Some(file_status) = self.backend.webhdfs_list_status_request(&self.path)? else {
+                ctx.done = true;
+                return Ok(());
+            };
 
-                    let bs = resp.into_body();
-                    serde_json::from_reader::<_, FileStatusesWrapper>(bs.reader())
-                        .map_err(new_json_deserialize_error)?
-                        .file_statuses
-                        .file_status
-                }
-                StatusCode::NOT_FOUND => {
-                    ctx.done = true;
-                    return Ok(());
-                }
-                _ => {
-                    return {
-                        let bs = body.to_bytes().await?;
-                        Err(parse_error(parts, bs)?)
-                    }
-                }
-            }
+            ctx.done = true;
+            file_status
         } else {
-            let resp = self
+            let Some(res) = self
                 .backend
                 .webhdfs_list_status_batch_request(&self.path, &ctx.token)
-                .await?;
-            match resp.status() {
-                StatusCode::OK => {
-                    let bs = resp.into_body();
-                    let res: DirectoryListingWrapper =
-                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                    let directory_listing = res.directory_listing;
-                    let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
+                .await?
+            else {
+                ctx.done = true;
+                return Ok(());
+            };
 
-                    if directory_listing.remaining_entries == 0 {
-                        ctx.done = true;
-                    } else if !file_statuses.is_empty() {
-                        ctx.token = file_statuses.last().unwrap().path_suffix.clone();
-                    }
+            let directory_listing = res.directory_listing;
+            let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
 
-                    file_statuses
-                }
-                StatusCode::NOT_FOUND => {
-                    ctx.done = true;
-                    return Ok(());
-                }
-                _ => {
-                    return {
-                        let bs = body.to_bytes().await?;
-                        Err(parse_error(parts, bs)?)
-                    }
-                }
+            if directory_listing.remaining_entries == 0 {
+                ctx.done = true;
+            } else if !file_statuses.is_empty() {
+                ctx.token = file_statuses.last().unwrap().path_suffix.clone();
             }
+
+            file_statuses
         };
 
         for status in file_status {

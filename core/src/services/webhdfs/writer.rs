@@ -123,18 +123,9 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
 
         // rename concat file to path
-        let resp = self
-            .backend
+        self.backend
             .webhdfs_rename_object(&first_block_id, &self.path)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {

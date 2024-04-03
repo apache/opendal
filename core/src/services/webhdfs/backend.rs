@@ -29,11 +29,11 @@ use log::debug;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use super::error::parse_error;
+use super::error::{parse_error, parse_error_msg};
 use super::lister::WebhdfsLister;
-use super::message::BooleanResp;
-use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
+use super::message::{BooleanResp, FileStatuses};
+use super::message::{DirectoryListingWrapper, FileStatusType};
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
@@ -242,7 +242,7 @@ impl WebhdfsBackend {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: RequestBody,
+        req_body: RequestBody,
     ) -> Result<Request<RequestBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -263,18 +263,12 @@ impl WebhdfsBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        if status != StatusCode::CREATED && status != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        if parts.status != StatusCode::CREATED && parts.status != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        let bs = resp.into_body();
-
-        let resp: LocationResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
+        let resp: LocationResponse = body.to_json().await?;
         let mut req = Request::put(&resp.location);
 
         if let Some(size) = size {
@@ -284,7 +278,7 @@ impl WebhdfsBackend {
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         };
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req.body(req_body).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -308,10 +302,7 @@ impl WebhdfsBackend {
 
         match parts.status {
             StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: LocationResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
+                let resp: LocationResponse = body.to_json().await?;
                 Ok(resp.location)
             }
             _ => {
@@ -321,11 +312,7 @@ impl WebhdfsBackend {
         }
     }
 
-    pub async fn webhdfs_rename_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_rename_object(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -345,6 +332,16 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn webhdfs_append_request(
@@ -426,7 +423,10 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_list_status_request(
+        &self,
+        path: &str,
+    ) -> Result<Option<Vec<FileStatuses>>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -441,13 +441,24 @@ impl WebhdfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let res = body.to_json().await?;
+                Ok(Some(res))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn webhdfs_list_status_batch_request(
         &self,
         path: &str,
         start_after: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Option<DirectoryListingWrapper>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -466,21 +477,38 @@ impl WebhdfsBackend {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let res = body.to_json().await?;
+                Ok(Some(res))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn webhdfs_read_file(
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let req = self.webhdfs_open_request(path, &range).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub(super) async fn webhdfs_get_file_status(
-        &self,
-        path: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Metadata> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -497,9 +525,30 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output: FileStatusWrapper = body.to_json().await?;
+                let file_status = output.file_status;
+
+                let meta = match file_status.ty {
+                    FileStatusType::Directory => Metadata::new(EntryMode::DIR),
+                    FileStatusType::File => Metadata::new(EntryMode::FILE)
+                        .with_content_length(file_status.length)
+                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                            file_status.modification_time,
+                        )?),
+                };
+
+                Ok(meta)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_delete(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
@@ -515,36 +564,36 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     async fn check_root(&self) -> Result<()> {
-        let resp = self.webhdfs_get_file_status("/").await?;
-        match resp.status() {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(bs.reader())
-                    .map_err(new_json_deserialize_error)?
-                    .file_status;
-
-                if file_status.ty == FileStatusType::File {
+        let resp = self.webhdfs_get_file_status("/").await;
+        match resp {
+            Ok(meta) => {
+                if meta.is_file() {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
                         "root path must be dir",
                     ));
                 }
+                Ok(())
             }
-            StatusCode::NOT_FOUND => {
+            Err(err) if err.kind() == ErrorKind::NotFound => {
                 self.create_dir("/", OpCreateDir::new()).await?;
+                Ok(())
             }
-            _ => {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                }
-            }
+            Err(err) => Err(err),
         }
-        Ok(())
     }
 }
 
@@ -592,11 +641,7 @@ impl Accessor for WebhdfsBackend {
         // the redirection should be done automatically.
         match parts.status {
             StatusCode::CREATED | StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp = serde_json::from_reader::<_, BooleanResp>(bs.reader())
-                    .map_err(new_json_deserialize_error)?;
-
+                let resp: BooleanResp = body.to_json().await?;
                 if resp.boolean {
                     Ok(RpCreateDir::default())
                 } else {
@@ -619,33 +664,7 @@ impl Accessor for WebhdfsBackend {
             .get_or_try_init(|| async { self.check_root().await })
             .await?;
 
-        let resp = self.webhdfs_get_file_status(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(bs.reader())
-                    .map_err(new_json_deserialize_error)?
-                    .file_status;
-
-                let meta = match file_status.ty {
-                    FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-                    FileStatusType::File => Metadata::new(EntryMode::FILE)
-                        .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
-                            file_status.modification_time,
-                        )?),
-                };
-
-                Ok(RpStat::new(meta))
-            }
-
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.webhdfs_get_file_status(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -668,15 +687,7 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.webhdfs_delete(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.webhdfs_delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

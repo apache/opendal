@@ -40,7 +40,7 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub(super) async fn parse_error(parts: Parts, bs: Bytes) -> Result<Error> {
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }

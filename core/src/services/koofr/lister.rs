@@ -45,27 +45,10 @@ impl KoofrLister {
 
 impl oio::PageList for KoofrLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.list(&self.path).await?;
-
-        if resp.status() == http::StatusCode::NOT_FOUND {
+        let Some(response) = self.core.list(&self.path).await? else {
             ctx.done = true;
             return Ok(());
-        }
-
-        match resp.status() {
-            http::StatusCode::OK => {}
-            _ => {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                };
-            }
-        }
-
-        let bs = resp.into_body();
-
-        let response: ListResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+        };
 
         for file in response.files {
             let path = build_abs_path(&normalize_root(&self.path), &file.name);

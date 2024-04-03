@@ -450,7 +450,7 @@ impl KoofrCore {
         }
     }
 
-    pub async fn list(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn list(&self, path: &str) -> Result<Option<ListResponse>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -471,6 +471,17 @@ impl KoofrCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: ListResponse = body.to_json().await?;
+                Ok(Some(resp))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

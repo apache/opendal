@@ -32,9 +32,9 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderValue, StatusCode};
 use reqsign::AwsCredential;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsV4Signer;
@@ -42,6 +42,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::*;
+use crate::services::s3::error::parse_error;
 use crate::*;
 
 mod constants {
@@ -179,11 +180,6 @@ impl S3Core {
         req.headers_mut().remove(HOST);
 
         Ok(())
-    }
-
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        let (parts, body) = self.client.send(req).await?.into_parts();
     }
 
     /// # Note
@@ -367,12 +363,24 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let mut req = self.s3_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn s3_put_object_request(
@@ -418,15 +426,25 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Metadata> {
         let mut req = self.s3_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                parse_into_metadata(path, parts.headers())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_delete_object(&self, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -438,9 +456,20 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::NO_CONTENT |
+            // Allow 404 when deleting a non-existing object
+            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
+            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
+            StatusCode::NOT_FOUND =>  Ok(()),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -496,6 +525,13 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => Ok(()),
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn s3_list_objects(
@@ -505,7 +541,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<ListObjectsOutput> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}?list-type=2", self.endpoint);
@@ -544,13 +580,19 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output = body.to_xml().await?;
+                Ok(output)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn s3_initiate_multipart_upload(
-        &self,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_initiate_multipart_upload(&self, path: &str, args: &OpWrite) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -584,6 +626,16 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: InitiateMultipartUploadResult = body.to_xml().await?;
+                Ok(result.upload_id)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub fn s3_upload_part_request(
@@ -622,7 +674,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -651,14 +703,20 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     /// Abort an on-going multipart upload.
-    pub async fn s3_abort_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_abort_multipart_upload(&self, path: &str, upload_id: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -673,9 +731,20 @@ impl S3Core {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status() {
+            // s3 returns code 204 if abort succeeds.
+            StatusCode::NO_CONTENT => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
+    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<DeleteObjectsResult> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -704,6 +773,16 @@ impl S3Core {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let result: DeleteObjectsResult = body.to_xml().await?;
+                Ok(result)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

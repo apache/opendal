@@ -64,25 +64,9 @@ impl oio::MultipartWrite for S3Writer {
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        let resp = self
-            .core
+        self.core
             .s3_initiate_multipart_upload(&self.path, &self.op)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-                Ok(result.upload_id)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn write_part(
@@ -101,11 +85,12 @@ impl oio::MultipartWrite for S3Writer {
 
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+        let (parts, body) = self.core.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
+                body.consume().await?;
+                let etag = parse_etag(parts.headers())?
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
@@ -132,32 +117,14 @@ impl oio::MultipartWrite for S3Writer {
             })
             .collect();
 
-        let resp = self
-            .core
+        self.core
             .s3_complete_multipart_upload(&self.path, upload_id, parts)
-            .await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
+        self.core
             .s3_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // s3 returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+            .await
     }
 }

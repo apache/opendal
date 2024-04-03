@@ -61,7 +61,7 @@ impl S3Lister {
 
 impl oio::PageList for S3Lister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self
+        let output = self
             .core
             .s3_list_objects(
                 &self.path,
@@ -76,18 +76,6 @@ impl oio::PageList for S3Lister {
                 },
             )
             .await?;
-
-        if resp.status() != http::StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-
-        let output: ListObjectsOutput =
-            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //

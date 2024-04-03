@@ -1062,15 +1062,7 @@ impl Accessor for S3Backend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.s3_head_object(path, args).await?;
-
-        match parts.status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.s3_head_object(path, args).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -1090,19 +1082,10 @@ impl Accessor for S3Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.s3_delete_object(path).await?;
-
-        match parts.status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
-            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .s3_delete_object(path)
+            .await
+            .map(|_| RpDelete::new())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -1117,15 +1100,10 @@ impl Accessor for S3Backend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
-
-        match parts.status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core
+            .s3_copy_object(from, to)
+            .await
+            .map(|_| RpCopy::default())
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -1170,40 +1148,28 @@ impl Accessor for S3Backend {
 
         let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-        let resp = self.core.s3_delete_objects(paths).await?;
+        let result = self.core.s3_delete_objects(paths).await?;
 
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            for i in result.error {
-                let path = build_rel_path(&self.core.root, &i.key);
-
-                // set the error kind and mark temporary if retryable
-                let (kind, retryable) =
-                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, &format!("{i:?}"));
-                if retryable {
-                    err = err.set_temporary();
-                }
-
-                batched_result.push((path, Err(err)));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
+        let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
+        for i in result.deleted {
+            let path = build_rel_path(&self.core.root, &i.key);
+            batched_result.push((path, Ok(RpDelete::default().into())));
         }
+        for i in result.error {
+            let path = build_rel_path(&self.core.root, &i.key);
+
+            // set the error kind and mark temporary if retryable
+            let (kind, retryable) =
+                parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+            let mut err: Error = Error::new(kind, &format!("{i:?}"));
+            if retryable {
+                err = err.set_temporary();
+            }
+
+            batched_result.push((path, Err(err)));
+        }
+
+        Ok(RpBatch::new(batched_result))
     }
 }
 

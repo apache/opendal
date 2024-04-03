@@ -56,12 +56,6 @@ impl Debug for PcloudCore {
 }
 
 impl PcloudCore {
-    #[inline]
-    pub async fn send(&self, req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-         let (parts, body) = self.client.send(req).await?.into_parts();}
-}
-
-impl PcloudCore {
     pub async fn get_file_link(&self, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
 
@@ -80,14 +74,11 @@ impl PcloudCore {
             .body(RequestBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let resp = let (parts, body) = self.client.send(req).await?.into_parts();?;
-
+        let (parts, body) = self.client.send(req).await?.into_parts();
 
         match parts.status {
             StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: GetFileLinkResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                let resp: GetFileLinkResponse = body.to_json().await?;
                 let result = resp.result;
                 if result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
@@ -105,12 +96,19 @@ impl PcloudCore {
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
-            _ => {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
         }
     }
 
-    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn download(
+        &self,
+        url: &str,
+        range: BytesRange,
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
         let req = Request::get(url);
 
         // set body
@@ -120,6 +118,17 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
@@ -129,35 +138,12 @@ Err(parse_error(parts, bs)?)},
 
         for i in 0..paths.len() - 1 {
             let path = paths[..i + 1].join("/");
-            let resp = self.create_folder_if_not_exists(&path).await?;
-
-
-
-            match status {
-                StatusCode::OK => {
-                    let bs = resp.into_body();
-                    let resp: PcloudError =
-                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                    let result = resp.result;
-                    if result == 2010 || result == 2055 || result == 2002 {
-                        return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                    }
-                    if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                    }
-
-                    if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                    }
-                }
-                _ => return {let bs = body.to_bytes().await?;
-Err(parse_error(parts, bs)?)},
-            }
+            self.create_folder_if_not_exists(&path).await?;
         }
         Ok(())
     }
 
-    pub async fn create_folder_if_not_exists(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn create_folder_if_not_exists(&self, path: &str) -> Result<()> {
         let url = format!(
             "{}/createfolderifnotexists?path=/{}&username={}&password={}",
             self.endpoint,
@@ -174,9 +160,26 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+                if result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn rename_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn rename_file(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -197,9 +200,27 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn rename_folder(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
         let url = format!(
@@ -219,9 +240,27 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn delete_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn delete_folder(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -240,9 +279,26 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+
+                // pCloud returns 2005 or 2009 if the file or folder is not found
+                if result != 0 && result != 2005 && result != 2009 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn delete_file(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn delete_file(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -261,9 +317,26 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+
+                // pCloud returns 2005 or 2009 if the file or folder is not found
+                if result != 0 && result != 2005 && result != 2009 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy_file(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy_file(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -284,9 +357,27 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn copy_folder(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy_folder(&self, from: &str, to: &str) -> Result<()> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -307,9 +398,27 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn stat(&self, path: &str) -> Result<Metadata> {
         let path = build_abs_path(&self.root, path);
 
         let path = path.trim_end_matches('/');
@@ -330,9 +439,31 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: StatResponse = body.to_json().await?;
+                let result = resp.result;
+                if result == 2010 || result == 2055 || result == 2002 {
+                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                }
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                if let Some(md) = resp.metadata {
+                    return parse_stat_metadata(md);
+                }
+
+                Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")))
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
@@ -354,9 +485,25 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let resp: PcloudError = body.to_json().await?;
+                let result = resp.result;
+
+                if result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                }
+
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
-    pub async fn list_folder(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn list_folder(&self, path: &str) -> Result<ListFolderResponse> {
         let path = build_abs_path(&self.root, path);
 
         let path = normalize_root(&path);
@@ -379,6 +526,16 @@ Err(parse_error(parts, bs)?)},
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let output = body.to_json().await?;
+                Ok(output)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 

@@ -44,25 +44,6 @@ impl oio::OneShotWrite for PcloudWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;
 
-        let resp = self.core.upload_file(&self.path, bs).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.upload_file(&self.path, bs).await
     }
 }

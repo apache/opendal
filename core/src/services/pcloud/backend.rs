@@ -268,33 +268,7 @@ impl Accessor for PcloudBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.stat(path).await?;
-
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: StatResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                if let Some(md) = resp.metadata {
-                    let md = parse_stat_metadata(md);
-                    return md.map(RpStat::new);
-                }
-
-                Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")))
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.stat(path).await.map(RpStat::new)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -315,31 +289,13 @@ impl Accessor for PcloudBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
+        if path.ends_with('/') {
             self.core.delete_folder(path).await?
         } else {
             self.core.delete_file(path).await?
         };
 
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-
-                // pCloud returns 2005 or 2009 if the file or folder is not found
-                if result != 0 && result != 2005 && result != 2009 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(RpDelete::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -350,62 +306,24 @@ impl Accessor for PcloudBackend {
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         self.core.ensure_dir_exists(to).await?;
 
-        let resp = if from.ends_with('/') {
+        if from.ends_with('/') {
             self.core.copy_folder(from, to).await?
         } else {
             self.core.copy_file(from, to).await?
         };
 
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(RpCopy::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         self.core.ensure_dir_exists(to).await?;
 
-        let resp = if from.ends_with('/') {
+        if from.ends_with('/') {
             self.core.rename_folder(from, to).await?
         } else {
             self.core.rename_file(from, to).await?
         };
 
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
-                }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
-
-                Ok(RpRename::default())
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        Ok(RpRename::default())
     }
 }

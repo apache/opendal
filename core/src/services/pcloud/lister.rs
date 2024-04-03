@@ -45,52 +45,37 @@ impl oio::PageList for PcloudLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.list_folder(&self.path).await?;
 
-        match parts.status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
+        let result = resp.result;
 
-                let resp: ListFolderResponse = serde_json::from_reader(bs.clone().reader())
-                    .map_err(new_json_deserialize_error)?;
-                let result = resp.result;
+        if result == 2005 {
+            ctx.done = true;
+            return Ok(());
+        }
 
-                if result == 2005 {
-                    ctx.done = true;
-                    return Ok(());
-                }
+        if result != 0 {
+            return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+        }
 
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
-                }
+        let Some(metadata) = resp.metadata else {
+            return Err(Error::new(ErrorKind::Unexpected, "metadata not found"));
+        };
 
-                if let Some(metadata) = resp.metadata {
-                    if let Some(contents) = metadata.contents {
-                        for content in contents {
-                            let path = if content.isfolder {
-                                format!("{}/", content.path.clone())
-                            } else {
-                                content.path.clone()
-                            };
+        if let Some(contents) = metadata.contents {
+            for content in contents {
+                let path = if content.isfolder {
+                    format!("{}/", content.path.clone())
+                } else {
+                    content.path.clone()
+                };
 
-                            let md = parse_list_metadata(content)?;
-                            let path = build_rel_path(&self.core.root, &path);
+                let md = parse_list_metadata(content)?;
+                let path = build_rel_path(&self.core.root, &path);
 
-                            ctx.entries.push_back(Entry::new(&path, md))
-                        }
-                    }
-
-                    ctx.done = true;
-                    return Ok(());
-                }
-
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    &String::from_utf8_lossy(&bs.to_bytes()),
-                ));
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
+                ctx.entries.push_back(Entry::new(&path, md))
             }
         }
+
+        ctx.done = true;
+        return Ok(());
     }
 }

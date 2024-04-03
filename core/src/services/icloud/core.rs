@@ -23,6 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
+use futures::SinkExt;
 use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
@@ -164,20 +165,16 @@ impl IcloudSigner {
         self.sign(&mut req)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
-        if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
+        if let Some(rscd) = parts.headers().get(APPLE_RESPONSE_HEADER) {
             let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
             if status_code != StatusCode::CONFLICT {
-                return {
-                    let bs = body.to_bytes().await?;
-                    Err(parse_error(parts, bs)?)
-                };
+                let bs = body.to_bytes().await?;
+                return Err(parse_error(parts, bs)?);
             }
         }
 
@@ -197,19 +194,15 @@ impl IcloudSigner {
         self.sign(&mut req)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
+        if parts.status() != StatusCode::OK {
+            let bs = body.to_bytes().await?;
+            return Err(parse_error(parts, bs)?);
         }
 
         // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
-        self.update(&resp)?;
+        self.update(&parts)?;
 
-        let bs = resp.into_body();
-        let auth_info: IcloudWebservicesResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+        let auth_info: IcloudWebservicesResponse = body.to_json().await?;
 
         // Check if we have extra challenge to take.
         if auth_info.hsa_challenge_required && !auth_info.hsa_trusted_browser {
@@ -227,7 +220,7 @@ impl IcloudSigner {
         Ok(())
     }
 
-    fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
+    pub fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
         let headers = req.headers_mut();
 
         headers.insert(
@@ -284,7 +277,7 @@ impl IcloudSigner {
     }
 
     /// Update signer's data after request sent out.
-    fn update(&mut self, resp: &Response<oio::Buffer>) -> Result<()> {
+    fn update(&mut self, resp: &http::response::Parts) -> Result<()> {
         if let Some(account_country) = parse_header_to_str(resp.headers(), ACCOUNT_COUNTRY_HEADER)?
         {
             self.data.account_country = Some(account_country.to_string());
@@ -314,18 +307,6 @@ impl IcloudSigner {
         }
 
         Ok(())
-    }
-
-    /// Send will make sure the following things:
-    ///
-    /// - Init the signer if it's not initiated.
-    /// - Sign the request.
-    /// - Update the session data if needed.
-    pub async fn send(&mut self, mut req: Request<RequestBody>) -> Result<Response<oio::Buffer>> {
-        self.sign(&mut req)?;
-        let (parts, body) = self.client.send(req).await?.into_parts();
-
-        Ok(resp)
     }
 }
 
@@ -362,12 +343,13 @@ impl IcloudCore {
         ]))
         .map_err(new_json_serialize_error)?;
 
-        let req = Request::post(uri)
+        let mut req = Request::post(uri)
             .body(RequestBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
+        signer.sign(&mut req).await?;
         let resp = signer.send(req).await?;
-        if resp.status() != StatusCode::OK {
+        if resp.status() != Stat    usCode::OK {
             return {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)

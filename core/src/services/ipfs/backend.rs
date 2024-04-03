@@ -186,6 +186,60 @@ impl Accessor for IpfsBackend {
         ma
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        self.ipfs_head(path).await.map(RpStat::new)
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = DirStream::new(Arc::new(self.clone()), path);
+        Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+}
+
+impl IpfsBackend {
+    pub async fn ipfs_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        buf: oio::WritableBuf,
+    ) -> Result<usize> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::get(&url);
+
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
+        }
+
+        let req = req
+            .body(RequestBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                body.consume().await?;
+                Ok(0)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
+    }
+
     /// IPFS's stat behavior highly depends on its implementation.
     ///
     /// Based on IPFS [Path Gateway Specification](https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md),
@@ -288,27 +342,31 @@ impl Accessor for IpfsBackend {
     /// - HTTP Status Code == 302 => directory
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
+    async fn ipfs_head(&self, path: &str) -> Result<Metadata> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let resp = self.ipfs_head(path).await?;
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
+        let req = Request::head(&url);
+
+        let req = req
+            .body(RequestBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
                 let mut m = Metadata::new(EntryMode::Unknown);
 
-                if let Some(v) = parse_content_length(resp.headers())? {
+                if let Some(v) = parse_content_length(parts.headers())? {
                     m.set_content_length(v);
                 }
 
-                if let Some(v) = parse_content_type(resp.headers())? {
+                if let Some(v) = parse_content_type(parts.headers())? {
                     m.set_content_type(v);
                 }
 
-                if let Some(v) = parse_etag(resp.headers())? {
+                if let Some(v) = parse_etag(parts.headers())? {
                     m.set_etag(v);
 
                     if v.starts_with("\"DirIndex") {
@@ -322,15 +380,13 @@ impl Accessor for IpfsBackend {
                     m.set_mode(EntryMode::DIR);
                 }
 
-                if let Some(v) = parse_content_disposition(resp.headers())? {
+                if let Some(v) = parse_content_disposition(parts.headers())? {
                     m.set_content_disposition(v);
                 }
 
-                Ok(RpStat::new(m))
+                Ok(m)
             }
-            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
+            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => Ok(Metadata::new(EntryMode::DIR)),
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -338,50 +394,7 @@ impl Accessor for IpfsBackend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = DirStream::new(Arc::new(self.clone()), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-}
-
-impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let req = req
-            .body(RequestBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
-
-    async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let req = Request::head(&url);
-
-        let req = req
-            .body(RequestBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        let (parts, body) = self.client.send(req).await?.into_parts();
-    }
-
-    async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipfs_list(&self, path: &str) -> Result<PBNode> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -399,6 +412,20 @@ impl IpfsBackend {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                let bs = body.to_bytes().await?;
+                let pb_node = PBNode::decode(&bs).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "deserialize protobuf from response")
+                        .set_source(e)
+                })?;
+                Ok(pb_node)
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 }
 
@@ -418,19 +445,7 @@ impl DirStream {
 
 impl oio::PageList for DirStream {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.backend.ipfs_list(&self.path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            };
-        }
-
-        let bs = resp.into_body();
-        let pb_node = PBNode::decode(bs).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize protobuf from response").set_source(e)
-        })?;
+        let pb_node = self.backend.ipfs_list(&self.path).await?;
 
         let names = pb_node
             .links

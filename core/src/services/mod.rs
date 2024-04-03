@@ -113,9 +113,10 @@ mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::Ipmfs;
 
-#[cfg(feature = "services-icloud")]
+// Disable icloud entirely until we figure out how to run it.
+#[cfg(feature = "services-icloud-x")]
 mod icloud;
-#[cfg(feature = "services-icloud")]
+#[cfg(feature = "services-icloud-x")]
 pub use icloud::Icloud;
 
 #[cfg(feature = "services-libsql")]

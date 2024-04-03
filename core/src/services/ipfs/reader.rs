@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use http::StatusCode;
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::ipfs::backend::IpfsBackend;
+use crate::*;
 
 pub struct IpfsReader {
     core: IpfsBackend,
@@ -39,21 +41,9 @@ impl IpfsReader {
 }
 
 impl oio::Read for IpfsReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let resp = self.core.ipfs_get(&self.path, range).await?;
-
-        match parts.status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
-            StatusCode::RANGE_NOT_SATISFIABLE => {
-                body.consume().await?;
-                Ok(0)
-            }
-            _ => {
-                let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
-            }
-        }
+        self.core.ipfs_get(&self.path, range, buf).await
     }
 }

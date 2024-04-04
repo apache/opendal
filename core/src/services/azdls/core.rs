@@ -313,7 +313,7 @@ impl AzdlsCore {
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        if parts.status() != StatusCode::OK {
+        if parts.status != StatusCode::OK {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }

@@ -456,7 +456,7 @@ impl B2Core {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             // b2 returns code 200 if abort succeeds.
             StatusCode::OK => {
                 body.consume().await?;

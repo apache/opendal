@@ -55,7 +55,7 @@ impl oio::OneShotWrite for SupabaseWriter {
 
         let (parts, body) = self.core.client.send(req).await?.into_parts();
 
-        match parts.status() {
+        match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
                 Ok(())

@@ -306,7 +306,7 @@ impl Adapter {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        if parts.status() != http::StatusCode::OK {
+        if parts.status != http::StatusCode::OK {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }

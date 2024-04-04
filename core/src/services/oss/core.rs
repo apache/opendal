@@ -703,7 +703,7 @@ impl OssCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             // OSS returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => {
                 body.consume().await?;

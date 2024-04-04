@@ -357,7 +357,7 @@ impl WebdavCore {
             };
 
             Ok(Some((is_jfrog_artifactory, result)))
-        } else if parts.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
+        } else if parts.status == StatusCode::NOT_FOUND && path.ends_with('/') {
             Ok(None)
         } else {
             let bs = body.to_bytes().await?;

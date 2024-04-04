@@ -229,7 +229,7 @@ impl GithubCore {
             .map_err(new_request_build_error)?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             StatusCode::OK => Ok(()),
             _ => {
                 let bs = body.to_bytes().await?;
@@ -259,7 +259,7 @@ impl GithubCore {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        match parts.status() {
+        match parts.status {
             StatusCode::OK => {
                 let resp: ListResponse = body.to_json().await?;
                 Ok(resp.entries)

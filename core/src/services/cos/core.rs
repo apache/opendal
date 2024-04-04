@@ -510,7 +510,7 @@ impl CosCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             // cos returns code 204 if abort succeeds.
             // Reference: https://www.tencentcloud.com/document/product/436/7740
             StatusCode::NO_CONTENT => {

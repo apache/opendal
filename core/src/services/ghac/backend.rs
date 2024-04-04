@@ -265,7 +265,7 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let location = if parts.status() == StatusCode::OK {
+        let location = if parts.status == StatusCode::OK {
             let query_resp: GhacQueryResponse = body.to_json().await?;
             query_resp.archive_location
         } else {
@@ -307,7 +307,7 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let location = if parts.status() == StatusCode::OK {
+        let location = if parts.status == StatusCode::OK {
             let query_resp: GhacQueryResponse = body.to_json().await?;
             query_resp.archive_location
         } else {
@@ -479,7 +479,7 @@ impl GhacBackend {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         // deleting not existing objects is ok
-        if parts.status().is_success() || parts.status() == StatusCode::NOT_FOUND {
+        if parts.status().is_success() || parts.status == StatusCode::NOT_FOUND {
             body.consume().await?;
             Ok(())
         } else {

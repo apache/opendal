@@ -356,7 +356,7 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if parts.status() != StatusCode::OK {
+        if parts.status != StatusCode::OK {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }
@@ -507,7 +507,7 @@ impl ObsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             // Obs returns code 204 No Content if abort succeeds.
             // Reference: https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0103.html
             StatusCode::NO_CONTENT => {

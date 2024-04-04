@@ -261,7 +261,7 @@ impl SupabaseCore {
         };
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
                 parse_into_metadata(path, parts.headers())
@@ -278,7 +278,7 @@ impl SupabaseCore {
         };
         self.sign(&mut req)?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status() {
+        match parts.status {
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok(Metadata::new(EntryMode::DIR)),
             _ => {
                 let bs = body.to_bytes().await?;

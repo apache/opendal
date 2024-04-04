@@ -704,7 +704,7 @@ impl AzblobCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         // check response status
-        if parts.status() != StatusCode::ACCEPTED {
+        if parts.status != StatusCode::ACCEPTED {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }

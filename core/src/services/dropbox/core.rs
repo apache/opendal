@@ -286,7 +286,7 @@ impl DropboxCore {
         self.sign(&mut request).await?;
 
         let (parts, body) = self.client.send(request).await?.into_parts();
-        if parts.status() != StatusCode::OK {
+        if parts.status != StatusCode::OK {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }

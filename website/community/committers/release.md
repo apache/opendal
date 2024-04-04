@@ -399,6 +399,11 @@ Thanks
 ${name}
 ```
 
+It's better to use the real name or the public name which is displayed on the voters' profile page,
+or Apache ID of the voter, to show who voted in the vote result email,
+and avoid using nicknames, it will make the vote result hard for others to track the voter.
+We should make sure the binding votes are from the people who have the right to vote the binding one.
+
 Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 
 ## Official Release

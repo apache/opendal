@@ -61,7 +61,12 @@ impl Reader {
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
     pub async fn read(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
-        self.inner.read_at_dyn(buf.into(), offset).await
+        let n = self.inner.read_at_dyn(buf.into(), offset).await?;
+        // Safety: read makes sure that buf is filled with data.
+        unsafe {
+            buf.advance_mut(n);
+        }
+        Ok(n)
     }
 
     /// Read given range bytes of data from reader.
@@ -96,10 +101,12 @@ impl Reader {
         loop {
             // TODO: use service preferred io size instead.
             let limit = size.unwrap_or(4 * 1024 * 1024) as usize;
-            let bs = self.inner.read_at_dyn(buf.into(), offset).await?;
-            let n = bs.remaining();
+            let n = self.inner.read_at_dyn(buf.into(), offset).await?;
             read += n;
-            buf.put(bs);
+            // Safety: read makes sure that buf is filled with data.
+            unsafe {
+                buf.advance_mut(n);
+            }
             if n < limit {
                 return Ok(read);
             }
@@ -144,7 +151,7 @@ pub mod into_futures_async_read {
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::{Buf, BytesMut};
+    use bytes::{Buf, BufMut, BytesMut};
     use futures::AsyncBufRead;
     use futures::AsyncRead;
     use futures::AsyncSeek;
@@ -219,9 +226,13 @@ pub mod into_futures_async_read {
                         let r = r.take().expect("reader must be present");
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
-                        let buf = oio::WritableBuf::from(&mut self.buf);
+                        // Make sure buf has enough space.
+                        self.buf.reserve(next_size);
+                        let buf = oio::WritableBuf::from_buf_mut(
+                            &mut self.buf.spare_capacity_mut()[..next_size],
+                        );
                         let fut = async move {
-                            let res = r.read_at_dyn(next_offset, next_size).await;
+                            let res = r.read_at_dyn(buf, next_offset).await;
                             (r, res)
                         };
                         this.state = State::Fill(Box::pin(fut));
@@ -229,7 +240,10 @@ pub mod into_futures_async_read {
                     State::Fill(fut) => {
                         let (r, res) = ready!(fut.as_mut().poll(cx));
                         this.state = State::Idle(Some(r));
-                        this.buf = res?;
+                        // Safety: read makes sure that buf is filled with data.
+                        unsafe {
+                            this.buf.advance_mut(res?);
+                        }
                     }
                 }
             }
@@ -280,7 +294,7 @@ pub mod into_futures_async_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = BytesMut::new();
             }
 
             self.cur = new_pos;
@@ -290,15 +304,15 @@ pub mod into_futures_async_read {
 }
 
 pub mod into_futures_stream {
-    use std::io;
     use std::ops::Range;
     use std::pin::Pin;
     use std::task::ready;
     use std::task::Context;
     use std::task::Poll;
+    use std::{io, mem};
 
-    use bytes::Buf;
-    use bytes::Bytes;
+    use bytes::{Buf, BytesMut};
+    use bytes::{BufMut, Bytes};
     use futures::Stream;
 
     use crate::raw::*;
@@ -314,6 +328,7 @@ pub mod into_futures_stream {
         offset: u64,
         size: u64,
         cap: usize,
+        buf: BytesMut,
 
         cur: u64,
     }
@@ -338,6 +353,7 @@ pub mod into_futures_stream {
                 size: range.end - range.start,
                 // TODO: should use services preferred io size.
                 cap: 4 * 1024 * 1024,
+                buf: BytesMut::new(),
 
                 cur: 0,
             }
@@ -367,8 +383,13 @@ pub mod into_futures_stream {
                         let r = r.take().expect("reader must be present");
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        // Make sure buf has enough space.
+                        self.buf.reserve(next_size);
+                        let buf = oio::WritableBuf::from_buf_mut(
+                            &mut self.buf.spare_capacity_mut()[..next_size],
+                        );
                         let fut = async move {
-                            let res = r.read_at_dyn(next_offset, next_size).await;
+                            let res = r.read_at_dyn(buf, next_offset).await;
                             (r, res)
                         };
                         this.state = State::Next(Box::pin(fut));
@@ -377,10 +398,17 @@ pub mod into_futures_stream {
                         let (r, res) = ready!(fut.as_mut().poll(cx));
                         this.state = State::Idle(Some(r));
                         return match res {
-                            Ok(buf) if !buf.has_remaining() => Poll::Ready(None),
-                            Ok(mut buf) => {
-                                this.cur += buf.remaining() as u64;
-                                Poll::Ready(Some(Ok(buf.copy_to_bytes(buf.remaining()))))
+                            Ok(n) => {
+                                this.cur += n as u64;
+                                // Safety: read makes sure that buf is filled with data.
+                                unsafe {
+                                    this.buf.advance_mut(res?);
+                                }
+                                if this.buf.is_empty() {
+                                    Poll::Ready(None)
+                                } else {
+                                    Poll::Ready(Some(Ok(mem::take(&mut this.buf).freeze())))
+                                }
                             }
                             Err(err) => Poll::Ready(Some(Err(format_std_io_error(err)))),
                         };

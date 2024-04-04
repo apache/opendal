@@ -52,15 +52,12 @@ impl BlockingReader {
     /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
-    pub fn read(
-        &self,
-        buf: &mut impl BufMut,
-        buf: oio::WritableBuf,
-        limit: usize,
-    ) -> Result<usize> {
-        let bs = self.inner.read_at(buf, offset)?;
-        let n = bs.remaining();
-        buf.put(bs);
+    pub fn read(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
+        let n = self.inner.read_at(buf.into(), offset)?;
+        // Safety: read makes sure that buf is filled with data.
+        unsafe {
+            buf.advance_mut(n);
+        }
         Ok(n)
     }
 
@@ -90,13 +87,12 @@ impl BlockingReader {
 
         let mut read = 0;
         loop {
-            let bs = self
-                .inner
-                // TODO: use service preferred io size instead.
-                .read_at(offset, size.unwrap_or(4 * 1024 * 1024) as usize)?;
-            let n = bs.remaining();
+            let n = self.inner.read_at(buf.into(), offset)?;
             read += n;
-            buf.put(bs);
+            // Safety: read makes sure that buf is filled with data.
+            unsafe {
+                buf.advance_mut(n);
+            }
             if n == 0 {
                 return Ok(read);
             }
@@ -142,7 +138,7 @@ pub mod into_std_read {
     use std::io::SeekFrom;
     use std::ops::Range;
 
-    use bytes::Buf;
+    use bytes::{Buf, BufMut, BytesMut};
 
     use crate::raw::format_std_io_error;
     use crate::raw::oio;
@@ -159,7 +155,7 @@ pub mod into_std_read {
         cap: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: BytesMut,
     }
 
     impl StdIoReader {
@@ -174,7 +170,7 @@ pub mod into_std_read {
                 cap: 4 * 1024 * 1024,
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: BytesMut::new(),
             }
         }
 
@@ -198,10 +194,18 @@ pub mod into_std_read {
 
             let next_offset = self.offset + self.cur;
             let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
-            self.buf = self
+            // Make sure buf has enough space.
+            self.buf.reserve(next_size);
+            let buf =
+                oio::WritableBuf::from_buf_mut(&mut self.buf.spare_capacity_mut()[..next_size]);
+            let n = self
                 .inner
-                .read_at(next_offset, next_size)
+                .read_at(buf, next_offset)
                 .map_err(format_std_io_error)?;
+            // Safety: read makes sure that buf is filled with data.
+            unsafe {
+                self.buf.advance_mut(n);
+            }
             Ok(self.buf.chunk())
         }
 
@@ -244,7 +248,7 @@ pub mod into_std_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = BytesMut::new();
             }
 
             self.cur = new_pos;
@@ -254,10 +258,10 @@ pub mod into_std_read {
 }
 
 pub mod into_std_iterator {
-    use std::io;
+    use std::{io, mem};
 
-    use bytes::Buf;
-    use bytes::Bytes;
+    use bytes::{Buf, BytesMut};
+    use bytes::{BufMut, Bytes};
 
     use crate::raw::*;
 
@@ -271,6 +275,7 @@ pub mod into_std_iterator {
         offset: u64,
         size: u64,
         cap: usize,
+        buf: BytesMut,
 
         cur: u64,
     }
@@ -285,6 +290,7 @@ pub mod into_std_iterator {
                 size: range.end - range.start,
                 // TODO: should use services preferred io size.
                 cap: 4 * 1024 * 1024,
+                buf: BytesMut::new(),
                 cur: 0,
             }
         }
@@ -306,11 +312,18 @@ pub mod into_std_iterator {
 
             let next_offset = self.offset + self.cur;
             let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
-            match self.inner.read_at(next_offset, next_size) {
-                Ok(buf) if !buf.has_remaining() => None,
-                Ok(mut buf) => {
-                    self.cur += buf.remaining() as u64;
-                    Some(Ok(buf.copy_to_bytes(buf.remaining())))
+            // Make sure buf has enough space.
+            self.buf.reserve(next_size);
+            let buf =
+                oio::WritableBuf::from_buf_mut(&mut self.buf.spare_capacity_mut()[..next_size]);
+            match self.inner.read_at(buf, next_offset) {
+                Ok(n) => {
+                    self.cur += n as u64;
+                    // Safety: read makes sure that buf is filled with data.
+                    unsafe {
+                        self.buf.advance_mut(n);
+                    }
+                    Some(Ok(mem::take(&mut self.buf).freeze()))
                 }
                 Err(err) => Some(Err(format_std_io_error(err))),
             }

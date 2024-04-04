@@ -163,7 +163,7 @@ impl HttpClient {
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let stream = resp.bytes_stream().map_err(|err| {
+        let stream = resp.bytes_stream().map_err(move |err| {
             Error::new(ErrorKind::Unexpected, "read data from http response")
                 .with_context("url", uri.to_string())
                 .set_source(err)

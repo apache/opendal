@@ -20,6 +20,7 @@ use futures::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::cmp::Ordering;
+use std::pin::pin;
 
 use crate::raw::oio::WritableBuf;
 use crate::raw::*;
@@ -43,47 +44,22 @@ pub enum RequestBody {
 pub struct ResponseBody<B: Stream<Item = Result<Bytes>>> {
     inner: B,
     size: Option<usize>,
-    consumed: usize,
-    checked: bool,
-}
-
-/// Check if the body has been consumed while debug_assertions
-/// enabled. This code will never be executed in release mode.
-#[cfg(debug_assertions)]
-impl<B: Stream<Item = Result<Bytes>>> Drop for ResponseBody<B> {
-    fn drop(&mut self) {
-        if !self.checked {
-            log::warn!("http body has not been consumed, please report as a bug.")
-        }
-    }
 }
 
 impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     pub fn new(inner: B) -> Self {
         let size = inner.size_hint().1;
 
-        Self {
-            inner,
-            size,
-            consumed: 0,
-            checked: false,
-        }
+        Self { inner, size }
     }
 
     /// Check body's size and consumed to make sure we have read all data.
     #[inline]
-    fn check(&mut self) -> Result<()> {
-        // Set checked to true.
-        debug_assert!(
-            self.checked == false,
-            "http body has been checked, please report as a bug."
-        );
-        self.checked = true;
-
+    fn check(size: Option<usize>, consumed: usize) -> Result<()> {
         // Skip size check if the size is unknown.
-        let Some(size) = self.size else { return Ok(()) };
+        let Some(size) = size else { return Ok(()) };
 
-        let err = match self.consumed.cmp(&size) {
+        let err = match consumed.cmp(&size) {
             Ordering::Equal => return Ok(()),
             Ordering::Less => Error::new(
                 ErrorKind::ContentIncomplete,
@@ -96,7 +72,7 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
 
         Err(err
             .with_context("expect", size.to_string())
-            .with_context("actual", self.consumed.to_string())
+            .with_context("actual", consumed.to_string())
             .set_temporary())
     }
 
@@ -105,16 +81,19 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     /// This function exists to consume the response body and allowing clients
     /// to reuse the same connection.
     pub async fn consume(mut self) -> Result<()> {
-        while let Some(bs) = self.inner.next().await {
+        let (stream, size, mut consumed) = (self.inner, self.size, 0);
+        let mut stream = pin!(stream);
+
+        while let Some(bs) = stream.next().await {
             let bs = bs.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::ResponseBody::consume")
                     .set_source(err)
             })?;
-            self.consumed += bs.len();
+            consumed += bs.len();
         }
 
-        self.check()?;
+        Self::check(size, consumed)?;
         Ok(())
     }
 
@@ -124,26 +103,32 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     ///
     /// The input buf must have enough space to store all bytes.
     pub async fn read(mut self, mut buf: WritableBuf) -> Result<usize> {
-        while let Some(bs) = self.inner.next().await {
+        let (stream, size, mut consumed) = (self.inner, self.size, 0);
+        let mut stream = pin!(stream);
+
+        while let Some(bs) = stream.next().await {
             let bs = bs?;
-            self.consumed += bs.remaining();
+            consumed += bs.remaining();
             buf.put(bs);
         }
 
-        self.check()?;
-        Ok(self.consumed as usize)
+        Self::check(size, consumed)?;
+        Ok(consumed)
     }
 
     /// Read all bytes from the response to buffer.
     pub async fn to_buffer(mut self) -> Result<oio::Buffer> {
+        let (stream, size, mut consumed) = (self.inner, self.size, 0);
+        let mut stream = pin!(stream);
+
         let mut buf = Vec::new();
-        while let Some(bs) = self.inner.next().await {
+        while let Some(bs) = stream.next().await {
             let bs = bs?;
-            self.consumed += bs.remaining();
+            consumed += bs.remaining();
             buf.push(bs);
         }
 
-        self.check()?;
+        Self::check(size, consumed)?;
         Ok(oio::Buffer::from(buf))
     }
 

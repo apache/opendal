@@ -983,9 +983,8 @@ impl<R> Drop for LoggingReader<R> {
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         match self.inner.read_at(buf, offset).await {
-            Ok(bs) => {
-                self.read
-                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
+            Ok(n) => {
+                self.read.fetch_add(n as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> read returns {}B",
@@ -993,9 +992,9 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     ReadOperation::Read,
                     self.path,
                     self.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                    n
                 );
-                Ok(bs)
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1019,9 +1018,8 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
         match self.inner.read_at(buf, offset) {
-            Ok(bs) => {
-                self.read
-                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
+            Ok(n) => {
+                self.read.fetch_add(n as u64, Ordering::Relaxed);
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> read returns {}B",
@@ -1029,9 +1027,9 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     ReadOperation::BlockingRead,
                     self.path,
                     self.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                    n
                 );
-                Ok(bs)
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {

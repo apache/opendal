@@ -61,7 +61,10 @@ impl Reader {
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
     pub async fn read(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
-        let n = self.inner.read_at_dyn(buf.into(), offset).await?;
+        let n = self
+            .inner
+            .read_at_dyn(oio::WritableBuf::from_buf_mut(buf), offset)
+            .await?;
         // Safety: read makes sure that buf is filled with data.
         unsafe {
             buf.advance_mut(n);
@@ -101,7 +104,10 @@ impl Reader {
         loop {
             // TODO: use service preferred io size instead.
             let limit = size.unwrap_or(4 * 1024 * 1024) as usize;
-            let n = self.inner.read_at_dyn(buf.into(), offset).await?;
+            let n = self
+                .inner
+                .read_at_dyn(oio::WritableBuf::from_buf_mut(buf), offset)
+                .await?;
             read += n;
             // Safety: read makes sure that buf is filled with data.
             unsafe {
@@ -209,7 +215,10 @@ pub mod into_futures_async_read {
     }
 
     impl AsyncBufRead for FuturesIoAsyncReader {
-        fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
+        fn poll_fill_buf(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
                 if this.buf.has_remaining() {
@@ -227,9 +236,9 @@ pub mod into_futures_async_read {
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
                         // Make sure buf has enough space.
-                        self.buf.reserve(next_size);
-                        let buf = oio::WritableBuf::from_buf_mut(
-                            &mut self.buf.spare_capacity_mut()[..next_size],
+                        this.buf.reserve(next_size);
+                        let buf = oio::WritableBuf::from_maybe_uninit_slice(
+                            &mut this.buf.spare_capacity_mut()[..next_size],
                         );
                         let fut = async move {
                             let res = r.read_at_dyn(buf, next_offset).await;
@@ -369,7 +378,7 @@ pub mod into_futures_stream {
     impl Stream for FuturesBytesStream {
         type Item = io::Result<Bytes>;
 
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             let this = self.get_mut();
 
             loop {
@@ -384,9 +393,9 @@ pub mod into_futures_stream {
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
                         // Make sure buf has enough space.
-                        self.buf.reserve(next_size);
-                        let buf = oio::WritableBuf::from_buf_mut(
-                            &mut self.buf.spare_capacity_mut()[..next_size],
+                        this.buf.reserve(next_size);
+                        let buf = oio::WritableBuf::from_maybe_uninit_slice(
+                            &mut this.buf.spare_capacity_mut()[..next_size],
                         );
                         let fut = async move {
                             let res = r.read_at_dyn(buf, next_offset).await;

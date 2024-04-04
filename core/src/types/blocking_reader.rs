@@ -53,7 +53,9 @@ impl BlockingReader {
     /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
     #[inline]
     pub fn read(&self, buf: &mut impl BufMut, offset: u64) -> Result<usize> {
-        let n = self.inner.read_at(buf.into(), offset)?;
+        let n = self
+            .inner
+            .read_at(oio::WritableBuf::from_buf_mut(buf), offset)?;
         // Safety: read makes sure that buf is filled with data.
         unsafe {
             buf.advance_mut(n);
@@ -87,7 +89,9 @@ impl BlockingReader {
 
         let mut read = 0;
         loop {
-            let n = self.inner.read_at(buf.into(), offset)?;
+            let n = self
+                .inner
+                .read_at(oio::WritableBuf::from_buf_mut(buf), offset)?;
             read += n;
             // Safety: read makes sure that buf is filled with data.
             unsafe {
@@ -196,8 +200,9 @@ pub mod into_std_read {
             let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
             // Make sure buf has enough space.
             self.buf.reserve(next_size);
-            let buf =
-                oio::WritableBuf::from_buf_mut(&mut self.buf.spare_capacity_mut()[..next_size]);
+            let buf = oio::WritableBuf::from_maybe_uninit_slice(
+                &mut self.buf.spare_capacity_mut()[..next_size],
+            );
             let n = self
                 .inner
                 .read_at(buf, next_offset)
@@ -314,8 +319,9 @@ pub mod into_std_iterator {
             let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
             // Make sure buf has enough space.
             self.buf.reserve(next_size);
-            let buf =
-                oio::WritableBuf::from_buf_mut(&mut self.buf.spare_capacity_mut()[..next_size]);
+            let buf = oio::WritableBuf::from_maybe_uninit_slice(
+                &mut self.buf.spare_capacity_mut()[..next_size],
+            );
             match self.inner.read_at(buf, next_offset) {
                 Ok(n) => {
                     self.cur += n as u64;

@@ -17,6 +17,7 @@
 
 use bytes::buf::UninitSlice;
 use bytes::BufMut;
+use std::mem::MaybeUninit;
 
 /// WritableBuf is the buf used in `oio::Read`.
 ///
@@ -28,6 +29,7 @@ use bytes::BufMut;
 ///   `WritableBuf` might point to invalid memory.
 /// - Caller MUST not mutate the original buffer in any way out of `WritableBuf`.
 /// - Caller SHOULD NOT remote from `WritableBuf` in anyway.
+#[derive(Copy, Clone)]
 pub struct WritableBuf {
     ptr: *mut u8,
     size: usize,
@@ -38,12 +40,25 @@ pub struct WritableBuf {
 ///
 /// We make sure that `ptr` itself will never be changed.
 unsafe impl Send for WritableBuf {}
+/// # Safety
+///
+/// We make sure that `ptr` itself will never be changed.
+unsafe impl Sync for WritableBuf {}
 
 impl WritableBuf {
     /// Build a WritableBuf from slice.
     pub fn from_slice(slice: &mut [u8]) -> Self {
         Self {
             ptr: slice.as_mut_ptr(),
+            size: slice.len(),
+            offset: 0,
+        }
+    }
+
+    /// Build a WritableBuf from maybe uninit.
+    pub fn from_maybe_uninit_slice(slice: &mut [MaybeUninit<u8>]) -> Self {
+        Self {
+            ptr: slice.as_mut_ptr() as *mut u8,
             size: slice.len(),
             offset: 0,
         }

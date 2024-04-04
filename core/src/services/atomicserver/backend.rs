@@ -462,11 +462,9 @@ impl kv::Adapter for Adapter {
 
     async fn delete(&self, path: &str) -> Result<()> {
         let req = self.atomic_get_object_request(path)?;
-        let res = self.client.send(req).await?;
-        let bytes = res.into_body();
+        let (_, body) = self.client.send(req).await?.into_parts();
 
-        let query_result: QueryResultStruct =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+        let query_result: QueryResultStruct = body.to_json().await?;
 
         for result in query_result.results {
             let req = self.atomic_delete_object_request(&result.id)?;

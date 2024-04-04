@@ -320,7 +320,7 @@ impl AzdlsCore {
 
         let mut meta = parse_into_metadata(path, &parts.headers)?;
         let resource = parts
-            .headers()
+            .headers
             .get("x-ms-resource-type")
             .ok_or_else(|| {
                 Error::new(

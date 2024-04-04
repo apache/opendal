@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::BufMut;
 
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
@@ -594,8 +595,8 @@ pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
     async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        if limit == 0 {
-            return Ok(oio::Buffer::new());
+        if buf.remaining_mut() == 0 {
+            return Ok(0);
         }
 
         self.0.read_at(buf, offset).await
@@ -604,8 +605,8 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        if limit == 0 {
-            return Ok(oio::Buffer::new());
+        if buf.remaining_mut() == 0 {
+            return Ok(0);
         }
 
         self.0.read_at(buf, offset)

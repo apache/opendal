@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use bytes::BufMut;
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;
@@ -348,7 +349,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("offset", offset.to_string())
-                .with_context("limit", limit.to_string())
+                .with_context("size", buf.remaining_mut().to_string())
         })
     }
 }
@@ -360,7 +361,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("offset", offset.to_string())
-                .with_context("limit", limit.to_string())
+                .with_context("size", buf.remaining_mut().to_string())
         })
     }
 }
@@ -371,7 +372,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
-                .with_context("write_buf", bs.len().to_string())
+                .with_context("size", bs.len().to_string())
         })
     }
 

@@ -651,13 +651,13 @@ impl GcsCore {
         }
     }
 
-    pub fn gcs_upload_in_resumable_upload(
+    pub async fn gcs_upload_in_resumable_upload(
         &self,
         location: &str,
         size: u64,
         written: u64,
         body: RequestBody,
-    ) -> Result<Request<RequestBody>> {
+    ) -> Result<()> {
         let mut req = Request::put(location);
 
         let range_header = format!("bytes {}-{}/*", written, written + size - 1);
@@ -667,9 +667,20 @@ impl GcsCore {
             .header(CONTENT_RANGE, range_header);
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
 
-        Ok(req)
+        let (parts, body) = self.client.send(req).await?.into_parts();
+        match parts.status {
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
+            _ => {
+                let bs = body.to_bytes().await?;
+                Err(parse_error(parts, bs)?)
+            }
+        }
     }
 
     pub async fn gcs_complete_resumable_upload(

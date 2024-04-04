@@ -84,8 +84,11 @@ impl GithubCore {
             ));
         }
 
-        let meta = self.stat(path).await??;
-        Ok(meta.etag().map(|v| v.trim_matches('"').to_string()))
+        let meta = self.stat(path).await?;
+        match meta {
+            Some(meta) => Ok(meta.etag().map(|v| v.trim_matches('"').to_string())),
+            None => Ok(None),
+        }
     }
 
     pub async fn stat(&self, path: &str) -> Result<Option<Metadata>> {

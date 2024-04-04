@@ -903,7 +903,7 @@ mod tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use bytes::Bytes;
+    use bytes::{BufMut, Bytes};
     use futures::TryStreamExt;
 
     use super::*;
@@ -1034,7 +1034,7 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, _: u64, _: usize) -> Result<usize> {
+        async fn read_at(&self, mut buf: oio::WritableBuf, _: u64) -> Result<usize> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -1047,7 +1047,10 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                3 => Ok(Bytes::copy_from_slice("Hello, World!".as_bytes()).into()),
+                3 => {
+                    buf.put_slice(b"Hello, World!");
+                    Ok(13)
+                }
                 _ => unreachable!(),
             }
         }

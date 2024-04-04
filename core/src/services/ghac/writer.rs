@@ -52,16 +52,16 @@ impl oio::Write for GhacWriter {
             )
             .await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let (parts, body) = self.backend.client.send(req).await?.into_parts();
 
-        if !resp.status().is_success() {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?);
+        if parts.status.is_success() {
+            body.consume().await?;
+            self.size += size as u64;
+            Ok(size)
+        } else {
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs).map(|err| err.with_operation("Backend::ghac_upload"))?)
         }
-
-        self.size += size as u64;
-        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -70,14 +70,14 @@ impl oio::Write for GhacWriter {
 
     async fn close(&mut self) -> Result<()> {
         let req = self.backend.ghac_commit(self.cache_id, self.size).await?;
-        let resp = self.backend.client.send(req).await?;
+        let (parts, body) = self.backend.client.send(req).await?.into_parts();
 
-        if resp.status().is_success() {
+        if parts.status.is_success() {
+            body.consume().await?;
             Ok(())
         } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
+            let bs = body.to_bytes().await?;
+            Err(parse_error(parts, bs).map(|err| err.with_operation("Backend::ghac_commit"))?)
         }
     }
 }

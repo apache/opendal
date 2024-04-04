@@ -408,7 +408,7 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if !parts.status().is_success() {
+        if !parts.status.is_success() {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }
@@ -441,7 +441,7 @@ impl GcsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         // deleting not existing objects is ok
-        if parts.status().is_success() || parts.status == StatusCode::NOT_FOUND {
+        if parts.status.is_success() || parts.status == StatusCode::NOT_FOUND {
             body.consume().await?;
             Ok(())
         } else {
@@ -553,7 +553,7 @@ impl GcsCore {
 
         self.sign(&mut req).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if parts.status().is_success() {
+        if parts.status.is_success() {
             body.consume().await?;
             Ok(RpCopy::default())
         } else {
@@ -608,7 +608,7 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if !parts.status().is_success() {
+        if !parts.status.is_success() {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }
@@ -728,7 +728,7 @@ impl GcsCore {
         self.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        match parts.status().as_u16() {
+        match parts.status.as_u16() {
             // gcs returns 499 if the upload aborted successfully
             // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
             499 => {

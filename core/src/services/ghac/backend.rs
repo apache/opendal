@@ -326,7 +326,7 @@ impl Accessor for GhacBackend {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
 
-        let cache_id = if parts.status().is_success() {
+        let cache_id = if parts.status.is_success() {
             let reserve_resp: GhacReserveResponse = body.to_json().await?;
             reserve_resp.cache_id
         } else {
@@ -479,7 +479,7 @@ impl GhacBackend {
         let (parts, body) = self.client.send(req).await?.into_parts();
 
         // deleting not existing objects is ok
-        if parts.status().is_success() || parts.status == StatusCode::NOT_FOUND {
+        if parts.status.is_success() || parts.status == StatusCode::NOT_FOUND {
             body.consume().await?;
             Ok(())
         } else {

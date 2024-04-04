@@ -24,7 +24,7 @@ use crate::ErrorKind;
 use crate::Result;
 
 /// Parse error response into Error.
-pub async fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
+pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     let (kind, retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
@@ -61,10 +61,13 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = oio::Buffer::from(bs);
-            let resp = Response::builder().status(res.2).body(body).unwrap();
+            let (parts, bs) = Response::builder()
+                .status(res.2)
+                .body(bs)
+                .unwrap()
+                .into_parts();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(parts, bs);
 
             assert!(err.is_ok());
             assert_eq!(err.unwrap().kind(), res.1);

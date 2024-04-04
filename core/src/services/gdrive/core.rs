@@ -504,7 +504,7 @@ impl PathQuery for GdrivePathQuery {
         self.signer.lock().await.sign(&mut req).await?;
 
         let (parts, body) = self.client.send(req).await?.into_parts();
-        if !parts.status().is_success() {
+        if !parts.status.is_success() {
             let bs = body.to_bytes().await?;
             return Err(parse_error(parts, bs)?);
         }

@@ -222,12 +222,15 @@ impl DropboxCore {
         self.sign(&mut request).await?;
         let (parts, body) = self.client.send(request).await?.into_parts();
         match parts.status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                body.consume().await?;
+                Ok(())
+            }
             _ => {
                 let bs = body.to_bytes().await?;
                 let err = parse_error(parts, bs).await?;
                 match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
+                    ErrorKind::NotFound => Ok(()),
                     _ => Err(err),
                 }
             }

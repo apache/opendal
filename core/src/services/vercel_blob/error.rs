@@ -83,10 +83,14 @@ mod test {
         )];
 
         for res in err_res {
-            let body = oio::Buffer::from(res.0.as_bytes().to_vec());
-            let resp = Response::builder().status(res.2).body(body).unwrap();
+            let bs = Bytes::from(res.0);
+            let (parts, bs) = Response::builder()
+                .status(res.2)
+                .body(bs)
+                .unwrap()
+                .into_parts();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(parts, bs);
 
             assert!(err.is_ok());
             assert_eq!(err.unwrap().kind(), res.1);

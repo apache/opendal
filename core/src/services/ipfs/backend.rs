@@ -415,7 +415,7 @@ impl IpfsBackend {
         match parts.status {
             StatusCode::OK => {
                 let bs = body.to_bytes().await?;
-                let pb_node = PBNode::decode(&bs).map_err(|e| {
+                let pb_node = PBNode::decode(bs).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "deserialize protobuf from response")
                         .set_source(e)
                 })?;

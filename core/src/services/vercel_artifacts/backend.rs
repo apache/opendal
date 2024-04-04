@@ -185,7 +185,7 @@ impl VercelArtifactsBackend {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(hash, parts.headers())
+                parse_into_metadata(hash, &parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;

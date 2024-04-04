@@ -397,7 +397,7 @@ impl OssCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;
@@ -623,7 +623,7 @@ impl OssCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                let etag = parse_etag(parts.headers())?
+                let etag = parse_etag(&parts.headers)?
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,

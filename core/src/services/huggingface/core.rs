@@ -84,7 +84,7 @@ impl HuggingfaceCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, parts.headers())?;
+                let mut meta = parse_into_metadata(path, &parts.headers)?;
 
                 let decoded_response: Vec<HuggingfaceStatus> = body.to_json().await?;
 

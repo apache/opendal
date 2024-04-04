@@ -191,7 +191,7 @@ impl CosCore {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::OK => parse_into_metadata(path, parts.headers()),
+            StatusCode::OK => parse_into_metadata(path, &parts.headers),
             _ => {
                 let bs = body.to_bytes().await?;
                 Err(parse_error(parts, bs)?)
@@ -434,7 +434,7 @@ impl CosCore {
             StatusCode::OK => {
                 body.consume().await?;
 
-                let etag = parse_etag(parts.headers())?
+                let etag = parse_etag(&parts.headers)?
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,

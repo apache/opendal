@@ -272,7 +272,7 @@ impl SwiftCore {
         match parts.status {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;

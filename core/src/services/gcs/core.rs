@@ -494,7 +494,7 @@ impl GcsCore {
             return Err(parse_error(parts, bs)?);
         }
 
-        let content_type = parse_content_type(parts.headers())?.ok_or_else(|| {
+        let content_type = parse_content_type(&parts.headers)?.ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "gcs batch delete response content type is empty",
@@ -634,7 +634,7 @@ impl GcsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let bs = parse_location(parts.headers())?;
+                let bs = parse_location(&parts.headers)?;
                 if let Some(location) = bs {
                     Ok(location.to_string())
                 } else {

@@ -435,7 +435,7 @@ impl S3Core {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;

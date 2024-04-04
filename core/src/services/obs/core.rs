@@ -192,7 +192,7 @@ impl ObsCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok(Metadata::new(EntryMode::DIR)),
             _ => {
@@ -429,7 +429,7 @@ impl ObsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let etag = parse_etag(parts.headers())?
+                let etag = parse_etag(&parts.headers)?
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,

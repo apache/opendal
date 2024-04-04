@@ -264,7 +264,7 @@ impl SupabaseCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             _ => self.supabase_get_object_info(path).await,
         }

@@ -242,7 +242,7 @@ impl AzfileCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let meta = parse_into_metadata(path, parts.headers())?;
+                let meta = parse_into_metadata(path, &parts.headers)?;
                 Ok(meta)
             }
             _ => {
@@ -272,7 +272,7 @@ impl AzfileCore {
 
         match parts.status {
             StatusCode::OK => {
-                let meta = parse_into_metadata(path, parts.headers())?;
+                let meta = parse_into_metadata(path, &parts.headers)?;
                 Ok(meta)
             }
             _ => {
@@ -376,7 +376,7 @@ impl AzfileCore {
                 // 2. If a directory or file with the same name already exists, the operation fails with status code 409 (Conflict).
                 // but we just need case 2 (already exists)
                 // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/create-directory
-                if parse_header_to_str(parts.headers(), "x-ms-error-code").unwrap_or_default()
+                if parse_header_to_str(&parts.headers, "x-ms-error-code").unwrap_or_default()
                     == "ResourceAlreadyExists"
                 {
                     body.consume().await?;

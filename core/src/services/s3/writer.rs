@@ -92,7 +92,7 @@ impl oio::MultipartWrite for S3Writer {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                let etag = parse_etag(parts.headers())?
+                let etag = parse_etag(&parts.headers)?
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,

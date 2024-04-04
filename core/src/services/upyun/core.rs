@@ -158,7 +158,7 @@ impl UpyunCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_info(parts.headers())
+                parse_info(&parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;
@@ -388,7 +388,7 @@ impl UpyunCore {
         match parts.status {
             StatusCode::NO_CONTENT => {
                 let id =
-                    parse_header_to_str(parts.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
+                    parse_header_to_str(&parts.headers, X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
                         ErrorKind::Unexpected,
                         &format!("{} header is missing", X_UPYUN_MULTI_UUID),
                     ))?;

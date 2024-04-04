@@ -170,7 +170,7 @@ impl IcloudSigner {
             return Err(parse_error(parts, bs)?);
         }
 
-        if let Some(rscd) = parts.headers().get(APPLE_RESPONSE_HEADER) {
+        if let Some(rscd) = &parts.headers.get(APPLE_RESPONSE_HEADER) {
             let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
             if status_code != StatusCode::CONFLICT {
                 let bs = body.to_bytes().await?;

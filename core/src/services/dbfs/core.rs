@@ -274,7 +274,7 @@ impl DbfsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, parts.headers())?;
+                let mut meta = parse_into_metadata(path, &parts.headers)?;
                 let decoded_response: DbfsStatus = body.to_json().await?;
                 meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
                     decoded_response.modification_time,

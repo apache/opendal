@@ -284,7 +284,7 @@ impl Accessor for GhacBackend {
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
                 body.consume().await?;
-                let mut meta = parse_into_metadata(path, parts.headers())?;
+                let mut meta = parse_into_metadata(path, &parts.headers)?;
                 // Correct content length via returning content range.
                 meta.set_content_length(
                     meta.content_range()

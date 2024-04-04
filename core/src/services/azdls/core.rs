@@ -318,7 +318,7 @@ impl AzdlsCore {
             return Err(parse_error(parts, bs)?);
         }
 
-        let mut meta = parse_into_metadata(path, parts.headers())?;
+        let mut meta = parse_into_metadata(path, &parts.headers)?;
         let resource = parts
             .headers()
             .get("x-ms-resource-type")
@@ -419,7 +419,7 @@ impl AzdlsCore {
 
         match parts.status {
             StatusCode::OK => {
-                let token = parse_header_to_str(parts.headers(), "x-ms-continuation")?
+                let token = parse_header_to_str(&parts.headers, "x-ms-continuation")?
                     .map(ToString::to_string)
                     .unwrap_or_default();
                 let output: ListOutput = body.to_json().await?;

@@ -109,7 +109,7 @@ impl GithubCore {
 
         let (parts, body) = self.client.send(req).await?.into_parts();
         match parts.status {
-            StatusCode::OK => parse_into_metadata(&path, parts.headers()).map(Some),
+            StatusCode::OK => parse_into_metadata(&path, &parts.headers).map(Some),
             StatusCode::NOT_FOUND => Ok(None),
             _ => {
                 let bs = body.to_bytes().await?;

@@ -350,7 +350,7 @@ impl WebdavCore {
             // We add this flag to check if the server is jfrog artifactory.
             //
             // Example: `"x-jfrog-version": "Artifactory/7.77.5 77705900"`
-            let is_jfrog_artifactory = if let Some(v) = parts.headers().get("x-jfrog-version") {
+            let is_jfrog_artifactory = if let Some(v) = &parts.headers.get("x-jfrog-version") {
                 v.to_str().unwrap_or_default().starts_with("Artifactory")
             } else {
                 false

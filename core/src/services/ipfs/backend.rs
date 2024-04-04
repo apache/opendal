@@ -358,15 +358,15 @@ impl IpfsBackend {
             StatusCode::OK => {
                 let mut m = Metadata::new(EntryMode::Unknown);
 
-                if let Some(v) = parse_content_length(parts.headers())? {
+                if let Some(v) = parse_content_length(&parts.headers)? {
                     m.set_content_length(v);
                 }
 
-                if let Some(v) = parse_content_type(parts.headers())? {
+                if let Some(v) = parse_content_type(&parts.headers)? {
                     m.set_content_type(v);
                 }
 
-                if let Some(v) = parse_etag(parts.headers())? {
+                if let Some(v) = parse_etag(&parts.headers)? {
                     m.set_etag(v);
 
                     if v.starts_with("\"DirIndex") {
@@ -380,7 +380,7 @@ impl IpfsBackend {
                     m.set_mode(EntryMode::DIR);
                 }
 
-                if let Some(v) = parse_content_disposition(parts.headers())? {
+                if let Some(v) = parse_content_disposition(&parts.headers)? {
                     m.set_content_disposition(v);
                 }
 

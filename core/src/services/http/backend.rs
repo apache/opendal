@@ -340,7 +340,7 @@ impl HttpBackend {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.

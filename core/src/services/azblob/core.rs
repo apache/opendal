@@ -554,7 +554,7 @@ impl AzblobCore {
         match parts.status {
             StatusCode::OK => {
                 body.consume().await?;
-                parse_into_metadata(path, parts.headers())
+                parse_into_metadata(path, &parts.headers)
             }
             _ => {
                 let bs = body.to_bytes().await?;
@@ -710,7 +710,7 @@ impl AzblobCore {
         }
 
         // get boundary from response header
-        let content_type = parts.headers().get(CONTENT_TYPE).ok_or_else(|| {
+        let content_type = &parts.headers.get(CONTENT_TYPE).ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "response data should have CONTENT_TYPE header",

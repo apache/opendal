@@ -76,6 +76,6 @@ impl oio::PageList for PcloudLister {
         }
 
         ctx.done = true;
-        return Ok(());
+         Ok(())
     }
 }

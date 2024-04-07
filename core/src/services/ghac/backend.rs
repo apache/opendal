@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::env;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use bytes::Bytes;
 use http::header;
 use http::header::ACCEPT;

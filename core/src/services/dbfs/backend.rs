@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 
 use log::debug;
 use serde::Deserialize;
@@ -247,11 +246,3 @@ impl Accessor for DbfsBackend {
     }
 }
 
-#[derive(Deserialize)]
-struct DbfsStatus {
-    // Not used fields.
-    // path: String,
-    is_dir: bool,
-    file_size: i64,
-    modification_time: i64,
-}

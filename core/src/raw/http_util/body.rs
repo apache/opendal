@@ -26,7 +26,7 @@ use crate::raw::oio::WritableBuf;
 use crate::raw::*;
 use crate::*;
 
-/// Body used in async HTTP requests.
+/// RequestBody is the body sent to remote storage services.
 #[derive(Default)]
 pub enum RequestBody {
     /// An empty body.
@@ -40,6 +40,7 @@ pub enum RequestBody {
     Stream(oio::Streamer),
 }
 
+/// ResponseBody is the body returned by remote storage services.
 #[must_use]
 pub struct ResponseBody<B: Stream<Item = Result<Bytes>>> {
     inner: B,
@@ -47,7 +48,10 @@ pub struct ResponseBody<B: Stream<Item = Result<Bytes>>> {
 }
 
 impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
-    pub fn new(inner: B) -> Self {
+    /// Create a new response body.
+    ///
+    /// We don't allow users to create a response body.
+    pub(crate) fn new(inner: B) -> Self {
         let size = inner.size_hint().1;
 
         Self { inner, size }

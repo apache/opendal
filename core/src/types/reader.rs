@@ -19,7 +19,7 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 
-use bytes::Buf;
+
 use bytes::BufMut;
 
 use crate::raw::*;
@@ -320,7 +320,7 @@ pub mod into_futures_stream {
     use std::task::Poll;
     use std::{io, mem};
 
-    use bytes::{Buf, BytesMut};
+    use bytes::{ BytesMut};
     use bytes::{BufMut, Bytes};
     use futures::Stream;
 

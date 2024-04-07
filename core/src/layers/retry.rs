@@ -903,7 +903,7 @@ mod tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use bytes::{BufMut, Bytes};
+    use bytes::{BufMut};
     use futures::TryStreamExt;
 
     use super::*;

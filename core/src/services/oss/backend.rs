@@ -22,7 +22,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 
 use http::Uri;
 use log::debug;

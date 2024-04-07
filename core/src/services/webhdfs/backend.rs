@@ -19,7 +19,6 @@ use core::fmt::Debug;
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;

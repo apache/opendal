@@ -15,17 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::AsyncWriteExt;
+use bb8::PooledConnection;
+use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
-use super::backend::FtpBackend;
 use crate::raw::*;
 use crate::services::ftp::err::parse_error;
 use crate::*;
 
+use super::backend::Manager;
+
+trait DataStream: AsyncRead + AsyncWrite {}
+impl<T> DataStream for T where T: AsyncRead + AsyncWrite {}
+
 pub struct FtpWriter {
-    backend: FtpBackend,
-    path: String,
-    size: u64,
+    target_path: String,
+    tmp_path: Option<String>,
+    ftp_stream: PooledConnection<'static, Manager>,
+    data_stream: Option<Box<dyn DataStream + Sync + Send + Unpin + 'static>>,
 }
 
 /// # TODO
@@ -34,41 +40,70 @@ pub struct FtpWriter {
 ///
 /// After we can use data stream, we should return it directly.
 impl FtpWriter {
-    pub fn new(backend: FtpBackend, path: String) -> Self {
+    pub fn new(
+        ftp_stream: PooledConnection<'static, Manager>,
+        target_path: String,
+        tmp_path: Option<String>,
+    ) -> Self {
         FtpWriter {
-            backend,
-            path,
-            size: 0,
+            target_path,
+            tmp_path,
+            ftp_stream,
+            data_stream: None,
         }
     }
 }
 
 impl oio::Write for FtpWriter {
     async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
-        let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
-        let mut data_stream = match self.size {
-            0 => ftp_stream
-                .put_with_stream(&self.path)
-                .await
-                .map_err(parse_error)?,
-            _ => ftp_stream
-                .append_with_stream(&self.path)
-                .await
-                .map_err(parse_error)?,
+        let path = if let Some(tmp_path) = &self.tmp_path {
+            tmp_path
+        } else {
+            &self.target_path
         };
-        let size = data_stream.write(&bs).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-        })?;
 
-        ftp_stream
-            .finalize_put_stream(data_stream)
+        if self.data_stream.is_none() {
+            self.data_stream = Some(Box::new(
+                self.ftp_stream
+                    .append_with_stream(path)
+                    .await
+                    .map_err(parse_error)?,
+            ));
+        }
+
+        let size = self
+            .data_stream
+            .as_mut()
+            .unwrap()
+            .write(&bs)
             .await
-            .map_err(parse_error)?;
-        self.size += size as u64;
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+            })?;
+
         Ok(size)
     }
 
     async fn close(&mut self) -> Result<()> {
+        let data_stream = self.data_stream.take();
+        if let Some(mut data_stream) = data_stream {
+            data_stream.flush().await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
+            })?;
+
+            self.ftp_stream
+                .finalize_put_stream(data_stream)
+                .await
+                .map_err(parse_error)?;
+
+            if let Some(tmp_path) = &self.tmp_path {
+                self.ftp_stream
+                    .rename(tmp_path, &self.target_path)
+                    .await
+                    .map_err(parse_error)?;
+            }
+        }
+
         Ok(())
     }
 

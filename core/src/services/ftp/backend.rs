@@ -37,6 +37,7 @@ use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
+use uuid::Uuid;
 
 use super::err::parse_error;
 use super::lister::FtpLister;
@@ -301,6 +302,7 @@ impl Accessor for FtpBackend {
 
                 write: true,
                 write_can_multi: true,
+                write_can_append: true,
 
                 delete: true,
                 create_dir: true,
@@ -360,7 +362,7 @@ impl Accessor for FtpBackend {
         Ok((RpRead::new(), FtpReader::new(self.clone(), path, args)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // Ensure the parent dir exists.
         let parent = get_parent(path);
         let paths: Vec<&str> = parent.split('/').collect();
@@ -370,7 +372,11 @@ impl Accessor for FtpBackend {
         let mut curr_path = String::new();
 
         for path in paths {
+            if path.is_empty() {
+                continue;
+            }
             curr_path.push_str(path);
+            curr_path.push('/');
             match ftp_stream.mkdir(&curr_path).await {
                 // Do nothing if status is FileUnavailable or OK(()) is return.
                 Err(FtpError::UnexpectedResponse(Response {
@@ -384,7 +390,14 @@ impl Accessor for FtpBackend {
             }
         }
 
-        let w = FtpWriter::new(self.clone(), path.to_string());
+        let tmp_path = if op.append() {
+            None
+        } else {
+            let uuid = Uuid::new_v4().to_string();
+            Some(format!("{}.{}", path, uuid))
+        };
+
+        let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))
     }

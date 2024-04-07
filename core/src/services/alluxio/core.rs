@@ -305,7 +305,7 @@ impl AlluxioCore {
             }
             _ => {
                 let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs).await?)
+                Err(parse_error(parts, bs)?)
             }
         }
     }
@@ -372,7 +372,7 @@ impl AlluxioCore {
             }
             _ => {
                 let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs).await?)
+                Err(parse_error(parts, bs)?)
             }
         }
     }

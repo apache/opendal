@@ -1085,7 +1085,7 @@ impl Accessor for S3Backend {
         self.core
             .s3_delete_object(path)
             .await
-            .map(|_| RpDelete::new())
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

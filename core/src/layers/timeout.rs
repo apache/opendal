@@ -383,7 +383,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<usize>> {
+        fn read_at(&self, _: oio::WritableBuf, _: u64) -> impl Future<Output = Result<usize>> {
             pending()
         }
     }
@@ -424,7 +424,7 @@ mod tests {
 
         let reader = op.reader("test").await.unwrap();
 
-        let res = reader.read(&mut Vec::default(), 0, 4).await;
+        let res = reader.read(&mut vec![0;4], 0).await;
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

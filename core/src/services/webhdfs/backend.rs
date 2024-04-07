@@ -437,7 +437,7 @@ impl WebhdfsBackend {
     pub async fn webhdfs_list_status_request(
         &self,
         path: &str,
-    ) -> Result<Option<Vec<FileStatuses>>> {
+    ) -> Result<Option<FileStatuses>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",

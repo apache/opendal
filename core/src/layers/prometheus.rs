@@ -690,12 +690,12 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             &self.path,
         );
         match self.inner.read_at(buf, offset).await {
-            Ok(bytes) => {
+            Ok(n) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(bytes.remaining() as f64);
-                Ok(bytes)
+                    .observe(n as f64);
+                Ok(n)
             }
             Err(e) => {
                 self.stats.increment_errors_total(self.op, e.kind());
@@ -714,12 +714,12 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
         );
         self.inner
             .read_at(buf, offset)
-            .map(|bs| {
+            .map(|n| {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(bs.remaining() as f64);
-                bs
+                    .observe(n as f64);
+                n
             })
             .map_err(|e| {
                 self.stats.increment_errors_total(self.op, e.kind());

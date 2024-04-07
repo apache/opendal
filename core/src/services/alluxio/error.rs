@@ -38,7 +38,7 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
     };
 
     let (message, alluxio_err) = serde_json::from_slice(&bs)
-        .map(|alluxio_err| (format!("{alluxio_err:?}"), Some(alluxio_err)))
+        .map(|alluxio_err: AlluxioError| (format!("{alluxio_err:?}"), Some(alluxio_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(alluxio_err) = alluxio_err {
@@ -87,13 +87,12 @@ mod tests {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = oio::Buffer::from(bs);
-            let resp = Response::builder()
+            let (parts, bs) = Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(body)
-                .unwrap();
+                .body(bs)
+                .unwrap().into_parts();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(parts, bs);
 
             assert!(err.is_ok());
             assert_eq!(err.unwrap().kind(), res.1);

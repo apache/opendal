@@ -298,12 +298,12 @@ impl DbfsCore {
 }
 
 #[derive(Debug, Deserialize)]
-struct DbfsOutputList {
+pub struct DbfsOutputList {
     pub files: Vec<DbfsStatus>,
 }
 
 #[derive(Debug, Deserialize)]
-struct DbfsStatus {
+pub struct DbfsStatus {
     pub path: String,
     pub is_dir: bool,
     pub file_size: i64,

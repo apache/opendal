@@ -69,20 +69,16 @@ impl Accessor for DropboxBackend {
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         // Check if the folder already exists.
-        let resp = self.core.dropbox_get_metadata(path).await?;
-        if StatusCode::OK == resp.status() {
-            let bytes = resp.into_body();
-            let decoded_response: DropboxMetadataResponse =
-                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-            if "folder" == decoded_response.tag {
-                return Ok(RpCreateDir::default());
-            }
-            if "file" == decoded_response.tag {
+        let resp = self.core.dropbox_get_metadata(path).await;
+        match resp {
+            Ok(meta) if meta.is_dir() => return Ok(RpCreateDir::default()),
+            Ok(meta) if meta.is_file() => {
                 return Err(Error::new(
                     ErrorKind::NotADirectory,
                     &format!("it's not a directory {}", path),
                 ));
             }
+            _ => ()
         }
 
         // Dropbox has very, very, very strong limitation on the create_folder requests.

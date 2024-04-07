@@ -376,7 +376,7 @@ impl AzfileCore {
                 // 2. If a directory or file with the same name already exists, the operation fails with status code 409 (Conflict).
                 // but we just need case 2 (already exists)
                 // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/create-directory
-                if parse_header_to_str(&parts.headers, "x-ms-error-code").unwrap_or_default()
+                if parse_header_to_str(&parts.headers, "x-ms-error-code")?.unwrap_or_default()
                     == "ResourceAlreadyExists"
                 {
                     body.consume().await?;
@@ -511,12 +511,15 @@ impl AzfileCore {
 
         let mut pop_dir_count = dirs.len();
         for dir in dirs.iter().rev() {
-            let resp = self.azfile_get_directory_properties(dir).await?;
-            if resp.status() == StatusCode::NOT_FOUND {
-                pop_dir_count -= 1;
-                continue;
+            let resp = self.azfile_get_directory_properties(dir).await;
+            match resp {
+                Ok(_) => break,
+                Err(err) if err.kind() == ErrorKind::NotFound => {
+                    pop_dir_count -= 1;
+                    continue;
+                }
+                Err(err) => return Err(err),
             }
-            break;
         }
 
         for dir in dirs.iter().skip(pop_dir_count) {
@@ -529,7 +532,7 @@ impl AzfileCore {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
-struct EnumerationResults {
+pub struct EnumerationResults {
     pub marker: Option<String>,
     pub prefix: Option<String>,
     pub max_results: Option<u32>,
@@ -541,7 +544,7 @@ struct EnumerationResults {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
-struct Entries {
+pub struct Entries {
     #[serde(default)]
     pub file: Vec<File>,
     #[serde(default)]
@@ -550,7 +553,7 @@ struct Entries {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
-struct File {
+pub struct File {
     #[serde(rename = "FileId")]
     pub file_id: String,
     pub name: String,
@@ -559,7 +562,7 @@ struct File {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
-struct Directory {
+pub struct Directory {
     #[serde(rename = "FileId")]
     pub file_id: String,
     pub name: String,
@@ -568,7 +571,7 @@ struct Directory {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
-struct Properties {
+pub struct Properties {
     #[serde(rename = "Content-Length")]
     pub content_length: Option<u64>,
     #[serde(rename = "CreationTime")]

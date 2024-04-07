@@ -318,7 +318,7 @@ impl kv::Adapter for Adapter {
 
         match parts.status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let response = body.to_json().await?;
+                let response: D1Response = body.to_json().await?;
                 if !response.success {
                     return Err(Error::new(
                         ErrorKind::Unexpected,

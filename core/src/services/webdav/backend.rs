@@ -304,7 +304,7 @@ impl Accessor for WebdavBackend {
         self.core
             .webdav_delete(path)
             .await
-            .map(|_| RpDelete::default())?;
+            .map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -325,6 +325,6 @@ impl Accessor for WebdavBackend {
         self.core
             .webdav_move(from, to)
             .await
-            .map(|_| RpRename::default())?;
+            .map(|_| RpRename::default())
     }
 }

@@ -20,44 +20,44 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub(super) struct BooleanResp {
+pub struct BooleanResp {
     pub boolean: bool,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub(super) struct FileStatusWrapper {
+pub struct FileStatusWrapper {
     pub file_status: FileStatus,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub(super) struct FileStatusesWrapper {
+pub struct FileStatusesWrapper {
     pub file_statuses: FileStatuses,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub(super) struct DirectoryListingWrapper {
+pub struct DirectoryListingWrapper {
     pub directory_listing: DirectoryListing,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct DirectoryListing {
+pub struct DirectoryListing {
     pub partial_listing: PartialListing,
     pub remaining_entries: u32,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub(super) struct PartialListing {
+pub struct PartialListing {
     pub file_statuses: FileStatuses,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub(super) struct FileStatuses {
+pub struct FileStatuses {
     pub file_status: Vec<FileStatus>,
 }
 

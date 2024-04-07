@@ -540,12 +540,11 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
         let start = Instant::now();
 
         match self.inner.read_at(buf, offset).await {
-            Ok(bs) => {
-                self.metrics
-                    .observe_bytes_total(self.scheme, self.op, bs.remaining());
+            Ok(n) => {
+                self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                Ok(bs)
+                Ok(n)
             }
             Err(e) => {
                 self.metrics
@@ -561,12 +560,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
         let start = Instant::now();
         self.inner
             .read_at(buf, offset)
-            .map(|bs| {
-                self.metrics
-                    .observe_bytes_total(self.scheme, self.op, bs.remaining());
+            .map(|n| {
+                self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                bs
+                n
             })
             .map_err(|e| {
                 self.metrics

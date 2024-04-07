@@ -754,11 +754,11 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
         let start = Instant::now();
 
         match self.inner.read_at(buf, offset).await {
-            Ok(bs) => {
-                self.bytes_counter.increment(bs.remaining() as u64);
+            Ok(n) => {
+                self.bytes_counter.increment(n as u64);
                 self.requests_duration_seconds
                     .record(start.elapsed().as_secs_f64());
-                Ok(bs)
+                Ok(n)
             }
             Err(e) => {
                 self.handle.increment_errors_total(self.op, e.kind());
@@ -774,11 +774,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 
         self.inner
             .read_at(buf, offset)
-            .map(|bs| {
-                self.bytes_counter.increment(bs.remaining() as u64);
+            .map(|n| {
+                self.bytes_counter.increment(n as u64);
                 self.requests_duration_seconds
                     .record(start.elapsed().as_secs_f64());
-                bs
+                n
             })
             .map_err(|e| {
                 self.handle.increment_errors_total(self.op, e.kind());

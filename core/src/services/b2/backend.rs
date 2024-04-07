@@ -359,7 +359,7 @@ impl Accessor for B2Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.hide_file(path).await.map(|_| RpDelete::new())
+        self.core.hide_file(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

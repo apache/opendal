@@ -219,8 +219,7 @@ impl HuggingfaceCore {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HuggingfaceStatus {
+pub struct HuggingfaceStatus {
     #[serde(rename = "type")]
     pub type_: String,
     pub oid: String,
@@ -233,8 +232,7 @@ pub(super) struct HuggingfaceStatus {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HuggingfaceLfs {
+pub struct HuggingfaceLfs {
     pub oid: String,
     pub size: u64,
     pub pointer_size: u64,
@@ -242,8 +240,7 @@ pub(super) struct HuggingfaceLfs {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HuggingfaceLastCommit {
+pub struct HuggingfaceLastCommit {
     pub id: String,
     pub title: String,
     pub date: String,
@@ -251,8 +248,7 @@ pub(super) struct HuggingfaceLastCommit {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HuggingfaceSecurity {
+pub struct HuggingfaceSecurity {
     pub blob_id: String,
     pub name: String,
     pub safe: bool,
@@ -261,24 +257,21 @@ pub(super) struct HuggingfaceSecurity {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct HuggingfaceAvScan {
+pub struct HuggingfaceAvScan {
     pub virus_found: bool,
     pub virus_names: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HuggingfacePickleImportScan {
+pub struct HuggingfacePickleImportScan {
     pub highest_safety_level: String,
     pub imports: Vec<HuggingfaceImport>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct HuggingfaceImport {
+pub struct HuggingfaceImport {
     pub module: String,
     pub name: String,
     pub safety: String,

@@ -41,13 +41,13 @@ impl WebhdfsLister {
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_status = if self.backend.disable_list_batch {
-            let Some(file_status) = self.backend.webhdfs_list_status_request(&self.path)? else {
+            let Some(file_status) = self.backend.webhdfs_list_status_request(&self.path).await? else {
                 ctx.done = true;
                 return Ok(());
             };
 
             ctx.done = true;
-            file_status
+            file_status.file_status
         } else {
             let Some(res) = self
                 .backend

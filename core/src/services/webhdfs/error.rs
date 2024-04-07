@@ -40,7 +40,7 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(parts: Parts, bs: Bytes) -> Result<Error> {
+pub(super) fn parse_error(parts: Parts, bs: Bytes) -> Result<Error> {
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }
@@ -97,17 +97,16 @@ mod tests {
 }
     "#,
         );
-        let body = oio::Buffer::from(ill_args.clone());
-        let resp = Response::builder()
+        let (parts, bs) = Response::builder()
             .status(StatusCode::BAD_REQUEST)
-            .body(body)
-            .unwrap();
+            .body(ill_args)
+            .unwrap().into_parts();
 
-        let err = parse_error(resp).await?;
+        let err = parse_error(parts, bs.clone())?;
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 
-        let err_msg: WebHdfsError = from_reader::<_, WebHdfsErrorWrapper>(ill_args.reader())
+        let err_msg: WebHdfsError = from_reader::<_, WebHdfsErrorWrapper>(bs.reader())
             .expect("must success")
             .remote_exception;
         assert_eq!(err_msg.exception, "IllegalArgumentException");

@@ -533,7 +533,7 @@ impl GcsCore {
         Ok(batched_result)
     }
 
-    pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<()> {
         let source = build_abs_path(&self.root, from);
         let dest = build_abs_path(&self.root, to);
 
@@ -555,7 +555,7 @@ impl GcsCore {
         let (parts, body) = self.client.send(req).await?.into_parts();
         if parts.status.is_success() {
             body.consume().await?;
-            Ok(RpCopy::default())
+            Ok(())
         } else {
             let bs = body.to_bytes().await?;
             Err(parse_error(parts, bs)?)

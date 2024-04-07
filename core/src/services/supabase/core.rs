@@ -296,7 +296,7 @@ impl SupabaseCore {
         } else {
             let bs = body.to_bytes().await?;
             // deleting not existing objects is ok
-            let e = parse_error(parts, bs).await?;
+            let e = parse_error(parts, bs)?;
             if e.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {

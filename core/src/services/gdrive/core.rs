@@ -86,7 +86,7 @@ impl GdriveCore {
         let gdrive_file: GdriveFile = body.to_json().await?;
 
         if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(Metadata::new(EntryMode::DIR));
         };
 
         let mut meta = Metadata::new(EntryMode::FILE);

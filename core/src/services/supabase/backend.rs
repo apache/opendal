@@ -188,11 +188,11 @@ impl Accessor for SupabaseBackend {
         // The get_object_info does not contain the file size. Therefore
         // we first try the get the metadata through head, if we fail,
         // we then use get_object_info to get the actual error info
-        let mut resp = self.core.supabase_head_object(path).await?;
+        let mut resp = self.core.supabase_head_object(path).await;
 
-        match resp.status() {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => self.core.supabase_get_object_info(path).await?,
+        match resp {
+            Ok(meta) => Ok(RpStat::new(meta)),
+            _ => self.core.supabase_get_object_info(path).await.map(RpStat::new),
         }
     }
 

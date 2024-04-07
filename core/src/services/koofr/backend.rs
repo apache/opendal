@@ -301,7 +301,7 @@ impl Accessor for KoofrBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.remove(path).await.map(|_| RpDelete::new())
+        self.core.remove(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

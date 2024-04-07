@@ -462,13 +462,13 @@ impl AzdlsCore {
 /// ```
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
-struct ListOutput {
+pub struct ListOutput {
     pub paths: Vec<Path>,
 }
 
 #[derive(Default, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-struct Path {
+pub struct Path {
     #[serde(rename = "contentLength")]
     pub content_length: String,
     #[serde(rename = "etag")]

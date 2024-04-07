@@ -124,7 +124,7 @@ impl KoofrCore {
 
         if parts.status != StatusCode::OK {
             let bs = body.to_bytes().await?;
-            return Err(parse_error(parts, bs).await?);
+            return Err(parse_error(parts, bs)?);
         }
 
         let resp: TokenResponse = body.to_json().await?;

@@ -120,7 +120,7 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.ipmfs_rm(path).await.map(|_| RpDelete::new())
+        self.ipmfs_rm(path).await.map(|_| RpDelete::default())
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -314,7 +314,7 @@ impl IpmfsBackend {
 
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
-struct IpfsStatResponse {
+pub struct IpfsStatResponse {
     #[serde(rename = "Size")]
     size: u64,
     #[serde(rename = "Type")]
@@ -323,7 +323,7 @@ struct IpfsStatResponse {
 
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
-struct IpfsLsResponseEntry {
+pub struct IpfsLsResponseEntry {
     #[serde(rename = "Name")]
     pub name: String,
     #[serde(rename = "Type")]
@@ -356,7 +356,7 @@ impl IpfsLsResponseEntry {
 
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
-struct IpfsLsResponse {
+pub struct IpfsLsResponse {
     #[serde(rename = "Entries")]
     pub entries: Option<Vec<IpfsLsResponseEntry>>,
 }

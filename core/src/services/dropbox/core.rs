@@ -228,7 +228,7 @@ impl DropboxCore {
             }
             _ => {
                 let bs = body.to_bytes().await?;
-                let err = parse_error(parts, bs).await?;
+                let err = parse_error(parts, bs)?;
                 match err.kind() {
                     ErrorKind::NotFound => Ok(()),
                     _ => Err(err),

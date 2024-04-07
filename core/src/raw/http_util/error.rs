@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-use futures::Stream;
-use http::response::Parts;
-use http::{Response, Uri};
 
-use crate::raw::ResponseBody;
+
+use http::response::Parts;
+use http::{Uri};
+
+
 use crate::*;
 
 /// Create a new error happened during building request.

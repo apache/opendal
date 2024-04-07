@@ -22,16 +22,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
-use super::core::File;
+
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
-use super::error::parse_error;
+
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;

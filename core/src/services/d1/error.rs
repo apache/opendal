@@ -16,7 +16,7 @@
 // under the License.
 
 use bytes::{Buf, Bytes};
-use http::Response;
+
 use http::StatusCode;
 use serde_json::de;
 

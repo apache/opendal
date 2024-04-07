@@ -18,11 +18,11 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bytes::Buf;
+
 use bytes::Bytes;
 use http::header;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 
 use super::error::parse_error;

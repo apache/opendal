@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use super::core::*;
 use crate::raw::*;
-use crate::services::alluxio::error::parse_error;
+
 use crate::*;
 
 pub struct AlluxioReader {

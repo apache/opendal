@@ -19,11 +19,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use log::debug;
 
 use super::core::*;
-use super::error::parse_error;
+
 use super::writer::*;
 use crate::raw::*;
 use crate::services::supabase::reader::SupabaseReader;
@@ -188,7 +188,7 @@ impl Accessor for SupabaseBackend {
         // The get_object_info does not contain the file size. Therefore
         // we first try the get the metadata through head, if we fail,
         // we then use get_object_info to get the actual error info
-        let mut resp = self.core.supabase_head_object(path).await;
+        let resp = self.core.supabase_head_object(path).await;
 
         match resp {
             Ok(meta) => Ok(RpStat::new(meta)),

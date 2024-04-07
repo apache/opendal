@@ -18,10 +18,10 @@
 use bytes::BufMut;
 use std::sync::Arc;
 
-use http::StatusCode;
+
 
 use super::core::AzblobCore;
-use super::error::parse_error;
+
 use crate::raw::*;
 use crate::*;
 

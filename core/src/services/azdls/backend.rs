@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
@@ -29,7 +29,7 @@ use reqsign::AzureStorageSigner;
 use serde::Deserialize;
 
 use super::core::AzdlsCore;
-use super::error::parse_error;
+
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;

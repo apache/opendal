@@ -21,13 +21,13 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 
-use super::core::parse_info;
+
 use super::core::UpyunCore;
-use super::error::parse_error;
+
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;

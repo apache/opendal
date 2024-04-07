@@ -20,12 +20,12 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bytes::Buf;
+
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;

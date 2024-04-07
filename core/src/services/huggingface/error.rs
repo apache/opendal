@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 
-use bytes::{Buf, Bytes};
-use http::Response;
+use bytes::{Bytes};
+
 use http::StatusCode;
 use serde::Deserialize;
 

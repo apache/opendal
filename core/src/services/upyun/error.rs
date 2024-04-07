@@ -16,7 +16,7 @@
 // under the License.
 
 use bytes::{Buf, Bytes};
-use http::Response;
+
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -65,6 +65,7 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 #[cfg(test)]
 mod test {
     use http::StatusCode;
+    use http::Response;
 
     use super::*;
 

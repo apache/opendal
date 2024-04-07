@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::StatusCode;
+
 use http::Uri;
 use log::debug;
 use reqsign::AliyunConfig;
@@ -31,7 +31,7 @@ use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
 use super::core::*;
-use super::error::parse_error;
+
 use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;

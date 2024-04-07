@@ -25,13 +25,13 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::Request;
-use http::Response;
+
 use http::{HeaderName, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
-use serde_json::de;
+
 
 use crate::raw::*;
 use crate::services::azdls::error::parse_error;
@@ -493,7 +493,7 @@ mod tests {
         let bs = Bytes::from(
             r#"{"paths":[{"contentLength":"1977097","etag":"0x8DACF9B0061305F","group":"$superuser","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725","owner":"$superuser","permissions":"rw-r-----"}]}"#,
         );
-        let out: ListOutput = de::from_slice(&bs).expect("must success");
+        let out: ListOutput = serde_json::from_slice(&bs).expect("must success");
         println!("{out:?}");
 
         assert_eq!(

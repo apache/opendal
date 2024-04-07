@@ -29,7 +29,7 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Response;
+
 use http::{Request, StatusCode};
 use once_cell::sync::Lazy;
 use reqsign::GoogleCredential;

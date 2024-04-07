@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-use http::StatusCode;
+
+
 
 use super::backend::WebhdfsBackend;
-use super::error::parse_error;
+
 use super::message::*;
 use crate::raw::*;
 use crate::*;

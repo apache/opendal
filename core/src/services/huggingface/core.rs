@@ -19,7 +19,7 @@ use std::fmt::Debug;
 
 use bytes::Bytes;
 use http::Request;
-use http::Response;
+
 use http::{header, StatusCode};
 use serde::Deserialize;
 

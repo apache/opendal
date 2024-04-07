@@ -22,12 +22,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
-use super::error::parse_error;
+
 use super::lister::DbfsLister;
 use super::reader::DbfsReader;
 use super::writer::DbfsWriter;

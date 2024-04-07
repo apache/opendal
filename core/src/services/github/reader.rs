@@ -18,7 +18,7 @@
 use bytes::BufMut;
 use std::sync::Arc;
 
-use http::StatusCode;
+
 
 use super::core::GithubCore;
 use crate::raw::*;

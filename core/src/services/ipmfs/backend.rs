@@ -21,10 +21,10 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
+
 use bytes::Bytes;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use serde::Deserialize;
 

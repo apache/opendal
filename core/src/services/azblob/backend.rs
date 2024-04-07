@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
-use http::header::CONTENT_TYPE;
+
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;

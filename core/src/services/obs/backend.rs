@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use http::Uri;
 use log::debug;
 use reqsign::HuaweicloudObsConfig;
@@ -28,7 +28,7 @@ use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
 use super::core::ObsCore;
-use super::error::parse_error;
+
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use crate::raw::*;

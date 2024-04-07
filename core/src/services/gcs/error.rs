@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
-use http::Response;
+use bytes::{Bytes};
+
 use http::StatusCode;
 use serde::Deserialize;
 use serde_json::de;

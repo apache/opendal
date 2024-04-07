@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
+
 use http::StatusCode;
 
 use super::core::*;

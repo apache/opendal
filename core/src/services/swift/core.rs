@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 
 use http::Request;
-use http::Response;
+
 use http::{header, StatusCode};
 use serde::Deserialize;
 

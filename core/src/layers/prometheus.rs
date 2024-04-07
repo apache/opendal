@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
+
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;

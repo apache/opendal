@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
+use bytes::{Bytes};
 use http::response::Parts;
-use http::Response;
+
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -79,6 +79,7 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
 mod tests {
     use bytes::Buf;
     use serde_json::from_reader;
+    use http::Response;
 
     use super::*;
 

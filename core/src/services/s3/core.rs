@@ -33,7 +33,7 @@ use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
-use http::Response;
+
 use http::{HeaderValue, StatusCode};
 use reqsign::AwsCredential;
 use reqsign::AwsCredentialLoad;

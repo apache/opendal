@@ -21,11 +21,11 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::StatusCode;
+
 use log::debug;
 
 use super::core::*;
-use super::error::parse_error;
+
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;

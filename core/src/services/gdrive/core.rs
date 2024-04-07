@@ -21,13 +21,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes;
-use bytes::Buf;
+
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use serde::Deserialize;
 use serde_json::json;

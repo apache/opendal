@@ -22,12 +22,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 
 use super::core::*;
-use super::error::parse_error;
+
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;

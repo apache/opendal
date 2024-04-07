@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
-use http::Response;
+
 use http::{HeaderValue, StatusCode};
 
 use crate::raw::*;

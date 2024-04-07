@@ -23,7 +23,7 @@ use std::fmt::Formatter;
 use bytes::Bytes;
 use http::header;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use serde::Deserialize;
 

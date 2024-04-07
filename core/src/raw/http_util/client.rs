@@ -15,26 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::Ordering;
+
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future;
+
 use std::mem;
 use std::str::FromStr;
 
-use bytes::Buf;
-use bytes::Bytes;
-use futures::{Stream, StreamExt, TryStreamExt};
-use http::response::Parts;
-use http::Response;
-use http::{HeaderMap, Request};
-use reqwest::Body;
 
-use super::parse_content_encoding;
-use super::parse_content_length;
+use bytes::Bytes;
+use futures::{Stream, TryStreamExt};
+
+use http::Response;
+use http::{Request};
+
+
+
+
 use super::RequestBody;
 use crate::raw::http_util::body::ResponseBody;
-use crate::raw::*;
+
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

@@ -18,10 +18,10 @@
 use bytes::BufMut;
 use std::sync::Arc;
 
-use http::StatusCode;
+
 
 use super::core::SupabaseCore;
-use super::error::parse_error;
+
 use crate::raw::*;
 
 pub struct SupabaseReader {

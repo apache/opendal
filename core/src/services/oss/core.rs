@@ -30,7 +30,7 @@ use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
 use http::HeaderValue;
 use http::Request;
-use http::Response;
+
 use http::{HeaderName, StatusCode};
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;

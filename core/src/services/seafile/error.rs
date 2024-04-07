@@ -16,7 +16,7 @@
 // under the License.
 
 use bytes::{Buf, Bytes};
-use http::Response;
+
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -55,6 +55,7 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 #[cfg(test)]
 mod test {
     use http::StatusCode;
+    use http::Response;
 
     use super::*;
 

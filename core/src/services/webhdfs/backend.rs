@@ -23,13 +23,13 @@ use bytes::Buf;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use super::error::{parse_error, parse_error_msg};
+use super::error::{parse_error};
 use super::lister::WebhdfsLister;
 use super::message::FileStatusWrapper;
 use super::message::{BooleanResp, FileStatuses};

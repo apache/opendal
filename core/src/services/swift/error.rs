@@ -17,7 +17,7 @@
 
 use bytes::Buf;
 use bytes::Bytes;
-use http::Response;
+
 use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;

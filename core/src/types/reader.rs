@@ -216,7 +216,7 @@ pub mod into_futures_async_read {
 
     impl AsyncBufRead for FuturesIoAsyncReader {
         fn poll_fill_buf(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
@@ -378,7 +378,7 @@ pub mod into_futures_stream {
     impl Stream for FuturesBytesStream {
         type Item = io::Result<Bytes>;
 
-        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             let this = self.get_mut();
 
             loop {

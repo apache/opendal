@@ -22,7 +22,7 @@ use base64::Engine;
 use bytes::Bytes;
 use http::header;
 use http::Request;
-use http::Response;
+
 use http::StatusCode;
 use madsim::net::rpc::Deserialize;
 use serde_json::json;

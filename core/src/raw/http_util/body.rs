@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes};
 use futures::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+
 use std::cmp::Ordering;
 use std::pin::pin;
 
@@ -80,7 +80,7 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     ///
     /// This function exists to consume the response body and allowing clients
     /// to reuse the same connection.
-    pub async fn consume(mut self) -> Result<()> {
+    pub async fn consume(self) -> Result<()> {
         let (stream, size, mut consumed) = (self.inner, self.size, 0);
         let mut stream = pin!(stream);
 
@@ -102,7 +102,7 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     /// # Panics
     ///
     /// The input buf must have enough space to store all bytes.
-    pub async fn read(mut self, mut buf: WritableBuf) -> Result<usize> {
+    pub async fn read(self, mut buf: WritableBuf) -> Result<usize> {
         let (stream, size, mut consumed) = (self.inner, self.size, 0);
         let mut stream = pin!(stream);
 
@@ -117,7 +117,7 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     }
 
     /// Read all bytes from the response to buffer.
-    pub async fn to_buffer(mut self) -> Result<oio::Buffer> {
+    pub async fn to_buffer(self) -> Result<oio::Buffer> {
         let (stream, size, mut consumed) = (self.inner, self.size, 0);
         let mut stream = pin!(stream);
 
@@ -133,7 +133,7 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     }
 
     /// Read all bytes from the response to bytes.
-    pub async fn to_bytes(mut self) -> Result<Bytes> {
+    pub async fn to_bytes(self) -> Result<Bytes> {
         let mut buf = self.to_buffer().await?;
         Ok(buf.copy_to_bytes(buf.remaining()))
     }

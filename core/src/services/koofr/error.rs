@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
-use http::Response;
+use bytes::{Bytes};
+
 
 use crate::raw::*;
 use crate::Error;
@@ -51,7 +51,7 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 
 #[cfg(test)]
 mod test {
-    use http::StatusCode;
+    use http::{Response, StatusCode};
 
     use super::*;
 

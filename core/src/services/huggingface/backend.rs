@@ -22,13 +22,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::StatusCode;
+
 use log::debug;
 use serde::Deserialize;
 
 use super::core::HuggingfaceCore;
-use super::core::HuggingfaceStatus;
-use super::error::parse_error;
+
+
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
 use crate::services::huggingface::reader::HuggingfaceReader;

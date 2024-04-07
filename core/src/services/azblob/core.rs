@@ -30,7 +30,7 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
-use http::Response;
+
 use http::{HeaderValue, StatusCode};
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;

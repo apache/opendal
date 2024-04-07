@@ -16,9 +16,9 @@
 // under the License.
 
 use bytes::BufMut;
-use http::StatusCode;
 
-use super::error::parse_error;
+
+
 use crate::raw::*;
 use crate::services::onedrive::backend::OnedriveBackend;
 

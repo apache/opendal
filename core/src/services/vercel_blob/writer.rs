@@ -17,12 +17,12 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
+
 use http::StatusCode;
 
-use super::core::InitiateMultipartUploadResponse;
+
 use super::core::Part;
-use super::core::UploadPartResponse;
+
 use super::core::VercelBlobCore;
 use super::error::parse_error;
 use crate::raw::*;

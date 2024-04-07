@@ -27,7 +27,7 @@ use backon::Retryable;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::Buffer;
+
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;

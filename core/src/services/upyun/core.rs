@@ -23,7 +23,7 @@ use hmac::Hmac;
 use hmac::Mac;
 use http::HeaderMap;
 use http::Request;
-use http::Response;
+
 use http::{header, StatusCode};
 use md5::Digest;
 use serde::Deserialize;
@@ -594,7 +594,7 @@ pub fn format_md5(bs: &[u8]) -> String {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct File {
+pub struct File {
     #[serde(rename = "type")]
     pub type_field: String,
     pub name: String,
@@ -603,7 +603,7 @@ pub(super) struct File {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct ListObjectsResponse {
+pub struct ListObjectsResponse {
     pub iter: String,
     pub files: Vec<File>,
 }

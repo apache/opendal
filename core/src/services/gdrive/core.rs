@@ -541,7 +541,7 @@ pub struct GdriveFile {
 /// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct GdriveFileList {
-    pub(crate) files: Vec<GdriveFile>,
-    pub(crate) next_page_token: Option<String>,
+pub struct GdriveFileList {
+    pub files: Vec<GdriveFile>,
+    pub next_page_token: Option<String>,
 }

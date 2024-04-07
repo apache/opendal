@@ -21,13 +21,10 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use serde::Deserialize;
 
 use super::core::HuggingfaceCore;
-
-
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
 use crate::services::huggingface::reader::HuggingfaceReader;

@@ -29,8 +29,8 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-
-use http::{Request, StatusCode};
+use http::Request;
+use http::StatusCode;
 use once_cell::sync::Lazy;
 use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;

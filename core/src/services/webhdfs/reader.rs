@@ -15,10 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{BufMut};
-
-
-
+use bytes::BufMut;
 
 use crate::raw::*;
 use crate::services::webhdfs::backend::WebhdfsBackend;

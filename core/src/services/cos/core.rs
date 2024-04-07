@@ -26,8 +26,8 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-
-use http::{Request, StatusCode};
+use http::Request;
+use http::StatusCode;
 use reqsign::TencentCosCredential;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;

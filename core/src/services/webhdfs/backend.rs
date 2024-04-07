@@ -22,17 +22,18 @@ use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
-
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use super::error::{parse_error};
+use super::error::parse_error;
 use super::lister::WebhdfsLister;
+use super::message::BooleanResp;
+use super::message::DirectoryListingWrapper;
+use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
-use super::message::{BooleanResp, FileStatuses};
-use super::message::{DirectoryListingWrapper, FileStatusType};
+use super::message::FileStatuses;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
@@ -433,10 +434,7 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    pub async fn webhdfs_list_status_request(
-        &self,
-        path: &str,
-    ) -> Result<Option<FileStatuses>> {
+    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Option<FileStatuses>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",

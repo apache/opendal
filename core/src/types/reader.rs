@@ -19,7 +19,6 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 
-
 use bytes::BufMut;
 
 use crate::raw::*;
@@ -157,7 +156,9 @@ pub mod into_futures_async_read {
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::{Buf, BufMut, BytesMut};
+    use bytes::Buf;
+    use bytes::BufMut;
+    use bytes::BytesMut;
     use futures::AsyncBufRead;
     use futures::AsyncRead;
     use futures::AsyncSeek;
@@ -215,10 +216,7 @@ pub mod into_futures_async_read {
     }
 
     impl AsyncBufRead for FuturesIoAsyncReader {
-        fn poll_fill_buf(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<io::Result<&[u8]>> {
+        fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
                 if this.buf.has_remaining() {
@@ -313,15 +311,17 @@ pub mod into_futures_async_read {
 }
 
 pub mod into_futures_stream {
+    use std::io;
+    use std::mem;
     use std::ops::Range;
     use std::pin::Pin;
     use std::task::ready;
     use std::task::Context;
     use std::task::Poll;
-    use std::{io, mem};
 
-    use bytes::{ BytesMut};
-    use bytes::{BufMut, Bytes};
+    use bytes::BufMut;
+    use bytes::Bytes;
+    use bytes::BytesMut;
     use futures::Stream;
 
     use crate::raw::*;

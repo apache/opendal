@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use hdrs::File;
 
-
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;

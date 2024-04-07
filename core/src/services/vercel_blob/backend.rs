@@ -21,14 +21,10 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use serde::Deserialize;
 
-
-
 use super::core::VercelBlobCore;
-
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;

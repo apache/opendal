@@ -22,12 +22,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-
 use log::debug;
 use serde::Deserialize;
 
 use super::core::GithubCore;
-
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;

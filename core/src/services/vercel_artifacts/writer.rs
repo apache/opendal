@@ -17,9 +17,7 @@
 
 use bytes::Bytes;
 
-
 use super::backend::VercelArtifactsBackend;
-
 use crate::raw::*;
 use crate::*;
 

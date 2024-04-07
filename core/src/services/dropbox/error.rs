@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes};
-
+use bytes::Bytes;
 use http::StatusCode;
 use serde::Deserialize;
 

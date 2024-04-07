@@ -17,13 +17,9 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::parse_file_info;
 use super::core::B2Core;
-
 use crate::raw::*;
-
 use crate::*;
 
 pub struct B2Lister {

@@ -17,12 +17,7 @@
 
 use std::sync::Arc;
 
-
-
-
-
 use super::backend::IpmfsBackend;
-
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;

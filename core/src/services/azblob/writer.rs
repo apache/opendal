@@ -25,7 +25,6 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-
 pub type AzblobWriters = TwoWays<oio::BlockWriter<AzblobWriter>, oio::AppendWriter<AzblobWriter>>;
 
 pub struct AzblobWriter {

@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
@@ -29,9 +28,7 @@ use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 
-
 use super::core::*;
-
 use super::lister::GcsLister;
 use super::reader::GcsReader;
 use super::writer::GcsWriter;

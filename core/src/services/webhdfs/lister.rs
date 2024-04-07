@@ -15,11 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
-
 use super::backend::WebhdfsBackend;
-
 use super::message::*;
 use crate::raw::*;
 use crate::*;
@@ -41,7 +37,8 @@ impl WebhdfsLister {
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_status = if self.backend.disable_list_batch {
-            let Some(file_status) = self.backend.webhdfs_list_status_request(&self.path).await? else {
+            let Some(file_status) = self.backend.webhdfs_list_status_request(&self.path).await?
+            else {
                 ctx.done = true;
                 return Ok(());
             };

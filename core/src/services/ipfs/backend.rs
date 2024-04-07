@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use http::Request;
-
 use http::StatusCode;
 use log::debug;
 use prost::Message;

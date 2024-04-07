@@ -19,9 +19,9 @@ use std::fmt::Debug;
 
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::HeaderValue;
 use http::Request;
-
-use http::{HeaderValue, StatusCode};
+use http::StatusCode;
 
 use crate::raw::*;
 use crate::services::supabase::error::parse_error;

@@ -21,14 +21,10 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use serde::Deserialize;
 
-
 use super::core::ChainsafeCore;
-
-
 use super::lister::ChainsafeLister;
 use super::reader::ChainsafeReader;
 use super::writer::ChainsafeWriter;

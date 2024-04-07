@@ -17,13 +17,9 @@
 
 use std::sync::Arc;
 
-
 use bytes::Bytes;
 
-
 use super::core::PcloudCore;
-
-
 use crate::raw::*;
 use crate::*;
 

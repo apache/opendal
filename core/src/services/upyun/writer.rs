@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-
 use super::core::UpyunCore;
 use super::error::parse_error;
 use crate::raw::*;

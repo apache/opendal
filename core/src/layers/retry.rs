@@ -27,7 +27,6 @@ use backon::Retryable;
 use futures::FutureExt;
 use log::warn;
 
-
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -903,7 +902,7 @@ mod tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use bytes::{BufMut};
+    use bytes::BufMut;
     use futures::TryStreamExt;
 
     use super::*;

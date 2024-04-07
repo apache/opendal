@@ -41,7 +41,6 @@ use http::Version;
 
 use super::new_request_build_error;
 use super::RequestBody;
-
 use crate::raw::oio::Stream;
 use crate::*;
 

@@ -19,8 +19,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Buf;
+use http::header;
+use http::Request;
 use http::StatusCode;
-use http::{header, Request};
 use serde::Deserialize;
 use serde::Serialize;
 

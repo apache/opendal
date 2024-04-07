@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BufMut;
 use std::sync::Arc;
+
+use bytes::BufMut;
 
 use super::core::*;
 use crate::raw::*;
-
 use crate::*;
 
 pub struct AlluxioReader {

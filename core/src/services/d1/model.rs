@@ -17,13 +17,10 @@
 
 use std::fmt::Debug;
 
-
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
-
-
 
 /// response data from d1
 #[derive(Deserialize, Debug)]

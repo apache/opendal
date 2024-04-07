@@ -17,12 +17,9 @@
 
 use std::sync::Arc;
 
-
 use http::StatusCode;
 
-
 use super::core::Part;
-
 use super::core::VercelBlobCore;
 use super::error::parse_error;
 use crate::raw::*;

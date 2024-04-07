@@ -21,13 +21,10 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use serde::Deserialize;
 
-
 use super::core::UpyunCore;
-
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;

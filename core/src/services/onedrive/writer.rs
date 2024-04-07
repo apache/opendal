@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use bytes::Bytes;
 
-
 use super::backend::OnedriveBackend;
-
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 use crate::raw::*;

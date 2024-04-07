@@ -41,7 +41,6 @@ use reqwest::Url;
 use serde::Deserialize;
 
 use super::core::*;
-
 use super::error::parse_s3_error_code;
 use super::lister::S3Lister;
 use super::reader::S3Reader;

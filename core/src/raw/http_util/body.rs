@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, BufMut, Bytes};
-use futures::{Stream, StreamExt};
-use serde::de::DeserializeOwned;
-
 use std::cmp::Ordering;
 use std::pin::pin;
+
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
+use futures::Stream;
+use futures::StreamExt;
+use serde::de::DeserializeOwned;
 
 use crate::raw::oio::WritableBuf;
 use crate::raw::*;

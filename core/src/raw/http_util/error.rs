@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
 use http::response::Parts;
-use http::{Uri};
-
+use http::Uri;
 
 use crate::*;
 

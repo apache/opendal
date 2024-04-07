@@ -19,9 +19,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
-
 use super::core::SwiftCore;
-
 use crate::raw::*;
 use crate::*;
 

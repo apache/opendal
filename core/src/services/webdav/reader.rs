@@ -15,13 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BufMut;
 use std::sync::Arc;
 
-
+use bytes::BufMut;
 
 use super::core::WebdavCore;
-
 use crate::raw::*;
 
 pub struct WebdavReader {

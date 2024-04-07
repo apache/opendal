@@ -19,7 +19,6 @@ use std::collections::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 
-
 use bytes::BufMut;
 
 use crate::raw::oio::BlockingRead;
@@ -142,7 +141,9 @@ pub mod into_std_read {
     use std::io::SeekFrom;
     use std::ops::Range;
 
-    use bytes::{Buf, BufMut, BytesMut};
+    use bytes::Buf;
+    use bytes::BufMut;
+    use bytes::BytesMut;
 
     use crate::raw::format_std_io_error;
     use crate::raw::oio;
@@ -263,10 +264,12 @@ pub mod into_std_read {
 }
 
 pub mod into_std_iterator {
-    use std::{io, mem};
+    use std::io;
+    use std::mem;
 
-    use bytes::{BytesMut};
-    use bytes::{BufMut, Bytes};
+    use bytes::BufMut;
+    use bytes::Bytes;
+    use bytes::BytesMut;
 
     use crate::raw::*;
 

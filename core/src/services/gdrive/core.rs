@@ -21,13 +21,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes;
-
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
 use http::Request;
-
 use http::StatusCode;
 use serde::Deserialize;
 use serde_json::json;
@@ -36,8 +34,10 @@ use tokio::sync::Mutex;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::types::Result;
+use crate::EntryMode;
+use crate::Error;
 use crate::ErrorKind;
-use crate::{EntryMode, Error, Metadata};
+use crate::Metadata;
 
 pub struct GdriveCore {
     pub root: String,

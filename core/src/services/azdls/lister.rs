@@ -17,12 +17,7 @@
 
 use std::sync::Arc;
 
-
-
-
-
 use super::core::AzdlsCore;
-
 use crate::raw::*;
 use crate::*;
 

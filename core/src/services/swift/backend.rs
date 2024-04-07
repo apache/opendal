@@ -21,11 +21,9 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 
 use super::core::*;
-
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;

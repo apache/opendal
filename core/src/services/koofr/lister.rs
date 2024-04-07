@@ -17,11 +17,7 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::KoofrCore;
-
-
 use crate::raw::oio::Entry;
 use crate::raw::*;
 use crate::EntryMode;

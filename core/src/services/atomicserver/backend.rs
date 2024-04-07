@@ -23,7 +23,6 @@ use async_trait::async_trait;
 use atomic_lib::agents::Agent;
 use atomic_lib::client::get_authentication_headers;
 use atomic_lib::commit::sign_message;
-
 use bytes::Bytes;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_TYPE;
@@ -32,7 +31,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::adapters::kv;
-
 use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
 use crate::raw::normalize_path;

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
-
+use bytes::Buf;
+use bytes::Bytes;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -65,7 +65,8 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 
 #[cfg(test)]
 mod test {
-    use http::{Response, StatusCode};
+    use http::Response;
+    use http::StatusCode;
 
     use super::*;
 

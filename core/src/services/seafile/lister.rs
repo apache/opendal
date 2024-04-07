@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-
 use http::header;
 use http::Request;
 use http::StatusCode;

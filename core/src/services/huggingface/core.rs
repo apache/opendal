@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use http::header;
 use http::Request;
-
-use http::{header, StatusCode};
+use http::StatusCode;
 use serde::Deserialize;
 
 use super::backend::RepoType;

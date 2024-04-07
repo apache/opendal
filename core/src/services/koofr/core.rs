@@ -20,12 +20,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-
 use bytes::Bytes;
 use http::header;
 use http::request;
 use http::Request;
-
 use http::StatusCode;
 use serde::Deserialize;
 use serde_json::json;

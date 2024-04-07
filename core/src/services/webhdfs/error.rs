@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes};
+use bytes::Bytes;
 use http::response::Parts;
-
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -78,8 +77,8 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-    use serde_json::from_reader;
     use http::Response;
+    use serde_json::from_reader;
 
     use super::*;
 
@@ -101,7 +100,8 @@ mod tests {
         let (parts, bs) = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(ill_args)
-            .unwrap().into_parts();
+            .unwrap()
+            .into_parts();
 
         let err = parse_error(parts, bs.clone())?;
         assert_eq!(err.kind(), ErrorKind::Unexpected);

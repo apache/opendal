@@ -15,11 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-
 use super::backend::OnedriveBackend;
-
-
 use super::graph_model::ItemType;
 use crate::raw::oio;
 use crate::raw::*;

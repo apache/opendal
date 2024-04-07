@@ -18,8 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::{Bytes};
-
+use bytes::Bytes;
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -56,8 +55,8 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 
 #[cfg(test)]
 mod test {
-    use http::StatusCode;
     use http::Response;
+    use http::StatusCode;
 
     use super::*;
 
@@ -79,7 +78,11 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let (parts, bs) = Response::builder().status(res.2).body(bs).unwrap().into_parts();
+            let (parts, bs) = Response::builder()
+                .status(res.2)
+                .body(bs)
+                .unwrap()
+                .into_parts();
 
             let err = parse_error(parts, bs);
 

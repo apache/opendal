@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use http::Uri;
 use log::debug;
 use reqsign::TencentCosConfig;
@@ -29,7 +28,6 @@ use reqsign::TencentCosSigner;
 use serde::Deserialize;
 
 use super::core::*;
-
 use super::lister::CosLister;
 use super::writer::CosWriter;
 use crate::raw::*;

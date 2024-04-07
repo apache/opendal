@@ -17,12 +17,7 @@
 
 use std::sync::Arc;
 
-
-
-
-
 use super::core::S3Core;
-
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;

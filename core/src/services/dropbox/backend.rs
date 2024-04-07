@@ -21,10 +21,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use backon::Retryable;
 
-
-
 use super::core::*;
-
 use super::reader::DropboxReader;
 use super::writer::DropboxWriter;
 use crate::raw::*;
@@ -78,7 +75,7 @@ impl Accessor for DropboxBackend {
                     &format!("it's not a directory {}", path),
                 ));
             }
-            _ => ()
+            _ => (),
         }
 
         // Dropbox has very, very, very strong limitation on the create_folder requests.

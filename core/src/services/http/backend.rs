@@ -24,7 +24,6 @@ use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
-
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;

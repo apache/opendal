@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes};
-
+use bytes::Bytes;
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -59,8 +58,8 @@ pub fn parse_error(parts: http::response::Parts, bs: Bytes) -> Result<Error> {
 
 #[cfg(test)]
 mod tests {
-    use http::StatusCode;
     use http::Response;
+    use http::StatusCode;
 
     use super::*;
 
@@ -91,7 +90,8 @@ mod tests {
             let (parts, bs) = Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(bs)
-                .unwrap().into_parts();
+                .unwrap()
+                .into_parts();
 
             let err = parse_error(parts, bs);
 

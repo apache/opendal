@@ -17,11 +17,7 @@
 
 use std::sync::Arc;
 
-
-
-
 use super::core::*;
-
 use crate::raw::oio::Entry;
 use crate::raw::*;
 use crate::*;
@@ -76,6 +72,6 @@ impl oio::PageList for PcloudLister {
         }
 
         ctx.done = true;
-         Ok(())
+        Ok(())
     }
 }

@@ -19,11 +19,9 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 
 use super::core::*;
-
 use super::writer::*;
 use crate::raw::*;
 use crate::services::supabase::reader::SupabaseReader;
@@ -192,7 +190,11 @@ impl Accessor for SupabaseBackend {
 
         match resp {
             Ok(meta) => Ok(RpStat::new(meta)),
-            _ => self.core.supabase_get_object_info(path).await.map(RpStat::new),
+            _ => self
+                .core
+                .supabase_get_object_info(path)
+                .await
+                .map(RpStat::new),
         }
     }
 

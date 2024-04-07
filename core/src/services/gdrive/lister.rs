@@ -17,11 +17,7 @@
 
 use std::sync::Arc;
 
-
-
 use super::core::GdriveCore;
-
-
 use crate::raw::*;
 use crate::*;
 

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
-
+use bytes::Buf;
+use bytes::Bytes;
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -76,8 +76,8 @@ pub fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 
 #[cfg(test)]
 mod test {
-    use http::StatusCode;
     use http::Response;
+    use http::StatusCode;
 
     use super::*;
 

@@ -21,7 +21,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
-
 use futures::FutureExt;
 use futures::TryFutureExt;
 use metrics::increment_counter;

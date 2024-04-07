@@ -19,15 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use bytes::Bytes;
-
 use http::Request;
 use http::StatusCode;
 use serde_json::json;
 
 use super::core::GdriveCore;
-
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::reader::GdriveReader;

@@ -21,10 +21,10 @@ use std::fmt::Formatter;
 use base64::Engine;
 use hmac::Hmac;
 use hmac::Mac;
+use http::header;
 use http::HeaderMap;
 use http::Request;
-
-use http::{header, StatusCode};
+use http::StatusCode;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;

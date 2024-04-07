@@ -32,9 +32,9 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::HeaderValue;
 use http::Request;
-
-use http::{HeaderValue, StatusCode};
+use http::StatusCode;
 use reqsign::AwsCredential;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsV4Signer;

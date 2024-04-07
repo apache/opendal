@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use http::Request;
-
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -30,13 +29,11 @@ use tokio::sync::RwLock;
 use super::core::constants;
 use super::core::parse_file_info;
 use super::core::B2Core;
-
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::b2::core::B2Signer;
-
 use crate::services::b2::reader::B2Reader;
 use crate::*;
 

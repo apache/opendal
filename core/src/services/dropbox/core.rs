@@ -23,7 +23,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
-
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -31,7 +30,6 @@ use http::header;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
-
 use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde::Deserialize;

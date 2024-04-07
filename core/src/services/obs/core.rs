@@ -26,14 +26,13 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-
-use http::{Request, StatusCode};
+use http::Request;
+use http::StatusCode;
 use reqsign::HuaweicloudObsCredential;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 use serde::Deserialize;
 use serde::Serialize;
-
 
 use crate::raw::*;
 use crate::services::obs::error::parse_error;

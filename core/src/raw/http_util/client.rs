@@ -15,26 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::mem;
 use std::str::FromStr;
 
-
 use bytes::Bytes;
-use futures::{Stream, TryStreamExt};
-
+use futures::Stream;
+use futures::TryStreamExt;
+use http::Request;
 use http::Response;
-use http::{Request};
-
-
-
 
 use super::RequestBody;
 use crate::raw::http_util::body::ResponseBody;
-
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

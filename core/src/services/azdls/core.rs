@@ -23,15 +23,14 @@ use std::fmt::Write;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
-
-use http::{HeaderName, StatusCode};
+use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
-
 
 use crate::raw::*;
 use crate::services::azdls::error::parse_error;

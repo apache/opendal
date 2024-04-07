@@ -28,7 +28,6 @@ use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::USER_AGENT;
 use http::Request;
-
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;

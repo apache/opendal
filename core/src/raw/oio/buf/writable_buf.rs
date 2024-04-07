@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::mem::MaybeUninit;
+
 use bytes::buf::UninitSlice;
 use bytes::BufMut;
-use std::mem::MaybeUninit;
 
 /// WritableBuf is the buf used in `oio::Read`.
 ///
@@ -120,8 +121,9 @@ unsafe impl BufMut for WritableBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::BytesMut;
+
+    use super::*;
 
     #[test]
     fn test_writable_buf_from_slice() {

@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
@@ -29,7 +28,6 @@ use reqsign::AzureStorageSigner;
 use serde::Deserialize;
 
 use super::core::AzfileCore;
-
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;

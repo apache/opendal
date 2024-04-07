@@ -28,10 +28,10 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
+use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
-
-use http::{HeaderName, StatusCode};
+use http::StatusCode;
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;

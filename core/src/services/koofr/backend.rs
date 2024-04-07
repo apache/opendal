@@ -21,16 +21,13 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
-
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
-
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;

@@ -77,6 +77,9 @@ pub use futures_util::ConcurrentFutures;
 mod enum_utils;
 pub use enum_utils::*;
 
+mod result_util;
+pub use result_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;

@@ -103,7 +103,7 @@ impl ObsCore {
         range: BytesRange,
         args: &OpRead,
         buf: oio::WritableBuf,
-    ) -> Result<usize> {
+    ) -> (oio::WritableBuf, Result<()>) {
         let mut req = self.obs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
@@ -113,11 +113,11 @@ impl ObsCore {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
             StatusCode::RANGE_NOT_SATISFIABLE => {
                 body.consume().await?;
-                Ok(0)
+                (buf, Ok(()))
             }
             _ => {
                 let bs = body.to_bytes().await?;
-                Err(parse_error(parts, bs)?)
+                (buf, Err(parse_error(parts, bs)?))
             }
         }
     }

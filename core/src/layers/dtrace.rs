@@ -341,36 +341,37 @@ impl<R> DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
         match self.inner.read_at(buf, offset).await {
-            Ok(n) => {
+            (buf,Ok(n)) => {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), n);
-                Ok(n)
+                (buf, Ok(n))
             }
-            Err(e) => {
+            (buf, Err(e)) => {
                 probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
-                Err(e)
+                (buf, Err(e))
             }
         }
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
-        self.inner
-            .read_at(buf, offset)
-            .map(|n| {
+       match self.inner
+            .read_at(buf, offset) {
+            (buf, Ok(n)) => {
                 probe_lazy!(opendal, blocking_reader_read_ok, c_path.as_ptr(), n);
-                n
-            })
-            .map_err(|e| {
+                (buf, Ok(n))
+            }
+            (buf, Err(e)) => {
                 probe_lazy!(opendal, blocking_reader_read_error, c_path.as_ptr());
-                e
-            })
+                (buf, Err(e))
+            }
+       }
     }
 }
 

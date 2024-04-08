@@ -56,7 +56,7 @@ impl ChainsafeCore {
         &self,
         path: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 

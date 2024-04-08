@@ -264,7 +264,7 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, crate::Result<usize>)  {
         todo!()
     }
 }

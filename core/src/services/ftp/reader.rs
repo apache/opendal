@@ -38,10 +38,8 @@ impl FtpReader {
             _op: op,
         }
     }
-}
 
-impl oio::Read for FtpReader {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn inner_read(&self, offset : u64, buf: &mut oio::WritableBuf) -> Result<usize> {
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         if offset != 0 {
@@ -57,6 +55,18 @@ impl oio::Read for FtpReader {
             .map_err(parse_error)?
             .take(buf.remaining_mut() as _);
         let n = ds.read(buf.as_slice()).await.map_err(new_std_io_error)?;
+
+        // Safety: we have read n bytes from the stream
+        unsafe {
+            buf.advance_mut(n)
+        }
         Ok(n)
+    }
+}
+
+impl oio::Read for FtpReader {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let res = self.inner_read(offset, &mut buf).await;
+        (buf, res)
     }
 }

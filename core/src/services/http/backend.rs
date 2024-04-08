@@ -270,7 +270,7 @@ impl HttpBackend {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let p = build_rooted_abs_path(&self.root, path);
 

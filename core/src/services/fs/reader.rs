@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::BufMut;
 use crate::raw::*;
 use crate::*;
 
@@ -53,26 +54,39 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        let handle = self.try_clone()?;
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let handle = match self.try_clone() {
+            Ok(handle) => handle,
+            Err(err) => return (buf, Err(err)),
+        };
 
-        match tokio::runtime::Handle::try_current() {
+      let res =  match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
                 .spawn_blocking(move || oio::BlockingRead::read_at(&handle, buf, offset))
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
-                })?,
+                }),
             Err(_) => Err(Error::new(
                 ErrorKind::Unexpected,
                 "no tokio runtime found, failed to run io task",
             )),
+        };
+
+        match res {
+            Ok((buf, res)) => (buf, res),
+            Err(err) => (buf, Err(err)),
         }
     }
 }
 
 impl oio::BlockingRead for FsReader {
-    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        self.read_at_inner(buf.as_slice(), offset)
+    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let res = self.read_at_inner(buf.as_slice(), offset).map(|n|
+                                                                     {
+                                                                         // Safety: we have read n bytes from the fs
+                                                                         unsafe {buf.advance_mut(n)}
+                                                                     });
+        (buf, res)
     }
 }

@@ -41,10 +41,12 @@ impl S3Reader {
 }
 
 impl oio::Read for S3Reader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
-        self.core
-            .s3_get_object(&self.path, range, &self.op, buf)
-            .await
+
+        let res = self.core
+            .s3_get_object(&self.path, range, &self.op, &mut buf)
+            .await;
+        (buf, res)
     }
 }

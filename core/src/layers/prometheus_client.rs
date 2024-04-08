@@ -535,41 +535,45 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let start = Instant::now();
 
         match self.inner.read_at(buf, offset).await {
-            Ok(n) => {
+            (buf, Ok(n)) => {
                 self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                Ok(n)
+                (buf, Ok(n))
             }
-            Err(e) => {
+            (buf, Err(err)) => {
                 self.metrics
-                    .increment_errors_total(self.scheme, self.op, e.kind());
-                Err(e)
+                    .increment_errors_total(self.scheme, self.op, err.kind());
+                (buf, Err(err))
             }
         }
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let start = Instant::now();
-        self.inner
-            .read_at(buf, offset)
-            .map(|n| {
+        match self.inner.read_at(buf, offset) {
+            (buf, Ok(n)) => {
                 self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                n
-            })
-            .map_err(|e| {
+                (buf, Ok(n))
+            }
+            (buf, Err(err)) => {
                 self.metrics
-                    .increment_errors_total(self.scheme, self.op, e.kind());
-                e
-            })
+                    .increment_errors_total(self.scheme, self.op, err.kind());
+                (buf, Err(err))
+            }
+        }
     }
 }
 

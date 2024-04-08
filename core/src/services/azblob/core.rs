@@ -216,7 +216,7 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: WritableBuf,
+        buf:&mut WritableBuf,
     ) -> Result<usize> {
         let mut req = self.azblob_get_blob_request(path, range, args)?;
 

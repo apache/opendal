@@ -105,7 +105,7 @@ impl PcloudCore {
         &self,
         url: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let req = Request::get(url);
 

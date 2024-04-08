@@ -659,17 +659,21 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        {
-            || {
-                self.inner
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        use backon::RetryableWithContext;
+
+     let (buf, res) =  {
+            |buf: oio::WritableBuf| async move {
+                let (buf, res ) = self.inner
                     .as_ref()
                     .expect("inner must be valid")
-                    .read_at(buf, offset)
+                    .read_at(buf, offset).await;
+                (buf, res)
             }
         }
         .retry(&self.builder)
         .when(|e| e.is_temporary())
+         .context(buf)
         .notify(|err, dur| {
             self.notify.intercept(
                 err,
@@ -680,16 +684,22 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
                 ],
             )
         })
-        .await
-        .map_err(|e| e.set_persistent())
+        .await;
+
+        (buf, res.map_err(|err|err.set_persistent()))
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        { || self.inner.as_ref().unwrap().read_at(buf, offset) }
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        use backon::BlockingRetryableWithContext;
+
+       let (buf, res) = { |buf: oio::WritableBuf| {
+                    self.inner.as_ref().unwrap().read_at(buf, offset)
+       } }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
+           .context(buf)
             .notify(|err, dur| {
                 self.notify.intercept(
                     err,
@@ -700,8 +710,9 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
                     ],
                 );
             })
-            .call()
-            .map_err(|e| e.set_persistent())
+            .call();
+
+           (buf, res.map_err(|err|err.set_persistent()))
     }
 }
 
@@ -1033,11 +1044,11 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, mut buf: oio::WritableBuf, _: u64) -> Result<usize> {
+        async fn read_at(&self, mut buf: oio::WritableBuf, _: u64) -> (oio::WritableBuf, Result<usize>) {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
-            match *attempt {
+          let res =  match *attempt {
                 1 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
@@ -1051,7 +1062,9 @@ mod tests {
                     Ok(13)
                 }
                 _ => unreachable!(),
-            }
+            };
+
+            (buf, res)
         }
     }
 

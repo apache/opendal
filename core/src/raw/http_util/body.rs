@@ -109,9 +109,10 @@ impl<B: Stream<Item = Result<Bytes>>> ResponseBody<B> {
     /// # Panics
     ///
     /// The input buf must have enough space to store all bytes.
-    pub async fn read(self, mut buf: WritableBuf) -> Result<usize> {
+    pub async fn read(self,  buf: &mut WritableBuf) ->  Result<usize> {
         let (stream, size, mut consumed) = (self.inner, self.size, 0);
         let mut stream = pin!(stream);
+
 
         while let Some(bs) = stream.next().await {
             let bs = bs?;

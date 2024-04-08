@@ -363,8 +363,8 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: oio::WritableBuf,
-    ) -> Result<usize> {
+        buf:&mut oio::WritableBuf,
+    ) -> Result<()> {
         let mut req = self.s3_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
@@ -374,7 +374,7 @@ impl S3Core {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => body.read(buf).await,
             StatusCode::RANGE_NOT_SATISFIABLE => {
                 body.consume().await?;
-                Ok(0)
+                Ok(())
             }
             _ => {
                 let bs = body.to_bytes().await?;

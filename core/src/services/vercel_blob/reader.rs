@@ -21,6 +21,7 @@ use bytes::BufMut;
 
 use super::core::VercelBlobCore;
 use crate::raw::*;
+use crate::*;
 
 pub struct VercelBlobReader {
     core: Arc<VercelBlobCore>,
@@ -40,9 +41,10 @@ impl VercelBlobReader {
 }
 
 impl oio::Read for VercelBlobReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> crate::Result<usize> {
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>)  {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        self.core.download(&self.path, range, &self.op, buf).await
+        let res = self.core.download(&self.path, range, &self.op, &mut buf).await;
+        (buf, res)
     }
 }

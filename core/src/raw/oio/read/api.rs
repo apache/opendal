@@ -89,40 +89,40 @@ pub trait Read: Unpin + Send + Sync {
         &self,
         buf: oio::WritableBuf,
         offset: u64,
-    ) -> impl Future<Output = Result<usize>> + Send;
+    ) -> impl Future<Output = (oio::WritableBuf, Result<usize>)> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> impl Future<Output = Result<usize>>;
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> impl Future<Output = (oio::WritableBuf, Result<usize>)>;
 }
 
 impl Read for () {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
-        let _ = (buf, offset);
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let _ =  offset;
 
-        Err(Error::new(
+        (buf, Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support streaming",
-        ))
+        )))
     }
 }
 
 impl Read for Bytes {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(&self,mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         if offset >= self.len() as u64 {
-            return Ok(0);
+            return (buf, Ok(0));
         }
         let offset = offset as usize;
         let size = buf.remaining_mut().min(self.len() - offset);
         buf.put(self.slice(offset..offset + size));
-        Ok(size)
+        (buf, Ok(0))
     }
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_at_dyn(&self, buf: oio::WritableBuf, offset: u64) -> BoxedFuture<Result<usize>>;
+    fn read_at_dyn(&self, buf: oio::WritableBuf, offset: u64) -> BoxedFuture<(oio::WritableBuf, Result<usize>)>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_at_dyn(&self, buf: oio::WritableBuf, offset: u64) -> BoxedFuture<Result<usize>> {
+    fn read_at_dyn(&self, buf: oio::WritableBuf, offset: u64) -> BoxedFuture<(oio::WritableBuf, Result<usize>)> {
         Box::pin(self.read_at(buf, offset))
     }
 }
@@ -132,7 +132,7 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         self.deref().read_at_dyn(buf, offset).await
     }
 }
@@ -148,11 +148,11 @@ pub trait BlockingRead: Send + Sync {
     ///
     /// Storage services should try to read as much as possible, only return bytes less than the
     /// limit while reaching the end of the file.
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize>;
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>);
 }
 
 impl BlockingRead for () {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let _ = (buf, offset);
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
@@ -160,21 +160,21 @@ impl BlockingRead for () {
 }
 
 impl BlockingRead for Bytes {
-    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    fn read_at(&self,mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         if offset >= self.len() as u64 {
-            return Ok(0);
+            return (buf, Ok(0));
         }
         let offset = offset as usize;
         let size = buf.remaining_mut().min(self.len() - offset);
         buf.put(self.slice(offset..offset + size));
-        Ok(size)
+        (buf, Ok(0))
     }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         (**self).read_at(buf, offset)
     }
 }

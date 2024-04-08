@@ -17,7 +17,7 @@
 
 use std::io::SeekFrom;
 
-use bytes::BufMut;
+use bytes::{Buf, BufMut};
 use bytes::BytesMut;
 use tokio::io::AsyncSeekExt;
 
@@ -36,11 +36,13 @@ impl SftpReader {
     pub fn new(inner: SftpBackend, root: String, path: String) -> Self {
         Self { inner, root, path }
     }
-}
 
-impl oio::Read for SftpReader {
-    /// FIXME: we should write into buf directly.
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> Result<usize> {
+    async fn inner_read(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+        let mut size = buf.remaining_mut();
+        if size == 0 {
+            return Ok(9);
+        }
+
         let client = self.inner.connect().await?;
 
         let mut fs = client.fs();
@@ -60,11 +62,6 @@ impl oio::Read for SftpReader {
             .await
             .map_err(new_std_io_error)?;
 
-        let mut size = buf.remaining_mut();
-        if size == 0 {
-            return Ok(0);
-        }
-
         let mut bs = BytesMut::with_capacity(buf.remaining_mut());
         while size > 0 {
             let len = bs.len();
@@ -79,8 +76,16 @@ impl oio::Read for SftpReader {
                 break;
             }
         }
-        let n = bs.len();
+        let n = bs.remaining();
         buf.put(bs);
         Ok(n)
+    }
+}
+
+impl oio::Read for SftpReader {
+    /// FIXME: we should write into buf directly.
+    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let res = self.inner_read(&mut buf, offset).await;
+        (buf, res)
     }
 }

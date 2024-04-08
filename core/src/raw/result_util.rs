@@ -15,34 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BufMut;
-
-use crate::raw::*;
-use crate::services::ipfs::backend::IpfsBackend;
+use std::future::Future;
 use crate::*;
 
-pub struct IpfsReader {
-    core: IpfsBackend,
-
-    path: String,
-    _op: OpRead,
+#[inline]
+#[track_caller]
+pub fn call_mut<T, R>(mut this: T, f: impl FnMut(&mut T) -> Result<R>) -> (T, Result<R>) {
+    let res=f(&mut this);
+    (this, res)
 }
 
-impl IpfsReader {
-    pub fn new(core: IpfsBackend, path: &str, op: OpRead) -> Self {
-        IpfsReader {
-            core,
-            path: path.to_string(),
-            _op: op,
-        }
-    }
+#[inline]
+#[track_caller]
+pub async fn call_mut_async<T, R, F>(mut this: T, f: impl FnMut(&mut T) -> F) -> (T, Result<R>)  where F: Future<Output=Result<R>> {
+    let res= f(&mut this).await;
+    (this, res)
 }
 
-impl oio::Read for IpfsReader {
-    async fn read_at(&self,mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
-
-       let res = self.core.ipfs_get(&self.path, range, &mut buf).await;
-        (buf, res)
-    }
-}

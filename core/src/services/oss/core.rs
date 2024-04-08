@@ -365,7 +365,7 @@ impl OssCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let mut req = self.oss_get_object_request(path, range, false, args)?;
         self.sign(&mut req).await?;

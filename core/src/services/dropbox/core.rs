@@ -124,7 +124,7 @@ impl DropboxCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {

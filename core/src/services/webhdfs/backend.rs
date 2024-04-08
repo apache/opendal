@@ -502,7 +502,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let req = self.webhdfs_open_request(path, &range).await?;
         let (parts, body) = self.client.send(req).await?.into_parts();

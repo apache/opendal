@@ -102,7 +102,7 @@ impl CosCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let mut req = self.cos_get_object_request(path, range, args)?;
 

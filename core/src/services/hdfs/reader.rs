@@ -34,37 +34,44 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(
-        &self,
-        mut buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let r = Self { f: self.f.clone() };
 
-        let res = match tokio::runtime::Handle::try_current() {
+        let mut tbuf = Vec::with_capacity(buf.remaining_mut());
+        let (tbuf, res) = match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&r, buf, offset))
+                .spawn_blocking(move || {
+                    // tbuf has at least buf.remaining_mut() capacity
+                    unsafe {
+                        tbuf.set_len(tbuf.capacity());
+                    }
+                    let res = r.f.read_at(&mut tbuf, offset).map_err(new_std_io_error).map(|n| {
+                        // Safety: we have read n bytes from the fs
+                        unsafe { tbuf.set_len(n) };
+                        n
+                    });
+                    (tbuf, res)
+                })
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
-                }),
-            Err(_) => Err(Error::new(
+                })?,
+            Err(_) => return Err(Error::new(
                 ErrorKind::Unexpected,
                 "no tokio runtime found, failed to run io task",
             )),
         };
 
-        match res {
-            Ok((buf, res)) => (buf, res),
-            Err(err) => (buf, Err(err)),
-        }
+        res.map(|n| {
+            buf.put(&*tbuf);
+            n
+        })
     }
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        let res = self
-            .f
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+        self.f
             .read_at(buf.as_slice(), offset)
             .map(|n| {
                 // SAFETY: hdrs guarantees that the buffer is filled with n bytes.
@@ -73,8 +80,6 @@ impl oio::BlockingRead for HdfsReader {
                 };
                 n
             })
-            .map_err(new_std_io_error);
-
-        (buf, res)
+            .map_err(new_std_io_error)
     }
 }

@@ -97,7 +97,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         range: BytesRange,
         _: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",

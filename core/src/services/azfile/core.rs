@@ -96,7 +96,7 @@ impl AzfileCore {
         &self,
         path: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let p = build_abs_path(&self.root, path);
 

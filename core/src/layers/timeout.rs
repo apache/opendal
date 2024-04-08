@@ -21,9 +21,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::BufMut;
 
-use crate::raw::oio::{ListOperation, WritableBuf};
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
+use crate::raw::oio::{ListOperation, WritableBuf};
 use crate::raw::*;
 use crate::*;
 
@@ -295,20 +295,16 @@ impl<R> TimeoutWrapper<R> {
 ///
 /// read_at takes the ownership of buf, so we can't get the buffer back if the operation
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         todo!()
-      //   let size = buf.remaining_mut();
-      // match  tokio::time::timeout(self.timeout, self.inner.read_at(buf, offset)).await {
-      //     Ok((buf, res)) => (buf, res),
-      //     Err(_) => (oio::WritableBuf::new(size), Err(Error::new(ErrorKind::Unexpected, "io operation timeout reached")
-      //         .with_operation(ReadOperation::Read.into_static())
-      //         .with_context("timeout", self.timeout.as_secs_f64().to_string())
-      //         .set_temporary()))
-      // }
+        //   let size = buf.remaining_mut();
+        // match  tokio::time::timeout(self.timeout, self.inner.read_at(buf, offset)).await {
+        //     Ok((buf, res)) => (buf, res),
+        //     Err(_) => (oio::WritableBuf::new(size), Err(Error::new(ErrorKind::Unexpected, "io operation timeout reached")
+        //         .with_operation(ReadOperation::Read.into_static())
+        //         .with_context("timeout", self.timeout.as_secs_f64().to_string())
+        //         .set_temporary()))
+        // }
     }
 }
 
@@ -398,11 +394,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read_at(
-            &self,
-            _: oio::WritableBuf,
-            _: u64,
-        ) -> impl Future<Output = (oio::WritableBuf, Result<usize>)> {
+        fn read_at(&self, _: &mut oio::WritableBuf, _: u64) -> impl Future<Output = Result<usize>> {
             pending()
         }
     }

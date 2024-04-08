@@ -52,11 +52,7 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             TwoWays::One(v) => v.read_at(buf, offset).await,
             TwoWays::Two(v) => v.read_at(buf, offset).await,
@@ -65,7 +61,7 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             Self::One(v) => v.read_at(buf, offset),
             Self::Two(v) => v.read_at(buf, offset),
@@ -109,11 +105,7 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             ThreeWays::One(v) => v.read_at(buf, offset).await,
             ThreeWays::Two(v) => v.read_at(buf, offset).await,
@@ -125,7 +117,7 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             Self::One(v) => v.read_at(buf, offset),
             Self::Two(v) => v.read_at(buf, offset),
@@ -183,11 +175,7 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             FourWays::One(v) => v.read_at(buf, offset).await,
             FourWays::Two(v) => v.read_at(buf, offset).await,
@@ -204,7 +192,7 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         match self {
             Self::One(v) => v.read_at(buf, offset),
             Self::Two(v) => v.read_at(buf, offset),

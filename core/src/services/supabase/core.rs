@@ -231,7 +231,7 @@ impl SupabaseCore {
         &self,
         path: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?

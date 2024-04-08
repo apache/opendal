@@ -58,14 +58,9 @@ impl GhacReader {
 }
 
 impl oio::Read for GhacReader {
-    async fn read_at(
-        &self,
-        mut buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let res = self.read(range, &mut buf).await;
-        (buf, res)
+        self.read(range, buf).await
     }
 }

@@ -212,7 +212,7 @@ impl SeafileCore {
         &self,
         path: &str,
         range: BytesRange,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let download_url = self.get_download_url(path).await?;
 

@@ -535,43 +535,39 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
 
         match self.inner.read_at(buf, offset).await {
-            (buf, Ok(n)) => {
+           Ok(n) => {
                 self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                (buf, Ok(n))
+               Ok(n)
             }
-            (buf, Err(err)) => {
+            Err(err) => {
                 self.metrics
                     .increment_errors_total(self.scheme, self.op, err.kind());
-                (buf, Err(err))
+                Err(err)
             }
         }
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let start = Instant::now();
         match self.inner.read_at(buf, offset) {
-            (buf, Ok(n)) => {
+           Ok(n) => {
                 self.metrics.observe_bytes_total(self.scheme, self.op, n);
                 self.metrics
                     .observe_request_duration(self.scheme, self.op, start.elapsed());
-                (buf, Ok(n))
+               Ok(n)
             }
-            (buf, Err(err)) => {
+            Err(err) => {
                 self.metrics
                     .increment_errors_total(self.scheme, self.op, err.kind());
-                (buf, Err(err))
+                Err(err)
             }
         }
     }

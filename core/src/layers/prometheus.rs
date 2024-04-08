@@ -682,50 +682,46 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::Read.into_static(),
             &self.path,
         );
         match self.inner.read_at(buf, offset).await {
-            (buf, Ok(n)) => {
+           Ok(n) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
                     .observe(n as f64);
-                (buf, Ok(n))
+               Ok(n)
             }
-            (buf, Err(e)) => {
+            Err(e) => {
                 self.stats.increment_errors_total(self.op, e.kind());
-                (buf, Err(e))
+                Err(e)
             }
         }
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::BlockingRead.into_static(),
             &self.path,
         );
         match self.inner.read_at(buf, offset) {
-            (buf, Ok(n)) => {
+           Ok(n) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
                     .observe(n as f64);
-                (buf, Ok(n))
+               Ok(n)
             }
-            (buf, Err(e)) => {
+            Err(e) => {
                 self.stats.increment_errors_total(self.op, e.kind());
-                (buf, Err(e))
+                Err(e)
             }
         }
     }

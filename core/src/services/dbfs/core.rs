@@ -210,7 +210,7 @@ impl DbfsCore {
         path: &str,
         offset: u64,
         length: u64,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')

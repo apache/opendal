@@ -63,12 +63,7 @@ impl FtpReader {
 }
 
 impl oio::Read for FtpReader {
-    async fn read_at(
-        &self,
-        mut buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
-        let res = self.inner_read(offset, &mut buf).await;
-        (buf, res)
+    async fn read_at(&self, mut buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+       self.inner_read(offset, &mut buf).await
     }
 }

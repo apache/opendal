@@ -166,7 +166,7 @@ impl HuggingfaceCore {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')

@@ -54,42 +54,49 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(
-        &self,
-        buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
-        let handle = match self.try_clone() {
-            Ok(handle) => handle,
-            Err(err) => return (buf, Err(err)),
-        };
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+        let handle = self.try_clone()?;
 
-        let res = match tokio::runtime::Handle::try_current() {
+        let mut tbuf = Vec::with_capacity(buf.remaining_mut());
+        let (tbuf, res) = match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, buf, offset))
+                .spawn_blocking(move || {
+                    // tbuf has at least buf.remaining_mut() capacity
+                    unsafe {
+                        tbuf.set_len(tbuf.capacity());
+                    }
+                    let res = handle.read_at_inner(&mut tbuf, offset).map(|n| {
+                        // Safety: we have read n bytes from the fs
+                        unsafe { tbuf.set_len(n) };
+                        n
+                    });
+                    (tbuf, res)
+                })
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
-                }),
-            Err(_) => Err(Error::new(
-                ErrorKind::Unexpected,
-                "no tokio runtime found, failed to run io task",
-            )),
+                })?,
+            Err(_) => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "no tokio runtime found, failed to run io task",
+                ))
+            }
         };
 
-        match res {
-            Ok((buf, res)) => (buf, res),
-            Err(err) => (buf, Err(err)),
-        }
+        res.map(|n| {
+            buf.put(tbuf.as_slice());
+            n
+        })
     }
 }
 
 impl oio::BlockingRead for FsReader {
-    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        let res = self.read_at_inner(buf.as_slice(), offset).map(|n| {
+    fn read_at(&self, mut buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+        self.read_at_inner(buf.as_slice(), offset).map(|n| {
             // Safety: we have read n bytes from the fs
-            unsafe { buf.advance_mut(n) }
-        });
-        (buf, res)
+            unsafe { buf.advance_mut(n) };
+            n
+        })
     }
 }

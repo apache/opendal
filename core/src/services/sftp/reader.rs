@@ -84,12 +84,7 @@ impl SftpReader {
 
 impl oio::Read for SftpReader {
     /// FIXME: we should write into buf directly.
-    async fn read_at(
-        &self,
-        mut buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
-        let res = self.inner_read(&mut buf, offset).await;
-        (buf, res)
+    async fn read_at(&self, mut buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
+        self.inner_read(&mut buf, offset).await
     }
 }

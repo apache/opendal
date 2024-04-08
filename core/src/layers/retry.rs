@@ -869,61 +869,54 @@ impl<R, I> RetryReadWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryReadWrapper<R, I> {
-    async fn read_at(
-        &self,
-         buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         use backon::RetryableWithContext;
 
         let ((_, buf), res) = {
             |(r, xbuf): (Arc<R>, oio::WritableBuf)| async move {
-                let (xbuf, res) = r
-                    .read_at(xbuf, offset)
-                    .await;
+                let (xbuf, res) = r.read_at(xbuf, offset).await;
                 ((r, xbuf), res)
             }
         }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .context((self.inner.clone(), buf))
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::Read.into_static()),
-                        ("path", &self.path),
-                    ],
-                )
-            })
-            .await;
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context((self.inner.clone(), buf))
+        .notify(|err, dur| {
+            self.notify.intercept(
+                err,
+                dur,
+                &[
+                    ("operation", ReadOperation::Read.into_static()),
+                    ("path", &self.path),
+                ],
+            )
+        })
+        .await;
 
         (buf, res.map_err(|err| err.set_persistent()))
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryReadWrapper<R, I> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         use backon::BlockingRetryableWithContext;
 
         let r = self.inner.clone();
-        let (buf, res) =
-            { |buf: oio::WritableBuf| r.read_at(buf, offset) }
-                .retry(&self.builder)
-                .when(|e| e.is_temporary())
-                .context(buf)
-                .notify(|err, dur| {
-                    self.notify.intercept(
-                        err,
-                        dur,
-                        &[
-                            ("operation", ReadOperation::BlockingRead.into_static()),
-                            ("path", &self.path),
-                        ],
-                    );
-                })
-                .call();
+        let (buf, res) = { |buf: oio::WritableBuf| r.read_at(buf, offset) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .context(buf)
+            .notify(|err, dur| {
+                self.notify.intercept(
+                    err,
+                    dur,
+                    &[
+                        ("operation", ReadOperation::BlockingRead.into_static()),
+                        ("path", &self.path),
+                    ],
+                );
+            })
+            .call();
 
         (buf, res.map_err(|err| err.set_persistent()))
     }
@@ -1067,15 +1060,11 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(
-            &self,
-            mut buf: oio::WritableBuf,
-            _: u64,
-        ) -> (oio::WritableBuf, Result<usize>) {
+        async fn read_at(&self, mut buf: &mut oio::WritableBuf, _: u64) -> Result<usize> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
-            let res = match *attempt {
+           match *attempt {
                 1 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
@@ -1089,9 +1078,7 @@ mod tests {
                     Ok(13)
                 }
                 _ => unreachable!(),
-            };
-
-            (buf, res)
+            }
         }
     }
 

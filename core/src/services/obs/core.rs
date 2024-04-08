@@ -102,7 +102,7 @@ impl ObsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> (oio::WritableBuf, Result<()>) {
         let mut req = self.obs_get_object_request(path, range, args)?;
 

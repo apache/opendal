@@ -124,7 +124,7 @@ impl B2Core {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-        buf: oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<usize> {
         let path = build_abs_path(&self.root, path);
 

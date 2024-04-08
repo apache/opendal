@@ -39,14 +39,9 @@ impl IpfsReader {
 }
 
 impl oio::Read for IpfsReader {
-    async fn read_at(
-        &self,
-        mut buf: oio::WritableBuf,
-        offset: u64,
-    ) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(&self, buf: &mut oio::WritableBuf, offset: u64) -> Result<usize> {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let res = self.core.ipfs_get(&self.path, range, &mut buf).await;
-        (buf, res)
+        self.core.ipfs_get(&self.path, range, buf).await
     }
 }

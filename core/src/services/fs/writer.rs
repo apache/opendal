@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -47,10 +48,11 @@ impl<F> FsWriter<F> {
 unsafe impl<F> Sync for FsWriter<F> {}
 
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        f.write(&bs).await.map_err(new_std_io_error)
+        // TODO: use write_vectored instead.
+        f.write(bs.chunk()).await.map_err(new_std_io_error)
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -81,10 +83,10 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        f.write(&bs).map_err(new_std_io_error)
+        f.write(bs.chunk()).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

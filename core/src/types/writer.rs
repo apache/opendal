@@ -198,6 +198,7 @@ pub mod into_futures_async_write {
     /// We should insert checks if the input slice changed after future created.
     pub struct FuturesIoAsyncWriter {
         state: State,
+        buf: oio::FlexBuf,
     }
 
     enum State {
@@ -217,6 +218,7 @@ pub mod into_futures_async_write {
         pub fn new(r: oio::Writer) -> Self {
             FuturesIoAsyncWriter {
                 state: State::Idle(Some(r)),
+                buf: oio::FlexBuf::new(256 * 1024),
             }
         }
     }
@@ -227,13 +229,18 @@ pub mod into_futures_async_write {
             cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
+            let n = self.buf.put(buf);
+            if n > 0 {
+                return Poll::Ready(Ok(n));
+            }
+
+            let bs = self.buf.get().expect("frozen buffer must be valid");
+
             match &mut self.state {
                 State::Idle(w) => {
                     let mut w = w.take().expect("writer must be valid");
-                    let bs = oio::ReadableBuf::from_slice(buf);
                     let fut = async move {
-                        // FIXME: we need to check if bs remains the same after future created.
-                        let res = unsafe { w.write(bs).await };
+                        let res = unsafe { w.write(oio::Buffer::from(bs)).await };
                         (w, res)
                     };
                     self.state = State::Writing(Box::pin(fut));
@@ -242,7 +249,13 @@ pub mod into_futures_async_write {
                 State::Writing(fut) => {
                     let (w, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
-                    Poll::Ready(res.map_err(format_std_io_error))
+                    match res {
+                        Ok(n) => {
+                            self.buf.advance(n);
+                        }
+                        Err(err) => return Poll::Ready(Err(format_std_io_error(err))),
+                    };
+                    self.poll_write(cx, buf)
                 }
                 _ => Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::Interrupted,
@@ -251,9 +264,37 @@ pub mod into_futures_async_write {
             }
         }
 
-        /// Writer makes sure that every write is flushed.
-        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            let Some(bs) = self.buf.get() else {
+                return Poll::Ready(Ok(()));
+            };
+
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w.take().expect("writer must be valid");
+                    let fut = async move {
+                        let res = unsafe { w.write(oio::Buffer::from(bs)).await };
+                        (w, res)
+                    };
+                    self.state = State::Writing(Box::pin(fut));
+                    self.poll_flush(cx)
+                }
+                State::Writing(fut) => {
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    match res {
+                        Ok(n) => {
+                            self.buf.advance(n);
+                        }
+                        Err(err) => return Poll::Ready(Err(format_std_io_error(err))),
+                    };
+                    self.poll_flush(cx)
+                }
+                _ => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "another io operation is in progress",
+                ))),
+            }
         }
 
         fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -319,12 +360,13 @@ impl BlockingWriter {
     }
 }
 
+/// TODO: implement buffer for std:io.
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         // Safety: buf is valid before write return.
         unsafe {
             self.inner
-                .write(buf.into())
+                .write(Bytes::copy_from_slice(buf).into())
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         }
     }

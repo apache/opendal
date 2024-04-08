@@ -36,7 +36,7 @@ const DEFAULT_MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 pub struct AdaptiveBuf {
     /// The underlying buffer.
     buffer: BytesMut,
-
+    /// The next buffer size.
     next: usize,
     decrease_now: bool,
 }

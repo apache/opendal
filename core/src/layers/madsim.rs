@@ -284,7 +284,7 @@ pub struct MadsimWriter {
 }
 
 impl oio::Write for MadsimWriter {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> crate::Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::Buffer) -> crate::Result<usize> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);

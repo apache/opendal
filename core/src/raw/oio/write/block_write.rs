@@ -183,7 +183,7 @@ impl<W> oio::Write for BlockWriter<W>
 where
     W: BlockWrite,
 {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         loop {
             if self.futures.has_remaining() {
                 // Fill cache with the first write.

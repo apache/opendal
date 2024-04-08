@@ -66,10 +66,13 @@ impl CosCore {
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else {
-            Ok(None)
+            return Ok(Some(cred));
         }
+
+        Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "no valid credential found and anonymous access is not allowed",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {

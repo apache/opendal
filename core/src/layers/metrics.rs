@@ -749,19 +749,23 @@ impl<R> MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let start = Instant::now();
 
         match self.inner.read_at(buf, offset).await {
-            Ok(n) => {
+            (buf, Ok(n)) => {
                 self.bytes_counter.increment(n as u64);
                 self.requests_duration_seconds
                     .record(start.elapsed().as_secs_f64());
-                Ok(n)
+                (buf, Ok(n))
             }
-            Err(e) => {
+            (buf, Err(e)) => {
                 self.handle.increment_errors_total(self.op, e.kind());
-                Err(e)
+                (buf, Err(e))
             }
         }
     }
@@ -771,18 +775,18 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
     fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
         let start = Instant::now();
 
-        self.inner
-            .read_at(buf, offset)
-            .map(|n| {
+        match self.inner.read_at(buf, offset) {
+            (buf, Ok(n)) => {
                 self.bytes_counter.increment(n as u64);
                 self.requests_duration_seconds
                     .record(start.elapsed().as_secs_f64());
-                n
-            })
-            .map_err(|e| {
+                (buf, Ok(n))
+            }
+            (buf, Err(e)) => {
                 self.handle.increment_errors_total(self.op, e.kind());
-                e
-            })
+                (buf, Err(e))
+            }
+        }
     }
 }
 

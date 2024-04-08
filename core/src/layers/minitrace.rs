@@ -295,7 +295,11 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     #[trace(enter_on_poll = true)]
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         self.inner.read_at(buf, offset).await
     }
 }

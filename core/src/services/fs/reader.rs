@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BufMut;
 use crate::raw::*;
 use crate::*;
+use bytes::BufMut;
 
 pub struct FsReader {
     f: std::fs::File,
@@ -54,13 +54,17 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let handle = match self.try_clone() {
             Ok(handle) => handle,
             Err(err) => return (buf, Err(err)),
         };
 
-      let res =  match tokio::runtime::Handle::try_current() {
+        let res = match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
                 .spawn_blocking(move || oio::BlockingRead::read_at(&handle, buf, offset))
                 .await
@@ -82,11 +86,10 @@ impl oio::Read for FsReader {
 
 impl oio::BlockingRead for FsReader {
     fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        let res = self.read_at_inner(buf.as_slice(), offset).map(|n|
-                                                                     {
-                                                                         // Safety: we have read n bytes from the fs
-                                                                         unsafe {buf.advance_mut(n)}
-                                                                     });
+        let res = self.read_at_inner(buf.as_slice(), offset).map(|n| {
+            // Safety: we have read n bytes from the fs
+            unsafe { buf.advance_mut(n) }
+        });
         (buf, res)
     }
 }

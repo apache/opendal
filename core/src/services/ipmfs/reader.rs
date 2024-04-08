@@ -38,7 +38,11 @@ impl IpmfsReader {
 }
 
 impl oio::Read for IpmfsReader {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>)  {
+    async fn read_at(
+        &self,
+        mut buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         self.core.ipmfs_read(&self.path, range, buf).await

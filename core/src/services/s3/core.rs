@@ -363,7 +363,7 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-        buf:&mut oio::WritableBuf,
+        buf: &mut oio::WritableBuf,
     ) -> Result<()> {
         let mut req = self.s3_get_object_request(path, range, args)?;
 

@@ -273,8 +273,8 @@ impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
     type Inner = A;
-    type Reader = RetryWrapper<A::Reader, I>;
-    type BlockingReader = RetryWrapper<A::BlockingReader, I>;
+    type Reader = RetryReadWrapper<A::Reader, I>;
+    type BlockingReader = RetryReadWrapper<A::BlockingReader, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter, I>;
     type Lister = RetryWrapper<A::Lister, I>;
@@ -317,7 +317,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
+                        RetryReadWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
                     )
                 })
                 .map_err(|e| e.set_persistent())
@@ -511,7 +511,7 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
             .map(|(rp, r)| {
                 (
                     rp,
-                    RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
+                    RetryReadWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
                 )
             })
             .map_err(|e| e.set_persistent())
@@ -655,64 +655,6 @@ impl<R, I> RetryWrapper<R, I> {
             path: path.to_string(),
             builder: backoff,
         }
-    }
-}
-
-impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        use backon::RetryableWithContext;
-
-     let (buf, res) =  {
-            |buf: oio::WritableBuf| async move {
-                let (buf, res ) = self.inner
-                    .as_ref()
-                    .expect("inner must be valid")
-                    .read_at(buf, offset).await;
-                (buf, res)
-            }
-        }
-        .retry(&self.builder)
-        .when(|e| e.is_temporary())
-         .context(buf)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", ReadOperation::Read.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .await;
-
-        (buf, res.map_err(|err|err.set_persistent()))
-    }
-}
-
-impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
-        use backon::BlockingRetryableWithContext;
-
-       let (buf, res) = { |buf: oio::WritableBuf| {
-                    self.inner.as_ref().unwrap().read_at(buf, offset)
-       } }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-           .context(buf)
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ReadOperation::BlockingRead.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
-            })
-            .call();
-
-           (buf, res.map_err(|err|err.set_persistent()))
     }
 }
 
@@ -906,6 +848,87 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
     }
 }
 
+pub struct RetryReadWrapper<R, I> {
+    inner: Arc<R>,
+    notify: Arc<I>,
+
+    path: String,
+    builder: ExponentialBuilder,
+}
+
+impl<R, I> RetryReadWrapper<R, I> {
+    fn new(inner: R, notify: Arc<I>, path: &str, backoff: ExponentialBuilder) -> Self {
+        Self {
+            inner: Arc::new(inner),
+            notify,
+
+            path: path.to_string(),
+            builder: backoff,
+        }
+    }
+}
+
+impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryReadWrapper<R, I> {
+    async fn read_at(
+        &self,
+         buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
+        use backon::RetryableWithContext;
+
+        let ((_, buf), res) = {
+            |(r, xbuf): (Arc<R>, oio::WritableBuf)| async move {
+                let (xbuf, res) = r
+                    .read_at(xbuf, offset)
+                    .await;
+                ((r, xbuf), res)
+            }
+        }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .context((self.inner.clone(), buf))
+            .notify(|err, dur| {
+                self.notify.intercept(
+                    err,
+                    dur,
+                    &[
+                        ("operation", ReadOperation::Read.into_static()),
+                        ("path", &self.path),
+                    ],
+                )
+            })
+            .await;
+
+        (buf, res.map_err(|err| err.set_persistent()))
+    }
+}
+
+impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryReadWrapper<R, I> {
+    fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        use backon::BlockingRetryableWithContext;
+
+        let r = self.inner.clone();
+        let (buf, res) =
+            { |buf: oio::WritableBuf| r.read_at(buf, offset) }
+                .retry(&self.builder)
+                .when(|e| e.is_temporary())
+                .context(buf)
+                .notify(|err, dur| {
+                    self.notify.intercept(
+                        err,
+                        dur,
+                        &[
+                            ("operation", ReadOperation::BlockingRead.into_static()),
+                            ("path", &self.path),
+                        ],
+                    );
+                })
+                .call();
+
+        (buf, res.map_err(|err| err.set_persistent()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -1044,11 +1067,15 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, mut buf: oio::WritableBuf, _: u64) -> (oio::WritableBuf, Result<usize>) {
+        async fn read_at(
+            &self,
+            mut buf: oio::WritableBuf,
+            _: u64,
+        ) -> (oio::WritableBuf, Result<usize>) {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
-          let res =  match *attempt {
+            let res = match *attempt {
                 1 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),

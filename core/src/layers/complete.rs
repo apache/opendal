@@ -594,7 +594,11 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         if buf.remaining_mut() == 0 {
             return Ok(0);
         }

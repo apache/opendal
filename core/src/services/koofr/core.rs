@@ -249,7 +249,12 @@ impl KoofrCore {
         }
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange, buf: &mut oio::WritableBuf) -> Result<usize> {
+    pub async fn get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        buf: &mut oio::WritableBuf,
+    ) -> Result<usize> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;

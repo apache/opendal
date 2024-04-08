@@ -40,7 +40,11 @@ impl SupabaseReader {
 }
 
 impl oio::Read for SupabaseReader {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>)  {
+    async fn read_at(
+        &self,
+        mut buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
         self.core.supabase_get_object(&self.path, range, buf).await

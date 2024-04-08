@@ -15,20 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use crate::*;
+use std::future::Future;
 
 #[inline]
 #[track_caller]
 pub fn call_mut<T, R>(mut this: T, f: impl FnMut(&mut T) -> Result<R>) -> (T, Result<R>) {
-    let res=f(&mut this);
+    let res = f(&mut this);
     (this, res)
 }
 
 #[inline]
 #[track_caller]
-pub async fn call_mut_async<T, R, F>(mut this: T, f: impl FnMut(&mut T) -> F) -> (T, Result<R>)  where F: Future<Output=Result<R>> {
-    let res= f(&mut this).await;
+pub async fn call_mut_async<T, R, F>(mut this: T, f: impl FnMut(&mut T) -> F) -> (T, Result<R>)
+where
+    F: Future<Output = Result<R>>,
+{
+    let res = f(&mut this).await;
     (this, res)
 }
-

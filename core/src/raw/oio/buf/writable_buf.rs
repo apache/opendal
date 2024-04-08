@@ -18,9 +18,9 @@
 use std::future::Future;
 use std::mem::MaybeUninit;
 
+use crate::*;
 use bytes::buf::UninitSlice;
 use bytes::{Buf, BufMut};
-use crate::*;
 
 /// WritableBuf is the buf used in `oio::Read`.
 ///
@@ -49,6 +49,10 @@ unsafe impl Send for WritableBuf {}
 unsafe impl Sync for WritableBuf {}
 
 impl WritableBuf {
+    pub fn new(size: usize) -> Self {
+        todo!()
+    }
+
     /// Build a WritableBuf from slice.
     pub fn from_slice(slice: &mut [u8]) -> Self {
         Self {

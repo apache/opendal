@@ -343,7 +343,11 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         self.inner.read_at(buf, offset).await.map_err(|err| {
             err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)

@@ -39,10 +39,17 @@ impl HttpReader {
 }
 
 impl oio::Read for HttpReader {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        mut buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let range = BytesRange::new(offset, Some(buf.remaining_mut() as u64));
 
-        let res = self.core.http_get(&self.path, range, &self.op,&mut buf).await;
+        let res = self
+            .core
+            .http_get(&self.path, range, &self.op, &mut buf)
+            .await;
         (buf, res)
     }
 }

@@ -182,7 +182,11 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         // TODO: How can we handle buffer reads with a limiter?
         self.inner.read_at(buf, offset).await
     }

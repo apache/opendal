@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
 use bytes::BufMut;
+use std::sync::Arc;
 
 use hdrs::File;
 
@@ -34,10 +34,14 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>)  {
+    async fn read_at(
+        &self,
+        mut buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let r = Self { f: self.f.clone() };
 
-      let res =  match tokio::runtime::Handle::try_current() {
+        let res = match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
                 .spawn_blocking(move || oio::BlockingRead::read_at(&r, buf, offset))
                 .await
@@ -58,11 +62,18 @@ impl oio::Read for HdfsReader {
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self,  mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>)  {
-       let res = self.f
-            .read_at(buf.as_slice(), offset).map(|n|
-                                                                      {// SAFETY: hdrs guarantees that the buffer is filled with n bytes.
-           unsafe { buf.advance_mut(n); };n}).map_err(new_std_io_error);
+    fn read_at(&self, mut buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+        let res = self
+            .f
+            .read_at(buf.as_slice(), offset)
+            .map(|n| {
+                // SAFETY: hdrs guarantees that the buffer is filled with n bytes.
+                unsafe {
+                    buf.advance_mut(n);
+                };
+                n
+            })
+            .map_err(new_std_io_error);
 
         (buf, res)
     }

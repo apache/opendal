@@ -682,23 +682,27 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(&self, buf: oio::WritableBuf, offset: u64) -> (oio::WritableBuf, Result<usize>) {
+    async fn read_at(
+        &self,
+        buf: oio::WritableBuf,
+        offset: u64,
+    ) -> (oio::WritableBuf, Result<usize>) {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::Read.into_static(),
             &self.path,
         );
         match self.inner.read_at(buf, offset).await {
-            Ok(n) => {
+            (buf, Ok(n)) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
                     .observe(n as f64);
-                Ok(n)
+                (buf, Ok(n))
             }
-            Err(e) => {
+            (buf, Err(e)) => {
                 self.stats.increment_errors_total(self.op, e.kind());
-                Err(e)
+                (buf, Err(e))
             }
         }
     }
@@ -711,19 +715,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             Operation::BlockingRead.into_static(),
             &self.path,
         );
-        self.inner
-            .read_at(buf, offset)
-            .map(|n| {
+        match self.inner.read_at(buf, offset) {
+            (buf, Ok(n)) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
                     .observe(n as f64);
-                n
-            })
-            .map_err(|e| {
+                (buf, Ok(n))
+            }
+            (buf, Err(e)) => {
                 self.stats.increment_errors_total(self.op, e.kind());
-                e
-            })
+                (buf, Err(e))
+            }
+        }
     }
 }
 

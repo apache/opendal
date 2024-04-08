@@ -303,7 +303,7 @@ impl GdriveSigner {
         );
 
         {
-            let req = Request::post(url)
+            let req = Request::post(url).header(header::CONTENT_LENGTH, 0)
                 .body(AsyncBody::Empty)
                 .map_err(new_request_build_error)?;
 

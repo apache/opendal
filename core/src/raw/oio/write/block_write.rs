@@ -363,7 +363,7 @@ mod tests {
             expected_content.extend_from_slice(&bs);
 
             loop {
-                match  w.write(bs.clone().into()).await {
+                match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

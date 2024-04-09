@@ -94,7 +94,7 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n =  self.inner.write(bs.clone().into()).await? ;
+            let n = self.inner.write(bs.clone().into()).await?;
             bs.advance(n);
         }
 
@@ -138,7 +138,7 @@ impl Writer {
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
             while !bs.is_empty() {
-                let n =  self.inner.write(bs.clone().into()).await? ;
+                let n = self.inner.write(bs.clone().into()).await?;
                 bs.advance(n);
                 written += n as u64;
             }
@@ -239,7 +239,7 @@ pub mod into_futures_async_write {
                         let bs = this.buf.get().expect("frozen buffer must be valid");
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res = w.write(oio::Buffer::from(bs)).await ;
+                            let res = w.write(oio::Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));
@@ -277,7 +277,7 @@ pub mod into_futures_async_write {
 
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res =  w.write(oio::Buffer::from(bs)).await ;
+                            let res = w.write(oio::Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));
@@ -360,7 +360,7 @@ impl BlockingWriter {
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n =  self.inner.write(bs.clone().into())? ;
+            let n = self.inner.write(bs.clone().into())?;
             bs.advance(n);
         }
 
@@ -376,11 +376,9 @@ impl BlockingWriter {
 /// TODO: implement buffer for std:io.
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-
-            self.inner
-                .write(Bytes::copy_from_slice(buf).into())
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-
+        self.inner
+            .write(Bytes::copy_from_slice(buf).into())
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
     fn flush(&mut self) -> io::Result<()> {

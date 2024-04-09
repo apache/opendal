@@ -64,7 +64,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 break;
             }
 
-            let written = self.inner.write(self.buffer.to_buffer()).await? ;
+            let written = self.inner.write(self.buffer.to_buffer()).await?;
             self.buffer.advance(written);
         }
 
@@ -129,7 +129,7 @@ mod tests {
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
-            let n =  w.write(bs.clone().into()).await? ;
+            let n = w.write(bs.clone().into()).await?;
             bs.advance(n);
         }
 
@@ -168,7 +168,7 @@ mod tests {
 
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
-                let n =  writer.write(bs.clone().into()).await? ;
+                let n = writer.write(bs.clone().into()).await?;
                 bs.advance(n);
             }
         }

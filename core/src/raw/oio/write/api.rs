@@ -130,7 +130,7 @@ pub trait WriteDyn: Unpin + Send + Sync {
 
 impl<T: Write + ?Sized> WriteDyn for T {
     fn write_dyn(&mut self, bs: oio::Buffer) -> BoxedFuture<Result<usize>> {
-         Box::pin(self.write(bs))
+        Box::pin(self.write(bs))
     }
 
     fn close_dyn(&mut self) -> BoxedFuture<Result<()>> {

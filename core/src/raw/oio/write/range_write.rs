@@ -363,7 +363,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(bs.clone().into()).await  {
+                match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

@@ -97,7 +97,6 @@ impl From<Bytes> for Buffer {
     }
 }
 
-/// Transform `VecDeque<Bytes>` to `Arc<[Bytes]>`.
 impl From<VecDeque<Bytes>> for Buffer {
     fn from(bs: VecDeque<Bytes>) -> Self {
         let size = bs.iter().map(|b| b.len()).sum();
@@ -110,12 +109,23 @@ impl From<VecDeque<Bytes>> for Buffer {
     }
 }
 
-/// Transform `Vec<Bytes>` to `Arc<[Bytes]>`.
 impl From<Vec<Bytes>> for Buffer {
     fn from(bs: Vec<Bytes>) -> Self {
         let size = bs.iter().map(|b| b.len()).sum();
         Self(Inner::NonContiguous {
             parts: bs.into(),
+            size,
+            idx: 0,
+            offset: 0,
+        })
+    }
+}
+
+impl From<Arc<[Bytes]>> for Buffer {
+    fn from(bs: Arc<[Bytes]>) -> Self {
+        let size = bs.iter().map(|b| b.len()).sum();
+        Self(Inner::NonContiguous {
+            parts: bs,
             size,
             idx: 0,
             offset: 0,
@@ -235,80 +245,6 @@ impl Iterator for Buffer {
                 Some(buf)
             }
         }
-    }
-}
-
-/// BufferQueue is a queue of [`Buffer`].
-///
-/// It's works like a `Vec<Buffer>` but with more efficient `advance` operation.
-#[derive(Default)]
-pub struct BufferQueue(VecDeque<Buffer>);
-
-impl BufferQueue {
-    /// Create a new buffer queue.
-    #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Push new [`Buffer`] into the queue.
-    #[inline]
-    pub fn push(&mut self, buf: Buffer) {
-        self.0.push_back(buf);
-    }
-
-    /// Total bytes size inside the buffer queue.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.iter().map(|b| b.len()).sum()
-    }
-
-    /// Is the buffer queue empty.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Build a Buffer from the queue.
-    #[inline]
-    pub fn to_buffer(&self) -> Buffer {
-        if self.0.is_empty() {
-            Buffer::new()
-        } else if self.0.len() == 1 {
-            self.0.clone().pop_front().unwrap()
-        } else {
-            let mut bytes = Vec::with_capacity(self.0.iter().map(|b| b.size_hint().0).sum());
-            for buf in self.0.clone() {
-                for bs in buf {
-                    bytes.push(bs);
-                }
-            }
-            Buffer::from(bytes)
-        }
-    }
-
-    /// Advance the buffer queue by `cnt` bytes.
-    #[inline]
-    pub fn advance(&mut self, cnt: usize) {
-        assert!(cnt <= self.len(), "cannot advance past {cnt} bytes");
-
-        let mut new_cnt = cnt;
-        while new_cnt > 0 {
-            let buf = self.0.front_mut().expect("buffer must be valid");
-            if new_cnt < buf.remaining() {
-                buf.advance(new_cnt);
-                break;
-            } else {
-                new_cnt -= buf.remaining();
-                self.0.pop_front();
-            }
-        }
-    }
-
-    /// Clear the buffer queue.
-    #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear()
     }
 }
 

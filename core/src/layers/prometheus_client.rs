@@ -577,7 +577,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let start = Instant::now();
 
         self.inner
@@ -614,7 +614,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

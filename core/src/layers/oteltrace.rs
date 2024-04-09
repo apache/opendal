@@ -287,7 +287,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    unsafe fn write(&mut self, bs: oio::Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: oio::Buffer) -> impl Future<Output = Result<usize>> + Send {
         self.inner.write(bs)
     }
 
@@ -301,7 +301,7 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         self.inner.write(bs)
     }
 

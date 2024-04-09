@@ -24,7 +24,7 @@ use rand::RngCore;
 pub struct BlackHoleWriter;
 
 impl oio::Write for BlackHoleWriter {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> opendal::Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> opendal::Result<usize> {
         Ok(bs.len())
     }
 

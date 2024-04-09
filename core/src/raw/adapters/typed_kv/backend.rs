@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 
 use super::Adapter;
 use super::Value;
@@ -279,11 +279,11 @@ impl<S> KvWriter<S> {
 }
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
-        let size = bs.len();
+    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+        let size = bs.chunk().len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(&bs);
+        buf.extend_from_slice(bs.chunk());
 
         self.buf = Some(buf);
         Ok(size)
@@ -309,11 +309,11 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let size = bs.len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(&bs);
+        buf.extend_from_slice(bs.chunk());
 
         self.buf = Some(buf);
 

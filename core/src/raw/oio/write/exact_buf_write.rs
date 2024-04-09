@@ -15,10 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-use bytes::BufMut;
-use bytes::BytesMut;
-
 use crate::raw::*;
 use crate::*;
 
@@ -34,7 +30,7 @@ pub struct ExactBufWriter<W: oio::Write> {
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: BytesMut,
+    buffer: oio::BufferQueue,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -43,41 +39,23 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: BytesMut::with_capacity(buffer_size),
+            buffer: oio::BufferQueue::new(),
         }
     }
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
-        // Quick Path
-        //
-        // if buffer is empty and bs is larger than buffer_size, we can directly
-        // freeze the first buffer_size bytes.
-        if self.buffer.is_empty() && bs.len() >= self.buffer_size {
-            let written = self.inner.write(bs.take(self.buffer_size)).await?;
-            return Ok(written);
-        }
-
-        // Slow Path
-        //
-        // If buffer is full, flush the buffer first.
+    async unsafe fn write(&mut self, mut bs: oio::Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
-            let written = self
-                .inner
-                .write(oio::ReadableBuf::from_slice(&self.buffer))
-                .await?;
+            let written = self.inner.write(self.buffer.to_buffer()).await?;
             self.buffer.advance(written);
         }
 
         let remaining = self.buffer_size - self.buffer.len();
-        if bs.len() >= remaining {
-            self.buffer.put_slice(&bs[0..remaining]);
-            Ok(remaining)
-        } else {
-            self.buffer.put_slice(&bs);
-            Ok(bs.len())
-        }
+        bs.truncate(remaining);
+        let n = bs.len();
+        self.buffer.push(bs);
+        Ok(n)
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -86,11 +64,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 break;
             }
 
-            let written = unsafe {
-                self.inner
-                    .write(oio::ReadableBuf::from_slice(&self.buffer))
-                    .await?
-            };
+            let written = unsafe { self.inner.write(self.buffer.to_buffer()).await? };
             self.buffer.advance(written);
         }
 
@@ -105,7 +79,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
+    use bytes::{Buf, Bytes};
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -122,11 +96,12 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+        async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
-            self.buf.extend_from_slice(&bs);
-            Ok(bs.remaining())
+            let chunk = bs.chunk();
+            self.buf.extend_from_slice(chunk);
+            Ok(chunk.len())
         }
 
         async fn close(&mut self) -> Result<()> {

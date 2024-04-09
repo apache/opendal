@@ -1089,6 +1089,11 @@ impl Accessor for S3Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        // This would delete the bucket, do not perform
+        if path == "/" {
+            return Ok(RpDelete::default());
+        }
+
         let resp = self.core.s3_delete_object(path).await?;
 
         let status = resp.status();

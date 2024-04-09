@@ -1340,11 +1340,10 @@ impl Operator {
                 .await?;
         }
 
-        match normalize_path(path).as_str() {
-            "/" => Ok(()),
-            // Remove the directory itself.
-            path => self.delete(path).await,
-        }
+        // Remove the directory itself.
+        self.delete(path).await?;
+
+        Ok(())
     }
 
     /// List entries that starts with given `path` in parent dir.

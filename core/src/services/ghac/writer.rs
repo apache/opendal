@@ -38,7 +38,7 @@ impl GhacWriter {
 }
 
 impl oio::Write for GhacWriter {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let size = bs.len();
         let offset = self.size;
 

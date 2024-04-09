@@ -183,7 +183,7 @@ impl<W> oio::Write for BlockWriter<W>
 where
     W: BlockWrite,
 {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         loop {
             if self.futures.has_remaining() {
                 // Fill cache with the first write.
@@ -363,7 +363,7 @@ mod tests {
             expected_content.extend_from_slice(&bs);
 
             loop {
-                match unsafe { w.write(bs.clone().into()).await } {
+                match  w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

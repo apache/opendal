@@ -45,7 +45,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async unsafe fn write(&mut self, mut bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, mut bs: oio::Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
             let written = self.inner.write(self.buffer.to_buffer()).await?;
             self.buffer.advance(written);
@@ -64,7 +64,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 break;
             }
 
-            let written = unsafe { self.inner.write(self.buffer.to_buffer()).await? };
+            let written = self.inner.write(self.buffer.to_buffer()).await? ;
             self.buffer.advance(written);
         }
 
@@ -96,7 +96,7 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+        async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
             let chunk = bs.chunk();
@@ -129,7 +129,7 @@ mod tests {
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
-            let n = unsafe { w.write(bs.clone().into()).await? };
+            let n =  w.write(bs.clone().into()).await? ;
             bs.advance(n);
         }
 
@@ -168,7 +168,7 @@ mod tests {
 
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
-                let n = unsafe { writer.write(bs.clone().into()).await? };
+                let n =  writer.write(bs.clone().into()).await? ;
                 bs.advance(n);
             }
         }

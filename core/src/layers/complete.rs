@@ -638,7 +638,7 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -673,7 +673,7 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;

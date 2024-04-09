@@ -1075,7 +1075,7 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         match self.inner.write(bs.clone()).await {
             Ok(n) => {
                 self.written += n as u64;
@@ -1173,7 +1173,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    unsafe fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
         match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;

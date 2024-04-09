@@ -55,6 +55,11 @@ impl HttpClient {
         Self::build(reqwest::ClientBuilder::new())
     }
 
+    /// Construct `Self` with given [`reqwest::Client`]
+    pub fn with(client: reqwest::Client) -> Self {
+        Self { client }
+    }
+
     /// Build a new http client in async context.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {

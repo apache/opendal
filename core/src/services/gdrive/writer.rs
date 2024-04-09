@@ -17,8 +17,7 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::StatusCode;
 
 use super::core::GdriveCore;

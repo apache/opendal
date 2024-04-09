@@ -38,7 +38,7 @@ impl SftpReader {
 }
 
 impl oio::Read for SftpReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let client = self.inner.connect().await?;
 
         let mut fs = client.fs();
@@ -60,7 +60,7 @@ impl oio::Read for SftpReader {
 
         let mut size = limit;
         if size == 0 {
-            return Ok(oio::Buffer::new());
+            return Ok(Buffer::new());
         }
 
         let mut buf = BytesMut::with_capacity(limit);
@@ -77,6 +77,6 @@ impl oio::Read for SftpReader {
                 break;
             }
         }
-        Ok(oio::Buffer::from(buf.freeze()))
+        Ok(Buffer::from(buf.freeze()))
     }
 }

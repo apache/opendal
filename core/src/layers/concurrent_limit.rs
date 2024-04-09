@@ -22,7 +22,6 @@ use async_trait::async_trait;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
-use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -260,13 +259,13 @@ impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit)
     }
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.inner.write(bs).await
     }
 
@@ -280,7 +279,7 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.inner.write(bs)
     }
 

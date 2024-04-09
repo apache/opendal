@@ -22,9 +22,7 @@ use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// BytesRange(offset, size) carries a range of content.
 ///

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::Buffer;
+use crate::*;
 use bytes::{Buf, Bytes};
 use std::collections::VecDeque;
 use std::sync::Arc;

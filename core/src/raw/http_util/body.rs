@@ -29,6 +29,6 @@ pub enum AsyncBody {
     Bytes(Bytes),
     /// Body with stream.
     ///
-    /// TODO: remove this variant once by adopting oio::Buffer in writing.
+    /// TODO: remove this variant once by adopting Buffer in writing.
     Stream(oio::Streamer),
 }

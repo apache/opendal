@@ -168,12 +168,12 @@ pub mod into_futures_async_read {
         cap: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: Buffer,
     }
 
     enum State {
         Idle(Option<oio::Reader>),
-        Fill(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+        Fill(BoxedStaticFuture<(oio::Reader, Result<Buffer>)>),
     }
 
     /// # Safety
@@ -193,7 +193,7 @@ pub mod into_futures_async_read {
                 cap: 4 * 1024 * 1024,
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: Buffer::new(),
             }
         }
 
@@ -282,7 +282,7 @@ pub mod into_futures_async_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = Buffer::new()
             }
 
             self.cur = new_pos;
@@ -322,7 +322,7 @@ pub mod into_futures_stream {
 
     enum State {
         Idle(Option<oio::Reader>),
-        Next(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+        Next(BoxedStaticFuture<(oio::Reader, Result<Buffer>)>),
     }
 
     /// # Safety

@@ -109,7 +109,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -136,7 +136,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -154,7 +154,7 @@ impl VercelArtifactsBackend {
         self.client.send(req).await
     }
 
-    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<Buffer>> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)

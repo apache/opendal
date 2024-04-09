@@ -65,7 +65,7 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -218,11 +218,7 @@ impl SeafileCore {
     }
 
     /// download file
-    pub async fn download_file(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let download_url = self.get_download_url(path).await?;
 
         let req = Request::get(download_url);

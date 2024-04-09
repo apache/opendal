@@ -40,7 +40,7 @@ impl FtpReader {
 }
 
 impl oio::Read for FtpReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         if offset != 0 {
@@ -57,6 +57,6 @@ impl oio::Read for FtpReader {
             .take(limit as _);
         let mut bs = Vec::with_capacity(limit);
         ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
-        Ok(oio::Buffer::from(bs))
+        Ok(Buffer::from(bs))
     }
 }

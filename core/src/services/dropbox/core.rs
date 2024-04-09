@@ -129,7 +129,7 @@ impl DropboxCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -159,7 +159,7 @@ impl DropboxCore {
         size: Option<usize>,
         args: &OpWrite,
         body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
         let dropbox_update_args = DropboxUploadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -186,7 +186,7 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
         let args = DropboxDeleteArgs {
             path: self.build_path(path),
@@ -204,7 +204,7 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_delete_batch(&self, paths: Vec<String>) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_delete_batch(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
         let args = DropboxDeleteBatchArgs {
             entries: paths
@@ -300,7 +300,7 @@ impl DropboxCore {
         }
     }
 
-    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
             path: self.build_path(path),

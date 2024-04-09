@@ -221,7 +221,7 @@ impl SupabaseCore {
 
 // core utils
 impl SupabaseCore {
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
         self.http_client.send(req).await
     }
 
@@ -229,7 +229,7 @@ impl SupabaseCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?
         } else {
@@ -239,7 +239,7 @@ impl SupabaseCore {
         self.send(req).await
     }
 
-    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = if self.key.is_some() {
             self.supabase_head_object_auth_request(path)?
         } else {
@@ -249,7 +249,7 @@ impl SupabaseCore {
         self.send(req).await
     }
 
-    pub async fn supabase_get_object_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_get_object_info(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_info_auth_request(path)?
         } else {
@@ -259,7 +259,7 @@ impl SupabaseCore {
         self.send(req).await
     }
 
-    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
         self.send(req).await

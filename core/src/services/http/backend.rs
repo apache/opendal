@@ -284,7 +284,7 @@ impl HttpBackend {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -314,7 +314,7 @@ impl HttpBackend {
         self.client.send(req).await
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<oio::Buffer>> {
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));

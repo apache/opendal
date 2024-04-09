@@ -301,7 +301,7 @@ impl AlluxioCore {
     /// TODO: we should implement range support correctly.
     ///
     /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<Buffer>> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,

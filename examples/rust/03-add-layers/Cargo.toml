@@ -1,5 +1,5 @@
 [package]
-name = "async-io"
+name = "add-layers"
 
 edition = "2021"
 version = "0.1.0"
@@ -7,4 +7,5 @@ version = "0.1.0"
 [dependencies]
 futures = "0.3"
 opendal = "0.45"
+env_logger = "0.11"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

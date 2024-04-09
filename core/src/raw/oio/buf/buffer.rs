@@ -65,6 +65,12 @@ impl Buffer {
         }
     }
 
+    /// Check if buffer is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Shortens the buffer, keeping the first `len` bytes and dropping the rest.
     ///
     /// If `len` is greater than the buffer’s current length, this has no effect.
@@ -73,10 +79,7 @@ impl Buffer {
         match &mut self.0 {
             Inner::Contiguous(bs) => bs.truncate(len),
             Inner::NonContiguous { size, .. } => {
-                if *size < len {
-                    return;
-                }
-                *size = len;
+                *size = (*size).min(len);
             }
         }
     }
@@ -113,22 +116,6 @@ impl From<Vec<Bytes>> for Buffer {
         let size = bs.iter().map(|b| b.len()).sum();
         Self(Inner::NonContiguous {
             parts: bs.into(),
-            size,
-            idx: 0,
-            offset: 0,
-        })
-    }
-}
-
-impl From<Vec<Buffer>> for Buffer {
-    fn from(bs: Vec<Buffer>) -> Self {
-        let size = bs.iter().map(|b| b.len()).sum();
-        Self(Inner::NonContiguous {
-            parts: bs
-                .into_iter()
-                .map(|b| b.to_bytes())
-                .collect::<Vec<Bytes>>()
-                .into(),
             size,
             idx: 0,
             offset: 0,
@@ -210,7 +197,7 @@ impl Iterator for Buffer {
     type Item = Bytes;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.len() == 0 {
+        if self.is_empty() {
             return (0, Some(0));
         }
 
@@ -221,7 +208,7 @@ impl Iterator for Buffer {
     }
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return None;
         }
 
@@ -254,13 +241,14 @@ impl Iterator for Buffer {
 /// BufferQueue is a queue of [`Buffer`].
 ///
 /// It's works like a `Vec<Buffer>` but with more efficient `advance` operation.
+#[derive(Default)]
 pub struct BufferQueue(VecDeque<Buffer>);
 
 impl BufferQueue {
     /// Create a new buffer queue.
     #[inline]
     pub fn new() -> Self {
-        Self(VecDeque::new())
+        Self::default()
     }
 
     /// Push new [`Buffer`] into the queue.
@@ -284,7 +272,7 @@ impl BufferQueue {
     /// Build a Buffer from the queue.
     #[inline]
     pub fn to_buffer(&self) -> Buffer {
-        if self.0.len() == 0 {
+        if self.0.is_empty() {
             Buffer::new()
         } else if self.0.len() == 1 {
             self.0.clone().pop_front().unwrap()
@@ -334,18 +322,20 @@ mod tests {
 
     #[test]
     fn test_contiguous_buffer() {
-        let buf = Buffer::new();
+        let mut buf = Buffer::new();
 
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+        assert_eq!(buf.next(), None);
     }
 
     #[test]
     fn test_empty_non_contiguous_buffer() {
-        let buf = Buffer::from(vec![Bytes::new()]);
+        let mut buf = Buffer::from(vec![Bytes::new()]);
 
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+        assert_eq!(buf.next(), None);
     }
 
     #[test]
@@ -357,6 +347,20 @@ mod tests {
 
         buf.advance(1);
 
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_non_contiguous_buffer_with_next() {
+        let mut buf = Buffer::from(vec![Bytes::from("a")]);
+
+        assert_eq!(buf.remaining(), 1);
+        assert_eq!(buf.chunk(), b"a");
+
+        let bs = buf.next();
+
+        assert_eq!(bs, Some(Bytes::from("a")));
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
     }

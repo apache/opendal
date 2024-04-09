@@ -22,7 +22,10 @@ use bytes::{Buf, BufMut, Bytes};
 ///
 /// It's useful when we want to freeze the buffer and reuse the memory for the next buffer.
 pub struct FlexBuf {
+    /// Already allocated memory size of `buf`.
     cap: usize,
+    /// Already written bytes length inside `buf`.
+    len: usize,
     buf: BytesMut,
     frozen: Option<Bytes>,
 }
@@ -32,6 +35,7 @@ impl FlexBuf {
     pub fn new(cap: usize) -> Self {
         FlexBuf {
             cap,
+            len: 0,
 
             buf: BytesMut::with_capacity(cap),
             frozen: None,
@@ -45,11 +49,14 @@ impl FlexBuf {
         if self.frozen.is_some() {
             return 0;
         }
-        let n = self.buf.remaining_mut().min(bs.len());
-        self.buf.put_slice(&bs[..n]);
 
-        if !self.buf.has_remaining_mut() {
+        let n = (self.cap - self.len).min(bs.len());
+        self.buf.put_slice(&bs[..n]);
+        self.len += n;
+
+        if self.len >= self.cap {
             let frozen = self.buf.split();
+            self.len = 0;
             self.frozen = Some(frozen.freeze());
         }
 
@@ -57,11 +64,14 @@ impl FlexBuf {
     }
 
     /// Freeze the buffer no matter it's full or not.
+    ///
+    /// It's a no-op if the buffer has already been frozen.
     pub fn freeze(&mut self) {
-        let frozen = self.buf.split();
-        if frozen.is_empty() {
+        if self.len == 0 {
             return;
         }
+        let frozen = self.buf.split();
+        self.len = 0;
         self.frozen = Some(frozen.freeze());
     }
 
@@ -83,6 +93,8 @@ impl FlexBuf {
     ///
     /// Panic if the buffer is not frozen.
     pub fn advance(&mut self, cnt: usize) {
+        debug_assert!(self.len == 0, "The buffer must be empty during advance");
+
         let Some(bs) = self.frozen.as_mut() else {
             unreachable!("It must be a bug to advance on not frozen buffer")
         };

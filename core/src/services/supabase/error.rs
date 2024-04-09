@@ -22,9 +22,7 @@ use serde::Deserialize;
 use serde_json::from_slice;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -36,7 +34,7 @@ struct SupabaseError {
 }
 
 /// Parse the supabase error type to the OpenDAL error type
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 

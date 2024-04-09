@@ -84,17 +84,13 @@ pub trait Read: Unpin + Send + Sync {
     /// Storage services should try to read as much as possible, only return bytes less than the
     /// limit while reaching the end of the file.
     #[cfg(not(target_arch = "wasm32"))]
-    fn read_at(
-        &self,
-        offset: u64,
-        limit: usize,
-    ) -> impl Future<Output = Result<oio::Buffer>> + Send;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Buffer>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<oio::Buffer>>;
+    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Buffer>>;
 }
 
 impl Read for () {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let (_, _) = (offset, limit);
 
         Err(Error::new(
@@ -106,22 +102,22 @@ impl Read for () {
 
 impl Read for Bytes {
     /// TODO: we can check if the offset is out of range.
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if offset >= self.len() as u64 {
-            return Ok(oio::Buffer::new());
+            return Ok(Buffer::new());
         }
         let offset = offset as usize;
         let limit = limit.min(self.len() - offset);
-        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
+        Ok(Buffer::from(self.slice(offset..offset + limit)))
     }
 }
 
 pub trait ReadDyn: Unpin + Send + Sync {
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>>;
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<oio::Buffer>> {
+    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>> {
         Box::pin(self.read_at(offset, limit))
     }
 }
@@ -131,7 +127,7 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.deref().read_at_dyn(offset, limit).await
     }
 }
@@ -147,11 +143,11 @@ pub trait BlockingRead: Send + Sync {
     ///
     /// Storage services should try to read as much as possible, only return bytes less than the
     /// limit while reaching the end of the file.
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer>;
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer>;
 }
 
 impl BlockingRead for () {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let _ = (offset, limit);
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
@@ -160,20 +156,20 @@ impl BlockingRead for () {
 
 impl BlockingRead for Bytes {
     /// TODO: we can check if the offset is out of range.
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if offset >= self.len() as u64 {
-            return Ok(oio::Buffer::new());
+            return Ok(Buffer::new());
         }
         let offset = offset as usize;
         let limit = limit.min(self.len() - offset);
-        Ok(oio::Buffer::from(self.slice(offset..offset + limit)))
+        Ok(Buffer::from(self.slice(offset..offset + limit)))
     }
 }
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         (**self).read_at(offset, limit)
     }
 }

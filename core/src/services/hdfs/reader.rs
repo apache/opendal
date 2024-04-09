@@ -21,8 +21,7 @@ use hdrs::File;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
+use crate::*;
 
 pub struct HdfsReader {
     f: Arc<File>,
@@ -35,7 +34,7 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let r = Self { f: self.f.clone() };
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
@@ -53,7 +52,7 @@ impl oio::Read for HdfsReader {
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    fn read_at(&self, mut offset: u64, limit: usize) -> Result<Buffer> {
         let mut bs = Vec::with_capacity(limit);
 
         let buf = bs.spare_capacity_mut();
@@ -83,6 +82,6 @@ impl oio::BlockingRead for HdfsReader {
         // Safety: We make sure that bs contains `n` more bytes.
         let filled = read_buf.filled().len();
         unsafe { bs.set_len(filled) }
-        Ok(oio::Buffer::from(bs))
+        Ok(Buffer::from(bs))
     }
 }

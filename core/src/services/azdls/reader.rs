@@ -22,6 +22,7 @@ use http::StatusCode;
 use super::core::AzdlsCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::*;
 
 pub struct AzdlsReader {
     core: Arc<AzdlsCore>,
@@ -41,7 +42,7 @@ impl AzdlsReader {
 }
 
 impl oio::Read for AzdlsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.azdls_read(&self.path, range).await?;
@@ -50,7 +51,7 @@ impl oio::Read for AzdlsReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

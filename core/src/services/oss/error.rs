@@ -22,9 +22,7 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// OssError is the error returned by oss service.
 #[derive(Default, Debug, Deserialize)]
@@ -37,7 +35,7 @@ struct OssError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 

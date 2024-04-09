@@ -163,7 +163,7 @@ impl<W: RangeWrite> RangeWriter<W> {
 }
 
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let location = match self.location.clone() {
             Some(location) => location,
             None => {
@@ -363,7 +363,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match unsafe { w.write(bs.clone().into()).await } {
+                match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

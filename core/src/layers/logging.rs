@@ -981,7 +981,7 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self.inner.read_at(offset, limit).await {
             Ok(bs) => {
                 self.read
@@ -1017,7 +1017,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self.inner.read_at(offset, limit) {
             Ok(bs) => {
                 self.read
@@ -1075,7 +1075,7 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         match self.inner.write(bs.clone()).await {
             Ok(n) => {
                 self.written += n as u64;
@@ -1173,7 +1173,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         match self.inner.write(bs.clone()) {
             Ok(n) => {
                 self.written += n as u64;

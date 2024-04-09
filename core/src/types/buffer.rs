@@ -34,6 +34,7 @@ enum Inner {
     Contiguous(Bytes),
     NonContiguous {
         parts: Arc<[Bytes]>,
+        size: usize,
         idx: usize,
         offset: usize,
     },
@@ -54,6 +55,34 @@ impl Buffer {
         let mut bs = self.clone();
         bs.copy_to_bytes(bs.remaining())
     }
+
+    /// Get the length of the buffer.
+    #[inline]
+    pub fn len(&self) -> usize {
+        match &self.0 {
+            Inner::Contiguous(b) => b.remaining(),
+            Inner::NonContiguous { size, .. } => *size,
+        }
+    }
+
+    /// Check if buffer is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Shortens the buffer, keeping the first `len` bytes and dropping the rest.
+    ///
+    /// If `len` is greater than the buffer’s current length, this has no effect.
+    #[inline]
+    pub fn truncate(&mut self, len: usize) {
+        match &mut self.0 {
+            Inner::Contiguous(bs) => bs.truncate(len),
+            Inner::NonContiguous { size, .. } => {
+                *size = (*size).min(len);
+            }
+        }
+    }
 }
 
 impl From<Vec<u8>> for Buffer {
@@ -68,22 +97,36 @@ impl From<Bytes> for Buffer {
     }
 }
 
-/// Transform `VecDeque<Bytes>` to `Arc<[Bytes]>`.
 impl From<VecDeque<Bytes>> for Buffer {
     fn from(bs: VecDeque<Bytes>) -> Self {
+        let size = bs.iter().map(|b| b.len()).sum();
         Self(Inner::NonContiguous {
             parts: Vec::from(bs).into(),
+            size,
             idx: 0,
             offset: 0,
         })
     }
 }
 
-/// Transform `Vec<Bytes>` to `Arc<[Bytes]>`.
 impl From<Vec<Bytes>> for Buffer {
     fn from(bs: Vec<Bytes>) -> Self {
+        let size = bs.iter().map(|b| b.len()).sum();
         Self(Inner::NonContiguous {
             parts: bs.into(),
+            size,
+            idx: 0,
+            offset: 0,
+        })
+    }
+}
+
+impl From<Arc<[Bytes]>> for Buffer {
+    fn from(bs: Arc<[Bytes]>) -> Self {
+        let size = bs.iter().map(|b| b.len()).sum();
+        Self(Inner::NonContiguous {
+            parts: bs,
+            size,
             idx: 0,
             offset: 0,
         })
@@ -93,28 +136,26 @@ impl From<Vec<Bytes>> for Buffer {
 impl Buf for Buffer {
     #[inline]
     fn remaining(&self) -> usize {
-        match &self.0 {
-            Inner::Contiguous(b) => b.remaining(),
-            Inner::NonContiguous { parts, idx, offset } => {
-                if *idx >= parts.len() {
-                    return 0;
-                }
-
-                parts[*idx..].iter().map(|p| p.len()).sum::<usize>() - offset
-            }
-        }
+        self.len()
     }
 
     #[inline]
     fn chunk(&self) -> &[u8] {
         match &self.0 {
             Inner::Contiguous(b) => b.chunk(),
-            Inner::NonContiguous { parts, idx, offset } => {
-                if *idx >= parts.len() {
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                if *size == 0 {
                     return &[];
                 }
 
-                &parts[*idx][*offset..]
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                &parts[*idx][*offset..*offset + n]
             }
         }
     }
@@ -123,7 +164,12 @@ impl Buf for Buffer {
     fn advance(&mut self, cnt: usize) {
         match &mut self.0 {
             Inner::Contiguous(b) => b.advance(cnt),
-            Inner::NonContiguous { parts, idx, offset } => {
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
                 let mut new_cnt = cnt;
                 let mut new_idx = *idx;
                 let mut new_offset = *offset;
@@ -147,9 +193,56 @@ impl Buf for Buffer {
                 if new_cnt == 0 {
                     *idx = new_idx;
                     *offset = new_offset;
+                    *size -= cnt;
                 } else {
                     panic!("cannot advance past {cnt} bytes")
                 }
+            }
+        }
+    }
+}
+
+/// TODO: maybe we can optimize this by avoiding not needed operations?
+impl Iterator for Buffer {
+    type Item = Bytes;
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.is_empty() {
+            return (0, Some(0));
+        }
+
+        match &self.0 {
+            Inner::Contiguous(_) => (1, Some(1)),
+            Inner::NonContiguous { parts, idx, .. } => (parts.len() - idx, Some(parts.len() - idx)),
+        }
+    }
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_empty() {
+            return None;
+        }
+
+        match &mut self.0 {
+            Inner::Contiguous(bs) => {
+                let buf = bs.split_off(0);
+                Some(buf)
+            }
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                let buf = chunk.slice(*offset..*offset + n);
+                *size -= n;
+                *offset += n;
+                if *offset == chunk.len() {
+                    *idx += 1;
+                    *offset = 0;
+                }
+                Some(buf)
             }
         }
     }
@@ -165,18 +258,20 @@ mod tests {
 
     #[test]
     fn test_contiguous_buffer() {
-        let buf = Buffer::new();
+        let mut buf = Buffer::new();
 
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+        assert_eq!(buf.next(), None);
     }
 
     #[test]
     fn test_empty_non_contiguous_buffer() {
-        let buf = Buffer::from(vec![Bytes::new()]);
+        let mut buf = Buffer::from(vec![Bytes::new()]);
 
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+        assert_eq!(buf.next(), None);
     }
 
     #[test]
@@ -188,6 +283,20 @@ mod tests {
 
         buf.advance(1);
 
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_non_contiguous_buffer_with_next() {
+        let mut buf = Buffer::from(vec![Bytes::from("a")]);
+
+        assert_eq!(buf.remaining(), 1);
+        assert_eq!(buf.chunk(), b"a");
+
+        let bs = buf.next();
+
+        assert_eq!(bs, Some(Bytes::from("a")));
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
     }

@@ -41,7 +41,6 @@ use http::Version;
 
 use super::new_request_build_error;
 use super::AsyncBody;
-use crate::raw::oio;
 use crate::raw::oio::Stream;
 use crate::*;
 
@@ -411,7 +410,7 @@ impl MixedPart {
     }
 
     /// Consume a mixed part to build a response.
-    pub fn into_response(mut self) -> Response<oio::Buffer> {
+    pub fn into_response(mut self) -> Response<Buffer> {
         let mut builder = Response::builder();
 
         builder = builder.status(self.status_code.unwrap_or(StatusCode::OK));
@@ -420,8 +419,8 @@ impl MixedPart {
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
         let body = match self.content {
-            None => oio::Buffer::new(),
-            Some(bs) => oio::Buffer::from(bs),
+            None => Buffer::new(),
+            Some(bs) => Buffer::from(bs),
         };
 
         builder

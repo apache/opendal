@@ -20,6 +20,7 @@ use http::StatusCode;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::vercel_artifacts::backend::VercelArtifactsBackend;
+use crate::*;
 
 pub struct VercelArtifactsReader {
     core: VercelArtifactsBackend,
@@ -39,7 +40,7 @@ impl VercelArtifactsReader {
 }
 
 impl oio::Read for VercelArtifactsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self
@@ -51,7 +52,7 @@ impl oio::Read for VercelArtifactsReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -20,5 +20,7 @@ version: '3.8'
 services:
   redis:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
+    environment:
+      HEALTHCHECK_PORT: 6379
     ports:
       - '6379:6379'

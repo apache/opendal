@@ -182,21 +182,21 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         // TODO: How can we handle buffer reads with a limiter?
         self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         // TODO: How can we handle buffer reads with a limiter?
         self.inner.read_at(offset, limit)
     }
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
@@ -231,7 +231,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {

@@ -15,14 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod adaptive;
-pub use adaptive::AdaptiveBuf;
+mod flex_buf;
+pub use flex_buf::FlexBuf;
 
-mod buffer;
-pub use buffer::Buffer;
-
-mod readable_buf;
-pub use readable_buf::ReadableBuf;
-
-mod writable_buf;
-pub use writable_buf::WritableBuf;
+mod queue_buf;
+pub use queue_buf::QueueBuf;

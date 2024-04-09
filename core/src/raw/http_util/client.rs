@@ -115,7 +115,7 @@ impl HttpClient {
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let bs = oio::StreamExt::collect(s).await?;
+                    let bs = crate::raw::oio::StreamExt::collect(s).await?;
                     req_builder.body(reqwest::Body::from(bs))
                 }
             }

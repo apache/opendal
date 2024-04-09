@@ -28,7 +28,7 @@ Preparing in advance before submitting an RFC hastily can increase its chances o
 
 It is great to seek feedback from other project developers first, as this can help validate the viability of the RFC. To ensure a sustained impact on the project, it is important to work together and reach a consensus.
 
-Common preparatory steps include presenting your idea on platforms such as GitHub [issues](https://github.com/apache/opendal/issues/) or [discussions](https://github.com/apache/opendal/discussions/categories/ideas), or engaging in discussions through our [email list](https://opendal.apache.org/community/#mailing-list) or [Discord server](https://discord.gg/XQy8yGR2dg). 
+Common preparatory steps include presenting your idea on platforms such as GitHub [issues](https://github.com/apache/opendal/issues/) or [discussions](https://github.com/apache/opendal/discussions/categories/ideas), or engaging in discussions through our [email list](https://opendal.apache.org/community/#mailing-list) or [Discord server](https://opendal.apache.org/discord). 
 
 ## The RFC process
 

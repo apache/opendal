@@ -93,5 +93,5 @@ We welcome developers and users who are interested in participating in OpenDAL p
 
 - Visit OpenDAL official website: <https://opendal.apache.org>
 - Explore OpenDAL GitHub repository: <https://github.com/apache/opendal>
-- Join OpenDAL Discord channel: <https://discord.gg/XQy8yGR2dg>
+- Join OpenDAL Discord channel: <https://opendal.apache.org/discord>
 - Subscribe to OpenDAL mailing list: <dev@opendal.apache.org>

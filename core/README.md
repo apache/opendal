@@ -8,7 +8,7 @@
 [crates.io]: https://crates.io/crates/opendal
 [crate downloads]: https://img.shields.io/crates/d/opendal.svg
 [chat]: https://img.shields.io/discord/1081052318650339399
-[discord]: https://discord.gg/XQy8yGR2dg
+[discord]: https://opendal.apache.org/discord
 
 **OpenDAL** is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
 

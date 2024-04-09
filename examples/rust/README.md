@@ -15,3 +15,4 @@ It's a good idea to start reading from the first chapter. It's also ok to pick t
 - [Chapter-00: Set up Your First Rust Project](./00-setup/README.md)
 - [Chapter-01: Initiate OpenDAL Operator](./01-init-operator/README.md)
 - [Chapter-02: Async IO](./02-async-io/README.md)
+- [Chapter-03: How To Add Layers](./03-add-layers/README.md)

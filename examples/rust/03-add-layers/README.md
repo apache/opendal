@@ -80,7 +80,7 @@ The Retry Layer provides the ability for OpenDAL to automatically retry related 
 
 OpenDAL uses an exponential backoff algorithm to retry erroneous requests to avoid request current limiting and conflicts to the greatest extent, and provides relevant settings to further control retry behavior. Specifically, OpenDAL supports setting the maximum number of retries, the minimum retry interval, the maximum retry interval, the jitter and exponential coefficients in the exponential backoff algorithm, and setting the callback function for each retry.
 
-In addition, OpenDAL divides errors in requests into three types: `Permanent`, `Tempory` and `Persistent`:
+In addition, OpenDAL divides errors in requests into three types: `Permanent`, `Temporary` and `Persistent`:
 
 - `Permanent` means that the error cannot be solved by retrying, such as `Not Found` error and permission authentication error. At this time, OpenDAL will not retry the error request to avoid adding additional unnecessary request traffic;
 - `Temporary` means that the error is temporary and may be resolved by retrying. For example, the storage service returns a traffic restriction error. After adding the Retry Layer, OpenDAL will automatically retry this type of request;

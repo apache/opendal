@@ -1,7 +1,7 @@
 # Apache OpenDAL™: *Access Data Freely*
 
 [![](https://img.shields.io/badge/maillist-dev%40opendal.apache.org-blue)](mailto:dev@opendal.apache.org)
-[![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://discord.gg/XQy8yGR2dg)
+[![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
 
 OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services. Our goal is to deliver a comprehensive solution for any languages, methods, integrations, and services.
 
@@ -73,7 +73,7 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - Submit [Issues](https://github.com/apache/opendal/issues/new) for bug report or feature requests.
 - Discuss at [dev mailing list](mailto:dev@opendal.apache.org) ([subscribe](mailto:dev-subscribe@opendal.apache.org?subject=(send%20this%20email%20to%20subscribe)) / [unsubscribe](mailto:dev-unsubscribe@opendal.apache.org?subject=(send%20this%20email%20to%20unsubscribe)) / [archives](https://lists.apache.org/list.html?dev@opendal.apache.org))
 - Asking questions in the [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a).
-- Talk to community directly at [Discord](https://discord.gg/XQy8yGR2dg).
+- Talk to community directly at [Discord](https://opendal.apache.org/discord).
 
 ## Who is using OpenDAL?
 

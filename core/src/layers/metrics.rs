@@ -750,7 +750,7 @@ impl<R> MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let start = Instant::now();
 
         match self.inner.read_at(offset, limit).await {
@@ -769,7 +769,7 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let start = Instant::now();
 
         self.inner
@@ -788,7 +788,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let start = Instant::now();
 
         self.inner
@@ -822,7 +822,7 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

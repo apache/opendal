@@ -269,7 +269,7 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit).await
     }
 }
@@ -279,7 +279,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit)
     }
 }
@@ -289,7 +289,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: oio::Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + Send {
         self.inner.write(bs)
     }
 
@@ -315,7 +315,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.inner.write(bs)
     }
 

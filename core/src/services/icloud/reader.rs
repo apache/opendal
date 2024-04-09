@@ -22,6 +22,7 @@ use http::StatusCode;
 use super::core::parse_error;
 use super::core::IcloudCore;
 use crate::raw::*;
+use crate::*;
 
 pub struct IcloudReader {
     core: Arc<IcloudCore>,
@@ -41,7 +42,7 @@ impl IcloudReader {
 }
 
 impl oio::Read for IcloudReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.read(&self.path, range, &self.op).await?;
@@ -50,7 +51,7 @@ impl oio::Read for IcloudReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

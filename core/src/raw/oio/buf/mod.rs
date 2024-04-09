@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod buffer;
-pub use buffer::Buffer;
-
 mod flex_buf;
 pub use flex_buf::FlexBuf;
 

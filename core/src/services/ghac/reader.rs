@@ -20,6 +20,7 @@ use http::StatusCode;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::ghac::backend::GhacBackend;
+use crate::*;
 
 pub struct GhacReader {
     core: GhacBackend,
@@ -39,7 +40,7 @@ impl GhacReader {
 }
 
 impl oio::Read for GhacReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let req = self.core.ghac_get_location(&self.location, range).await?;
@@ -49,7 +50,7 @@ impl oio::Read for GhacReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

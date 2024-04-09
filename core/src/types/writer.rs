@@ -239,7 +239,7 @@ pub mod into_futures_async_write {
                         let bs = this.buf.get().expect("frozen buffer must be valid");
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res = w.write(oio::Buffer::from(bs)).await;
+                            let res = w.write(Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));
@@ -277,7 +277,7 @@ pub mod into_futures_async_write {
 
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res = w.write(oio::Buffer::from(bs)).await;
+                            let res = w.write(Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));

@@ -31,10 +31,7 @@ use http::Response;
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::AsyncBody;
-use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -86,7 +83,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -185,7 +182,7 @@ impl HttpClient {
                     .set_source(err)
             })?;
 
-        let buffer = oio::Buffer::from(bs);
+        let buffer = Buffer::from(bs);
 
         if let Some(expect) = content_length {
             check(expect, buffer.remaining() as u64)?;

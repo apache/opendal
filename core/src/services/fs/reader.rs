@@ -55,7 +55,7 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let handle = self.try_clone()?;
 
         match tokio::runtime::Handle::try_current() {
@@ -74,7 +74,7 @@ impl oio::Read for FsReader {
 }
 
 impl oio::BlockingRead for FsReader {
-    fn read_at(&self, mut offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, mut offset: u64, limit: usize) -> Result<Buffer> {
         let mut bs = Vec::with_capacity(limit);
 
         let buf = bs.spare_capacity_mut();
@@ -101,6 +101,6 @@ impl oio::BlockingRead for FsReader {
         // Safety: We make sure that bs contains `n` more bytes.
         let filled = read_buf.filled().len();
         unsafe { bs.set_len(filled) }
-        Ok(oio::Buffer::from(bs))
+        Ok(Buffer::from(bs))
     }
 }

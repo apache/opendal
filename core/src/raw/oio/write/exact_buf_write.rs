@@ -45,7 +45,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, mut bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
             let written = self.inner.write(self.buffer.collect()).await?;
             self.buffer.advance(written);
@@ -96,7 +96,7 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+        async fn write(&mut self, bs: Buffer) -> Result<usize> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
             let chunk = bs.chunk();

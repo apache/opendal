@@ -348,7 +348,7 @@ impl Accessor for IpfsBackend {
 }
 
 impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -366,7 +366,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -380,7 +380,7 @@ impl IpfsBackend {
         self.client.send(req).await
     }
 
-    async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));

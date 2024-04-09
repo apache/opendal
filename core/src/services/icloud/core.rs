@@ -275,7 +275,7 @@ impl IcloudSigner {
     }
 
     /// Update signer's data after request sent out.
-    fn update(&mut self, resp: &Response<oio::Buffer>) -> Result<()> {
+    fn update(&mut self, resp: &Response<Buffer>) -> Result<()> {
         if let Some(account_country) = parse_header_to_str(resp.headers(), ACCOUNT_COUNTRY_HEADER)?
         {
             self.data.account_country = Some(account_country.to_string());
@@ -312,7 +312,7 @@ impl IcloudSigner {
     /// - Init the signer if it's not initiated.
     /// - Sign the request.
     /// - Update the session data if needed.
-    pub async fn send(&mut self, mut req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&mut self, mut req: Request<AsyncBody>) -> Result<Response<Buffer>> {
         self.sign(&mut req)?;
         let resp = self.client.send(req).await?;
 
@@ -374,7 +374,7 @@ impl IcloudCore {
         zone: &str,
         range: BytesRange,
         args: OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let mut signer = self.signer.lock().await;
 
         let uri = format!(
@@ -426,7 +426,7 @@ impl IcloudCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 
@@ -572,7 +572,7 @@ impl PathQuery for IcloudPathQuery {
     }
 }
 
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 

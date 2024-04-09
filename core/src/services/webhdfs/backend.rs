@@ -318,11 +318,7 @@ impl WebhdfsBackend {
         }
     }
 
-    pub async fn webhdfs_rename_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_rename_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -422,7 +418,7 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -443,7 +439,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         start_after: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -468,15 +464,12 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let req = self.webhdfs_open_request(path, &range).await?;
         self.client.send(req).await
     }
 
-    pub(super) async fn webhdfs_get_file_status(
-        &self,
-        path: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -495,7 +488,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",

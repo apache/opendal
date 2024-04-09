@@ -461,7 +461,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ghac_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

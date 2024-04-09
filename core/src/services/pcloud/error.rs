@@ -23,9 +23,7 @@ use http::Response;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// PcloudError is the error returned by Pcloud service.
 #[derive(Default, Deserialize)]
@@ -44,7 +42,7 @@ impl Debug for PcloudError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
     let message = String::from_utf8_lossy(&bs).into_owned();
@@ -80,7 +78,7 @@ mod test {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = oio::Buffer::from(bs);
+            let body = Buffer::from(bs);
             let resp = Response::builder().status(res.2).body(body).unwrap();
 
             let err = parse_error(resp).await;

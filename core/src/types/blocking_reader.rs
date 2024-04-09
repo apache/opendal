@@ -139,8 +139,8 @@ pub mod into_std_read {
 
     use bytes::Buf;
 
-    use crate::raw::format_std_io_error;
-    use crate::raw::oio;
+    use crate::raw::*;
+    use crate::*;
 
     /// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
     ///
@@ -154,7 +154,7 @@ pub mod into_std_read {
         cap: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: Buffer,
     }
 
     impl StdIoReader {
@@ -169,7 +169,7 @@ pub mod into_std_read {
                 cap: 4 * 1024 * 1024,
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: Buffer::new(),
             }
         }
 
@@ -239,7 +239,7 @@ pub mod into_std_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = Buffer::new()
             }
 
             self.cur = new_pos;

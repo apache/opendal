@@ -17,7 +17,9 @@
 
 mod buffer;
 pub use buffer::Buffer;
-pub use buffer::BufferQueue;
 
 mod flex_buf;
 pub use flex_buf::FlexBuf;
+
+mod queue_buf;
+pub use queue_buf::QueueBuf;

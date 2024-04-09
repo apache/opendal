@@ -30,7 +30,7 @@ pub struct ExactBufWriter<W: oio::Write> {
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: oio::BufferQueue,
+    buffer: oio::QueueBuf,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -39,7 +39,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: oio::BufferQueue::new(),
+            buffer: oio::QueueBuf::new(),
         }
     }
 }
@@ -47,7 +47,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, mut bs: oio::Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
-            let written = self.inner.write(self.buffer.to_buffer()).await?;
+            let written = self.inner.write(self.buffer.collect()).await?;
             self.buffer.advance(written);
         }
 
@@ -64,7 +64,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 break;
             }
 
-            let written = self.inner.write(self.buffer.to_buffer()).await?;
+            let written = self.inner.write(self.buffer.collect()).await?;
             self.buffer.advance(written);
         }
 

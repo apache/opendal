@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::oio::Buffer;
+use bytes::{Buf, Bytes};
 use std::collections::VecDeque;
 use std::sync::Arc;
-use bytes::{Buf, Bytes};
-use crate::raw::oio::Buffer;
 
 /// QueueBuf is a queue of [`Buffer`].
 ///

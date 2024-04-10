@@ -16,16 +16,21 @@
 // under the License.
 
 use std::collections::VecDeque;
+use std::convert::Infallible;
+use std::mem;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use bytes::Buf;
 use bytes::Bytes;
+use futures::{Stream};
+
 
 /// Buffer is a wrapper of contiguous `Bytes` and non contiguous `[Bytes]`.
 ///
-/// We designed buffer to allow underlying storage to return non-contiguous bytes.
-///
-/// For example, http based storage like s3 could generate non-contiguous bytes by stream.
+/// We designed buffer to allow underlying storage to return non-contiguous bytes. For example,
+/// http based storage like s3 could generate non-contiguous bytes by stream.
 #[derive(Clone)]
 pub struct Buffer(Inner);
 
@@ -50,6 +55,11 @@ impl Buffer {
     }
 
     /// Clone internal bytes to a new `Bytes`.
+    ///
+    /// # Notes
+    ///
+    /// This operation is not efficient and should be used with caution.
+    /// Please never use this method in read/write related APIs.
     #[inline]
     pub fn to_bytes(&self) -> Bytes {
         let mut bs = self.clone();
@@ -170,87 +180,106 @@ impl Buf for Buffer {
                 idx,
                 offset,
             } => {
-                let mut new_cnt = cnt;
-                let mut new_idx = *idx;
+                assert!(cnt <= *size, "cannot advance past {cnt} bytes, only {size} bytes left");
+
+                let mut  new_idx = *idx;
                 let mut new_offset = *offset;
+                let mut remaining_cnt = cnt;
+                while remaining_cnt > 0 {
+                    let part_len = parts[new_idx].len();
+                    let remaining_in_part = part_len - new_offset;
 
-                while new_cnt > 0 {
-                    let remaining = parts[new_idx].len() - new_offset;
-                    if new_cnt < remaining {
-                        new_offset += new_cnt;
-                        new_cnt = 0;
-                        break;
-                    } else {
-                        new_cnt -= remaining;
-                        new_idx += 1;
-                        new_offset = 0;
-                        if new_idx > parts.len() {
-                            break;
-                        }
+                    if remaining_cnt < remaining_in_part {
+                        new_offset += remaining_cnt;
+                        break
                     }
+
+                    remaining_cnt -= remaining_in_part;
+                    new_idx += 1;
+                    new_offset = 0;
                 }
 
-                if new_cnt == 0 {
-                    *idx = new_idx;
-                    *offset = new_offset;
-                    *size -= cnt;
-                } else {
-                    panic!("cannot advance past {cnt} bytes")
-                }
+                *idx = new_idx;
+                *offset = new_offset;
+                *size -= cnt;
             }
         }
     }
 }
 
-/// TODO: maybe we can optimize this by avoiding not needed operations?
 impl Iterator for Buffer {
     type Item = Bytes;
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.is_empty() {
-            return (0, Some(0));
-        }
-
-        match &self.0 {
-            Inner::Contiguous(_) => (1, Some(1)),
-            Inner::NonContiguous { parts, idx, .. } => (parts.len() - idx, Some(parts.len() - idx)),
-        }
-    }
-
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_empty() {
-            return None;
-        }
-
         match &mut self.0 {
             Inner::Contiguous(bs) => {
-                let buf = bs.split_off(0);
-                Some(buf)
-            }
+                if bs.is_empty() {
+                    None
+                } else {
+                    Some(mem::take(bs))
+                }
+            },
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
             } => {
+                if *size == 0 {
+                    return None;
+                }
+
                 let chunk = &parts[*idx];
                 let n = (chunk.len() - *offset).min(*size);
                 let buf = chunk.slice(*offset..*offset + n);
                 *size -= n;
                 *offset += n;
+
                 if *offset == chunk.len() {
                     *idx += 1;
                     *offset = 0;
                 }
+
                 Some(buf)
             }
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match &self.0 {
+            Inner::Contiguous(bs) => {
+                if bs.is_empty() {
+                    (0, Some(0))
+                } else {
+                    (1, Some(1))
+                }
+            },
+            Inner::NonContiguous { parts, idx, .. } => {
+                let remaining = parts.len().saturating_sub(*idx);
+                (remaining, Some(remaining))
+            },
+        }
+    }
 }
+
+impl Stream for Buffer {
+    type Item = Result<Bytes, Infallible>;
+
+    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.get_mut().next().map(Ok))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        Iterator::size_hint(self)
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use rand::prelude::*;
 
     use super::*;
 
@@ -299,5 +328,175 @@ mod tests {
         assert_eq!(bs, Some(Bytes::from("a")));
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_buffer_advance() {
+        let mut buf = Buffer::from(vec![
+            Bytes::from("a"),
+            Bytes::from("b"),
+            Bytes::from("c"),
+        ]);
+
+        assert_eq!(buf.remaining(), 3);
+        assert_eq!(buf.chunk(), b"a");
+
+        buf.advance(1);
+
+        assert_eq!(buf.remaining(), 2);
+        assert_eq!(buf.chunk(), b"b");
+
+        buf.advance(1);
+
+        assert_eq!(buf.remaining(), 1);
+        assert_eq!(buf.chunk(), b"c");
+
+        buf.advance(1);
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+
+        buf.advance(0);
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_buffer_truncate() {
+        let mut buf = Buffer::from(vec![
+            Bytes::from("a"),
+            Bytes::from("b"),
+            Bytes::from("c"),
+        ]);
+
+        assert_eq!(buf.remaining(), 3);
+        assert_eq!(buf.chunk(), b"a");
+
+        buf.truncate(100);
+
+        assert_eq!(buf.remaining(), 3);
+        assert_eq!(buf.chunk(), b"a");
+
+        buf.truncate(2);
+
+        assert_eq!(buf.remaining(), 2);
+        assert_eq!(buf.chunk(), b"a");
+
+        buf.truncate(0);
+
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    /// This setup will return
+    ///
+    /// - A buffer
+    /// - Total size of this buffer.
+    /// - Total content of this buffer.
+    fn setup_buffer() -> (Buffer, usize, Bytes) {
+        let mut rng = thread_rng();
+
+        let bs = (0..100).map(|_| {
+            let len = rng.gen_range(1..100);
+            let mut buf = vec![0; len];
+            rng.fill(&mut buf[..]);
+            Bytes::from(buf)
+        }).collect::<Vec<_>>();
+
+        let total_size = bs.iter().map(|b| b.len()).sum::<usize>();
+        let total_content = bs.iter().flatten().copied().collect::<Bytes>();
+        let buf = Buffer::from(bs);
+
+        (buf, total_size, total_content)
+    }
+
+    #[test]
+    fn fuzz_buffer_advance() {
+        let mut rng = thread_rng();
+
+        let (mut buf, total_size, total_content) = setup_buffer();
+        assert_eq!(buf.remaining(), total_size);
+        assert_eq!(buf.to_bytes(), total_content);
+
+        let mut cur = 0;
+        // Loop at most 10000 times.
+        let mut times = 10000;
+        while !buf.is_empty() && times > 0 {
+            times -= 1;
+
+            let cnt = rng.gen_range(0..total_size - cur);
+            cur += cnt;
+            buf.advance(cnt);
+
+            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..));
+        }
+    }
+
+    #[test]
+    fn fuzz_buffer_iter() {
+        let mut rng = thread_rng();
+
+        let (mut buf, total_size, total_content) = setup_buffer();
+        assert_eq!(buf.remaining(), total_size);
+        assert_eq!(buf.to_bytes(), total_content);
+
+        let mut cur = 0;
+        while buf.is_empty()  {
+            let cnt = rng.gen_range(0..total_size - cur);
+            cur += cnt;
+            buf.advance(cnt);
+
+            // Before next
+            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..));
+
+            if let Some(bs) = buf.next() {
+                assert_eq!(bs, total_content.slice(cur..cur+bs.len()));
+                cur += bs.len();
+            }
+
+            // After next
+            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..));
+        }
+    }
+
+    #[test]
+    fn fuzz_buffer_truncate() {
+        let mut rng = thread_rng();
+
+        let (mut buf, total_size, total_content) = setup_buffer();
+        assert_eq!(buf.remaining(), total_size);
+        assert_eq!(buf.to_bytes(), total_content);
+
+        let mut cur = 0;
+        while buf.is_empty()  {
+            let cnt = rng.gen_range(0..total_size - cur);
+            cur += cnt;
+            buf.advance(cnt);
+
+            // Before truncate
+            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..));
+
+            let truncate_size =  rng.gen_range(0..total_size-cur);
+            buf.truncate(truncate_size);
+
+            // After truncate
+            assert_eq!(buf.remaining(), truncate_size);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..cur+truncate_size));
+
+            // Try next after truncate
+            if let Some(bs) = buf.next() {
+                assert_eq!(bs, total_content.slice(cur..cur+bs.len()));
+                cur += bs.len();
+            }
+
+            // After next
+            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..));
+        }
     }
 }

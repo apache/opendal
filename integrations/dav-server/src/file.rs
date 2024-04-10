@@ -63,7 +63,8 @@ impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let mut buf = BytesMut::with_capacity(count);
-            let n = self.state
+            let n = self
+                .state
                 .reader
                 .read(&mut buf, self.pos, count)
                 .await

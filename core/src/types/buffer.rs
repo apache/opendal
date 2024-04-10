@@ -94,7 +94,6 @@ impl Buffer {
     }
 }
 
-
 impl From<Vec<u8>> for Buffer {
     fn from(bs: Vec<u8>) -> Self {
         Self(Inner::Contiguous(bs.into()))
@@ -108,7 +107,7 @@ impl From<Bytes> for Buffer {
 }
 
 impl FromIterator<u8> for Buffer {
-    fn from_iter<T: IntoIterator<Item=u8>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
         Self(Inner::Contiguous(Bytes::from_iter(iter)))
     }
 }
@@ -150,7 +149,7 @@ impl From<Arc<[Bytes]>> for Buffer {
 }
 
 impl FromIterator<Bytes> for Buffer {
-    fn from_iter<T: IntoIterator<Item=Bytes>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
         let mut size = 0;
         let bs = iter.into_iter().inspect(|v| size += v.len());
         // Use `Arc::from_iter` here to make sure we can benefit from `TrustedLen` if provided.

@@ -152,7 +152,8 @@ impl FromIterator<Bytes> for Buffer {
     fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
         let mut size = 0;
         let bs = iter.into_iter().inspect(|v| size += v.len());
-        // Use `Arc::from_iter` here to make sure we can benefit from `TrustedLen` if provided.
+        // This operation only needs one allocation from iterator to `Arc<[Bytes]>` instead
+        // of iterator -> `Vec<Bytes>` -> `Arc<[Bytes]>`.
         let parts = Arc::from_iter(bs);
         Self(Inner::NonContiguous {
             parts,

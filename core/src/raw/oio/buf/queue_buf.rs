@@ -16,9 +16,8 @@
 // under the License.
 
 use crate::*;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 /// QueueBuf is a queue of [`Buffer`].
 ///
@@ -75,11 +74,7 @@ impl QueueBuf {
         } else if self.0.len() == 1 {
             self.0.clone().pop_front().unwrap()
         } else {
-            let iter = self.0.clone().into_iter().flatten();
-            // This operation only needs one allocation from iterator to `Arc<[Bytes]>` instead
-            // of iterator -> `Vec<Bytes>` -> `Arc<[Bytes]>`.
-            let bs: Arc<[Bytes]> = Arc::from_iter(iter);
-            Buffer::from(bs)
+            Buffer::from_iter(self.0.clone().into_iter().flatten())
         }
     }
 

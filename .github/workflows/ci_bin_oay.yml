@@ -26,6 +26,7 @@ on:
       - main
     paths:
       - "bin/oay/**"
+      - "integrations/dav-server/**"
       - "core/**"
       - ".github/workflows/ci_bin_oay.yml"
 

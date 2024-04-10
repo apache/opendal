@@ -106,6 +106,24 @@ impl From<Bytes> for Buffer {
     }
 }
 
+impl From<String> for Buffer {
+    fn from(s: String) -> Self {
+        Self(Inner::Contiguous(Bytes::from(s)))
+    }
+}
+
+impl From<&'static [u8]> for Buffer {
+    fn from(s: &'static [u8]) -> Self {
+        Self(Inner::Contiguous(Bytes::from_static(s)))
+    }
+}
+
+impl From<&'static str> for Buffer {
+    fn from(s: &'static str) -> Self {
+        Self(Inner::Contiguous(Bytes::from_static(s.as_bytes())))
+    }
+}
+
 impl FromIterator<u8> for Buffer {
     fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
         Self(Inner::Contiguous(Bytes::from_iter(iter)))

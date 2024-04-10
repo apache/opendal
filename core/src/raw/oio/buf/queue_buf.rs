@@ -74,7 +74,7 @@ impl QueueBuf {
         } else if self.0.len() == 1 {
             self.0.clone().pop_front().unwrap()
         } else {
-            Buffer::from_iter(self.0.clone().into_iter().flatten())
+            self.0.clone().into_iter().flatten().collect()
         }
     }
 

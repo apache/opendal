@@ -48,7 +48,10 @@ impl DavFileSystem for OpendalFs {
         _options: dav_server::fs::OpenOptions,
     ) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavFile>> {
         async move {
-            let file = WebdavFile::new(self.op.clone(), path.clone());
+            let path = path.as_url_string();
+            let reader = self.op.reader(&path).await.map_err(convert_error)?;
+            let writer = self.op.writer(&path).await.map_err(convert_error)?;
+            let file = WebdavFile::new(self.op.clone(), reader, writer, path.clone());
             Ok(Box::new(file) as Box<dyn DavFile>)
         }
         .boxed()

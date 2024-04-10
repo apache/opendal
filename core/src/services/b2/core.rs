@@ -71,7 +71,7 @@ impl Debug for B2Core {
 
 impl B2Core {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -98,7 +98,7 @@ impl B2Core {
                         &signer.application_key,
                     )?,
                 )
-                .body(AsyncBody::Empty)
+                .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
@@ -155,9 +155,7 @@ impl B2Core {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -175,9 +173,7 @@ impl B2Core {
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
         let status = resp.status();
@@ -219,7 +215,7 @@ impl B2Core {
         let body = bytes::Bytes::from(body);
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -241,7 +237,7 @@ impl B2Core {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_url().await?;
 
@@ -301,7 +297,7 @@ impl B2Core {
         let body = bytes::Bytes::from(body);
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -320,9 +316,7 @@ impl B2Core {
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -343,7 +337,7 @@ impl B2Core {
         file_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_part_url(file_id).await?;
 
@@ -385,7 +379,7 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -408,7 +402,7 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -453,9 +447,7 @@ impl B2Core {
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -481,7 +473,7 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -508,7 +500,7 @@ impl B2Core {
 
         // Set body
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await

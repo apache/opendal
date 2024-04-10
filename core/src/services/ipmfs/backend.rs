@@ -177,9 +177,7 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -199,9 +197,7 @@ impl IpmfsBackend {
         }
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -216,9 +212,7 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -233,9 +227,7 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -250,9 +242,7 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

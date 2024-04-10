@@ -50,7 +50,7 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -78,9 +78,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -112,9 +110,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -163,9 +159,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -185,9 +179,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -207,9 +199,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -227,9 +217,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -260,9 +248,7 @@ impl YandexDiskCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }

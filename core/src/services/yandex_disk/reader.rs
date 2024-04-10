@@ -52,7 +52,7 @@ impl oio::Read for YandexDiskReader {
 
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let resp = self.core.send(req).await?;
 

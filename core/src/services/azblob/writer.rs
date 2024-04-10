@@ -88,7 +88,7 @@ impl oio::AppendWrite for AzblobWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
         let mut req = self
             .core
             .azblob_append_blob_request(&self.path, offset, size, body)?;
@@ -106,8 +106,8 @@ impl oio::AppendWrite for AzblobWriter {
 }
 
 impl oio::BlockWrite for AzblobWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req: http::Request<AsyncBody> =
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+        let mut req: http::Request<Buffer> =
             self.core
                 .azblob_put_blob_request(&self.path, Some(size), &self.op, body)?;
         self.core.sign(&mut req).await?;
@@ -122,7 +122,7 @@ impl oio::BlockWrite for AzblobWriter {
         }
     }
 
-    async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
         let resp = self
             .core
             .azblob_put_block(&self.path, block_id, Some(size), &self.op, body)

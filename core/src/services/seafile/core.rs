@@ -65,7 +65,7 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -89,7 +89,7 @@ impl SeafileCore {
             );
             let req = Request::post(format!("{}/api2/auth-token/", self.endpoint))
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(AsyncBody::Bytes(Bytes::from(body)))
+                .body(Buffer::from(Bytes::from(body)))
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
@@ -118,7 +118,7 @@ impl SeafileCore {
                     header::AUTHORIZATION,
                     format!("Token {}", signer.auth_info.token),
                 )
-                .body(AsyncBody::Empty)
+                .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
@@ -168,7 +168,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -199,7 +199,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -225,7 +225,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -245,7 +245,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -276,7 +276,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -311,7 +311,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -346,7 +346,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;

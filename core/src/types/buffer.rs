@@ -17,6 +17,7 @@
 
 use std::collections::VecDeque;
 use std::convert::Infallible;
+use std::fmt::{Debug, Formatter};
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -42,6 +43,38 @@ enum Inner {
         idx: usize,
         offset: usize,
     },
+}
+
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut b = f.debug_struct("Buffer");
+
+        match &self.0 {
+            Inner::Contiguous(bs) => {
+                b.field("type", &"contiguous");
+                b.field("size", &bs.len());
+            }
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                b.field("type", &"non_contiguous");
+                b.field("parts", &parts);
+                b.field("size", &size);
+                b.field("idx", &idx);
+                b.field("offset", &offset);
+            }
+        }
+        b.finish_non_exhaustive()
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Buffer {

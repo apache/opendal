@@ -70,7 +70,7 @@ impl GdriveCore {
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
             file_id
         ))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
@@ -91,7 +91,7 @@ impl GdriveCore {
 
         let mut req = Request::get(&url)
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
@@ -115,7 +115,7 @@ impl GdriveCore {
         };
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
@@ -153,7 +153,7 @@ impl GdriveCore {
             source_file_id
         );
         let mut req = Request::patch(url)
-            .body(AsyncBody::Bytes(Bytes::from(metadata.to_string())))
+            .body(Buffer::from(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -170,7 +170,7 @@ impl GdriveCore {
         .map_err(new_json_serialize_error)?;
 
         let mut req = Request::patch(&url)
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -244,7 +244,7 @@ impl GdriveCore {
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -303,7 +303,7 @@ impl GdriveSigner {
         {
             let req = Request::post(url)
                 .header(header::CONTENT_LENGTH, 0)
-                .body(AsyncBody::Empty)
+                .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
@@ -372,7 +372,7 @@ impl PathQuery for GdrivePathQuery {
         );
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.signer.lock().await.sign(&mut req).await?;
@@ -409,7 +409,7 @@ impl PathQuery for GdrivePathQuery {
 
         let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.signer.lock().await.sign(&mut req).await?;

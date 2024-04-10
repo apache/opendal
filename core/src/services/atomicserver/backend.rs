@@ -32,19 +32,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::adapters::kv;
-use crate::raw::new_json_deserialize_error;
-use crate::raw::new_json_serialize_error;
-use crate::raw::new_request_build_error;
-use crate::raw::normalize_path;
-use crate::raw::normalize_root;
-use crate::raw::percent_encode_path;
-use crate::raw::AsyncBody;
-use crate::raw::ConfigDeserializer;
-use crate::raw::FormDataPart;
-use crate::raw::HttpClient;
-use crate::raw::Multipart;
-use crate::Builder;
-use crate::Scheme;
+use crate::raw::*;
 use crate::*;
 
 /// Atomicserver service support.
@@ -269,7 +257,7 @@ impl Adapter {
 }
 
 impl Adapter {
-    pub fn atomic_get_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn atomic_get_object_request(&self, path: &str) -> Result<Request<Buffer>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -285,9 +273,7 @@ impl Adapter {
         req = self.sign(&url, req);
         req = req.header(http::header::ACCEPT, "application/ad+json");
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -296,7 +282,7 @@ impl Adapter {
         &self,
         path: &str,
         value: &[u8],
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -325,7 +311,7 @@ impl Adapter {
         Ok(req)
     }
 
-    pub fn atomic_delete_object_request(&self, subject: &str) -> Result<Request<AsyncBody>> {
+    pub fn atomic_delete_object_request(&self, subject: &str) -> Result<Request<Buffer>> {
         let url = format!("{}/commit", self.endpoint);
 
         let timestamp = std::time::SystemTime::now()
@@ -364,7 +350,7 @@ impl Adapter {
 
         let body_bytes = body_string.as_bytes().to_owned();
         let req = req
-            .body(AsyncBody::Bytes(body_bytes.into()))
+            .body(Buffer::from(body_bytes))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -372,9 +358,7 @@ impl Adapter {
 
     pub async fn download_from_url(&self, download_url: &String) -> Result<Bytes> {
         let req = Request::get(download_url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
         let mut bytes_file = resp.into_body();
 

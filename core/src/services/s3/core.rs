@@ -182,7 +182,7 @@ impl S3Core {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -249,7 +249,7 @@ impl S3Core {
 }
 
 impl S3Core {
-    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<AsyncBody>> {
+    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -293,9 +293,7 @@ impl S3Core {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -305,7 +303,7 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
@@ -355,9 +353,7 @@ impl S3Core {
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -380,8 +376,8 @@ impl S3Core {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -432,7 +428,7 @@ impl S3Core {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -490,7 +486,7 @@ impl S3Core {
 
         let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, &source)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -538,7 +534,7 @@ impl S3Core {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -577,9 +573,7 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -592,8 +586,8 @@ impl S3Core {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -645,7 +639,7 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -669,7 +663,7 @@ impl S3Core {
         );
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -698,7 +692,7 @@ impl S3Core {
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

@@ -68,7 +68,7 @@ impl Debug for KoofrCore {
 
 impl KoofrCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -79,9 +79,7 @@ impl KoofrCore {
 
                 let req = self.sign(req).await?;
 
-                let req = req
-                    .body(AsyncBody::Empty)
-                    .map_err(new_request_build_error)?;
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
                 let resp = self.send(req).await?;
 
@@ -127,7 +125,7 @@ impl KoofrCore {
 
         let auth_req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(auth_req).await?;
@@ -202,7 +200,7 @@ impl KoofrCore {
 
                 let req = req
                     .header(header::CONTENT_TYPE, "application/json")
-                    .body(AsyncBody::Bytes(Bytes::from(bs)))
+                    .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
                 let resp = self.client.send(req).await?;
@@ -235,9 +233,7 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -258,9 +254,7 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -317,9 +311,7 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -350,7 +342,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -382,7 +374,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(bs)))
+            .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -404,9 +396,7 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }

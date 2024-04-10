@@ -234,7 +234,7 @@ impl Part for FormDataPart {
         bufs.push(Buffer::from(bs.freeze()));
 
         // Building content.
-        bufs.push(self.content.into());
+        bufs.push(self.content);
 
         // Building post-content.
         bufs.push(Buffer::from("\r\n"));

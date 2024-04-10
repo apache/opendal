@@ -74,7 +74,7 @@ impl Debug for VercelBlobCore {
 
 impl VercelBlobCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -109,9 +109,7 @@ impl VercelBlobCore {
         }
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -121,8 +119,8 @@ impl VercelBlobCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -171,7 +169,7 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body.to_string())))
+            .body(Buffer::from(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -203,9 +201,7 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -234,9 +230,7 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -258,9 +252,7 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -302,9 +294,7 @@ impl VercelBlobCore {
         };
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -315,7 +305,7 @@ impl VercelBlobCore {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -365,7 +355,7 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(parts_json.to_string())))
+            .body(Buffer::from(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 
         self.send(req).await

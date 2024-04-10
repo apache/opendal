@@ -93,7 +93,7 @@ impl AzfileCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -113,9 +113,7 @@ impl AzfileCore {
             req = req.header(RANGE, range.to_header());
         }
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -155,9 +153,7 @@ impl AzfileCore {
             req = req.header(CONTENT_DISPOSITION, pos);
         }
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -167,7 +163,7 @@ impl AzfileCore {
         path: &str,
         size: u64,
         position: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
@@ -207,9 +203,7 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -226,9 +220,7 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -278,9 +270,7 @@ impl AzfileCore {
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -301,9 +291,7 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -322,9 +310,7 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -343,9 +329,7 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -377,9 +361,7 @@ impl AzfileCore {
 
         let req = Request::get(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }

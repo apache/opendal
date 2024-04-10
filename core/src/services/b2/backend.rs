@@ -457,9 +457,7 @@ impl Accessor for B2Backend {
 
                 let req = Request::get(url);
 
-                let req = req
-                    .body(AsyncBody::Empty)
-                    .map_err(new_request_build_error)?;
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
                 // We don't need this request anymore, consume
                 let (parts, _) = req.into_parts();
@@ -486,9 +484,7 @@ impl Accessor for B2Backend {
 
                 let req = Request::get(url);
 
-                let req = req
-                    .body(AsyncBody::Empty)
-                    .map_err(new_request_build_error)?;
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
                 // We don't need this request anymore, consume
                 let (parts, _) = req.into_parts();
@@ -509,9 +505,7 @@ impl Accessor for B2Backend {
                 req = req.header(http::header::CONTENT_TYPE, "b2/x-auto");
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
-                let req = req
-                    .body(AsyncBody::Empty)
-                    .map_err(new_request_build_error)?;
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
                 // We don't need this request anymore, consume it directly.
                 let (parts, _) = req.into_parts();
 

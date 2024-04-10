@@ -47,7 +47,7 @@ impl B2Writer {
 }
 
 impl oio::MultipartWrite for B2Writer {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
         let resp = self
             .core
             .upload_file(&self.path, Some(size), &self.op, body)
@@ -84,7 +84,7 @@ impl oio::MultipartWrite for B2Writer {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<oio::MultipartPart> {
         // B2 requires part number must between [1..=10000]
         let part_number = part_number + 1;

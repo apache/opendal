@@ -67,9 +67,9 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
     #[cfg(not(target_arch = "wasm32"))]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + Send;
     #[cfg(target_arch = "wasm32")]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>>;
 
     /// write_block will write a block of the data and returns the result
     /// [`Block`].
@@ -83,14 +83,14 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
         &self,
         block_id: Uuid,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> impl Future<Output = Result<()>> + Send;
     #[cfg(target_arch = "wasm32")]
     fn write_block(
         &self,
         block_id: Uuid,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> impl Future<Output = Result<()>>;
 
     /// complete_block will complete the block upload to build the final
@@ -134,16 +134,12 @@ impl Future for WriteBlockFuture {
 impl WriteBlockFuture {
     pub fn new<W: BlockWrite>(w: Arc<W>, block_id: Uuid, bytes: Bytes) -> Self {
         let fut = async move {
-            w.write_block(
-                block_id,
-                bytes.len() as u64,
-                AsyncBody::Bytes(bytes.clone()),
-            )
-            .await
-            // Return bytes while we got an error to allow retry.
-            .map_err(|err| (block_id, bytes, err))
-            // Return the successful block id.
-            .map(|_| block_id)
+            w.write_block(block_id, bytes.len() as u64, Buffer::from(bytes.clone()))
+                .await
+                // Return bytes while we got an error to allow retry.
+                .map_err(|err| (block_id, bytes, err))
+                // Return the successful block id.
+                .map(|_| block_id)
         };
 
         WriteBlockFuture(Box::pin(fut))
@@ -224,8 +220,8 @@ where
         // No write block has been sent.
         if self.futures.is_empty() && self.block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
-                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
-                None => (0, AsyncBody::Empty),
+                Some(cache) => (cache.len(), Buffer::from(cache)),
+                None => (0, Buffer::new()),
             };
             self.w.write_once(size as u64, body).await?;
             // Cleanup cache after write succeed.
@@ -277,20 +273,18 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    use bytes::Bytes;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
-    use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
 
     struct TestWrite {
         length: u64,
-        bytes: HashMap<Uuid, Bytes>,
-        content: Option<Bytes>,
+        bytes: HashMap<Uuid, Buffer>,
+        content: Option<Buffer>,
     }
 
     impl TestWrite {
@@ -306,25 +300,19 @@ mod tests {
     }
 
     impl BlockWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, _: u64, _: AsyncBody) -> Result<()> {
+        async fn write_once(&self, _: u64, _: Buffer) -> Result<()> {
             Ok(())
         }
 
-        async fn write_block(&self, block_id: Uuid, size: u64, body: AsyncBody) -> Result<()> {
+        async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
             // We will have 50% percent rate for write part to fail.
             if thread_rng().gen_bool(5.0 / 10.0) {
                 return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
             }
 
-            let bs = match body {
-                AsyncBody::Empty => Bytes::new(),
-                AsyncBody::Bytes(bs) => bs,
-                AsyncBody::Stream(s) => s.collect().await.unwrap(),
-            };
-
             let mut this = self.lock().unwrap();
             this.length += size;
-            this.bytes.insert(block_id, bs);
+            this.bytes.insert(block_id, body);
 
             Ok(())
         }
@@ -333,9 +321,9 @@ mod tests {
             let mut this = self.lock().unwrap();
             let mut bs = Vec::new();
             for id in block_ids {
-                bs.extend_from_slice(&this.bytes[&id]);
+                bs.push(this.bytes[&id].clone());
             }
-            this.content = Some(bs.into());
+            this.content = Some(bs.into_iter().flatten().collect());
 
             Ok(())
         }
@@ -383,7 +371,7 @@ mod tests {
         assert!(inner.content.is_some());
         assert_eq!(
             expected_content,
-            inner.content.clone().unwrap(),
+            inner.content.clone().unwrap().to_bytes(),
             "content must be the same"
         );
     }

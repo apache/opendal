@@ -52,7 +52,7 @@ impl Debug for ChainsafeCore {
 
 impl ChainsafeCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }
@@ -69,7 +69,7 @@ impl ChainsafeCore {
         let req_body = &json!({
             "path": path,
         });
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -96,7 +96,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -123,7 +123,7 @@ impl ChainsafeCore {
             "path": from,
             "new_path": to,
         });
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -149,7 +149,7 @@ impl ChainsafeCore {
             "paths": vec![path],
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -199,7 +199,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(
@@ -225,7 +225,7 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
+        let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
             .header(

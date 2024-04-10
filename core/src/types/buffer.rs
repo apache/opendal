@@ -106,9 +106,15 @@ impl From<Bytes> for Buffer {
     }
 }
 
+impl FromIterator<u8> for Buffer {
+    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+        Self(Inner::Contiguous(Bytes::from_iter(iter)))
+    }
+}
+
 impl From<VecDeque<Bytes>> for Buffer {
     fn from(bs: VecDeque<Bytes>) -> Self {
-        let size = bs.iter().map(|b| b.len()).sum();
+        let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
             parts: Vec::from(bs).into(),
             size,
@@ -120,7 +126,7 @@ impl From<VecDeque<Bytes>> for Buffer {
 
 impl From<Vec<Bytes>> for Buffer {
     fn from(bs: Vec<Bytes>) -> Self {
-        let size = bs.iter().map(|b| b.len()).sum();
+        let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
             parts: bs.into(),
             size,
@@ -132,9 +138,24 @@ impl From<Vec<Bytes>> for Buffer {
 
 impl From<Arc<[Bytes]>> for Buffer {
     fn from(bs: Arc<[Bytes]>) -> Self {
-        let size = bs.iter().map(|b| b.len()).sum();
+        let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
             parts: bs,
+            size,
+            idx: 0,
+            offset: 0,
+        })
+    }
+}
+
+impl FromIterator<Bytes> for Buffer {
+    fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
+        let mut size = 0;
+        let bs = iter.into_iter().inspect(|v| size += v.len());
+        // Use `Arc::from_iter` here to make sure we can benefit from `TrustedLen` if provided.
+        let parts = Arc::from_iter(bs);
+        Self(Inner::NonContiguous {
+            parts,
             size,
             idx: 0,
             offset: 0,

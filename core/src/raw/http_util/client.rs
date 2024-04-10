@@ -104,13 +104,16 @@ impl HttpClient {
             req_builder = req_builder.version(parts.version);
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
+        // Don't set body if body is empty.
+        if !body.is_empty() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
+            }
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {

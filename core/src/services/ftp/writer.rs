@@ -16,6 +16,7 @@
 // under the License.
 
 use bb8::PooledConnection;
+use bytes::Buf;
 use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 use crate::raw::*;
@@ -55,7 +56,7 @@ impl FtpWriter {
 }
 
 impl oio::Write for FtpWriter {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let path = if let Some(tmp_path) = &self.tmp_path {
             tmp_path
         } else {
@@ -75,7 +76,7 @@ impl oio::Write for FtpWriter {
             .data_stream
             .as_mut()
             .unwrap()
-            .write(&bs)
+            .write(bs.chunk())
             .await
             .map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)

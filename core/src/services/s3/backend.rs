@@ -1090,7 +1090,7 @@ impl Accessor for S3Backend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         // This would delete the bucket, do not perform
-        if path == "/" {
+        if self.core.root == "/" && path == "/" {
             return Ok(RpDelete::default());
         }
 

@@ -18,7 +18,7 @@
 use std::fmt;
 use std::io::SeekFrom;
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use dav_server::fs::DavFile;
 use dav_server::fs::DavMetaData;
 use dav_server::fs::FsFuture;
@@ -34,6 +34,7 @@ pub struct WebdavFile {
     op: Operator,
     path: String,
     state: WebdavFileState,
+    pos: u64,
 }
 
 struct WebdavFileState {
@@ -53,6 +54,7 @@ impl WebdavFile {
             op,
             path,
             state: WebdavFileState { reader, writer },
+            pos: 0,
         }
     }
 }
@@ -60,12 +62,14 @@ impl WebdavFile {
 impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
-            self.state
+            let mut buf = BytesMut::with_capacity(count);
+            let n = self.state
                 .reader
-                .read(count)
+                .read(&mut buf, self.pos, count)
                 .await
-                .map(Bytes::from)
-                .map_err(convert_error)
+                .map_err(convert_error)?;
+            self.pos += n as u64;
+            Ok(buf.split().freeze())
         }
         .boxed()
     }

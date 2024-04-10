@@ -24,8 +24,7 @@ use std::task::{Context, Poll};
 
 use bytes::Buf;
 use bytes::Bytes;
-use futures::{Stream};
-
+use futures::Stream;
 
 /// Buffer is a wrapper of contiguous `Bytes` and non contiguous `[Bytes]`.
 ///
@@ -180,9 +179,12 @@ impl Buf for Buffer {
                 idx,
                 offset,
             } => {
-                assert!(cnt <= *size, "cannot advance past {cnt} bytes, only {size} bytes left");
+                assert!(
+                    cnt <= *size,
+                    "cannot advance past {cnt} bytes, only {size} bytes left"
+                );
 
-                let mut  new_idx = *idx;
+                let mut new_idx = *idx;
                 let mut new_offset = *offset;
                 let mut remaining_cnt = cnt;
                 while remaining_cnt > 0 {
@@ -191,7 +193,7 @@ impl Buf for Buffer {
 
                     if remaining_cnt < remaining_in_part {
                         new_offset += remaining_cnt;
-                        break
+                        break;
                     }
 
                     remaining_cnt -= remaining_in_part;
@@ -218,7 +220,7 @@ impl Iterator for Buffer {
                 } else {
                     Some(mem::take(bs))
                 }
-            },
+            }
             Inner::NonContiguous {
                 parts,
                 size,
@@ -253,11 +255,11 @@ impl Iterator for Buffer {
                 } else {
                     (1, Some(1))
                 }
-            },
+            }
             Inner::NonContiguous { parts, idx, .. } => {
                 let remaining = parts.len().saturating_sub(*idx);
                 (remaining, Some(remaining))
-            },
+            }
         }
     }
 }
@@ -273,8 +275,6 @@ impl Stream for Buffer {
         Iterator::size_hint(self)
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -332,11 +332,7 @@ mod tests {
 
     #[test]
     fn test_buffer_advance() {
-        let mut buf = Buffer::from(vec![
-            Bytes::from("a"),
-            Bytes::from("b"),
-            Bytes::from("c"),
-        ]);
+        let mut buf = Buffer::from(vec![Bytes::from("a"), Bytes::from("b"), Bytes::from("c")]);
 
         assert_eq!(buf.remaining(), 3);
         assert_eq!(buf.chunk(), b"a");
@@ -364,11 +360,7 @@ mod tests {
 
     #[test]
     fn test_buffer_truncate() {
-        let mut buf = Buffer::from(vec![
-            Bytes::from("a"),
-            Bytes::from("b"),
-            Bytes::from("c"),
-        ]);
+        let mut buf = Buffer::from(vec![Bytes::from("a"), Bytes::from("b"), Bytes::from("c")]);
 
         assert_eq!(buf.remaining(), 3);
         assert_eq!(buf.chunk(), b"a");
@@ -397,12 +389,14 @@ mod tests {
     fn setup_buffer() -> (Buffer, usize, Bytes) {
         let mut rng = thread_rng();
 
-        let bs = (0..100).map(|_| {
-            let len = rng.gen_range(1..100);
-            let mut buf = vec![0; len];
-            rng.fill(&mut buf[..]);
-            Bytes::from(buf)
-        }).collect::<Vec<_>>();
+        let bs = (0..100)
+            .map(|_| {
+                let len = rng.gen_range(1..100);
+                let mut buf = vec![0; len];
+                rng.fill(&mut buf[..]);
+                Bytes::from(buf)
+            })
+            .collect::<Vec<_>>();
 
         let total_size = bs.iter().map(|b| b.len()).sum::<usize>();
         let total_content = bs.iter().flatten().copied().collect::<Bytes>();
@@ -429,7 +423,7 @@ mod tests {
             cur += cnt;
             buf.advance(cnt);
 
-            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
         }
     }
@@ -443,22 +437,22 @@ mod tests {
         assert_eq!(buf.to_bytes(), total_content);
 
         let mut cur = 0;
-        while buf.is_empty()  {
+        while buf.is_empty() {
             let cnt = rng.gen_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
             // Before next
-            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
 
             if let Some(bs) = buf.next() {
-                assert_eq!(bs, total_content.slice(cur..cur+bs.len()));
+                assert_eq!(bs, total_content.slice(cur..cur + bs.len()));
                 cur += bs.len();
             }
 
             // After next
-            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
         }
     }
@@ -472,30 +466,33 @@ mod tests {
         assert_eq!(buf.to_bytes(), total_content);
 
         let mut cur = 0;
-        while buf.is_empty()  {
+        while buf.is_empty() {
             let cnt = rng.gen_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
             // Before truncate
-            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
 
-            let truncate_size =  rng.gen_range(0..total_size-cur);
+            let truncate_size = rng.gen_range(0..total_size - cur);
             buf.truncate(truncate_size);
 
             // After truncate
             assert_eq!(buf.remaining(), truncate_size);
-            assert_eq!(buf.to_bytes(), total_content.slice(cur..cur+truncate_size));
+            assert_eq!(
+                buf.to_bytes(),
+                total_content.slice(cur..cur + truncate_size)
+            );
 
             // Try next after truncate
             if let Some(bs) = buf.next() {
-                assert_eq!(bs, total_content.slice(cur..cur+bs.len()));
+                assert_eq!(bs, total_content.slice(cur..cur + bs.len()));
                 cur += bs.len();
             }
 
             // After next
-            assert_eq!(buf.remaining(), total_size-cur);
+            assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
         }
     }

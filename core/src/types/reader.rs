@@ -222,7 +222,7 @@ pub mod into_futures_async_read {
                 offset: range.start,
                 size: range.end - range.start,
                 // TODO: should use services preferred io size.
-                cap: 4 * 1024 * 1024,
+                cap: 8 * 1024 * 1024,
 
                 cur: 0,
                 buf: Buffer::new(),
@@ -272,6 +272,8 @@ pub mod into_futures_async_read {
         fn consume(mut self: Pin<&mut Self>, amt: usize) {
             self.buf.advance(amt);
             // Make sure buf has been dropped before starting new request.
+            // Otherwise, we will hold those bytes in memory until next
+            // buffer reaching.
             if self.buf.is_empty() {
                 self.buf = Buffer::new();
             }

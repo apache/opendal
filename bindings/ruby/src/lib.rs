@@ -51,7 +51,7 @@ impl Operator {
     /// Read the whole path into string.
     pub fn read(&self, path: String) -> Result<RString> {
         let bytes = self.0.read(&path).map_err(format_magnus_error)?;
-        Ok(RString::from_slice(&bytes))
+        Ok(RString::from_slice(&bytes.to_vec()))
     }
 
     /// Write string into given path.

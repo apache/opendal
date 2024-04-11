@@ -74,7 +74,7 @@ pub unsafe extern "C" fn blocking_operator_read(
 ) -> *const c_char {
     let op = &*(op);
     let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
-    let mut res = op.read(path).unwrap();
+    let mut res = op.read(path).unwrap().to_vec();
     res.push(0);
     std::ffi::CString::from_vec_with_nul(res)
         .unwrap()

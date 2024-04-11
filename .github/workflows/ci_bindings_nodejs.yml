@@ -32,6 +32,7 @@ on:
       - main
     paths:
       - "bindings/nodejs/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_nodejs.yml"
   workflow_dispatch:
 

@@ -28,6 +28,7 @@ on:
       - main
     paths:
       - "bindings/ruby/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_ruby.yml"
   workflow_dispatch:
 

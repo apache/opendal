@@ -28,6 +28,7 @@ on:
       - main
     paths:
       - "bindings/dotnet/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_dotnet.yml"
   workflow_dispatch:
 

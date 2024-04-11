@@ -18,19 +18,90 @@
 use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::fmt::{Debug, Formatter};
+use std::io::IoSlice;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use bytes::Buf;
-use bytes::Bytes;
+use bytes::{Buf, BytesMut};
+use bytes::{BufMut, Bytes};
 use futures::Stream;
 
 /// Buffer is a wrapper of contiguous `Bytes` and non contiguous `[Bytes]`.
 ///
 /// We designed buffer to allow underlying storage to return non-contiguous bytes. For example,
 /// http based storage like s3 could generate non-contiguous bytes by stream.
+///
+/// ## Features
+///
+/// - [`Buffer`] can be used as [`Buf`], [`Iterator`], [`Stream`] directly.
+/// - [`Buffer`] is cheap to clone like [`Bytes`], only update reference count, no allocation.
+/// - [`Buffer`] is vectorized write friendly, you can convert it to [`IoSlice`] for vectored write.
+///
+/// ## Examples
+///
+/// ### As `Buf`
+///
+/// `Buffer` implements `Buf` trait:
+///
+/// ```rust
+/// use bytes::Buf;
+/// use serde_json;
+/// use opendal::Buffer;
+///
+/// fn test(mut buf: Buffer) -> Vec<String> {
+///     serde_json::from_reader(buf.reader()).unwrap()
+/// }
+/// ```
+///
+/// ### As Bytes `Iterator`
+///
+/// `Buffer` implements `Iterator<Item=Bytes>` trait:
+///
+/// ```rust
+/// use bytes::Bytes;
+/// use opendal::Buffer;
+///
+/// fn test(mut buf: Buffer) -> Vec<Bytes> {
+///     buf.into_iter().collect()
+/// }
+/// ```
+///
+/// ### As Bytes `Stream`
+///
+/// `Buffer` implements `Stream<Item=Result<Bytes, Infallible>>` trait:
+///
+/// ```rust
+/// use bytes::Bytes;
+/// use opendal::Buffer;
+/// use futures::TryStreamExt;
+///
+/// async fn test(mut buf: Buffer) -> Vec<Bytes> {
+///     buf.into_iter().try_collect().await.unwrap()
+/// }
+/// ```
+///
+/// ### As one contiguous Bytes
+///
+/// `Buffer` can make contiguous by transform into `Bytes` or `Vec<u8>`.
+/// Please keep in mind that this operation involves new allocation and bytes copy, and we can't
+/// reuse the same memory region anymore.
+///
+/// ```rust
+/// use bytes::Bytes;
+/// use opendal::Buffer;
+///
+/// fn test_to_vec(buf: Buffer) -> Vec<u8> {
+///     buf.to_vec()
+/// }
+///
+/// fn test_to_bytes(buf: Buffer) -> Bytes {
+///     buf.to_bytes()
+/// }
+/// ```
+///
+///
 #[derive(Clone)]
 pub struct Buffer(Inner);
 
@@ -86,18 +157,6 @@ impl Buffer {
         Self(Inner::Contiguous(Bytes::new()))
     }
 
-    /// Clone internal bytes to a new `Bytes`.
-    ///
-    /// # Notes
-    ///
-    /// This operation is not efficient and should be used with caution.
-    /// Please never use this method in read/write related APIs.
-    #[inline]
-    pub fn to_bytes(&self) -> Bytes {
-        let mut bs = self.clone();
-        bs.copy_to_bytes(bs.remaining())
-    }
-
     /// Get the length of the buffer.
     #[inline]
     pub fn len(&self) -> usize {
@@ -122,6 +181,45 @@ impl Buffer {
             Inner::Contiguous(bs) => bs.truncate(len),
             Inner::NonContiguous { size, .. } => {
                 *size = (*size).min(len);
+            }
+        }
+    }
+
+    /// Combine all bytes together into one single [`Bytes`].
+    ///
+    /// This operation is not zero copy, it will copy all bytes into one single [`Bytes`].
+    /// Please use API from [`Buf`], [`Iterator`] or [`Stream`] whenever possible.
+    #[inline]
+    pub fn to_bytes(&self) -> Bytes {
+        let mut ret = BytesMut::with_capacity(self.len());
+        ret.put(self.clone());
+        ret.freeze()
+    }
+
+    /// Combine all bytes together into one single [`Vec<u8>`].
+    ///
+    /// This operation is not zero copy, it will copy all bytes into one single [`Vec<u8>`].
+    /// Please use API from [`Buf`], [`Iterator`] or [`Stream`] whenever possible.
+    #[inline]
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut ret = Vec::with_capacity(self.len());
+        ret.put(self.clone());
+        ret
+    }
+
+    /// Convert buffer into a slice of [`IoSlice`] for vectored write.
+    #[inline]
+    pub fn to_io_slice(&self) -> Vec<IoSlice<'_>> {
+        match &self.0 {
+            Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
+            Inner::NonContiguous {
+                parts, idx, offset, ..
+            } => {
+                let mut ret = Vec::with_capacity(parts.len() - *idx);
+                for part in parts.iter().skip(*idx) {
+                    ret.push(IoSlice::new(&part[*offset..]));
+                }
+                ret
             }
         }
     }
@@ -238,6 +336,37 @@ impl Buf for Buffer {
                 let chunk = &parts[*idx];
                 let n = (chunk.len() - *offset).min(*size);
                 &parts[*idx][*offset..*offset + n]
+            }
+        }
+    }
+
+    fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
+        match &self.0 {
+            Inner::Contiguous(b) => {
+                if dst.is_empty() {
+                    return 0;
+                }
+
+                dst[0] = IoSlice::new(b.chunk());
+                1
+            }
+            Inner::NonContiguous {
+                parts, idx, offset, ..
+            } => {
+                if dst.is_empty() {
+                    return 0;
+                }
+
+                let mut i = 0;
+                for part in parts.iter().skip(*idx) {
+                    if i >= dst.len() {
+                        break;
+                    }
+
+                    dst[i] = IoSlice::new(&part[*offset..]);
+                    i += 1;
+                }
+                i
             }
         }
     }

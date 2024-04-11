@@ -156,7 +156,7 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        Ok(Bytes::from(bs))
+        Ok(bs.to_bytes())
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {

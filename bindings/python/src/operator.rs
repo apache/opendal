@@ -95,7 +95,7 @@ impl Operator {
 
     /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        let buffer = self.0.read(path).map_err(format_pyerr)?;
+        let buffer = self.0.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
@@ -262,7 +262,7 @@ impl AsyncOperator {
     pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
+            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
         })
     }

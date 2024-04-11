@@ -116,7 +116,7 @@ pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
         .call()
         .expect("append to an existing file must success");
 
-    let bs = op.read(&path).expect("read file must success");
+    let bs = op.read(&path).expect("read file must success").to_bytes();
 
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
@@ -143,7 +143,7 @@ pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
     let meta = op.stat(&path).expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    let bs = op.read(&path)?;
+    let bs = op.read(&path)?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),

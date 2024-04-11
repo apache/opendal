@@ -174,7 +174,12 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn read(&self, path: String) -> Result<Buffer> {
-        let res = self.0.read(&path).await.map_err(format_napi_error)?;
+        let res = self
+            .0
+            .read(&path)
+            .await
+            .map_err(format_napi_error)?
+            .to_vec();
         Ok(res.into())
     }
 
@@ -198,7 +203,12 @@ impl Operator {
     /// ```
     #[napi]
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
-        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
+        let res = self
+            .0
+            .blocking()
+            .read(&path)
+            .map_err(format_napi_error)?
+            .to_vec();
         Ok(res.into())
     }
 
@@ -679,8 +689,8 @@ impl Reader {
     /// Read bytes from this reader into given buffer.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let mut buf = buf.as_mut();
-        let n = self.inner.read(&mut buf).await.map_err(format_napi_error)?;
+        let buf = buf.as_mut();
+        let n = self.inner.read(buf).await.map_err(format_napi_error)?;
         Ok(n)
     }
 }

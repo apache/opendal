@@ -89,11 +89,8 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
                     b.to_async(&*TEST_RUNTIME).iter(|| async {
                         let futures = (0..parallel)
                             .map(|_| async {
-                                let mut buf = Vec::with_capacity(*buf_size);
                                 let r = op.reader_with(path).await.unwrap();
-                                r.read_range(&mut buf, offset..=offset + size.bytes() as u64)
-                                    .await
-                                    .unwrap();
+                                let _ = r.read(offset..offset + *buf_size as u64).await.unwrap();
 
                                 let mut d = 0;
                                 // mock same little cpu work

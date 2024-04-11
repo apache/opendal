@@ -747,7 +747,7 @@ impl S3Builder {
         }
 
         // Try to detect region by HeadBucket.
-        let req = http::Request::head(&url).body(AsyncBody::Empty).ok()?;
+        let req = http::Request::head(&url).body(Buffer::new()).ok()?;
 
         let client = HttpClient::new().ok()?;
         let res = client
@@ -1089,6 +1089,11 @@ impl Accessor for S3Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        // This would delete the bucket, do not perform
+        if self.core.root == "/" && path == "/" {
+            return Ok(RpDelete::default());
+        }
+
         let resp = self.core.s3_delete_object(path).await?;
 
         let status = resp.status();
@@ -1135,12 +1140,10 @@ impl Accessor for S3Backend {
                 self.core
                     .s3_get_object_request(path, BytesRange::default(), &v)?
             }
-            PresignOperation::Write(_) => self.core.s3_put_object_request(
-                path,
-                None,
-                &OpWrite::default(),
-                AsyncBody::Empty,
-            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())?
+            }
         };
 
         self.core.sign_query(&mut req, expire).await?;

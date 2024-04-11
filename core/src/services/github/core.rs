@@ -60,7 +60,7 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -113,7 +113,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn stat(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -129,13 +129,13 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.raw+json")
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -152,13 +152,13 @@ impl GithubCore {
         let req = req
             .header(header::ACCEPT, "application/vnd.github.raw+json")
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<Buffer>> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);
@@ -188,7 +188,7 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github+json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -221,7 +221,7 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.object+json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -248,7 +248,7 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github.object+json")
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;

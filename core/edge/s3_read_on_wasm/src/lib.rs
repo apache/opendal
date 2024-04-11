@@ -37,7 +37,7 @@ pub async fn hello_world() -> String {
     )
     .await
     .unwrap();
-    let bs = op.read("test").await.unwrap();
+    let bs = op.read("test").await.unwrap().to_bytes();
     String::from_utf8_lossy(&bs).to_string()
 }
 

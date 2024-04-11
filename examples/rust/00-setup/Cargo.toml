@@ -13,7 +13,7 @@ version = "0.1.0"
 # In this example, we are depending on two crates (packages): `futures` and `opendal`
 [dependencies]
 futures = "0.3"
-# The `0.37` is the semver version of opendal.
+# The `0.45` is the semver version of opendal.
 #
-# We use `0.37` to indicate all versions that `>=0.37.0 && <0.38.0`.
-opendal = "0.37"
+# We use `0.45` to indicate all versions that `>=0.45.0 && <0.46.0`.
+opendal = "0.45"

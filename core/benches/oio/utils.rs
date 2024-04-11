@@ -17,6 +17,7 @@
 
 use bytes::Bytes;
 use opendal::raw::oio;
+use opendal::*;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
 
@@ -24,7 +25,7 @@ use rand::RngCore;
 pub struct BlackHoleWriter;
 
 impl oio::Write for BlackHoleWriter {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> opendal::Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> opendal::Result<usize> {
         Ok(bs.len())
     }
 

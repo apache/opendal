@@ -44,7 +44,7 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -58,7 +58,7 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let body = AsyncBody::Empty;
+        let body = Buffer::new();
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -71,7 +71,7 @@ impl SwiftCore {
         delimiter: &str,
         limit: Option<usize>,
         marker: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
@@ -95,9 +95,7 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -106,8 +104,8 @@ impl SwiftCore {
         &self,
         path: &str,
         length: u64,
-        body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -132,7 +130,7 @@ impl SwiftCore {
         path: &str,
         range: BytesRange,
         _arg: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -152,14 +150,12 @@ impl SwiftCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<Buffer>> {
         // NOTE: current implementation is limited to same container and root
 
         let src_p = format!(
@@ -189,14 +185,14 @@ impl SwiftCore {
         // if use PUT method, we need to set the content-length to 0.
         req = req.header("Content-Length", "0");
 
-        let body = AsyncBody::Empty;
+        let body = Buffer::new();
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -210,9 +206,7 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

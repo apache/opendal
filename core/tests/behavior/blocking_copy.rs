@@ -49,7 +49,7 @@ pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
 
     op.copy(&source_path, &target_path)?;
 
-    let target_content = op.read(&target_path).expect("read must succeed");
+    let target_content = op.read(&target_path).expect("read must succeed").to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
@@ -147,7 +147,7 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
 
     op.copy(&source_path, &target_path)?;
 
-    let target_content = op.read(&target_path).expect("read must succeed");
+    let target_content = op.read(&target_path).expect("read must succeed").to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
@@ -173,7 +173,7 @@ pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
 
     op.copy(&source_path, &target_path)?;
 
-    let target_content = op.read(&target_path).expect("read must succeed");
+    let target_content = op.read(&target_path).expect("read must succeed").to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),

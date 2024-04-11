@@ -21,9 +21,7 @@ use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// BytesContentRange is the content range of bytes.
 ///

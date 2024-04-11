@@ -229,9 +229,7 @@ impl kv::Adapter for Adapter {
         let url = format!("{}/values/{}", self.url_prefix, path);
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
@@ -265,9 +263,7 @@ impl kv::Adapter for Adapter {
         let url = format!("{}/values/{}", self.url_prefix, path);
         let mut req = Request::delete(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
@@ -284,9 +280,7 @@ impl kv::Adapter for Adapter {
         }
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();

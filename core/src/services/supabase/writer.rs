@@ -48,7 +48,7 @@ impl oio::OneShotWrite for SupabaseWriter {
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
-            AsyncBody::Bytes(bs),
+            Buffer::from(bs),
         )?;
 
         self.core.sign(&mut req)?;

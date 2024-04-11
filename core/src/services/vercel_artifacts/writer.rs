@@ -44,7 +44,7 @@ impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
-            .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, AsyncBody::Bytes(bs))
+            .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, Buffer::from(bs))
             .await?;
 
         let status = resp.status();

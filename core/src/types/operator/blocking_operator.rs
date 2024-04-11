@@ -358,7 +358,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read(&self, path: &str) -> Result<Vec<u8>> {
+    pub fn read(&self, path: &str) -> Result<Buffer> {
         self.read_with(path).call()
     }
 
@@ -396,11 +396,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let size_hint = range.size();
-
                 let r = BlockingReader::create(inner, &path, args)?;
-                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
-                r.read_range(&mut buf, range.to_range())?;
+                let buf = r.read(range.to_range())?;
                 Ok(buf)
             },
         ))
@@ -644,7 +641,7 @@ impl BlockingOperator {
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
                 while !bs.is_empty() {
-                    let n = unsafe { w.write(bs.clone().into())? };
+                    let n = w.write(bs.clone().into())?;
                     bs.advance(n);
                 }
                 w.close()?;

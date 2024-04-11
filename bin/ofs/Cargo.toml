@@ -55,3 +55,10 @@ nix = { version = "0.27.1", features = ["user"] }
 default = ["services-fs", "services-s3"]
 services-fs = ["opendal/services-fs"]
 services-s3 = ["opendal/services-s3"]
+
+[dev-dependencies]
+test-context = "0.3.0"
+tempfile = "3.10.1"
+walkdir = "2.5.0"
+uuid = "1.7.0"
+urlencoding = "2.1.3"

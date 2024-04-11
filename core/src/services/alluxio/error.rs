@@ -31,7 +31,7 @@ struct AlluxioError {
     message: String,
 }
 
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -90,7 +90,7 @@ mod tests {
 
         for res in err_res {
             let bs = bytes::Bytes::from(res.0);
-            let body = oio::Buffer::from(bs);
+            let body = Buffer::from(bs);
             let resp = Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(body)

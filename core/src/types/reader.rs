@@ -272,9 +272,9 @@ pub mod into_futures_async_read {
         fn consume(mut self: Pin<&mut Self>, amt: usize) {
             self.buf.advance(amt);
             // Make sure buf has been dropped before starting new request.
-            // if self.buf.is_empty() {
-            //     self.buf = Buffer::new();
-            // }
+            if self.buf.is_empty() {
+                self.buf = Buffer::new();
+            }
             self.cur += amt as u64;
         }
     }

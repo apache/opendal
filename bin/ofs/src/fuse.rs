@@ -515,7 +515,9 @@ impl PathFilesystem for Fuse {
 
         self.set_opened_file_offset(FileKey::try_from(fh)?, path, offset + data.len() as u64)?;
 
-        Ok(ReplyData { data: data.into() })
+        Ok(ReplyData {
+            data: data.to_bytes(),
+        })
     }
 
     async fn write(

@@ -43,12 +43,13 @@ impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let file_path = self.path.as_url_string();
-            self.op
+            let buf = self
+                .op
                 .read_with(&file_path)
                 .range(0..count as u64)
                 .await
-                .map(Bytes::from)
-                .map_err(convert_error)
+                .map_err(convert_error)?;
+            Ok(buf.to_bytes())
         }
         .boxed()
     }

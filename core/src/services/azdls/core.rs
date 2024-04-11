@@ -91,7 +91,7 @@ impl AzdlsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }
@@ -113,9 +113,7 @@ impl AzdlsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -129,8 +127,8 @@ impl AzdlsCore {
         path: &str,
         resource: &str,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -178,7 +176,7 @@ impl AzdlsCore {
                 format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
             )
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -191,8 +189,8 @@ impl AzdlsCore {
         path: &str,
         size: Option<u64>,
         position: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // - close: Make this is the final action to this file.
@@ -231,9 +229,7 @@ impl AzdlsCore {
 
         let req = Request::head(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.client.send(req).await
@@ -253,9 +249,7 @@ impl AzdlsCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -288,7 +282,7 @@ impl AzdlsCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -313,7 +307,7 @@ impl AzdlsCore {
                 &parent_path,
                 "directory",
                 &OpWrite::default(),
-                AsyncBody::Empty,
+                Buffer::new(),
             )?;
 
             self.sign(&mut req).await?;

@@ -258,7 +258,7 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<AsyncBody>> {
+    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<Buffer>> {
         let p = format!(
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
@@ -281,7 +281,7 @@ impl Adapter {
         });
 
         let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
-        req.body(AsyncBody::Bytes(body.into()))
+        req.body(Buffer::from(body))
             .map_err(new_request_build_error)
     }
 }

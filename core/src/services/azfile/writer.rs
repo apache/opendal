@@ -58,7 +58,7 @@ impl oio::OneShotWrite for AzfileWriter {
 
         let resp = self
             .core
-            .azfile_update(&self.path, bs.len() as u64, 0, AsyncBody::Bytes(bs))
+            .azfile_update(&self.path, bs.len() as u64, 0, Buffer::from(bs))
             .await?;
         let status = resp.status();
         match status {
@@ -82,7 +82,7 @@ impl oio::AppendWrite for AzfileWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
         let resp = self
             .core
             .azfile_update(&self.path, size, offset, body)

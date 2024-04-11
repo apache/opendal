@@ -44,7 +44,7 @@ impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req =
             self.core
-                .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
+                .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;
 
         self.core.sign(&mut req).await?;
 
@@ -64,7 +64,7 @@ impl oio::OneShotWrite for AzdlsWriter {
             &self.path,
             Some(bs.len() as u64),
             0,
-            AsyncBody::Bytes(bs),
+            Buffer::from(bs),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -95,11 +95,11 @@ impl oio::AppendWrite for AzdlsWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
         if offset == 0 {
             let mut req =
                 self.core
-                    .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
+                    .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;
 
             self.core.sign(&mut req).await?;
 

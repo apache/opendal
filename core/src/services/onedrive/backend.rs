@@ -203,9 +203,7 @@ impl OnedriveBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -216,9 +214,7 @@ impl OnedriveBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -240,9 +236,7 @@ impl OnedriveBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -252,7 +246,7 @@ impl OnedriveBackend {
         path: &str,
         size: Option<usize>,
         args: &OpWrite,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
@@ -284,7 +278,7 @@ impl OnedriveBackend {
         offset: usize,
         chunk_end: usize,
         total_len: usize,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let mut req = Request::put(url);
 
@@ -319,7 +313,7 @@ impl OnedriveBackend {
         req = req.header(header::CONTENT_TYPE, "application/json");
 
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
+        let asyn_body = Buffer::from(Bytes::from(body_bytes));
         let req = req.body(asyn_body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -337,7 +331,7 @@ impl OnedriveBackend {
         req = req.header(header::CONTENT_TYPE, "application/json");
 
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
+        let async_body = Buffer::from(bytes::Bytes::from(body_bytes));
         let req = req.body(async_body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -355,9 +349,7 @@ impl OnedriveBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

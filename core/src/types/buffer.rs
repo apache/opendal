@@ -17,6 +17,7 @@
 
 use std::collections::VecDeque;
 use std::convert::Infallible;
+use std::fmt::{Debug, Formatter};
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -42,6 +43,38 @@ enum Inner {
         idx: usize,
         offset: usize,
     },
+}
+
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut b = f.debug_struct("Buffer");
+
+        match &self.0 {
+            Inner::Contiguous(bs) => {
+                b.field("type", &"contiguous");
+                b.field("size", &bs.len());
+            }
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                b.field("type", &"non_contiguous");
+                b.field("parts", &parts);
+                b.field("size", &size);
+                b.field("idx", &idx);
+                b.field("offset", &offset);
+            }
+        }
+        b.finish_non_exhaustive()
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Buffer {
@@ -106,6 +139,24 @@ impl From<Bytes> for Buffer {
     }
 }
 
+impl From<String> for Buffer {
+    fn from(s: String) -> Self {
+        Self(Inner::Contiguous(Bytes::from(s)))
+    }
+}
+
+impl From<&'static [u8]> for Buffer {
+    fn from(s: &'static [u8]) -> Self {
+        Self(Inner::Contiguous(Bytes::from_static(s)))
+    }
+}
+
+impl From<&'static str> for Buffer {
+    fn from(s: &'static str) -> Self {
+        Self(Inner::Contiguous(Bytes::from_static(s.as_bytes())))
+    }
+}
+
 impl FromIterator<u8> for Buffer {
     fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
         Self(Inner::Contiguous(Bytes::from_iter(iter)))
@@ -152,7 +203,8 @@ impl FromIterator<Bytes> for Buffer {
     fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
         let mut size = 0;
         let bs = iter.into_iter().inspect(|v| size += v.len());
-        // Use `Arc::from_iter` here to make sure we can benefit from `TrustedLen` if provided.
+        // This operation only needs one allocation from iterator to `Arc<[Bytes]>` instead
+        // of iterator -> `Vec<Bytes>` -> `Arc<[Bytes]>`.
         let parts = Arc::from_iter(bs);
         Self(Inner::NonContiguous {
             parts,

@@ -44,7 +44,7 @@ impl CosWriter {
 }
 
 impl oio::MultipartWrite for CosWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
         let mut req = self
             .core
             .cos_put_object_request(&self.path, Some(size), &self.op, body)?;
@@ -88,7 +88,7 @@ impl oio::MultipartWrite for CosWriter {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<oio::MultipartPart> {
         // COS requires part number must between [1..=10000]
         let part_number = part_number + 1;
@@ -176,7 +176,7 @@ impl oio::AppendWrite for CosWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
         let mut req = self
             .core
             .cos_append_object_request(&self.path, offset, size, &self.op, body)?;

@@ -359,9 +359,7 @@ impl IpfsBackend {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -373,9 +371,7 @@ impl IpfsBackend {
 
         let req = Request::head(&url);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -393,9 +389,7 @@ impl IpfsBackend {
         // ref: https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md
         req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

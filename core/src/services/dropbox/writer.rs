@@ -41,7 +41,7 @@ impl oio::OneShotWrite for DropboxWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
-            .dropbox_update(&self.path, Some(bs.len()), &self.op, AsyncBody::Bytes(bs))
+            .dropbox_update(&self.path, Some(bs.len()), &self.op, Buffer::from(bs))
             .await?;
         let status = resp.status();
         match status {

@@ -124,9 +124,7 @@ impl VercelArtifactsBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -135,7 +133,7 @@ impl VercelArtifactsBackend {
         &self,
         hash: &str,
         size: u64,
-        body: AsyncBody,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
             "https://api.vercel.com/v8/artifacts/{}",
@@ -166,9 +164,7 @@ impl VercelArtifactsBackend {
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, 0);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

@@ -127,7 +127,6 @@ pub mod into_stream {
         sync::{atomic::AtomicBool, Arc},
     };
 
-    use crate::raw::oio::ReadDyn;
     use crate::raw::*;
     use crate::*;
 
@@ -183,7 +182,7 @@ pub mod into_stream {
             // Update self.offset before building future.
             self.offset += limit as u64;
             let fut = async move {
-                let buf = r.read_at_static(offset, limit).await?;
+                let buf = r.read_at_dyn(offset, limit).await?;
                 if buf.len() < limit || limit == 0 {
                     // Update finished marked if buf is less than limit.
                     finished.store(true, Ordering::Relaxed);
@@ -366,7 +365,6 @@ pub mod into_futures_stream {
     use bytes::Bytes;
     use futures::Stream;
 
-    use crate::raw::oio::ReadDyn;
     use crate::raw::*;
     use crate::*;
 
@@ -440,7 +438,7 @@ pub mod into_futures_stream {
                         let r = this.r.clone();
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
-                        let fut = async move { r.read_at_static(next_offset, next_size).await };
+                        let fut = async move { r.read_at_dyn(next_offset, next_size).await };
                         this.state = State::Next(Box::pin(fut));
                     }
                     State::Next(fut) => {

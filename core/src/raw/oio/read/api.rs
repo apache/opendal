@@ -124,30 +124,11 @@ pub trait ReadDyn: Unpin + Send + Sync {
     ///
     /// This function returns a boxed future to make it object safe.
     fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>>;
-
-    /// The static version of [`Read::read_at`].
-    ///
-    /// This function returns a `'static` future by moving `self` into the
-    /// future. Caller can call `Box::pin` to build a static boxed future.
-    fn read_at_static(
-        self,
-        offset: u64,
-        limit: usize,
-    ) -> impl Future<Output = Result<Buffer>> + MaybeSend + 'static
-    where
-        Self: Sized + 'static;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
     fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>> {
         Box::pin(self.read_at(offset, limit))
-    }
-
-    async fn read_at_static(self, offset: u64, limit: usize) -> Result<Buffer>
-    where
-        Self: Sized + 'static,
-    {
-        self.read_at(offset, limit).await
     }
 }
 

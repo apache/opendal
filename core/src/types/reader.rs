@@ -363,10 +363,10 @@ pub mod into_futures_stream {
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::Buf;
     use bytes::Bytes;
     use futures::Stream;
 
+    use crate::raw::oio::ReadDyn;
     use crate::raw::*;
     use crate::*;
 
@@ -376,6 +376,7 @@ pub mod into_futures_stream {
     ///
     /// FuturesStream also implements [`Unpin`], [`Send`] and [`Sync`].
     pub struct FuturesBytesStream {
+        r: oio::Reader,
         state: State,
         offset: u64,
         size: u64,
@@ -385,8 +386,8 @@ pub mod into_futures_stream {
     }
 
     enum State {
-        Idle(Option<oio::Reader>),
-        Next(BoxedStaticFuture<(oio::Reader, Result<Buffer>)>),
+        Idle(Buffer),
+        Next(BoxedStaticFuture<Result<Buffer>>),
     }
 
     /// # Safety
@@ -399,7 +400,8 @@ pub mod into_futures_stream {
         #[inline]
         pub(crate) fn new(r: oio::Reader, range: Range<u64>) -> Self {
             FuturesBytesStream {
-                state: State::Idle(Some(r)),
+                r,
+                state: State::Idle(Buffer::new()),
                 offset: range.start,
                 size: range.end - range.start,
                 // TODO: should use services preferred io size.
@@ -424,31 +426,30 @@ pub mod into_futures_stream {
 
             loop {
                 match &mut this.state {
-                    State::Idle(r) => {
+                    State::Idle(buf) => {
+                        // Consume current buffer
+                        if let Some(bs) = buf.next() {
+                            return Poll::Ready(Some(Ok(bs)));
+                        }
+
                         // Make sure cur didn't exceed size.
                         if this.cur >= this.size {
                             return Poll::Ready(None);
                         }
 
-                        let r = r.take().expect("reader must be present");
+                        let r = this.r.clone();
                         let next_offset = this.offset + this.cur;
                         let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
-                        let fut = async move {
-                            let res = r.read_at_dyn(next_offset, next_size).await;
-                            (r, res)
-                        };
+                        let fut = async move { r.read_at_static(next_offset, next_size).await };
                         this.state = State::Next(Box::pin(fut));
                     }
                     State::Next(fut) => {
-                        let (r, res) = ready!(fut.as_mut().poll(cx));
-                        this.state = State::Idle(Some(r));
-                        return match res {
-                            Ok(buf) if !buf.has_remaining() => Poll::Ready(None),
-                            Ok(mut buf) => {
-                                this.cur += buf.remaining() as u64;
-                                Poll::Ready(Some(Ok(buf.copy_to_bytes(buf.remaining()))))
+                        let res = ready!(fut.as_mut().poll(cx));
+                        match res {
+                            Ok(buf) => {
+                                this.state = State::Idle(buf);
                             }
-                            Err(err) => Poll::Ready(Some(Err(format_std_io_error(err)))),
+                            Err(err) => return Poll::Ready(Some(Err(format_std_io_error(err)))),
                         };
                     }
                 }

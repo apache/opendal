@@ -57,18 +57,7 @@ impl HttpClient {
     }
 
     /// Build a new http client in async context.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        Ok(Self {
-            client: builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-            })?,
-        })
-    }
-
-    /// Build a new http client in async context.
-    #[cfg(target_arch = "wasm32")]
-    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
         Ok(Self {
             client: builder.build().map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)

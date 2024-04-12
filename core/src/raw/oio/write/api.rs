@@ -83,19 +83,19 @@ pub trait Write: Unpin + Send + Sync {
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
     #[cfg(not(target_arch = "wasm32"))]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + Send;
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend;
     #[cfg(target_arch = "wasm32")]
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>>;
 
     /// Close the writer and make sure all data has been flushed.
     #[cfg(not(target_arch = "wasm32"))]
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send;
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
     #[cfg(target_arch = "wasm32")]
     fn close(&mut self) -> impl Future<Output = Result<()>>;
 
     /// Abort the pending writer.
     #[cfg(not(target_arch = "wasm32"))]
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send;
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
     #[cfg(target_arch = "wasm32")]
     fn abort(&mut self) -> impl Future<Output = Result<()>>;
 }

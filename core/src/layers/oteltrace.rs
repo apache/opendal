@@ -287,15 +287,15 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
         self.inner.write(bs)
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.abort()
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.close()
     }
 }

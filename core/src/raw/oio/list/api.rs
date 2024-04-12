@@ -21,7 +21,7 @@ use std::future::Future;
 use std::ops::DerefMut;
 
 use crate::raw::oio::Entry;
-use crate::raw::BoxedFuture;
+use crate::raw::*;
 use crate::*;
 
 /// PageOperation is the name for APIs of lister.
@@ -67,10 +67,7 @@ pub trait List: Unpin + Send + Sync {
     ///
     /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>>;
+    fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>> + MaybeSend;
 }
 
 impl List for () {

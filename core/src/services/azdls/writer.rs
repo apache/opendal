@@ -63,7 +63,7 @@ impl oio::OneShotWrite for AzdlsWriter {
             &self.path,
             Some(bs.len() as u64),
             0,
-            Buffer::from(bs),
+            bs,
         )?;
 
         self.core.sign(&mut req).await?;

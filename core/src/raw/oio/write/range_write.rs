@@ -20,7 +20,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;

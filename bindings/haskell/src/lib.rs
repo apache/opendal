@@ -160,7 +160,7 @@ pub unsafe extern "C" fn blocking_read(
     };
 
     let res = match op.read(path_str) {
-        Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes)),
+        Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes.to_vec())),
         Err(e) => FFIResult::err_with_source("Failed to read", e),
     };
 

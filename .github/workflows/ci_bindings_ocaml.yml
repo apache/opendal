@@ -28,6 +28,7 @@ on:
       - main
     paths:
       - "bindings/ocaml/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
   workflow_dispatch:
 

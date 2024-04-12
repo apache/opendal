@@ -21,6 +21,6 @@ use super::*;
 #[ocaml::sig("reader -> bytes -> int64 -> (int, string) Result.t ")]
 pub fn reader_pread(reader: &mut Reader, mut buf: &mut [u8], offset: u64) -> Result<usize, String> {
     let size = buf.len();
-    let n = map_res_error(reader.0.read(&mut buf, offset, size))?;
+    let n = map_res_error(reader.0.read_into(&mut buf, offset..offset + size as u64))?;
     Ok(n)
 }

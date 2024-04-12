@@ -303,7 +303,7 @@ impl DropboxCore {
         path: &str,
         recursive: bool,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/list_folder".to_string();
 
         // The default settings here align with the DropboxAPI default settings.
@@ -319,14 +319,14 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
-    pub async fn dropbox_list_continue(&self, cursor: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_list_continue(&self, cursor: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/list_folder/continue".to_string();
 
         let args = DropboxListContinueArgs {
@@ -338,14 +338,14 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
-    pub async fn dropbox_copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/copy_v2".to_string();
 
         let args = DropboxCopyArgs {
@@ -358,14 +358,14 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
-    pub async fn dropbox_move(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn dropbox_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/move_v2".to_string();
 
         let args = DropboxMoveArgs {
@@ -378,7 +378,7 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
+            .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;

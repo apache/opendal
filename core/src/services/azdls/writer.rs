@@ -59,12 +59,9 @@ impl oio::OneShotWrite for AzdlsWriter {
             }
         }
 
-        let mut req = self.core.azdls_update_request(
-            &self.path,
-            Some(bs.len() as u64),
-            0,
-            bs,
-        )?;
+        let mut req = self
+            .core
+            .azdls_update_request(&self.path, Some(bs.len() as u64), 0, bs)?;
 
         self.core.sign(&mut req).await?;
 

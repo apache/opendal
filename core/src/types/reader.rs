@@ -99,7 +99,7 @@ impl Reader {
     pub fn into_stream(
         &self,
         range: impl RangeBounds<u64>,
-    ) -> impl Stream<Item = Result<Buffer>> + Unpin + Send + 'static {
+    ) -> impl Stream<Item = Result<Buffer>> + Unpin + MaybeSend + 'static {
         let futs = into_stream::ReadFutureIterator::new(self.inner.clone(), range);
 
         stream::iter(futs).then(|f| f)

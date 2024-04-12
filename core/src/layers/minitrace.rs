@@ -59,7 +59,7 @@ use crate::*;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
-/// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
 ///     let reporter =
 ///         minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
 ///             .unwrap();
@@ -309,19 +309,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
         self.inner.write(bs)
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
         self.inner.abort()
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
         self.inner.close()

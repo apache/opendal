@@ -32,10 +32,7 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn write_once(&self, bs: Bytes) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn write_once(&self, bs: Bytes) -> impl Future<Output = Result<()>>;
+    fn write_once(&self, bs: Bytes) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.

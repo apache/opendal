@@ -34,7 +34,7 @@ use crate::*;
 pub trait PageList: Send + Sync + Unpin + 'static {
     /// next_page is used to fetch next page of entries from underlying storage.
     #[cfg(not(target_arch = "wasm32"))]
-    fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>> + Send;
+    fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>> + MaybeSend;
     #[cfg(target_arch = "wasm32")]
     fn next_page(&self, ctx: &mut PageContext) -> impl Future<Output = Result<()>>;
 }

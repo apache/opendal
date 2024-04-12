@@ -65,10 +65,7 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     /// BlockWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>>;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// write_block will write a block of the data and returns the result
     /// [`Block`].
@@ -77,33 +74,19 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     /// order.
     ///
     /// - block_id is the id of the block.
-    #[cfg(not(target_arch = "wasm32"))]
     fn write_block(
         &self,
         block_id: Uuid,
         size: u64,
         body: Buffer,
-    ) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn write_block(
-        &self,
-        block_id: Uuid,
-        size: u64,
-        body: Buffer,
-    ) -> impl Future<Output = Result<()>>;
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// complete_block will complete the block upload to build the final
     /// file.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>>;
+    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// abort_block will cancel the block upload and purge all data.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>>;
+    fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// WriteBlockResult is the result returned by [`WriteBlockFuture`].

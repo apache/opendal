@@ -63,10 +63,10 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     /// RangeWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + Send;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Initiate range the range write, the returning value is the location.
-    fn initiate_range(&self) -> impl Future<Output = Result<String>> + Send;
+    fn initiate_range(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_range will write a range of data.
     fn write_range(
@@ -75,7 +75,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         offset: u64,
         size: u64,
         body: Buffer,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// complete_range will complete the range write by uploading the last chunk.
     fn complete_range(
@@ -84,10 +84,10 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         offset: u64,
         size: u64,
         body: Buffer,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// abort_range will abort the range write by abort all already uploaded data.
-    fn abort_range(&self, location: &str) -> impl Future<Output = Result<()>> + Send;
+    fn abort_range(&self, location: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// WritePartResult is the result returned by [`WriteRangeFuture`].

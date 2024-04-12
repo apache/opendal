@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdlsCore;
@@ -41,7 +40,7 @@ impl AzdlsWriter {
 }
 
 impl oio::OneShotWrite for AzdlsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let mut req =
             self.core
                 .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;

@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::KoofrCore;
@@ -39,7 +38,7 @@ impl KoofrWriter {
 }
 
 impl oio::OneShotWrite for KoofrWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;
 
         let resp = self.core.put(&self.path, bs).await?;

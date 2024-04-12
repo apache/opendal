@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::ChainsafeCore;
@@ -44,7 +43,7 @@ impl ChainsafeWriter {
 }
 
 impl oio::OneShotWrite for ChainsafeWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self.core.upload_object(&self.path, bs).await?;
 
         let status = resp.status();

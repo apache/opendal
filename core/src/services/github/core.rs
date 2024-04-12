@@ -158,7 +158,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Bytes) -> Result<Response<Buffer>> {
+    pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
         let sha = self.get_file_sha(path).await?;
 
         let path = build_abs_path(&self.root, path);
@@ -176,7 +176,7 @@ impl GithubCore {
 
         let mut req_body = CreateOrUpdateContentsRequest {
             message: format!("Write {} at {} via opendal", path, chrono::Local::now()),
-            content: base64::engine::general_purpose::STANDARD.encode(&bs),
+            content: base64::engine::general_purpose::STANDARD.encode(&bs.to_bytes()),
             sha: None,
         };
 
@@ -188,7 +188,7 @@ impl GithubCore {
 
         let req = req
             .header("Accept", "application/vnd.github+json")
-            .body(Buffer::from(Bytes::from(req_body)))
+            .body(Buffer::from(req_body))
             .map_err(new_request_build_error)?;
 
         self.send(req).await

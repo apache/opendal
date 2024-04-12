@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -248,7 +247,7 @@ impl IpmfsBackend {
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_write(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

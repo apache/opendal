@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::GdriveCore;
@@ -46,7 +46,7 @@ impl GdriveWriter {
 }
 
 impl oio::OneShotWrite for GdriveWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let size = bs.len();
 
         let resp = if let Some(file_id) = &self.file_id {

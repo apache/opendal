@@ -84,14 +84,11 @@ pub trait Read: Unpin + Send + Sync {
     ///
     /// Storage services should try to read as much as possible, only return bytes less than the
     /// limit while reaching the end of the file.
-    #[cfg(not(target_arch = "wasm32"))]
     fn read_at(
         &self,
         offset: u64,
         limit: usize,
     ) -> impl Future<Output = Result<Buffer>> + MaybeSend;
-    #[cfg(target_arch = "wasm32")]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Buffer>>;
 }
 
 impl Read for () {

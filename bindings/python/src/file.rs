@@ -25,9 +25,9 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use futures::{AsyncReadExt, AsyncSeekExt};
 use pyo3::buffer::PyBuffer;
-use futures::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use pyo3::exceptions::{PyValueError, PyIOError};
+use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;
@@ -47,7 +47,10 @@ enum FileState {
 
 impl File {
     pub fn new_reader(reader: ocore::BlockingReader, size: u64, capability: Capability) -> Self {
-        Self(FileState::Reader(reader.into_std_io_read(0..size)), capability)
+        Self(
+            FileState::Reader(reader.into_std_io_read(0..size)),
+            capability,
+        )
     }
 
     pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
@@ -268,7 +271,7 @@ impl File {
     /// In OpenDAL this is limited to only *readable* streams.
     pub fn seekable(&self) -> PyResult<bool> {
         match &self.0 {
-            FileState::Reader(_) => Ok(self.1.read_can_seek),
+            FileState::Reader(_) => Ok(true),
             _ => Ok(false),
         }
     }
@@ -293,10 +296,12 @@ enum AsyncFileState {
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::Reader, size: u64, capability: Capability) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(
-            reader.into_futures_io_async_read(0..size),
+        Self(
+            Arc::new(Mutex::new(AsyncFileState::Reader(
+                reader.into_futures_io_async_read(0..size),
+            ))),
             capability,
-        ))))
+        )
     }
 
     pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
@@ -507,7 +512,7 @@ impl AsyncFile {
 
     /// Check if the stream reader may be re-located.
     pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
-        if self.1.read_can_seek {
+        if true {
             self.readable(py)
         } else {
             future_into_py(py, async move { Ok(false) })

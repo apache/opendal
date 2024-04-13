@@ -68,7 +68,7 @@ pub async fn test_read_full(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -88,7 +88,11 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.read_with(&path).range(offset..offset + length).await?;
+    let bs = op
+        .read_with(&path)
+        .range(offset..offset + length)
+        .await?
+        .to_bytes();
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -111,7 +115,11 @@ pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.read_with(&path).range(offset..u32::MAX as u64).await?;
+    let bs = op
+        .read_with(&path)
+        .range(offset..u32::MAX as u64)
+        .await?
+        .to_bytes();
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,
@@ -159,7 +167,8 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
         .read_with(&path)
         .if_match(meta.etag().expect("etag must exist"))
         .await
-        .expect("read must succeed");
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(bs, content);
 
     Ok(())
@@ -190,7 +199,8 @@ pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
         .read_with(&path)
         .if_none_match("\"invalid_etag\"")
         .await
-        .expect("read must succeed");
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(bs, content);
 
     Ok(())
@@ -233,7 +243,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -388,7 +398,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
 
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
-    let bs = op.read("normal_file.txt").await?;
+    let bs = op.read("normal_file.txt").await?.to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -401,7 +411,10 @@ pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> anyhow::Result<()> {
-    let bs = op.read("special_file  !@#$%^&()_+-=;',.txt").await?;
+    let bs = op
+        .read("special_file  !@#$%^&()_+-=;',.txt")
+        .await?
+        .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -414,7 +427,11 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> anyhow
 
 /// Read full content should match.
 pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> {
-    let bs = op.read_with("normal_file.txt").range(1024..2048).await?;
+    let bs = op
+        .read_with("normal_file.txt")
+        .range(1024..2048)
+        .await?
+        .to_bytes();
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -465,7 +482,8 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
         .read_with(path)
         .if_match(meta.etag().expect("etag must exist"))
         .await
-        .expect("read must succeed");
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -497,7 +515,8 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
         .read_with(path)
         .if_none_match("invalid_etag")
         .await
-        .expect("read must succeed");
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

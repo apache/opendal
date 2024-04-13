@@ -20,7 +20,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -63,10 +62,10 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
     /// RangeWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Initiate range the range write, the returning value is the location.
-    fn initiate_range(&self) -> impl Future<Output = Result<String>> + Send;
+    fn initiate_range(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_range will write a range of data.
     fn write_range(
@@ -74,8 +73,8 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         location: &str,
         offset: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> impl Future<Output = Result<()>> + Send;
+        body: Buffer,
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// complete_range will complete the range write by uploading the last chunk.
     fn complete_range(
@@ -83,17 +82,17 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         location: &str,
         offset: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> impl Future<Output = Result<()>> + Send;
+        body: Buffer,
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// abort_range will abort the range write by abort all already uploaded data.
-    fn abort_range(&self, location: &str) -> impl Future<Output = Result<()>> + Send;
+    fn abort_range(&self, location: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// WritePartResult is the result returned by [`WriteRangeFuture`].
 ///
 /// The error part will carries input `(offset, bytes, err)` so caller can retry them.
-type WriteRangeResult = std::result::Result<(), (u64, Bytes, Error)>;
+type WriteRangeResult = std::result::Result<(), (u64, Buffer, Error)>;
 
 struct WriteRangeFuture(BoxedStaticFuture<WriteRangeResult>);
 
@@ -115,16 +114,16 @@ impl Future for WriteRangeFuture {
 }
 
 impl WriteRangeFuture {
-    pub fn new<W: RangeWrite>(w: Arc<W>, location: Arc<String>, offset: u64, bytes: Bytes) -> Self {
+    pub fn new<W: RangeWrite>(
+        w: Arc<W>,
+        location: Arc<String>,
+        offset: u64,
+        bytes: Buffer,
+    ) -> Self {
         let fut = async move {
-            w.write_range(
-                &location,
-                offset,
-                bytes.len() as u64,
-                AsyncBody::Bytes(bytes.clone()),
-            )
-            .await
-            .map_err(|err| (offset, bytes, err))
+            w.write_range(&location, offset, bytes.len() as u64, bytes.clone())
+                .await
+                .map_err(|err| (offset, bytes, err))
         };
 
         WriteRangeFuture(Box::pin(fut))
@@ -135,7 +134,7 @@ impl WriteRangeFuture {
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<Arc<String>>,
     next_offset: u64,
-    buffer: Option<Bytes>,
+    buffer: Option<Buffer>,
     futures: ConcurrentFutures<WriteRangeFuture>,
 
     w: Arc<W>,
@@ -154,7 +153,7 @@ impl<W: RangeWrite> RangeWriter<W> {
         }
     }
 
-    fn fill_cache(&mut self, bs: Bytes) -> usize {
+    fn fill_cache(&mut self, bs: Buffer) -> usize {
         let size = bs.len();
         assert!(self.buffer.is_none());
         self.buffer = Some(bs);
@@ -163,13 +162,13 @@ impl<W: RangeWrite> RangeWriter<W> {
 }
 
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let location = match self.location.clone() {
             Some(location) => location,
             None => {
                 // Fill cache with the first write.
                 if self.buffer.is_none() {
-                    let size = self.fill_cache(bs.to_bytes());
+                    let size = self.fill_cache(bs);
                     return Ok(size);
                 }
 
@@ -192,7 +191,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     cache,
                 ));
 
-                let size = self.fill_cache(bs.to_bytes());
+                let size = self.fill_cache(bs);
                 return Ok(size);
             }
 
@@ -211,8 +210,8 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
     async fn close(&mut self) -> Result<()> {
         let Some(location) = self.location.clone() else {
             let (size, body) = match self.buffer.clone() {
-                Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
-                None => (0, AsyncBody::Empty),
+                Some(cache) => (cache.len(), cache),
+                None => (0, Buffer::new()),
             };
             // Call write_once if there is no data in buffer and no location.
             return self.w.write_once(size as u64, body).await;
@@ -235,12 +234,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
         if let Some(buffer) = self.buffer.clone() {
             let offset = self.next_offset;
             self.w
-                .complete_range(
-                    &location,
-                    offset,
-                    buffer.len() as u64,
-                    AsyncBody::Bytes(buffer),
-                )
+                .complete_range(&location, offset, buffer.len() as u64, buffer)
                 .await?;
             self.buffer = None;
         }
@@ -291,7 +285,7 @@ mod tests {
     }
 
     impl RangeWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+        async fn write_once(&self, size: u64, _: Buffer) -> Result<()> {
             let mut test = self.lock().unwrap();
             test.length += size;
             test.bytes.extend(0..size);
@@ -303,7 +297,7 @@ mod tests {
             Ok("test".to_string())
         }
 
-        async fn write_range(&self, _: &str, offset: u64, size: u64, _: AsyncBody) -> Result<()> {
+        async fn write_range(&self, _: &str, offset: u64, size: u64, _: Buffer) -> Result<()> {
             // We will have 50% percent rate for write part to fail.
             if thread_rng().gen_bool(5.0 / 10.0) {
                 return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
@@ -323,13 +317,7 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_range(
-            &self,
-            _: &str,
-            offset: u64,
-            size: u64,
-            _: AsyncBody,
-        ) -> Result<()> {
+        async fn complete_range(&self, _: &str, offset: u64, size: u64, _: Buffer) -> Result<()> {
             let mut test = self.lock().unwrap();
             test.length += size;
 
@@ -363,7 +351,7 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match unsafe { w.write(bs.clone().into()).await } {
+                match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(_) => continue,
                 }

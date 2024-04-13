@@ -405,7 +405,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
+    pub async fn read(&self, path: &str) -> Result<Buffer> {
         self.read_with(path).await
     }
 
@@ -494,7 +494,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Vec<u8>>>> {
+    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Buffer>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -511,11 +511,8 @@ impl Operator {
                     );
                 }
 
-                let size_hint = range.size();
-
                 let r = Reader::create(inner, &path, args).await?;
-                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
-                r.read_range(&mut buf, range.to_range()).await?;
+                let buf = r.read(range.to_range()).await?;
                 Ok(buf)
             },
         )

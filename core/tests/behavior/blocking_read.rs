@@ -57,7 +57,7 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     op.write(&path, content.clone())
         .expect("write must succeed");
 
-    let bs = op.read(&path)?;
+    let bs = op.read(&path)?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -79,7 +79,11 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     op.write(&path, content.clone())
         .expect("write must succeed");
 
-    let bs = op.read_with(&path).range(offset..offset + length).call()?;
+    let bs = op
+        .read_with(&path)
+        .range(offset..offset + length)
+        .call()?
+        .to_bytes();
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -104,7 +108,11 @@ pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
     op.write(&path, content.clone())
         .expect("write must succeed");
 
-    let bs = op.read_with(&path).range(offset..u32::MAX as u64).call()?;
+    let bs = op
+        .read_with(&path)
+        .range(offset..u32::MAX as u64)
+        .call()?
+        .to_bytes();
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,
@@ -168,7 +176,7 @@ pub fn test_blocking_read_only_stat_not_exist(op: BlockingOperator) -> Result<()
 
 /// Read full content should match.
 pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
-    let bs = op.read("normal_file.txt")?;
+    let bs = op.read("normal_file.txt")?.to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -181,7 +189,11 @@ pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read full content should match.
 pub fn test_blocking_read_only_read_with_range(op: BlockingOperator) -> Result<()> {
-    let bs = op.read_with("normal_file.txt").range(1024..2048).call()?;
+    let bs = op
+        .read_with("normal_file.txt")
+        .range(1024..2048)
+        .call()?
+        .to_bytes();
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

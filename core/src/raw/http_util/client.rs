@@ -30,11 +30,7 @@ use http::Response;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
-use super::AsyncBody;
-use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -55,19 +51,13 @@ impl HttpClient {
         Self::build(reqwest::ClientBuilder::new())
     }
 
-    /// Build a new http client in async context.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        Ok(Self {
-            client: builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-            })?,
-        })
+    /// Construct `Self` with given [`reqwest::Client`]
+    pub fn with(client: reqwest::Client) -> Self {
+        Self { client }
     }
 
     /// Build a new http client in async context.
-    #[cfg(target_arch = "wasm32")]
-    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
+    pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
         Ok(Self {
             client: builder.build().map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
@@ -81,7 +71,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -103,21 +93,17 @@ impl HttpClient {
             req_builder = req_builder.version(parts.version);
         }
 
-        req_builder = match body {
-            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
-            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::Stream(s) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    req_builder.body(reqwest::Body::wrap_stream(s))
-                }
-                #[cfg(target_arch = "wasm32")]
-                {
-                    let bs = oio::StreamExt::collect(s).await?;
-                    req_builder.body(reqwest::Body::from(bs))
-                }
+        // Don't set body if body is empty.
+        if !body.is_empty() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
             }
-        };
+            #[cfg(target_arch = "wasm32")]
+            {
+                req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
+            }
+        }
 
         let mut resp = req_builder.send().await.map_err(|err| {
             let is_temporary = !(
@@ -180,7 +166,7 @@ impl HttpClient {
                     .set_source(err)
             })?;
 
-        let buffer = oio::Buffer::from(bs);
+        let buffer = Buffer::from(bs);
 
         if let Some(expect) = content_length {
             check(expect, buffer.remaining() as u64)?;

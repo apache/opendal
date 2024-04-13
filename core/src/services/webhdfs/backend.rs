@@ -219,7 +219,7 @@ pub struct WebhdfsBackend {
 }
 
 impl WebhdfsBackend {
-    pub fn webhdfs_create_dir_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn webhdfs_create_dir_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -233,7 +233,7 @@ impl WebhdfsBackend {
 
         let req = Request::put(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(Buffer::new()).map_err(new_request_build_error)
     }
     /// create object
     pub async fn webhdfs_create_object_request(
@@ -241,8 +241,8 @@ impl WebhdfsBackend {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -256,9 +256,7 @@ impl WebhdfsBackend {
 
         let req = Request::put(&url);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
 
@@ -299,7 +297,7 @@ impl WebhdfsBackend {
         }
 
         let req = Request::post(url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
@@ -318,11 +316,7 @@ impl WebhdfsBackend {
         }
     }
 
-    pub async fn webhdfs_rename_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_rename_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -338,7 +332,7 @@ impl WebhdfsBackend {
         }
 
         let req = Request::put(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -348,8 +342,8 @@ impl WebhdfsBackend {
         &self,
         location: &str,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let mut url = location.to_string();
 
         if let Some(auth) = &self.auth {
@@ -368,7 +362,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         sources: Vec<String>,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let sources = sources
@@ -390,14 +384,14 @@ impl WebhdfsBackend {
 
         let req = Request::post(url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
     async fn webhdfs_open_request(
         &self,
         path: &str,
         range: &BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
@@ -416,13 +410,13 @@ impl WebhdfsBackend {
         }
 
         let req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         Ok(req)
     }
 
-    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -434,7 +428,7 @@ impl WebhdfsBackend {
         }
 
         let req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.client.send(req).await
     }
@@ -443,7 +437,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         start_after: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -459,7 +453,7 @@ impl WebhdfsBackend {
         }
 
         let req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.client.send(req).await
     }
@@ -468,15 +462,12 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let req = self.webhdfs_open_request(path, &range).await?;
         self.client.send(req).await
     }
 
-    pub(super) async fn webhdfs_get_file_status(
-        &self,
-        path: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -489,13 +480,13 @@ impl WebhdfsBackend {
         }
 
         let req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
@@ -507,7 +498,7 @@ impl WebhdfsBackend {
         }
 
         let req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await

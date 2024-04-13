@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -52,10 +53,10 @@ impl<F> HdfsWriter<F> {
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
-        f.write(&bs).await.map_err(new_std_io_error)
+        f.write(bs.chunk()).await.map_err(new_std_io_error)
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -81,9 +82,9 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        f.write(&bs).map_err(new_std_io_error)
+        f.write(bs.chunk()).map_err(new_std_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

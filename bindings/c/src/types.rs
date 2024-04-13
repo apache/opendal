@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal::Buffer;
 use std::collections::HashMap;
 use std::os::raw::c_char;
 
@@ -35,7 +36,8 @@ pub struct opendal_bytes {
 
 impl opendal_bytes {
     /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
-    pub(crate) fn new(vec: Vec<u8>) -> Self {
+    pub(crate) fn new(buf: Buffer) -> Self {
+        let vec = buf.to_vec();
         let data = vec.as_ptr();
         let len = vec.len();
         std::mem::forget(vec);

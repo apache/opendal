@@ -24,6 +24,7 @@ use http::StatusCode;
 use super::core::YandexDiskCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::*;
 
 pub struct YandexDiskReader {
     core: Arc<YandexDiskCore>,
@@ -43,7 +44,7 @@ impl YandexDiskReader {
 }
 
 impl oio::Read for YandexDiskReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         // TODO: move this out of reader.
@@ -51,7 +52,7 @@ impl oio::Read for YandexDiskReader {
 
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let resp = self.core.send(req).await?;
 
@@ -59,7 +60,7 @@ impl oio::Read for YandexDiskReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

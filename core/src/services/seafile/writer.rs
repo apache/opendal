@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -46,7 +45,7 @@ impl SeafileWriter {
 }
 
 impl oio::OneShotWrite for SeafileWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let upload_url = self.core.get_upload_url().await?;
 
         let req = Request::post(upload_url);

@@ -20,6 +20,7 @@ use http::StatusCode;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::ipmfs::backend::IpmfsBackend;
+use crate::*;
 
 pub struct IpmfsReader {
     core: IpmfsBackend,
@@ -39,7 +40,7 @@ impl IpmfsReader {
 }
 
 impl oio::Read for IpmfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.ipmfs_read(&self.path, range).await?;
@@ -48,7 +49,7 @@ impl oio::Read for IpmfsReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

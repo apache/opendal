@@ -6,4 +6,4 @@ version = "0.1.0"
 
 [dependencies]
 futures = "0.3"
-opendal = "0.37"
+opendal = "0.45"

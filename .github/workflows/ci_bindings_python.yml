@@ -27,6 +27,7 @@ on:
     paths:
       - ".github/workflows/ci_bindings_python.yml"
       - "bindings/python/**"
+      - "core/**"
   workflow_dispatch:
 
 concurrency:

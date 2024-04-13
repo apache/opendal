@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -71,7 +72,7 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, Box::new(r) as oio::Reader))
+            .map(|(rp, r)| (rp, Arc::new(r) as oio::Reader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

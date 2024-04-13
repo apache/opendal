@@ -382,7 +382,7 @@ impl Accessor for CosBackend {
             }
             PresignOperation::Write(v) => {
                 self.core
-                    .cos_put_object_request(path, None, v, AsyncBody::Empty)?
+                    .cos_put_object_request(path, None, v, Buffer::new())?
             }
         };
         self.core.sign_query(&mut req, args.expire()).await?;

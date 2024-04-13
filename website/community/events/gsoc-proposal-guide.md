@@ -15,7 +15,7 @@ We encourage you to think of your own interesting project ideas! There are plent
 
 ## Interacting with the OpenDAL community
 
-If you want to discuss our suggested project ideas or your own idea, you can do so on the [maillist](mailto:dev@opendal.apache.org) or [Discord](https://discord.gg/XQy8yGR2dg). Make sure to listen to the feedback of the mentors, and try to incorporate it in your project proposal.
+If you want to discuss our suggested project ideas or your own idea, you can do so on the [maillist](mailto:dev@opendal.apache.org) or [Discord](https://opendal.apache.org/discord). Make sure to listen to the feedback of the mentors, and try to incorporate it in your project proposal.
 
 When communicating on the OpenDAL mail list or discord (and when interacting with the OpenDAL community in general), please remember to be polite and uphold the [ASF Code of Conduct](https://www.apache.org/foundation/policies/conduct). Keep in mind that most OpenDAL contributors (and GSoC OpenDAL project mentors) are volunteers, and work on OpenDAL in their free time, so please treat them with respect and avoid spamming.
 

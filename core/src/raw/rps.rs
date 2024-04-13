@@ -269,7 +269,7 @@ mod tests {
             },
         };
 
-        let req: Request<AsyncBody> = pr.into();
+        let req: Request<Buffer> = pr.into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
             "https://opendal.apache.org/path/to/file",

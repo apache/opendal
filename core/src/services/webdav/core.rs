@@ -108,7 +108,7 @@ impl WebdavCore {
         req = req.header(HEADER_DEPTH, "0");
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
+            .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
@@ -135,7 +135,7 @@ impl WebdavCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -149,9 +149,7 @@ impl WebdavCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -161,8 +159,8 @@ impl WebdavCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -189,7 +187,7 @@ impl WebdavCore {
         self.client.send(req).await
     }
 
-    pub async fn webdav_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -199,14 +197,12 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -227,14 +223,12 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(from).await?;
         // Make sure target's dir is exist.
@@ -255,14 +249,12 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<oio::Buffer>> {
+    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -281,7 +273,7 @@ impl WebdavCore {
         }
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(PROPFIND_REQUEST)))
+            .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
@@ -338,9 +330,7 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
         let status = resp.status();

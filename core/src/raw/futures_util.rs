@@ -41,6 +41,23 @@ pub type BoxedStaticFuture<T> = futures::future::BoxFuture<'static, T>;
 #[cfg(target_arch = "wasm32")]
 pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 
+/// MaybeSend is a marker to determine whether a type is `Send` or not.
+/// We use this trait to wrap the `Send` requirement for wasm32 target.
+///
+/// # Safety
+///
+/// MaybeSend equivalent to `Send` on non-wasm32 target. And it's empty
+/// on wasm32 target.
+#[cfg(not(target_arch = "wasm32"))]
+pub unsafe trait MaybeSend: Send {}
+#[cfg(target_arch = "wasm32")]
+pub unsafe trait MaybeSend {}
+
+#[cfg(not(target_arch = "wasm32"))]
+unsafe impl<T: Send> MaybeSend for T {}
+#[cfg(target_arch = "wasm32")]
+unsafe impl<T> MaybeSend for T {}
+
 /// CONCURRENT_LARGE_THRESHOLD is the threshold to determine whether to use
 /// [`FuturesOrdered`] or not.
 ///

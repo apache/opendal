@@ -18,6 +18,9 @@
 mod mode;
 pub use mode::EntryMode;
 
+mod buffer;
+pub use buffer::Buffer;
+
 mod entry;
 pub use entry::Entry;
 
@@ -64,5 +67,4 @@ mod scheme;
 pub use scheme::Scheme;
 
 mod capability;
-
 pub use capability::Capability;

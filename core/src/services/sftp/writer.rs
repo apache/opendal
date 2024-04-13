@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use std::pin::Pin;
 
 use openssh_sftp_client::file::File;
@@ -38,11 +39,8 @@ impl SftpWriter {
 }
 
 impl oio::Write for SftpWriter {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
-        self.file
-            .write(bs.as_slice())
-            .await
-            .map_err(new_std_io_error)
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        self.file.write(bs.chunk()).await.map_err(new_std_io_error)
     }
 
     async fn close(&mut self) -> Result<()> {

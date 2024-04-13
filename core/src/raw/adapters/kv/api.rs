@@ -21,10 +21,8 @@ use async_trait::async_trait;
 
 use crate::raw::*;
 use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use crate::Scheme;
+use crate::*;
 
 /// KvAdapter is the adapter to underlying kv services.
 ///

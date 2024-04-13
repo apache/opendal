@@ -72,7 +72,7 @@ pub fn blocking_create_dir(operator: &mut Operator, path: String) -> Result<(), 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (char array, string) Result.t ")]
 pub fn blocking_read(operator: &mut Operator, path: String) -> Result<Vec<u8>, String> {
-    map_res_error(operator.0.read(path.as_str()))
+    map_res_error(operator.0.read(path.as_str()).map(|v| v.to_vec()))
 }
 
 #[ocaml::func]

@@ -117,7 +117,7 @@ impl AlluxioCore {
         req = req.header("Content-Type", "application/json");
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
@@ -147,7 +147,7 @@ impl AlluxioCore {
         req = req.header("Content-Type", "application/json");
 
         let req = req
-            .body(AsyncBody::Bytes(body))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
@@ -172,9 +172,7 @@ impl AlluxioCore {
             self.endpoint,
             percent_encode_path(&path)
         ));
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
 
         let status = resp.status();
@@ -198,9 +196,7 @@ impl AlluxioCore {
             self.endpoint,
             percent_encode_path(&path)
         ));
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
 
         let status = resp.status();
@@ -228,9 +224,7 @@ impl AlluxioCore {
             percent_encode_path(&dst)
         ));
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
 
@@ -251,9 +245,7 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
 
@@ -279,9 +271,7 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
 
@@ -301,20 +291,18 @@ impl AlluxioCore {
     /// TODO: we should implement range support correctly.
     ///
     /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<Buffer>> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,
         ));
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub(super) async fn write(&self, stream_id: u64, body: AsyncBody) -> Result<usize> {
+    pub(super) async fn write(&self, stream_id: u64, body: Buffer) -> Result<usize> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/write",
             self.endpoint, stream_id
@@ -341,9 +329,7 @@ impl AlluxioCore {
             "{}/api/v1/streams/{}/close",
             self.endpoint, stream_id
         ));
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
 

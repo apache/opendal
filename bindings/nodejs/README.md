@@ -48,7 +48,7 @@ main();
 - Start with [Contributing Guide](CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/opendal/issues/new) for bug report or feature requests.
 - Asking questions in the [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a).
-- Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).
+  - Talk to community at [Discord](https://opendal.apache.org/discord).
 
 ## License and Trademarks
 

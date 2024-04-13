@@ -16,6 +16,7 @@
 // under the License.
 
 use ::opendal as core;
+use opendal::Buffer;
 
 use crate::types::opendal_bytes;
 
@@ -96,7 +97,7 @@ impl opendal_error {
     /// free this error.
     pub fn new(err: core::Error) -> *mut opendal_error {
         let code = opendal_code::from(err.kind());
-        let message = opendal_bytes::new(err.to_string().into_bytes());
+        let message = opendal_bytes::new(Buffer::from(err.to_string()));
 
         Box::into_raw(Box::new(opendal_error { code, message }))
     }

@@ -22,9 +22,7 @@ use serde::Deserialize;
 use serde_json::de;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
@@ -46,7 +44,7 @@ struct IpfsError {
 /// > (if no error, check the daemon logs).
 ///
 /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 

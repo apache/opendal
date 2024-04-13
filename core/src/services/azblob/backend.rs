@@ -665,12 +665,10 @@ impl Accessor for AzblobBackend {
                 self.core
                     .azblob_get_blob_request(path, BytesRange::default(), v)?
             }
-            PresignOperation::Write(_) => self.core.azblob_put_blob_request(
-                path,
-                None,
-                &OpWrite::default(),
-                AsyncBody::Empty,
-            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())?
+            }
         };
 
         self.core.sign_query(&mut req).await?;

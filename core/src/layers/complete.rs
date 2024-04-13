@@ -593,9 +593,9 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if limit == 0 {
-            return Ok(oio::Buffer::new());
+            return Ok(Buffer::new());
         }
 
         self.0.read_at(offset, limit).await
@@ -603,9 +603,9 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if limit == 0 {
-            return Ok(oio::Buffer::new());
+            return Ok(Buffer::new());
         }
 
         self.0.read_at(offset, limit)
@@ -638,7 +638,7 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -673,7 +673,7 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -734,7 +734,7 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
+            Ok((RpRead::new(), Arc::new(bytes::Bytes::new())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

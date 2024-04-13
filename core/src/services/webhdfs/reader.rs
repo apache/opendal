@@ -22,6 +22,7 @@ use super::error::parse_error;
 use super::error::parse_error_msg;
 use crate::raw::*;
 use crate::services::webhdfs::backend::WebhdfsBackend;
+use crate::*;
 
 pub struct WebhdfsReader {
     core: WebhdfsBackend,
@@ -41,7 +42,7 @@ impl WebhdfsReader {
 }
 
 impl oio::Read for WebhdfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.webhdfs_read_file(&self.path, range).await?;
@@ -56,12 +57,12 @@ impl oio::Read for WebhdfsReader {
                 let bs = body.copy_to_bytes(body.remaining());
                 let s = String::from_utf8_lossy(&bs);
                 if s.contains("out of the range") {
-                    Ok(oio::Buffer::new())
+                    Ok(Buffer::new())
                 } else {
                     Err(parse_error_msg(parts, &s)?)
                 }
             }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

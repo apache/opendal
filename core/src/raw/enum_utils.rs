@@ -38,7 +38,6 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-use crate::raw::oio::Buffer;
 use crate::raw::*;
 use crate::*;
 
@@ -62,7 +61,7 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
             Self::One(v) => v.read_at(offset, limit),
             Self::Two(v) => v.read_at(offset, limit),
@@ -71,7 +70,7 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWa
 }
 
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         match self {
             Self::One(v) => v.write(bs).await,
             Self::Two(v) => v.write(bs).await,
@@ -106,7 +105,7 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
             ThreeWays::One(v) => v.read_at(offset, limit).await,
             ThreeWays::Two(v) => v.read_at(offset, limit).await,
@@ -118,7 +117,7 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
             Self::One(v) => v.read_at(offset, limit),
             Self::Two(v) => v.read_at(offset, limit),
@@ -130,7 +129,7 @@ impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> o
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWays<ONE, TWO, THREE>
 {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         match self {
             Self::One(v) => v.write(bs).await,
             Self::Two(v) => v.write(bs).await,
@@ -193,7 +192,7 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         match self {
             Self::One(v) => v.read_at(offset, limit),
             Self::Two(v) => v.read_at(offset, limit),

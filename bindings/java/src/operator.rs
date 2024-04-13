@@ -262,10 +262,10 @@ fn intern_read(
 }
 
 async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let content = op.read(&path).await?;
+    let content = op.read(&path).await?.to_bytes();
 
     let env = unsafe { get_current_env() };
-    let result = env.byte_array_from_slice(content.as_slice())?;
+    let result = env.byte_array_from_slice(&content)?;
     Ok(result.into())
 }
 

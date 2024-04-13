@@ -28,6 +28,7 @@ on:
       - main
     paths:
       - "bindings/c/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_c.yml"
   workflow_dispatch:
 

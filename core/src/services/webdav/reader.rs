@@ -22,6 +22,7 @@ use http::StatusCode;
 use super::core::WebdavCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::*;
 
 pub struct WebdavReader {
     core: Arc<WebdavCore>,
@@ -41,7 +42,7 @@ impl WebdavReader {
 }
 
 impl oio::Read for WebdavReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(limit as u64));
 
         let resp = self.core.webdav_get(&self.path, range, &self.op).await?;
@@ -50,7 +51,7 @@ impl oio::Read for WebdavReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(oio::Buffer::new()),
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

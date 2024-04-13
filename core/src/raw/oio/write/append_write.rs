@@ -40,21 +40,15 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
     /// Returns `0` if the object is not exist.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn offset(&self) -> impl Future<Output = Result<u64>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn offset(&self) -> impl Future<Output = Result<u64>>;
+    fn offset(&self) -> impl Future<Output = Result<u64>> + MaybeSend;
 
     /// Append the data to the end of this object.
-    #[cfg(not(target_arch = "wasm32"))]
     fn append(
         &self,
         offset: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn append(&self, offset: u64, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
+        body: Buffer,
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// AppendWriter will implements [`Write`] based on append object.
@@ -86,7 +80,7 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    async unsafe fn write(&mut self, bs: oio::ReadableBuf) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let offset = match self.offset {
             Some(offset) => offset,
             None => {
@@ -98,7 +92,7 @@ where
 
         let size = bs.len();
         self.inner
-            .append(offset, size as u64, AsyncBody::Bytes(bs.to_bytes()))
+            .append(offset, size as u64, Buffer::from(bs.to_bytes()))
             .await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);

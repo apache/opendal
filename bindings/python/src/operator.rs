@@ -78,14 +78,14 @@ impl Operator {
     /// Open a file-like reader for the given path.
     pub fn open(&self, path: String, mode: String) -> PyResult<File> {
         let this = self.0.clone();
-
+        let capability = self.capability()?;
         if mode == "rb" {
             let meta = this.stat(&path).map_err(format_pyerr)?;
             let r = this.reader(&path).map_err(format_pyerr)?;
-            Ok(File::new_reader(r, meta.content_length()))
+            Ok(File::new_reader(r, meta.content_length(), capability))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w))
+            Ok(File::new_writer(w, capability))
         } else {
             Err(UnsupportedError::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
@@ -241,15 +241,16 @@ impl AsyncOperator {
     /// Open a file-like reader for the given path.
     pub fn open<'p>(&'p self, py: Python<'p>, path: String, mode: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
+        let capability = self.capability()?;
 
         future_into_py(py, async move {
             if mode == "rb" {
                 let meta = this.stat(&path).await.map_err(format_pyerr)?;
                 let r = this.reader(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_reader(r, meta.content_length()))
+                Ok(AsyncFile::new_reader(r, meta.content_length(), capability))
             } else if mode == "wb" {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_writer(w))
+                Ok(AsyncFile::new_writer(w, capability))
             } else {
                 Err(UnsupportedError::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"

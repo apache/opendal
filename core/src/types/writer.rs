@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io;
+use std::mem;
 use std::pin::pin;
 
 use bytes::Buf;
@@ -90,14 +91,22 @@ impl Writer {
         Ok(Writer { inner: w })
     }
 
-    /// Write into inner writer.
-    pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        let mut bs = bs.into();
+    pub async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let mut bs = bs;
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone().into()).await?;
+            let n = self.inner.write_dyn(bs.clone()).await?;
             bs.advance(n);
         }
+        Ok(())
+    }
 
+    pub async fn write_from(&mut self, bs: &mut impl Buf) -> Result<()> {
+        while bs.has_remaining() {
+            let chunk_ref: &[u8] = bs.chunk();
+            let static_ref: &'static [u8] = unsafe { mem::transmute(chunk_ref) };
+            let n = self.inner.write_dyn(static_ref.into()).await?;
+            bs.advance(n);
+        }
         Ok(())
     }
 
@@ -383,5 +392,34 @@ impl io::Write for BlockingWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::rngs::ThreadRng;
+    use rand::Rng;
+    use rand::RngCore;
+
+    use crate::services;
+    use crate::Operator;
+
+    fn gen_random_bytes() -> Vec<u8> {
+        let mut rng = ThreadRng::default();
+        // Generate size between 1B..16MB.
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        content
+    }
+
+    #[tokio::test]
+    async fn test_writer_write() {
+
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_from() {
+
     }
 }

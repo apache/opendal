@@ -254,7 +254,7 @@ impl Accessor for GithubBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let empty_bytes = bytes::Bytes::new();
+        let empty_bytes = Buffer::new();
 
         let resp = self
             .core

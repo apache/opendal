@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::Request;
 use http::StatusCode;
 
@@ -40,13 +39,13 @@ impl YandexDiskWriter {
 }
 
 impl oio::OneShotWrite for YandexDiskWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;
 
         let upload_url = self.core.get_upload_url(&self.path).await?;
 
         let req = Request::put(upload_url)
-            .body(Buffer::from(bs))
+            .body(bs)
             .map_err(new_request_build_error)?;
 
         let resp = self.core.send(req).await?;

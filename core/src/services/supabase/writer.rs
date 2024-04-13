@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -43,12 +42,12 @@ impl SupabaseWriter {
 }
 
 impl oio::OneShotWrite for SupabaseWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
-            Buffer::from(bs),
+            bs,
         )?;
 
         self.core.sign(&mut req)?;

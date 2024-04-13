@@ -183,7 +183,7 @@ impl GdriveCore {
         &self,
         path: &str,
         size: u64,
-        body: Bytes,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
@@ -233,7 +233,7 @@ impl GdriveCore {
         &self,
         file_id: &str,
         size: u64,
-        body: Bytes,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
             "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
@@ -244,7 +244,7 @@ impl GdriveCore {
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
-            .body(Buffer::from(body))
+            .body(body)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

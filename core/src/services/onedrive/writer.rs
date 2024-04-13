@@ -44,13 +44,13 @@ impl OneDriveWriter {
 }
 
 impl oio::OneShotWrite for OneDriveWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let size = bs.len();
 
         if size <= Self::MAX_SIMPLE_SIZE {
             self.write_simple(bs).await?;
         } else {
-            self.write_chunked(bs).await?;
+            self.write_chunked(bs.to_bytes()).await?;
         }
 
         Ok(())
@@ -58,10 +58,10 @@ impl oio::OneShotWrite for OneDriveWriter {
 }
 
 impl OneDriveWriter {
-    async fn write_simple(&self, bs: Bytes) -> Result<()> {
+    async fn write_simple(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .backend
-            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, Buffer::from(bs))
+            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, bs)
             .await?;
 
         let status = resp.status();

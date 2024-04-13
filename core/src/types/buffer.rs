@@ -216,8 +216,10 @@ impl Buffer {
                 parts, idx, offset, ..
             } => {
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
+                let mut new_offset = *offset;
                 for part in parts.iter().skip(*idx) {
-                    ret.push(IoSlice::new(&part[*offset..]));
+                    ret.push(IoSlice::new(&part[new_offset..]));
+                    new_offset = 0;
                 }
                 ret
             }
@@ -368,16 +370,16 @@ impl Buf for Buffer {
                     return 0;
                 }
 
-                let mut i = 0;
-                for part in parts.iter().skip(*idx) {
-                    if i >= dst.len() {
-                        break;
-                    }
-
-                    dst[i] = IoSlice::new(&part[*offset..]);
-                    i += 1;
-                }
-                i
+                let mut new_offset = *offset;
+                parts
+                    .iter()
+                    .skip(*idx)
+                    .zip(dst.iter_mut())
+                    .map(|(part, dst)| {
+                        *dst = IoSlice::new(&part[new_offset..]);
+                        new_offset = 0;
+                    })
+                    .count()
             }
         }
     }

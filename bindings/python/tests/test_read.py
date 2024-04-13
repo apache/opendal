@@ -61,7 +61,7 @@ def test_sync_reader(service_name, operator, async_operator):
     buf = bytearray(1)
     with operator.open(filename, 'rb') as reader:
         reader.readinto(buf)
-        assert buf == content
+        assert buf == content[:1]
 
     operator.delete(filename)
 

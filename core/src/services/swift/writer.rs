@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::SwiftCore;
@@ -37,10 +36,10 @@ impl SwiftWriter {
 }
 
 impl oio::OneShotWrite for SwiftWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .core
-            .swift_create_object(&self.path, bs.len() as u64, Buffer::from(bs))
+            .swift_create_object(&self.path, bs.len() as u64, bs)
             .await?;
 
         let status = resp.status();

@@ -216,8 +216,10 @@ impl Buffer {
                 parts, idx, offset, ..
             } => {
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
+                let mut new_offset = *offset;
                 for part in parts.iter().skip(*idx) {
-                    ret.push(IoSlice::new(&part[*offset..]));
+                    ret.push(IoSlice::new(&part[new_offset..]));
+                    new_offset = 0;
                 }
                 ret
             }
@@ -226,42 +228,49 @@ impl Buffer {
 }
 
 impl From<Vec<u8>> for Buffer {
+    #[inline]
     fn from(bs: Vec<u8>) -> Self {
         Self(Inner::Contiguous(bs.into()))
     }
 }
 
 impl From<Bytes> for Buffer {
+    #[inline]
     fn from(bs: Bytes) -> Self {
         Self(Inner::Contiguous(bs))
     }
 }
 
 impl From<String> for Buffer {
+    #[inline]
     fn from(s: String) -> Self {
         Self(Inner::Contiguous(Bytes::from(s)))
     }
 }
 
 impl From<&'static [u8]> for Buffer {
+    #[inline]
     fn from(s: &'static [u8]) -> Self {
         Self(Inner::Contiguous(Bytes::from_static(s)))
     }
 }
 
 impl From<&'static str> for Buffer {
+    #[inline]
     fn from(s: &'static str) -> Self {
         Self(Inner::Contiguous(Bytes::from_static(s.as_bytes())))
     }
 }
 
 impl FromIterator<u8> for Buffer {
+    #[inline]
     fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
         Self(Inner::Contiguous(Bytes::from_iter(iter)))
     }
 }
 
 impl From<VecDeque<Bytes>> for Buffer {
+    #[inline]
     fn from(bs: VecDeque<Bytes>) -> Self {
         let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
@@ -274,6 +283,7 @@ impl From<VecDeque<Bytes>> for Buffer {
 }
 
 impl From<Vec<Bytes>> for Buffer {
+    #[inline]
     fn from(bs: Vec<Bytes>) -> Self {
         let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
@@ -286,6 +296,7 @@ impl From<Vec<Bytes>> for Buffer {
 }
 
 impl From<Arc<[Bytes]>> for Buffer {
+    #[inline]
     fn from(bs: Arc<[Bytes]>) -> Self {
         let size = bs.iter().map(Bytes::len).sum();
         Self(Inner::NonContiguous {
@@ -298,6 +309,7 @@ impl From<Arc<[Bytes]>> for Buffer {
 }
 
 impl FromIterator<Bytes> for Buffer {
+    #[inline]
     fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
         let mut size = 0;
         let bs = iter.into_iter().inspect(|v| size += v.len());
@@ -340,6 +352,7 @@ impl Buf for Buffer {
         }
     }
 
+    #[inline]
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         match &self.0 {
             Inner::Contiguous(b) => {
@@ -357,16 +370,16 @@ impl Buf for Buffer {
                     return 0;
                 }
 
-                let mut i = 0;
-                for part in parts.iter().skip(*idx) {
-                    if i >= dst.len() {
-                        break;
-                    }
-
-                    dst[i] = IoSlice::new(&part[*offset..]);
-                    i += 1;
-                }
-                i
+                let mut new_offset = *offset;
+                parts
+                    .iter()
+                    .skip(*idx)
+                    .zip(dst.iter_mut())
+                    .map(|(part, dst)| {
+                        *dst = IoSlice::new(&part[new_offset..]);
+                        new_offset = 0;
+                    })
+                    .count()
             }
         }
     }

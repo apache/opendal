@@ -18,6 +18,7 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::Future;
@@ -60,7 +61,7 @@ impl From<ReadOperation> for &'static str {
 }
 
 /// Reader is a type erased [`Read`].
-pub type Reader = Box<dyn ReadDyn>;
+pub type Reader = Arc<dyn ReadDyn>;
 
 /// Read is the internal trait used by OpenDAL to read data from storage.
 ///
@@ -83,10 +84,11 @@ pub trait Read: Unpin + Send + Sync {
     ///
     /// Storage services should try to read as much as possible, only return bytes less than the
     /// limit while reaching the end of the file.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Buffer>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn read_at(&self, offset: u64, limit: usize) -> impl Future<Output = Result<Buffer>>;
+    fn read_at(
+        &self,
+        offset: u64,
+        limit: usize,
+    ) -> impl Future<Output = Result<Buffer>> + MaybeSend;
 }
 
 impl Read for () {
@@ -112,7 +114,12 @@ impl Read for Bytes {
     }
 }
 
+/// ReadDyn is the dyn version of [`Read`] make it possible to use as
+/// `Box<dyn ReadDyn>`.
 pub trait ReadDyn: Unpin + Send + Sync {
+    /// The dyn version of [`Read::read_at`].
+    ///
+    /// This function returns a boxed future to make it object safe.
     fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>>;
 }
 
@@ -127,6 +134,12 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        self.deref().read_at_dyn(offset, limit).await
+    }
+}
+
+impl<T: ReadDyn + ?Sized> Read for Arc<T> {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.deref().read_at_dyn(offset, limit).await
     }

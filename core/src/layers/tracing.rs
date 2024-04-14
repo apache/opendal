@@ -57,7 +57,7 @@ use crate::*;
 /// use tracing_subscriber::prelude::*;
 /// use tracing_subscriber::EnvFilter;
 ///
-/// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
 ///     let tracer = opentelemetry_jaeger::new_pipeline()
 ///         .with_service_name("opendal_example")
 ///         .install_simple()?;
@@ -289,7 +289,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
         self.inner.write(bs)
     }
 
@@ -297,7 +297,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.abort()
     }
 
@@ -305,7 +305,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.close()
     }
 }

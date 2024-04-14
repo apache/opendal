@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::PcloudCore;
@@ -41,7 +40,7 @@ impl PcloudWriter {
 }
 
 impl oio::OneShotWrite for PcloudWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         self.core.ensure_dir_exists(&self.path).await?;
 
         let resp = self.core.upload_file(&self.path, bs).await?;

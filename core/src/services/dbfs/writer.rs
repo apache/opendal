@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::error::parse_error;
@@ -39,7 +38,7 @@ impl DbfsWriter {
 }
 
 impl oio::OneShotWrite for DbfsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let size = bs.len();
 
         // MAX_BLOCK_SIZE_EXCEEDED will be thrown if this limit(1MB) is exceeded.
@@ -50,7 +49,9 @@ impl oio::OneShotWrite for DbfsWriter {
             ));
         }
 
-        let req = self.core.dbfs_create_file_request(&self.path, bs)?;
+        let req = self
+            .core
+            .dbfs_create_file_request(&self.path, bs.to_bytes())?;
 
         let resp = self.core.client.send(req).await?;
 

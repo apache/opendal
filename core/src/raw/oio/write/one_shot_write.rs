@@ -17,8 +17,6 @@
 
 use std::future::Future;
 
-use bytes::Bytes;
-
 use crate::raw::*;
 use crate::*;
 
@@ -32,13 +30,13 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    fn write_once(&self, bs: Bytes) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn write_once(&self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
 pub struct OneShotWriter<W: OneShotWrite> {
     inner: W,
-    buffer: Option<Bytes>,
+    buffer: Option<Buffer>,
 }
 
 impl<W: OneShotWrite> OneShotWriter<W> {
@@ -60,7 +58,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
             )),
             None => {
                 let size = bs.len();
-                self.buffer = Some(bs.to_bytes());
+                self.buffer = Some(bs);
                 Ok(size)
             }
         }
@@ -69,7 +67,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
     async fn close(&mut self) -> Result<()> {
         match self.buffer.clone() {
             Some(bs) => self.inner.write_once(bs).await,
-            None => self.inner.write_once(Bytes::new()).await,
+            None => self.inner.write_once(Buffer::new()).await,
         }
     }
 

@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Buf;
-use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
@@ -313,7 +312,7 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn upload_file(&self, path: &str, bs: Bytes) -> Result<Response<Buffer>> {
+    pub async fn upload_file(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
@@ -330,9 +329,7 @@ impl PcloudCore {
         let req = Request::put(url);
 
         // set body
-        let req = req
-            .body(Buffer::from(bs))
-            .map_err(new_request_build_error)?;
+        let req = req.body(bs).map_err(new_request_build_error)?;
 
         self.send(req).await
     }

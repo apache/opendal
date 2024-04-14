@@ -163,7 +163,7 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn upload_object(&self, path: &str, bs: Bytes) -> Result<Response<Buffer>> {
+    pub async fn upload_object(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(

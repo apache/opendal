@@ -80,7 +80,7 @@ pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
 
     let path = TEST_FIXTURE.new_file_path();
 
-    op.write(&path, vec![]).await?;
+    op.write(&path, Vec::<u8>::new()).await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), 0);

@@ -422,14 +422,13 @@ mod tests {
 
         let content = gen_random_bytes();
         let mut writer = op.writer(path).await.unwrap();
-        writer.write(content.clone())
+        writer
+            .write(content.clone())
             .await
             .expect("write must succeed");
         writer.close().await.expect("close must succeed");
 
-        let buf = op.read(path)
-            .await
-            .expect("read to end mut succeed");
+        let buf = op.read(path).await.expect("read to end mut succeed");
 
         assert_eq!(buf.to_bytes(), content);
     }
@@ -441,14 +440,13 @@ mod tests {
 
         let content = gen_random_bytes();
         let mut writer = op.writer(path).await.unwrap();
-        writer.write_from(Bytes::from(content.clone()))
+        writer
+            .write_from(Bytes::from(content.clone()))
             .await
             .expect("write must succeed");
         writer.close().await.expect("close must succeed");
 
-        let buf = op.read(path)
-            .await
-            .expect("read to end mut succeed");
+        let buf = op.read(path).await.expect("read to end mut succeed");
 
         assert_eq!(buf.to_bytes(), content);
     }

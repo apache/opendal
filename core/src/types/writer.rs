@@ -16,7 +16,6 @@
 // under the License.
 
 use std::io;
-use std::mem;
 use std::pin::pin;
 
 use bytes::Buf;
@@ -91,8 +90,9 @@ impl Writer {
         Ok(Writer { inner: w })
     }
 
-    pub async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let mut bs = bs;
+    /// Write Buffer into inner writer.
+    pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
+        let mut bs = bs.into();
         while !bs.is_empty() {
             let n = self.inner.write_dyn(bs.clone()).await?;
             bs.advance(n);
@@ -100,11 +100,12 @@ impl Writer {
         Ok(())
     }
 
-    pub async fn write_from(&mut self, bs: &mut impl Buf) -> Result<()> {
-        while bs.has_remaining() {
-            let chunk_ref: &[u8] = bs.chunk();
-            let static_ref: &'static [u8] = unsafe { mem::transmute(chunk_ref) };
-            let n = self.inner.write_dyn(static_ref.into()).await?;
+    /// Write bytes::Buf into inner writer.
+    pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
+        let mut bs = bs;
+        let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
+        while !bs.is_empty() {
+            let n = self.inner.write_dyn(bs.clone()).await?;
             bs.advance(n);
         }
         Ok(())
@@ -397,6 +398,7 @@ impl io::Write for BlockingWriter {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
@@ -415,11 +417,39 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
 
+        let content = gen_random_bytes();
+        let mut writer = op.writer(path).await.unwrap();
+        writer.write(content.clone())
+            .await
+            .expect("write must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path)
+            .await
+            .expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
     }
 
     #[tokio::test]
     async fn test_writer_write_from() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
 
+        let content = gen_random_bytes();
+        let mut writer = op.writer(path).await.unwrap();
+        writer.write_from(Bytes::from(content.clone()))
+            .await
+            .expect("write must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path)
+            .await
+            .expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
     }
 }

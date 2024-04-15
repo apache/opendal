@@ -20,6 +20,7 @@ use std::convert::Infallible;
 use std::fmt::{Debug, Formatter};
 use std::io::IoSlice;
 use std::mem;
+use std::ops::{Bound, RangeBounds};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -183,6 +184,49 @@ impl Buffer {
                 *size = (*size).min(len);
             }
         }
+    }
+
+    /// Returns a slice of self for the provided range.
+    ///
+    /// This will increment the reference count for the underlying memory and return a new Buffer handle set to the slice.
+    ///
+    /// This operation is O(1).
+    pub fn slice(&self, range: impl RangeBounds<usize>) -> Self {
+        let len = self.len();
+
+        let begin = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n.checked_add(1).expect("out of range"),
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(&n) => n.checked_add(1).expect("out of range"),
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => len,
+        };
+
+        assert!(
+            begin <= end,
+            "range start must not be greater than end: {:?} <= {:?}",
+            begin,
+            end,
+        );
+        assert!(
+            end <= len,
+            "range end out of bounds: {:?} <= {:?}",
+            end,
+            len,
+        );
+
+        if end == begin {
+            return Buffer::new();
+        }
+
+        let mut ret = self.clone();
+        ret.truncate(end);
+        ret.advance(begin);
+        ret
     }
 
     /// Combine all bytes together into one single [`Bytes`].

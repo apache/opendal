@@ -253,9 +253,14 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
         self.map(|(op_read, op_reader)| (op_read, op_reader.with_concurrent(concurrent)))
     }
 
-    /// Set the chunk size for this operation.
+    /// Set the chunk size for this reader.
     pub fn chunk(self, chunk_size: usize) -> Self {
         self.map(|(op_read, op_reader)| (op_read, op_reader.with_chunk(chunk_size)))
+    }
+
+    /// Set the gap size for this reader.
+    pub fn gap(self, gap_size: usize) -> Self {
+        self.map(|(op_read, op_reader)| (op_read, op_reader.with_gap(gap_size)))
     }
 }
 

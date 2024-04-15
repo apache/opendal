@@ -393,6 +393,8 @@ pub struct OpReader {
     concurrent: usize,
     /// The chunk size of each request.
     chunk: Option<usize>,
+    /// The gap size of each request.
+    gap: Option<usize>,
 }
 
 impl Default for OpReader {
@@ -401,6 +403,7 @@ impl Default for OpReader {
             range: BytesRange::default(),
             concurrent: 1,
             chunk: None,
+            gap: None,
         }
     }
 }
@@ -442,6 +445,17 @@ impl OpReader {
     /// Get chunk from option
     pub fn chunk(&self) -> Option<usize> {
         self.chunk
+    }
+
+    /// Set the gap of the option
+    pub fn with_gap(mut self, gap: usize) -> Self {
+        self.gap = Some(gap.max(1));
+        self
+    }
+
+    /// Get gap from option
+    pub fn gap(&self) -> Option<usize> {
+        self.gap
     }
 }
 

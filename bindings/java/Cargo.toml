@@ -92,7 +92,7 @@ services-all = [
   "services-b2",
   "services-seafile",
   "services-upyun",
-  "services-yandex-disk"
+  "services-yandex-disk",
 ]
 
 # Default services provided by opendal.

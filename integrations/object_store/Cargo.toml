@@ -37,5 +37,7 @@ opendal = { version = "0.45.1", path = "../../core" }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
+opendal = { version = "0.45.1", path = "../../core", features = [
+  "services-memory",
+] }
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
-opendal = { version = "0.45.1", path = "../../core", features = ["services-memory"] }

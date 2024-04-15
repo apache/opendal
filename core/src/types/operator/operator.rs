@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::time::Duration;
 
-use bytes::Bytes;
 use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
@@ -623,7 +622,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+    pub async fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<()> {
         let bs = bs.into();
         self.write_with(path, bs).await
     }
@@ -1112,7 +1111,7 @@ impl Operator {
     pub fn write_with(
         &self,
         path: &str,
-        bs: impl Into<Bytes>,
+        bs: impl Into<Buffer>,
     ) -> FutureWrite<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
         let bs = bs.into();

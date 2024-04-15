@@ -806,7 +806,8 @@ mod tests {
     #[tokio::test]
     async fn test_writer() {
         let op = new_test_operator(Capability::default());
-        let res = op.write("path", vec![]).await;
+        let bs: Vec<u8> = vec![];
+        let res = op.write("path", bs).await;
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
 

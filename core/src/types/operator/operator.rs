@@ -500,8 +500,8 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), BytesRange::default()),
-            |inner, path, (args, range)| async move {
+            (OpRead::default(), OpReader::default()),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -511,7 +511,8 @@ impl Operator {
                     );
                 }
 
-                let r = Reader::create(inner, &path, args).await?;
+                let range = options.range();
+                let r = Reader::create(inner, &path, args, options).await?;
                 let buf = r.read(range.to_range()).await?;
                 Ok(buf)
             },
@@ -571,8 +572,8 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpRead::default(),
-            |inner, path, args| async move {
+            (OpRead::default(), OpReader::default()),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -582,7 +583,7 @@ impl Operator {
                     );
                 }
 
-                Reader::create(inner.clone(), &path, args).await
+                Reader::create(inner.clone(), &path, args, options).await
             },
         )
     }

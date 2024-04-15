@@ -41,6 +41,7 @@ use crate::*;
 #[derive(Clone)]
 pub struct Reader {
     inner: oio::Reader,
+    options: OpReader,
 }
 
 impl Reader {
@@ -51,10 +52,15 @@ impl Reader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let (_, r) = acc.read(path, op).await?;
+    pub(crate) async fn create(
+        acc: FusedAccessor,
+        path: &str,
+        args: OpRead,
+        options: OpReader,
+    ) -> Result<Self> {
+        let (_, r) = acc.read(path, args).await?;
 
-        Ok(Reader { inner: r })
+        Ok(Reader { inner: r, options })
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -100,9 +106,10 @@ impl Reader {
         &self,
         range: impl RangeBounds<u64>,
     ) -> impl Stream<Item = Result<Buffer>> + Unpin + MaybeSend + 'static {
-        let futs = into_stream::ReadFutureIterator::new(self.inner.clone(), range);
+        let futs =
+            into_stream::ReadFutureIterator::new(self.inner.clone(), self.options.chunk(), range);
 
-        stream::iter(futs).then(|f| f)
+        stream::iter(futs).buffered(self.options.concurrent())
     }
 
     /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
@@ -132,6 +139,7 @@ pub mod into_stream {
 
     pub struct ReadFutureIterator {
         r: oio::Reader,
+        chunk: usize,
 
         offset: u64,
         end: Option<u64>,
@@ -139,7 +147,7 @@ pub mod into_stream {
     }
 
     impl ReadFutureIterator {
-        pub fn new(r: oio::Reader, range: impl RangeBounds<u64>) -> Self {
+        pub fn new(r: oio::Reader, chunk: usize, range: impl RangeBounds<u64>) -> Self {
             let start = match range.start_bound().cloned() {
                 Bound::Included(start) => start,
                 Bound::Excluded(start) => start + 1,
@@ -153,6 +161,7 @@ pub mod into_stream {
 
             ReadFutureIterator {
                 r,
+                chunk,
                 offset: start,
                 end,
                 finished: Arc::default(),
@@ -174,8 +183,11 @@ pub mod into_stream {
             let offset = self.offset;
             let limit = self
                 .end
-                .map(|end| end - self.offset)
-                .unwrap_or(4 * 1024 * 1024) as usize;
+                .map(|end| (end - self.offset) as usize)
+                // TODO: replace with services preferred chunk size.
+                .unwrap_or(4 * 1024 * 1024)
+                // Align with reader's chunk size.
+                .max(self.chunk);
             let finished = self.finished.clone();
             let r = self.r.clone();
 
@@ -485,6 +497,43 @@ mod tests {
             .expect("write must succeed");
 
         let reader = op.reader(path).await.unwrap();
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_with_chunk() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).chunk(16).await.unwrap();
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_with_concurrent() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op
+            .reader_with(path)
+            .chunk(128)
+            .concurrent(16)
+            .await
+            .unwrap();
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);

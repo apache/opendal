@@ -175,14 +175,14 @@ impl Reader {
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
     pub fn into_futures_io_async_read(self, range: Range<u64>) -> FuturesIoAsyncReader {
-        FuturesIoAsyncReader::new(self.inner, range)
+        FuturesIoAsyncReader::new(self.inner, self.options.chunk(), range)
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
     pub fn into_futures_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
-        FuturesBytesStream::new(self.inner, range)
+        FuturesBytesStream::new(self.inner, self.options.chunk(), range)
     }
 }
 
@@ -292,7 +292,7 @@ pub mod into_futures_async_read {
         state: State,
         offset: u64,
         size: u64,
-        cap: usize,
+        chunk: usize,
 
         cur: u64,
         buf: Buffer,
@@ -311,23 +311,16 @@ pub mod into_futures_async_read {
     impl FuturesIoAsyncReader {
         /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
-        pub(super) fn new(r: oio::Reader, range: Range<u64>) -> Self {
+        pub(super) fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
             FuturesIoAsyncReader {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
-                // TODO: should use services preferred io size.
-                cap: 8 * 1024 * 1024,
+                chunk: chunk.unwrap_or(8 * 1024 * 1024),
 
                 cur: 0,
                 buf: Buffer::new(),
             }
-        }
-
-        /// Set the capacity of this reader to control the IO size.
-        pub fn with_capacity(mut self, cap: usize) -> Self {
-            self.cap = cap;
-            self
         }
     }
 
@@ -348,7 +341,7 @@ pub mod into_futures_async_read {
 
                         let r = r.take().expect("reader must be present");
                         let next_offset = this.offset + this.cur;
-                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let next_size = (this.size - this.cur).min(this.chunk as u64) as usize;
                         let fut = async move {
                             let res = r.read_at_dyn(next_offset, next_size).await;
                             (r, res)
@@ -448,7 +441,7 @@ pub mod into_futures_stream {
         state: State,
         offset: u64,
         size: u64,
-        cap: usize,
+        chunk: usize,
 
         cur: u64,
     }
@@ -466,23 +459,16 @@ pub mod into_futures_stream {
     impl FuturesBytesStream {
         /// NOTE: don't allow users to create FuturesStream directly.
         #[inline]
-        pub(crate) fn new(r: oio::Reader, range: Range<u64>) -> Self {
+        pub(crate) fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
             FuturesBytesStream {
                 r,
                 state: State::Idle(Buffer::new()),
                 offset: range.start,
                 size: range.end - range.start,
-                // TODO: should use services preferred io size.
-                cap: 4 * 1024 * 1024,
+                chunk: chunk.unwrap_or(8 * 1024 * 1024),
 
                 cur: 0,
             }
-        }
-
-        /// Set the capacity of this reader to control the IO size.
-        pub fn with_capacity(mut self, cap: usize) -> Self {
-            self.cap = cap;
-            self
         }
     }
 
@@ -507,7 +493,7 @@ pub mod into_futures_stream {
 
                         let r = this.r.clone();
                         let next_offset = this.offset + this.cur;
-                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let next_size = (this.size - this.cur).min(this.chunk as u64) as usize;
                         let fut = async move { r.read_at_dyn(next_offset, next_size).await };
                         this.state = State::Next(Box::pin(fut));
                     }

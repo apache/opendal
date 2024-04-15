@@ -1787,7 +1787,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Lister>>> {
+    pub fn lister_with(&self, path: &str) -> FutureLister<impl Future<Output = Result<Lister>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(

@@ -298,6 +298,93 @@ impl DropboxCore {
         }
     }
 
+    pub async fn dropbox_list(
+        &self,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Result<Response<Buffer>> {
+        let url = "https://api.dropboxapi.com/2/files/list_folder".to_string();
+
+        // The default settings here align with the DropboxAPI default settings.
+        // Refer: https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder
+        let args = DropboxListArgs {
+            path: self.build_path(path),
+            recursive,
+            limit: limit.unwrap_or(1000),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(Buffer::from(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_list_continue(&self, cursor: &str) -> Result<Response<Buffer>> {
+        let url = "https://api.dropboxapi.com/2/files/list_folder/continue".to_string();
+
+        let args = DropboxListContinueArgs {
+            cursor: cursor.to_string(),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(Buffer::from(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+        let url = "https://api.dropboxapi.com/2/files/copy_v2".to_string();
+
+        let args = DropboxCopyArgs {
+            from_path: self.build_path(from),
+            to_path: self.build_path(to),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(Buffer::from(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+        let url = "https://api.dropboxapi.com/2/files/move_v2".to_string();
+
+        let args = DropboxMoveArgs {
+            from_path: self.build_path(from),
+            to_path: self.build_path(to),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(Buffer::from(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
@@ -440,6 +527,30 @@ struct DropboxCreateFolderArgs {
     path: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxListArgs {
+    path: String,
+    recursive: bool,
+    limit: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxListContinueArgs {
+    cursor: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxCopyArgs {
+    from_path: String,
+    to_path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxMoveArgs {
+    from_path: String,
+    to_path: String,
+}
+
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 struct DropboxMetadataArgs {
     include_deleted: bool,
@@ -506,6 +617,14 @@ pub struct DropboxMetadataSharingInfo {
     pub shared_folder_id: Option<String>,
     pub traverse_only: Option<bool>,
     pub no_access: Option<bool>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+pub struct DropboxListResponse {
+    pub entries: Vec<DropboxMetadataResponse>,
+    pub cursor: String,
+    pub has_more: bool,
 }
 
 #[derive(Default, Debug, Deserialize)]

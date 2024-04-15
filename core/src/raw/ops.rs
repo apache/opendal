@@ -24,7 +24,7 @@ use std::time::Duration;
 use flagset::FlagSet;
 
 use crate::raw::*;
-use crate::Metakey;
+use crate::*;
 
 /// Args for `create` operation.
 ///
@@ -379,6 +379,69 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+}
+
+/// Args for reader operation.
+#[derive(Debug, Clone)]
+pub struct OpReader {
+    /// The range of the read request.
+    ///
+    /// Not available for `reader``.
+    range: BytesRange,
+    /// The concurrent requests that reader can send.
+    concurrent: usize,
+    /// The chunk size of each request.
+    chunk: usize,
+}
+
+impl Default for OpReader {
+    fn default() -> Self {
+        Self {
+            range: BytesRange::default(),
+            concurrent: 1,
+            chunk: 0,
+        }
+    }
+}
+
+impl OpReader {
+    /// Create a new `OpReader`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the range of the option
+    pub fn with_range(mut self, range: BytesRange) -> Self {
+        self.range = range;
+        self
+    }
+
+    /// Get range from option
+    pub fn range(&self) -> BytesRange {
+        self.range
+    }
+
+    /// Set the concurrent of the option
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent.max(1);
+        self
+    }
+
+    /// Get concurrent from option
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the chunk of the option
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = chunk;
+        self
+    }
+
+    /// Get chunk from option
+    pub fn chunk(&self) -> usize {
+        self.chunk
     }
 }
 

@@ -101,13 +101,72 @@ impl Reader {
         }
     }
 
+    /// Fetch specific ranges from reader.
+    ///
+    /// This operation try to merge given ranges into a list of
+    /// non-overlapping ranges. Users may also specify a `gap` to merge
+    /// close ranges.
+    ///
+    /// The returning `Buffer` may share the same underlying memory without
+    /// any extra copy.
+    pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
+        let merged_ranges = self.merge_ranges(ranges.clone());
+
+        let merged_bufs: Vec<_> =
+            stream::iter(merged_ranges.clone().into_iter().map(|v| self.read(v)))
+                .buffered(self.options.concurrent())
+                .try_collect()
+                .await?;
+
+        let mut bufs = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            let idx = merged_ranges.partition_point(|v| v.start <= range.start) - 1;
+            let start = range.start - merged_ranges[idx].start;
+            let end = range.end - merged_ranges[idx].start;
+            bufs.push(merged_bufs[idx].slice(start as usize..end as usize));
+        }
+
+        Ok(bufs)
+    }
+
+    /// Merge given ranges into a list of non-overlapping ranges.
+    fn merge_ranges(&self, mut ranges: Vec<Range<u64>>) -> Vec<Range<u64>> {
+        let gap = self.options.gap().unwrap_or(1024 * 1024) as u64;
+        // We don't care about the order of range with same start, they
+        // will be merged in the next step.
+        ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
+
+        // We know that this vector will have at most element
+        let mut merged = Vec::with_capacity(ranges.len());
+        let mut cur = ranges[0].clone();
+
+        for range in ranges.into_iter().skip(1) {
+            if range.start <= cur.end + gap {
+                // There is an overlap or the gap is small enough to merge
+                cur.end = cur.end.max(range.end);
+            } else {
+                // No overlap and the gap is too large, push the current range to the list and start a new one
+                merged.push(cur);
+                cur = range;
+            }
+        }
+
+        // Push the last range
+        merged.push(cur);
+
+        merged
+    }
+
     /// Create a buffer stream to read specific range from given reader.
     pub fn into_stream(
         &self,
         range: impl RangeBounds<u64>,
     ) -> impl Stream<Item = Result<Buffer>> + Unpin + MaybeSend + 'static {
-        let futs =
-            into_stream::ReadFutureIterator::new(self.inner.clone(), self.options.chunk(), range);
+        let futs = into_future_iterator::ReadFutureIterator::new(
+            self.inner.clone(),
+            self.options.chunk(),
+            range,
+        );
 
         stream::iter(futs).buffered(self.options.concurrent())
     }
@@ -127,7 +186,7 @@ impl Reader {
     }
 }
 
-pub mod into_stream {
+pub mod into_future_iterator {
     use std::sync::atomic::Ordering;
     use std::{
         ops::{Bound, RangeBounds},
@@ -485,6 +544,13 @@ mod tests {
         content
     }
 
+    fn gen_fixed_bytes(size: usize) -> Vec<u8> {
+        let mut rng = ThreadRng::default();
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        content
+    }
+
     #[tokio::test]
     async fn test_reader_read() {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
@@ -556,5 +622,57 @@ mod tests {
             .expect("read to end must succeed");
 
         assert_eq!(buf, content);
+    }
+
+    #[tokio::test]
+    async fn test_merge_ranges() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).gap(1).await.unwrap();
+
+        let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
+        let merged = reader.merge_ranges(ranges.clone());
+        assert_eq!(merged, vec![0..30, 40..60]);
+    }
+
+    #[tokio::test]
+    async fn test_fetch() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).gap(1).await.unwrap();
+
+        let ranges = vec![
+            0..10,
+            40..50,
+            45..59,
+            10..20,
+            21..30,
+            40..50,
+            40..60,
+            45..59,
+        ];
+        let merged = reader
+            .fetch(ranges.clone())
+            .await
+            .expect("fetch must succeed");
+
+        for (i, range) in ranges.iter().enumerate() {
+            assert_eq!(
+                merged[i].to_bytes(),
+                content[range.start as usize..range.end as usize]
+            );
+        }
     }
 }

@@ -139,7 +139,7 @@ pub mod into_stream {
 
     pub struct ReadFutureIterator {
         r: oio::Reader,
-        chunk: usize,
+        chunk: Option<usize>,
 
         offset: u64,
         end: Option<u64>,
@@ -147,7 +147,7 @@ pub mod into_stream {
     }
 
     impl ReadFutureIterator {
-        pub fn new(r: oio::Reader, chunk: usize, range: impl RangeBounds<u64>) -> Self {
+        pub fn new(r: oio::Reader, chunk: Option<usize>, range: impl RangeBounds<u64>) -> Self {
             let start = match range.start_bound().cloned() {
                 Bound::Included(start) => start,
                 Bound::Excluded(start) => start + 1,
@@ -181,13 +181,12 @@ pub mod into_stream {
             }
 
             let offset = self.offset;
+            // TODO: replace with services preferred chunk size.
+            let chunk = self.chunk.unwrap_or(4 * 1024 * 1024);
             let limit = self
                 .end
-                .map(|end| (end - self.offset) as usize)
-                // TODO: replace with services preferred chunk size.
-                .unwrap_or(4 * 1024 * 1024)
-                // Align with reader's chunk size.
-                .max(self.chunk);
+                .map(|end| ((end - self.offset) as usize).min(chunk))
+                .unwrap_or(chunk);
             let finished = self.finished.clone();
             let r = self.r.clone();
 

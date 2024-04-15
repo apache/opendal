@@ -392,7 +392,7 @@ pub struct OpReader {
     /// The concurrent requests that reader can send.
     concurrent: usize,
     /// The chunk size of each request.
-    chunk: usize,
+    chunk: Option<usize>,
 }
 
 impl Default for OpReader {
@@ -400,7 +400,7 @@ impl Default for OpReader {
         Self {
             range: BytesRange::default(),
             concurrent: 1,
-            chunk: 0,
+            chunk: None,
         }
     }
 }
@@ -435,12 +435,12 @@ impl OpReader {
 
     /// Set the chunk of the option
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = chunk;
+        self.chunk = Some(chunk.max(1));
         self
     }
 
     /// Get chunk from option
-    pub fn chunk(&self) -> usize {
+    pub fn chunk(&self) -> Option<usize> {
         self.chunk
     }
 }

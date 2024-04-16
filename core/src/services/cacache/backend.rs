@@ -109,18 +109,16 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read(&self.datadir, path)
-                .await
-                .map_err(parse_error)?,
-        ))
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read(&self.datadir, path)
+            .await
+            .map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read_sync(&self.datadir, path).map_err(parse_error)?,
-        ))
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read_sync(&self.datadir, path).map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

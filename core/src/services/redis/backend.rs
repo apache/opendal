@@ -389,18 +389,13 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let conn = self.conn().await?;
-        match conn {
-            RedisConnection::Normal(mut conn) => {
-                let bs = conn.get(key).await.map_err(format_redis_error)?;
-                Ok(bs)
-            }
-            RedisConnection::Cluster(mut conn) => {
-                let bs = conn.get(key).await.map_err(format_redis_error)?;
-                Ok(bs)
-            }
-        }
+        let result: Option<bytes::Bytes> = match conn {
+            RedisConnection::Normal(mut conn) => conn.get(key).await.map_err(format_redis_error),
+            RedisConnection::Cluster(mut conn) => conn.get(key).await.map_err(format_redis_error),
+        }?;
+        Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {

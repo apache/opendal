@@ -169,14 +169,14 @@ impl Builder for SqliteBuilder {
                     ErrorKind::ConfigInvalid,
                     "connection_string is required but not set",
                 )
-                .with_context("service", Scheme::Sqlite))
+                .with_context("service", Scheme::Sqlite));
             }
         };
         let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Sqlite))
+                    .with_context("service", Scheme::Sqlite));
             }
         };
         let key_field = match self.config.key_field.clone() {
@@ -269,7 +269,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let this = self.clone();
         let path = path.to_string();
 
@@ -278,7 +278,7 @@ impl kv::Adapter for Adapter {
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let conn = self.pool.get().map_err(parse_r2d2_error)?;
 
         let query = format!(
@@ -286,9 +286,9 @@ impl kv::Adapter for Adapter {
             self.value_field, self.table, self.key_field
         );
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        let result = statement.query_row([path], |row| row.get(0));
+        let result: rusqlite::Result<Vec<u8>> = statement.query_row([path], |row| row.get(0));
         match result {
-            Ok(v) => Ok(Some(v)),
+            Ok(v) => Ok(Some(Buffer::from(v))),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(err) => Err(parse_rusqlite_error(err)),
         }

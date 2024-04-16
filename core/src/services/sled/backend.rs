@@ -171,7 +171,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -180,12 +180,12 @@ impl kv::Adapter for Adapter {
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         Ok(self
             .tree
             .get(path)
             .map_err(parse_error)?
-            .map(|v| v.to_vec()))
+            .map(|v| Buffer::from(v.to_vec())))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

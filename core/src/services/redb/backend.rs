@@ -133,7 +133,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -143,7 +143,7 @@ impl kv::Adapter for Adapter {
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
@@ -157,8 +157,8 @@ impl kv::Adapter for Adapter {
             Ok(Some(v)) => Ok(Some(v.value().to_vec())),
             Ok(None) => Ok(None),
             Err(e) => Err(parse_storage_error(e)),
-        };
-        result
+        }?;
+        Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

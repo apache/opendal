@@ -35,10 +35,10 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>>;
+    async fn get(&self, path: &str) -> Result<Option<Buffer>>;
 
     /// The blocking version of get.
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let _ = path;
 
         Err(Error::new(

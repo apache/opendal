@@ -19,15 +19,14 @@ use std::fmt::Debug;
 use std::mem::size_of;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use chrono::Utc;
 
-use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
+use crate::{Buffer, EntryMode};
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -97,7 +96,7 @@ pub struct Value {
     /// Metadata of this value.
     pub metadata: Metadata,
     /// The corresponding content of this value.
-    pub value: Bytes,
+    pub value: Buffer,
 }
 
 impl Value {
@@ -107,7 +106,7 @@ impl Value {
             metadata: Metadata::new(EntryMode::DIR)
                 .with_content_length(0)
                 .with_last_modified(Utc::now()),
-            value: Bytes::new(),
+            value: Buffer::new(),
         }
     }
 

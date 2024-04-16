@@ -47,8 +47,8 @@ impl<W: oio::Write> ExactBufWriter<W> {
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
-            let buffer = std::mem::take(&mut self.buffer);
-            self.inner.write(buffer.collect()).await?;
+            let written = self.inner.write(self.buffer.collect()).await?;
+            self.buffer.advance(written);
         }
 
         let remaining = self.buffer_size - self.buffer.len();
@@ -59,8 +59,15 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let buffer = std::mem::take(&mut self.buffer);
-        self.inner.write(buffer.collect()).await?;
+        loop {
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            let written = self.inner.write(self.buffer.collect()).await?;
+            self.buffer.advance(written);
+        }
+
         self.inner.close().await
     }
 

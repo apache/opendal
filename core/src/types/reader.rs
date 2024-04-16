@@ -171,17 +171,17 @@ impl Reader {
         stream::iter(futs).buffered(self.options.concurrent())
     }
 
-    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
+    /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_futures_io_async_read(self, range: Range<u64>) -> FuturesIoAsyncReader {
-        FuturesIoAsyncReader::new(self.inner, self.options.chunk(), range)
+    pub fn into_futures_async_read(self, range: Range<u64>) -> FuturesAsyncReader {
+        FuturesAsyncReader::new(self.inner, self.options.chunk(), range)
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_futures_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
+    pub fn into_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
         FuturesBytesStream::new(self.inner, self.options.chunk(), range)
     }
 }
@@ -288,7 +288,7 @@ pub mod into_futures_async_read {
     /// Users can use this adapter in cases where they need to use [`AsyncRead`] related trait.
     ///
     /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
-    pub struct FuturesIoAsyncReader {
+    pub struct FuturesAsyncReader {
         state: State,
         offset: u64,
         size: u64,
@@ -308,11 +308,11 @@ pub mod into_futures_async_read {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesIoAsyncReader {
+    impl FuturesAsyncReader {
         /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
         pub(super) fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
-            FuturesIoAsyncReader {
+            FuturesAsyncReader {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
@@ -324,7 +324,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncBufRead for FuturesIoAsyncReader {
+    impl AsyncBufRead for FuturesAsyncReader {
         fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
@@ -369,7 +369,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncRead for FuturesIoAsyncReader {
+    impl AsyncRead for FuturesAsyncReader {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -383,7 +383,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncSeek for FuturesIoAsyncReader {
+    impl AsyncSeek for FuturesAsyncReader {
         fn poll_seek(
             mut self: Pin<&mut Self>,
             _: &mut Context<'_>,

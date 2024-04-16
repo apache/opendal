@@ -191,7 +191,7 @@ impl Operator {
         let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r.into_futures_io_async_read(0..meta.content_length()),
+            inner: r.into_futures_async_read(0..meta.content_length()),
         })
     }
 

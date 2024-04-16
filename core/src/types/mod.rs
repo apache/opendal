@@ -29,7 +29,7 @@ pub use metadata::Metadata;
 pub use metadata::Metakey;
 
 mod reader;
-pub use reader::into_futures_async_read::FuturesIoAsyncReader;
+pub use reader::into_futures_async_read::FuturesAsyncReader;
 pub use reader::into_futures_stream::FuturesBytesStream;
 pub use reader::Reader;
 

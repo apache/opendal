@@ -46,13 +46,10 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let (dst_op, dst_path) = cfg.parse_location(dst)?;
 
     if !recursive {
-        let mut dst_w = dst_op
-            .writer(&dst_path)
-            .await?
-            .into_futures_io_async_write();
+        let mut dst_w = dst_op.writer(&dst_path).await?.into_futures_async_write();
         let src_meta = src_op.stat(&src_path).await?;
         let reader = src_op.reader_with(&src_path).chunk(8 * 1024 * 1024).await?;
-        let buf_reader = reader.into_futures_io_async_read(0..src_meta.content_length());
+        let buf_reader = reader.into_futures_async_read(0..src_meta.content_length());
         futures::io::copy_buf(buf_reader, &mut dst_w).await?;
         // flush data
         dst_w.close().await?;
@@ -74,12 +71,12 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
             .strip_prefix(prefix)
             .expect("invalid path");
         let reader = src_op.reader_with(de.path()).chunk(8 * 1024 * 1024).await?;
-        let buf_reader = reader.into_futures_io_async_read(0..meta.content_length());
+        let buf_reader = reader.into_futures_async_read(0..meta.content_length());
 
         let mut writer = dst_op
             .writer(&dst_root.join(fp).to_string_lossy())
             .await?
-            .into_futures_io_async_write();
+            .into_futures_async_write();
 
         println!("Copying {}", de.path());
         futures::io::copy_buf(buf_reader, &mut writer).await?;

@@ -16,7 +16,6 @@
 // under the License.
 
 use crate::*;
-use bytes::Buf;
 use std::collections::VecDeque;
 
 /// QueueBuf is a queue of [`Buffer`].
@@ -57,7 +56,7 @@ impl QueueBuf {
         self.len() == 0
     }
 
-    /// Build a new [`Buffer`] from the queue.
+    /// Collect the buffers from the queue into a new [`Buffer`].
     ///
     /// If the queue is empty, it will return an empty buffer. Otherwise, it will iterate over all
     /// buffers and collect them into a new buffer.
@@ -68,52 +67,13 @@ impl QueueBuf {
     /// most of them should be acceptable since we can expect the item length of buffers are slower
     /// than 4k.
     #[inline]
-    pub fn collect(&self) -> Buffer {
-        if self.0.is_empty() {
-            Buffer::new()
-        } else if self.0.len() == 1 {
-            self.0.clone().pop_front().unwrap()
-        } else {
-            self.0.clone().into_iter().flatten().collect()
-        }
-    }
-
-    /// Convert to a new [`Buffer`] from the queue.
-    ///
-    /// If the queue is empty, it will return an empty buffer. Otherwise, it will iterate over all
-    /// buffers and collect them into a new buffer.
-    ///
-    /// # Notes
-    ///
-    /// There are allocation overheads when collecting multiple buffers into a new buffer. But
-    /// most of them should be acceptable since we can expect the item length of buffers are slower
-    /// than 4k.
-    #[inline]
-    pub fn into_buffer(mut self) -> Buffer {
+    pub fn collect(mut self) -> Buffer {
         if self.0.is_empty() {
             Buffer::new()
         } else if self.0.len() == 1 {
             self.0.pop_front().unwrap()
         } else {
             self.0.into_iter().flatten().collect()
-        }
-    }
-
-    /// Advance the buffer queue by `cnt` bytes.
-    #[inline]
-    pub fn advance(&mut self, cnt: usize) {
-        assert!(cnt <= self.len(), "cannot advance past {cnt} bytes");
-
-        let mut new_cnt = cnt;
-        while new_cnt > 0 {
-            let buf = self.0.front_mut().expect("buffer must be valid");
-            if new_cnt < buf.remaining() {
-                buf.advance(new_cnt);
-                break;
-            } else {
-                new_cnt -= buf.remaining();
-                self.0.pop_front();
-            }
         }
     }
 

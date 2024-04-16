@@ -53,7 +53,7 @@ where
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(target_arch = "wasm32", async_trait(? Send))]
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = Buffer;
     type BlockingReader = Buffer;
@@ -258,11 +258,7 @@ impl<S> KvWriter<S> {
     }
 
     fn build(&mut self) -> Value {
-        let value = self
-            .buf
-            .take()
-            .map(QueueBuf::into_buffer)
-            .unwrap_or_default();
+        let value = self.buf.take().map(QueueBuf::collect).unwrap_or_default();
 
         let mut metadata = Metadata::new(EntryMode::FILE);
         metadata.set_content_length(value.len() as u64);

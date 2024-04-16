@@ -19,11 +19,10 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
 
 use super::Adapter;
 use super::Value;
-use crate::raw::oio::HierarchyLister;
+use crate::raw::oio::{HierarchyLister, QueueBuf};
 use crate::raw::*;
 use crate::*;
 
@@ -56,8 +55,8 @@ where
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
-    type Reader = Bytes;
-    type BlockingReader = Bytes;
+    type Reader = Buffer;
+    type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
@@ -238,7 +237,7 @@ pub struct KvWriter<S> {
     path: String,
 
     op: OpWrite,
-    buf: Option<Vec<u8>>,
+    buf: Option<QueueBuf>,
     value: Option<Value>,
 }
 
@@ -259,7 +258,11 @@ impl<S> KvWriter<S> {
     }
 
     fn build(&mut self) -> Value {
-        let value = self.buf.take().map(Bytes::from).unwrap_or_default();
+        let value = self
+            .buf
+            .take()
+            .map(QueueBuf::into_buffer)
+            .unwrap_or_default();
 
         let mut metadata = Metadata::new(EntryMode::FILE);
         metadata.set_content_length(value.len() as u64);
@@ -280,11 +283,9 @@ impl<S> KvWriter<S> {
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let size = bs.chunk().len();
-
-        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
-
+        let size = bs.len();
+        let mut buf = self.buf.take().unwrap_or_default();
+        buf.push(bs);
         self.buf = Some(buf);
         Ok(size)
     }
@@ -311,12 +312,9 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Buffer) -> Result<usize> {
         let size = bs.len();
-
-        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
-
+        let mut buf = self.buf.take().unwrap_or_default();
+        buf.push(bs);
         self.buf = Some(buf);
-
         Ok(size)
     }
 

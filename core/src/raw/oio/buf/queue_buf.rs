@@ -78,6 +78,27 @@ impl QueueBuf {
         }
     }
 
+    /// Convert to a new [`Buffer`] from the queue.
+    ///
+    /// If the queue is empty, it will return an empty buffer. Otherwise, it will iterate over all
+    /// buffers and collect them into a new buffer.
+    ///
+    /// # Notes
+    ///
+    /// There are allocation overheads when collecting multiple buffers into a new buffer. But
+    /// most of them should be acceptable since we can expect the item length of buffers are slower
+    /// than 4k.
+    #[inline]
+    pub fn into_buffer(mut self) -> Buffer {
+        if self.0.is_empty() {
+            Buffer::new()
+        } else if self.0.len() == 1 {
+            self.0.pop_front().unwrap()
+        } else {
+            self.0.into_iter().flatten().collect()
+        }
+    }
+
     /// Advance the buffer queue by `cnt` bytes.
     #[inline]
     pub fn advance(&mut self, cnt: usize) {

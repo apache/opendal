@@ -241,7 +241,7 @@ impl kv::Adapter for Adapter {
         Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         self.get_connection()
             .await?
             .put(path.to_owned(), value.to_vec())

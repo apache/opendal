@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
-use bytes::Buf;
 
 use super::Adapter;
 use crate::raw::oio::{HierarchyLister, QueueBuf};
@@ -254,7 +253,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
     async fn close(&mut self) -> Result<()> {
         let buf = self.buffer.collect();
-        self.kv.set(&self.path, buf.chunk()).await
+        self.kv.set(&self.path, buf).await
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -272,7 +271,7 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
 
     fn close(&mut self) -> Result<()> {
         let buf = self.buffer.collect();
-        self.kv.blocking_set(&self.path, buf.chunk())?;
+        self.kv.blocking_set(&self.path, buf)?;
         Ok(())
     }
 }

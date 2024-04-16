@@ -260,7 +260,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let query = format!(
             "INSERT INTO `{}` (`{}`, `{}`)
             VALUES (:path, :value)
@@ -278,7 +278,7 @@ impl kv::Adapter for Adapter {
             statement,
             params! {
                 "path" => path,
-                "value" => value,
+                "value" => value.as_ref(),
             },
         )
         .await

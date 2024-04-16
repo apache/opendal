@@ -359,10 +359,10 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut client = self.conn().await?;
         let _ = client
-            .put(key, value, None)
+            .put(key, value.to_vec(), None)
             .await
             .map_err(format_etcd_error)?;
         Ok(())

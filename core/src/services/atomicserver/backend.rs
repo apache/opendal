@@ -280,7 +280,7 @@ impl Adapter {
     async fn atomic_post_object_request(
         &self,
         path: &str,
-        value: &[u8],
+        value: Buffer,
     ) -> Result<Request<Buffer>> {
         let path = normalize_path(path);
         let path = path.as_str();
@@ -424,7 +424,7 @@ impl kv::Adapter for Adapter {
         Ok(Some(bytes_file))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let req = self.atomic_get_object_request(path)?;
         let res = self.client.send(req).await?;
         let bytes = res.into_body();

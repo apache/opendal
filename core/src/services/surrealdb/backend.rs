@@ -355,7 +355,7 @@ impl kv::Adapter for Adapter {
         Ok(value.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> crate::Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> crate::Result<()> {
         let query = format!(
             "INSERT INTO {} ({}, {}) \
             VALUES ($path, $value) \
@@ -366,7 +366,7 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("path", path))
-            .bind(("value", value))
+            .bind(("value", value.as_ref()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

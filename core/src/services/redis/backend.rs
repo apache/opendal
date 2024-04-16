@@ -398,8 +398,9 @@ impl kv::Adapter for Adapter {
         Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let conn = self.conn().await?;
+        let value = value.as_ref();
         match self.default_ttl {
             Some(ttl) => match conn {
                 RedisConnection::Normal(mut conn) => conn

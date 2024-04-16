@@ -294,18 +294,15 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let this = self.clone();
         let path = path.to_string();
-        // FIXME: can we avoid this copy?
-        let value = value.to_vec();
-
-        task::spawn_blocking(move || this.blocking_set(&path, &value))
+        task::spawn_blocking(move || this.blocking_set(&path, value))
             .await
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let conn = self.pool.get().map_err(parse_r2d2_error)?;
 
         let query = format!(
@@ -314,7 +311,7 @@ impl kv::Adapter for Adapter {
         );
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         statement
-            .execute(params![path, value])
+            .execute(params![path, value.as_ref()])
             .map_err(parse_rusqlite_error)?;
         Ok(())
     }

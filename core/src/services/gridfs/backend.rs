@@ -252,7 +252,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
         // delete old file if exists
         let filter = doc! { "filename": path };
@@ -268,7 +268,7 @@ impl kv::Adapter for Adapter {
         // set new file
         let mut upload_stream = bucket.open_upload_stream(path, None);
         upload_stream
-            .write_all(value)
+            .write_all(value.as_ref())
             .await
             .map_err(new_std_io_error)?;
         upload_stream.close().await.map_err(new_std_io_error)?;

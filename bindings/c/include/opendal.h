@@ -212,7 +212,7 @@ typedef struct OperatorInfo OperatorInfo;
  *
  * StdReader also implements [`Send`] and [`Sync`].
  */
-typedef struct StdIoReader StdIoReader;
+typedef struct StdReader StdReader;
 
 /**
  * \brief opendal_bytes carries raw-bytes with its length
@@ -408,7 +408,7 @@ typedef struct opendal_result_read {
  * a opendal::BlockingReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
-  struct StdIoReader *inner;
+  struct StdReader *inner;
 } opendal_reader;
 
 /**

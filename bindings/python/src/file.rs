@@ -40,17 +40,14 @@ use crate::*;
 pub struct File(FileState, Capability);
 
 enum FileState {
-    Reader(ocore::StdIoReader),
+    Reader(ocore::StdReader),
     Writer(ocore::BlockingWriter),
     Closed,
 }
 
 impl File {
     pub fn new_reader(reader: ocore::BlockingReader, size: u64, capability: Capability) -> Self {
-        Self(
-            FileState::Reader(reader.into_std_io_read(0..size)),
-            capability,
-        )
+        Self(FileState::Reader(reader.into_std_read(0..size)), capability)
     }
 
     pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
@@ -289,7 +286,7 @@ impl File {
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
 
 enum AsyncFileState {
-    Reader(ocore::FuturesIoAsyncReader),
+    Reader(ocore::FuturesAsyncReader),
     Writer(ocore::Writer),
     Closed,
 }
@@ -298,7 +295,7 @@ impl AsyncFile {
     pub fn new_reader(reader: ocore::Reader, size: u64, capability: Capability) -> Self {
         Self(
             Arc::new(Mutex::new(AsyncFileState::Reader(
-                reader.into_futures_io_async_read(0..size),
+                reader.into_futures_async_read(0..size),
             ))),
             capability,
         )

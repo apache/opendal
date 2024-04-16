@@ -47,7 +47,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         if self.buffer.len() >= self.buffer_size {
-            let written = self.inner.write(self.buffer.collect()).await?;
+            let written = self.inner.write(self.buffer.clone().collect()).await?;
             self.buffer.advance(written);
         }
 
@@ -64,7 +64,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 break;
             }
 
-            let written = self.inner.write(self.buffer.collect()).await?;
+            let written = self.inner.write(self.buffer.clone().collect()).await?;
             self.buffer.advance(written);
         }
 

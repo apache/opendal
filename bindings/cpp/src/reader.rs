@@ -21,7 +21,7 @@ use std::io::{Read, Seek};
 
 use super::ffi;
 
-pub struct Reader(pub od::StdIoReader);
+pub struct Reader(pub od::StdReader);
 
 impl Reader {
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

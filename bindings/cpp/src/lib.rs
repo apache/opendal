@@ -156,9 +156,7 @@ impl Operator {
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
         let meta = self.0.stat(path)?;
         Ok(Box::new(Reader(
-            self.0
-                .reader(path)?
-                .into_std_io_read(0..meta.content_length()),
+            self.0.reader(path)?.into_std_read(0..meta.content_length()),
         )))
     }
 

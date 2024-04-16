@@ -26,13 +26,13 @@ use super::*;
 /// a opendal::BlockingReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
-    inner: *mut core::StdIoReader,
+    inner: *mut core::StdReader,
 }
 
 impl opendal_reader {
     pub(crate) fn new(reader: core::BlockingReader, size: u64) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader.into_std_io_read(0..size))),
+            inner: Box::into_raw(Box::new(reader.into_std_read(0..size))),
         }
     }
 

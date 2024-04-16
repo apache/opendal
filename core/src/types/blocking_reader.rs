@@ -142,18 +142,17 @@ impl BlockingReader {
         }
     }
 
-    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
+    /// Convert reader into [`StdReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_std_io_read(self, range: Range<u64>) -> StdIoReader {
+    pub fn into_std_read(self, range: Range<u64>) -> StdReader {
         // TODO: the capacity should be decided by services.
-        StdIoReader::new(self.inner, range)
+        StdReader::new(self.inner, range)
     }
 
-    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
-    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    /// Convert reader into [`StdBytesIterator`] which implements [`Iterator`].
     #[inline]
-    pub fn into_std_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
+    pub fn into_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
         StdBytesIterator::new(self.inner, range)
     }
 }
@@ -176,7 +175,7 @@ pub mod into_std_read {
     /// Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
     ///
     /// StdReader also implements [`Send`] and [`Sync`].
-    pub struct StdIoReader {
+    pub struct StdReader {
         inner: oio::BlockingReader,
         offset: u64,
         size: u64,
@@ -186,11 +185,11 @@ pub mod into_std_read {
         buf: Buffer,
     }
 
-    impl StdIoReader {
+    impl StdReader {
         /// NOTE: don't allow users to create StdReader directly.
         #[inline]
         pub(super) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
-            StdIoReader {
+            StdReader {
                 inner: r,
                 offset: range.start,
                 size: range.end - range.start,
@@ -209,7 +208,7 @@ pub mod into_std_read {
         }
     }
 
-    impl BufRead for StdIoReader {
+    impl BufRead for StdReader {
         fn fill_buf(&mut self) -> io::Result<&[u8]> {
             if self.buf.has_remaining() {
                 return Ok(self.buf.chunk());
@@ -235,7 +234,7 @@ pub mod into_std_read {
         }
     }
 
-    impl Read for StdIoReader {
+    impl Read for StdReader {
         #[inline]
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let bs = self.fill_buf()?;
@@ -246,7 +245,7 @@ pub mod into_std_read {
         }
     }
 
-    impl Seek for StdIoReader {
+    impl Seek for StdReader {
         #[inline]
         fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
             let new_pos = match pos {

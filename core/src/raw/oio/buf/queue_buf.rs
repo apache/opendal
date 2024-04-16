@@ -29,7 +29,7 @@ use std::collections::VecDeque;
 /// - `push`: Push a new buffer in the queue.
 /// - `collect`: Collect all buffer in the queue as a new [`Buffer`]
 /// - `advance`: Advance the queue by `cnt` bytes.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct QueueBuf(VecDeque<Buffer>);
 
 impl QueueBuf {
@@ -68,13 +68,13 @@ impl QueueBuf {
     /// most of them should be acceptable since we can expect the item length of buffers are slower
     /// than 4k.
     #[inline]
-    pub fn collect(&self) -> Buffer {
+    pub fn collect(mut self) -> Buffer {
         if self.0.is_empty() {
             Buffer::new()
         } else if self.0.len() == 1 {
-            self.0.clone().pop_front().unwrap()
+            self.0.pop_front().unwrap()
         } else {
-            self.0.clone().into_iter().flatten().collect()
+            self.0.into_iter().flatten().collect()
         }
     }
 

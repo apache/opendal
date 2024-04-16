@@ -89,7 +89,7 @@ services-all = [
   "services-seafile",
   "services-upyun",
   "services-koofr",
-  "services-yandex-disk"
+  "services-yandex-disk",
 ]
 
 # Default services provided by opendal.
@@ -154,6 +154,7 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
+bytes = "1.5.0"
 futures = "0.3.28"
 opendal = { version = "0.45.1", path = "../../core", features = [
   "layers-blocking",
@@ -161,13 +162,12 @@ opendal = { version = "0.45.1", path = "../../core", features = [
 pyo3 = "0.20.1"
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
-bytes = "1.5.0"
 
 [target.'cfg(unix)'.dependencies.opendal]
-version = "0.45.1"
-path = "../../core"
 features = [
   "layers-blocking",
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]
+path = "../../core"
+version = "0.45.1"

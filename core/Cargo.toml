@@ -223,7 +223,7 @@ chrono = { version = "0.4.28", default-features = false, features = [
 ] }
 flagset = "0.4"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-http = "1.1 "
+http = "1.1"
 log = "0.4"
 md-5 = "0.10"
 # TODO: remove once_cell when lazy_lock is stable: https://doc.rust-lang.org/std/cell/struct.LazyCell.html

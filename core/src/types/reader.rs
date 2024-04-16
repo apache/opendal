@@ -178,8 +178,7 @@ impl Reader {
         FuturesAsyncReader::new(self.inner, self.options.chunk(), range)
     }
 
-    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
-    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
     #[inline]
     pub fn into_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
         FuturesBytesStream::new(self.inner, self.options.chunk(), range)

@@ -134,12 +134,12 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let stream = r
-            .into_futures_bytes_stream(0..meta.size as u64)
-            .map_err(|err| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            });
+        let stream =
+            r.into_bytes_stream(0..meta.size as u64)
+                .map_err(|err| object_store::Error::Generic {
+                    store: "IoError",
+                    source: Box::new(err),
+                });
 
         Ok(GetResult {
             payload: GetResultPayload::Stream(Box::pin(stream)),

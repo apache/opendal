@@ -416,7 +416,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         .writer_with(&path)
         .buffer(8 * 1024 * 1024)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -452,7 +452,7 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
         .buffer(8 * 1024 * 1024)
         .concurrent(4)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -515,7 +515,7 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
         .writer_with(&path)
         .append(true)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));

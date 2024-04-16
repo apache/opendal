@@ -49,10 +49,10 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Set a key into service.
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()>;
+    async fn set(&self, path: &str, value: Buffer) -> Result<()>;
 
     /// The blocking version of set.
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let _ = (path, value);
 
         Err(Error::new(

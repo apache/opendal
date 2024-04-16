@@ -302,7 +302,7 @@ impl kv::Adapter for Adapter {
         Ok(Some(Buffer::from(value)))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
@@ -323,7 +323,7 @@ impl kv::Adapter for Adapter {
             .await
             .map_err(parse_postgre_error)?;
         let _ = connection
-            .query(&statement, &[&path, &value])
+            .query(&statement, &[&path, &value.to_vec()])
             .await
             .map_err(parse_postgre_error)?;
         Ok(())

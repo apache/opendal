@@ -19,11 +19,9 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
-use bytes::BytesMut;
-use bytes::{Buf, Bytes};
 
 use super::Adapter;
-use crate::raw::oio::HierarchyLister;
+use crate::raw::oio::{HierarchyLister, QueueBuf};
 use crate::raw::*;
 use crate::*;
 
@@ -228,8 +226,7 @@ impl oio::BlockingList for KvLister {
 pub struct KvWriter<S> {
     kv: Arc<S>,
     path: String,
-
-    buffer: FlexBuffer,
+    buffer: QueueBuf,
 }
 
 impl<S> KvWriter<S> {
@@ -237,15 +234,9 @@ impl<S> KvWriter<S> {
         KvWriter {
             kv,
             path,
-            buffer: FlexBuffer::Active(BytesMut::new()),
+            buffer: QueueBuf::new(),
         }
     }
-}
-
-/// TODO: replace with oio::FlexBuf.
-enum FlexBuffer {
-    Active(BytesMut),
-    Frozen(Bytes),
 }
 
 /// # Safety
@@ -255,60 +246,32 @@ unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        match &mut self.buffer {
-            FlexBuffer::Active(buf) => {
-                buf.extend_from_slice(bs.chunk());
-                Ok(bs.chunk().len())
-            }
-            FlexBuffer::Frozen(_) => {
-                unreachable!("KvWriter should not be frozen during poll_write")
-            }
-        }
+        let ret = bs.len();
+        self.buffer.push(bs);
+        Ok(ret)
     }
 
     async fn close(&mut self) -> Result<()> {
-        let buf = match &mut self.buffer {
-            FlexBuffer::Active(buf) => {
-                let buf = buf.split().freeze();
-                self.buffer = FlexBuffer::Frozen(buf.clone());
-                buf
-            }
-            FlexBuffer::Frozen(buf) => buf.clone(),
-        };
-
-        self.kv.set(&self.path, &buf).await
+        let buf = self.buffer.clone().collect();
+        self.kv.set(&self.path, buf).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.buffer = FlexBuffer::Active(BytesMut::new());
+        self.buffer.clear();
         Ok(())
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Buffer) -> Result<usize> {
-        match &mut self.buffer {
-            FlexBuffer::Active(buf) => {
-                buf.extend_from_slice(bs.chunk());
-                Ok(bs.chunk().len())
-            }
-            FlexBuffer::Frozen(_) => {
-                unreachable!("KvWriter should not be frozen during poll_write")
-            }
-        }
+        let ret = bs.len();
+        self.buffer.push(bs);
+        Ok(ret)
     }
 
     fn close(&mut self) -> Result<()> {
-        let buf = match &mut self.buffer {
-            FlexBuffer::Active(buf) => {
-                let buf = buf.split().freeze();
-                self.buffer = FlexBuffer::Frozen(buf.clone());
-                buf
-            }
-            FlexBuffer::Frozen(buf) => buf.clone(),
-        };
-
-        self.kv.blocking_set(&self.path, &buf)?;
+        let buf = self.buffer.clone().collect();
+        self.kv.blocking_set(&self.path, buf)?;
         Ok(())
     }
 }

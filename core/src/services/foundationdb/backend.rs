@@ -167,10 +167,10 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let transaction = self.db.create_trx().expect("Unable to create transaction");
 
-        transaction.set(path.as_bytes(), value);
+        transaction.set(path.as_bytes(), &value.to_vec());
 
         match transaction.commit().await {
             Ok(_) => Ok(()),

@@ -239,7 +239,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let url = format!("{}/values/{}", self.url_prefix, path);
         let req = Request::put(&url);
         let multipart = Multipart::new();

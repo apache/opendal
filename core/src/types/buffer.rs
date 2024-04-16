@@ -148,7 +148,6 @@ impl Default for Buffer {
         Self::new()
     }
 }
-
 impl Buffer {
     /// Create a new empty buffer.
     ///

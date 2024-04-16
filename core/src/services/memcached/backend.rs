@@ -236,12 +236,12 @@ impl kv::Adapter for Adapter {
         Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut conn = self.conn().await?;
 
         conn.set(
             &percent_encode_path(key),
-            value,
+            &value.to_vec(),
             // Set expiration to 0 if ttl not set.
             self.default_ttl
                 .map(|v| v.as_secs() as u32)

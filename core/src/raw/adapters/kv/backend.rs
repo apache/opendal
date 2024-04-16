@@ -62,8 +62,8 @@ where
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
-    type Reader = Bytes;
-    type BlockingReader = Bytes;
+    type Reader = Buffer;
+    type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
@@ -94,26 +94,19 @@ impl<S: Adapter> Accessor for Backend<S> {
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
-
         let bs = match self.kv.get(&p).await? {
             Some(bs) => bs,
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
-
-        let bs = Bytes::from(bs);
-
         Ok((RpRead::new(), bs))
     }
 
     fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_abs_path(&self.root, path);
-
         let bs = match self.kv.blocking_get(&p)? {
             Some(bs) => bs,
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
-
-        let bs = Bytes::from(bs);
         Ok((RpRead::new(), bs))
     }
 

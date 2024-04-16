@@ -229,7 +229,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
         let options = GridFsFindOptions::builder().limit(Some(1)).build();
@@ -246,7 +246,7 @@ impl kv::Adapter for Adapter {
                     .download_to_futures_0_3_writer(file_id, &mut destination)
                     .await
                     .map_err(parse_mongodb_error)?;
-                Ok(Some(destination))
+                Ok(Some(Buffer::from(destination)))
             }
             None => Ok(None),
         }

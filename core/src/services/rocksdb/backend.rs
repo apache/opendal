@@ -126,7 +126,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -135,8 +135,9 @@ impl kv::Adapter for Adapter {
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.db.get(path).map_err(parse_rocksdb_error)
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = self.db.get(path).map_err(parse_rocksdb_error)?;
+        Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

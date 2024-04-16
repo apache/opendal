@@ -24,7 +24,6 @@ use atomic_lib::agents::Agent;
 use atomic_lib::client::get_authentication_headers;
 use atomic_lib::commit::sign_message;
 use bytes::Buf;
-use bytes::Bytes;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -356,13 +355,11 @@ impl Adapter {
         Ok(req)
     }
 
-    pub async fn download_from_url(&self, download_url: &String) -> Result<Bytes> {
+    pub async fn download_from_url(&self, download_url: &String) -> Result<Buffer> {
         let req = Request::get(download_url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = self.client.send(req).await?;
-        let mut bytes_file = resp.into_body();
-
-        Ok(bytes_file.copy_to_bytes(bytes_file.remaining()))
+        Ok(resp.into_body())
     }
 }
 
@@ -405,7 +402,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let req = self.atomic_get_object_request(path)?;
         let resp = self.client.send(req).await?;
         let bytes = resp.into_body();
@@ -424,7 +421,7 @@ impl kv::Adapter for Adapter {
             .download_from_url(&query_result.results[0].download_url)
             .await?;
 
-        Ok(Some(bytes_file.to_vec()))
+        Ok(Some(bytes_file))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

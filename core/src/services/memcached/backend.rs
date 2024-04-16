@@ -230,10 +230,10 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let mut conn = self.conn().await?;
-
-        conn.get(&percent_encode_path(key)).await
+        let result = conn.get(&percent_encode_path(key)).await?;
+        Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {

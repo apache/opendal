@@ -23,7 +23,7 @@ use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 
-use crate::Error;
+use crate::{Buffer, Error};
 
 /// response data from d1
 #[derive(Deserialize, Debug)]
@@ -52,7 +52,7 @@ impl D1Response {
         Ok(response)
     }
 
-    pub fn get_result(&self, key: &str) -> Option<Vec<u8>> {
+    pub fn get_result(&self, key: &str) -> Option<Buffer> {
         if self.result.is_empty() || self.result[0].results.is_empty() {
             return None;
         }
@@ -67,7 +67,7 @@ impl D1Response {
                         v.push(n.as_u64().unwrap() as u8);
                     }
                 }
-                Some(v)
+                Some(Buffer::from(v))
             }
             _ => None,
         }

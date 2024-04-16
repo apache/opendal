@@ -103,7 +103,6 @@ impl Read for () {
 }
 
 impl Read for Bytes {
-    /// TODO: we can check if the offset is out of range.
     async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if offset >= self.len() as u64 {
             return Ok(Buffer::new());
@@ -111,6 +110,17 @@ impl Read for Bytes {
         let offset = offset as usize;
         let limit = limit.min(self.len() - offset);
         Ok(Buffer::from(self.slice(offset..offset + limit)))
+    }
+}
+
+impl Read for Buffer {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(self.slice(offset..offset + limit))
     }
 }
 
@@ -168,7 +178,6 @@ impl BlockingRead for () {
 }
 
 impl BlockingRead for Bytes {
-    /// TODO: we can check if the offset is out of range.
     fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         if offset >= self.len() as u64 {
             return Ok(Buffer::new());
@@ -176,6 +185,17 @@ impl BlockingRead for Bytes {
         let offset = offset as usize;
         let limit = limit.min(self.len() - offset);
         Ok(Buffer::from(self.slice(offset..offset + limit)))
+    }
+}
+
+impl BlockingRead for Buffer {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        if offset >= self.len() as u64 {
+            return Ok(Buffer::new());
+        }
+        let offset = offset as usize;
+        let limit = limit.min(self.len() - offset);
+        Ok(self.slice(offset..offset + limit))
     }
 }
 

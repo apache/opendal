@@ -176,7 +176,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
         task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
@@ -185,14 +185,14 @@ impl kv::Adapter for Adapter {
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let mut read_id = self
             .persy
             .get::<String, persy::PersyId>(&self.index, &path.to_string())
             .map_err(parse_error)?;
         if let Some(id) = read_id.next() {
             let value = self.persy.read(&self.segment, &id).map_err(parse_error)?;
-            return Ok(value);
+            return Ok(value.map(Buffer::from));
         }
 
         Ok(None)

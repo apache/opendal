@@ -263,7 +263,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let collection = self.get_collection().await?;
         let filter = doc! {self.key_field.as_str():path};
         let result = collection
@@ -274,9 +274,8 @@ impl kv::Adapter for Adapter {
             Some(doc) => {
                 let value = doc
                     .get_binary_generic(&self.value_field)
-                    .map_err(parse_bson_error)?
-                    .to_vec();
-                Ok(Some(value))
+                    .map_err(parse_bson_error)?;
+                Ok(Some(Buffer::from(value.to_vec())))
             }
             None => Ok(None),
         }

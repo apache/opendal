@@ -349,11 +349,11 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let mut client = self.conn().await?;
         let resp = client.get(key, None).await.map_err(format_etcd_error)?;
         if let Some(kv) = resp.kvs().first() {
-            Ok(Some(kv.value().to_vec()))
+            Ok(Some(Buffer::from(kv.value().to_vec())))
         } else {
             Ok(None)
         }

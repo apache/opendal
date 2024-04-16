@@ -349,7 +349,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let query = format!(
             "SELECT {} FROM {} WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
@@ -369,7 +369,7 @@ impl kv::Adapter for Adapter {
                     let val = &rows[0][0];
                     match val {
                         Value::Null => Ok(None),
-                        Value::Blob { value } => Ok(Some(value.to_owned())),
+                        Value::Blob { value } => Ok(Some(Buffer::from(value.to_vec()))),
                         _ => Err(Error::new(ErrorKind::Unexpected, "invalid value type")),
                     }
                 }

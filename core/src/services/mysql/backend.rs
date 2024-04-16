@@ -234,7 +234,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let query = format!(
             "SELECT `{}` FROM `{}` WHERE `{}` = :path LIMIT 1",
             self.value_field, self.table, self.key_field
@@ -255,7 +255,7 @@ impl kv::Adapter for Adapter {
             .await
             .map_err(parse_mysql_error)?;
         match result {
-            Some(v) => Ok(Some(v)),
+            Some(v) => Ok(Some(Buffer::from(v))),
             None => Ok(None),
         }
     }

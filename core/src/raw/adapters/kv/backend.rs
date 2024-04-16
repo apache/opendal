@@ -252,7 +252,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let buf = self.buffer.collect();
+        let buf = self.buffer.clone().collect();
         self.kv.set(&self.path, buf).await
     }
 
@@ -270,7 +270,7 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     }
 
     fn close(&mut self) -> Result<()> {
-        let buf = self.buffer.collect();
+        let buf = self.buffer.clone().collect();
         self.kv.blocking_set(&self.path, buf)?;
         Ok(())
     }

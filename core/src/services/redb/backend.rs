@@ -183,7 +183,7 @@ impl kv::Adapter for Adapter {
                 .map_err(parse_table_error)?;
 
             table
-                .insert(path, value.as_ref())
+                .insert(path, &*value.to_vec())
                 .map_err(parse_storage_error)?;
         }
 

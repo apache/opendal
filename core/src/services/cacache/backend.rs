@@ -122,14 +122,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        cacache::write(&self.datadir, path, value)
+        cacache::write(&self.datadir, path, value.to_vec())
             .await
             .map_err(parse_error)?;
         Ok(())
     }
 
     fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        cacache::write_sync(&self.datadir, path, value).map_err(parse_error)?;
+        cacache::write_sync(&self.datadir, path, value.to_vec()).map_err(parse_error)?;
         Ok(())
     }
 

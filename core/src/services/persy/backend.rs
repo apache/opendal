@@ -211,7 +211,7 @@ impl kv::Adapter for Adapter {
     fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let mut tx = self.persy.begin().map_err(parse_error)?;
         let id = tx
-            .insert(&self.segment, value.as_ref())
+            .insert(&self.segment, &value.to_vec())
             .map_err(parse_error)?;
 
         tx.put::<String, persy::PersyId>(&self.index, path.to_string(), id)

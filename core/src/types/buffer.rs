@@ -148,13 +148,6 @@ impl Default for Buffer {
         Self::new()
     }
 }
-
-impl AsRef<[u8]> for Buffer {
-    fn as_ref(&self) -> &[u8] {
-        self.chunk()
-    }
-}
-
 impl Buffer {
     /// Create a new empty buffer.
     ///

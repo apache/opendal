@@ -400,7 +400,7 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let conn = self.conn().await?;
-        let value = value.as_ref();
+        let value = value.to_vec();
         match self.default_ttl {
             Some(ttl) => match conn {
                 RedisConnection::Normal(mut conn) => conn

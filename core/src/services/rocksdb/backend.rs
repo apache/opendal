@@ -150,7 +150,9 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        self.db.put(path, value).map_err(parse_rocksdb_error)
+        self.db
+            .put(path, value.to_vec())
+            .map_err(parse_rocksdb_error)
     }
 
     async fn delete(&self, path: &str) -> Result<()> {

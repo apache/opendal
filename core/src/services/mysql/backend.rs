@@ -278,7 +278,7 @@ impl kv::Adapter for Adapter {
             statement,
             params! {
                 "path" => path,
-                "value" => value.as_ref(),
+                "value" => value.to_vec(),
             },
         )
         .await

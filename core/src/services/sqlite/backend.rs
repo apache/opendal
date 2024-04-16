@@ -311,7 +311,7 @@ impl kv::Adapter for Adapter {
         );
         let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         statement
-            .execute(params![path, value.as_ref()])
+            .execute(params![path, value.to_vec()])
             .map_err(parse_rusqlite_error)?;
         Ok(())
     }

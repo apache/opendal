@@ -323,7 +323,7 @@ impl kv::Adapter for Adapter {
             .await
             .map_err(parse_postgre_error)?;
         let _ = connection
-            .query(&statement, &[&path, &value.as_ref()])
+            .query(&statement, &[&path, &value.to_vec()])
             .await
             .map_err(parse_postgre_error)?;
         Ok(())

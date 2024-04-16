@@ -268,7 +268,7 @@ impl kv::Adapter for Adapter {
         // set new file
         let mut upload_stream = bucket.open_upload_stream(path, None);
         upload_stream
-            .write_all(value.as_ref())
+            .write_all(&value.to_vec())
             .await
             .map_err(new_std_io_error)?;
         upload_stream.close().await.map_err(new_std_io_error)?;

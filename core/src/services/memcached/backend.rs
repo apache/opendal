@@ -241,7 +241,7 @@ impl kv::Adapter for Adapter {
 
         conn.set(
             &percent_encode_path(key),
-            value.as_ref(),
+            &value.to_vec(),
             // Set expiration to 0 if ttl not set.
             self.default_ttl
                 .map(|v| v.as_secs() as u32)

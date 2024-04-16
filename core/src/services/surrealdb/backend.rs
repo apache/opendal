@@ -366,7 +366,7 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("path", path))
-            .bind(("value", value.as_ref()))
+            .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

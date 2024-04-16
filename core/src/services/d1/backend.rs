@@ -334,7 +334,7 @@ impl kv::Adapter for Adapter {
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
 
-        let params = vec![path.into(), value.as_ref().into()];
+        let params = vec![path.into(), value.to_vec().into()];
         let req = self.create_d1_query_request(&query, params)?;
 
         let resp = self.client.send(req).await?;

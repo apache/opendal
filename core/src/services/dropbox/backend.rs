@@ -200,10 +200,7 @@ impl Accessor for DropboxBackend {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => {
                 let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpCopy::default()),
-                    _ => Err(err),
-                }
+                Err(err)
             }
         }
     }
@@ -217,10 +214,7 @@ impl Accessor for DropboxBackend {
             StatusCode::OK => Ok(RpRename::default()),
             _ => {
                 let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpRename::default()),
-                    _ => Err(err),
-                }
+                Err(err)
             }
         }
     }

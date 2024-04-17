@@ -67,8 +67,8 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
 
 /// Copy a file with non ascii name and test contents.
 pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
-    // Koofr does not support non-ascii name.(https://github.com/apache/opendal/issues/4051)
-    if op.info().scheme() == Scheme::Koofr {
+    // Koofr (https://github.com/apache/opendal/issues/4051) and Dropbox does not support non-ascii name.
+    if op.info().scheme() == Scheme::Koofr || op.info().scheme() == Scheme::Dropbox {
         return Ok(());
     }
 
@@ -202,6 +202,11 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
 /// Copy to a exist path should overwrite successfully.
 pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
+    // Dropbox does not support copy overwrite.
+    if op.info().scheme() == Scheme::Dropbox {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 

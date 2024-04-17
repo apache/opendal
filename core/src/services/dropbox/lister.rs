@@ -78,10 +78,11 @@ impl oio::PageList for DropboxLister {
         if !self.path.ends_with('/') {
             let mut path = self.path.clone();
             path.push('/');
-            ctx.entries.push_back(oio::Entry::with(path, Metadata::new(EntryMode::DIR)));
+            ctx.entries
+                .push_back(oio::Entry::with(path, Metadata::new(EntryMode::DIR)));
 
             ctx.done = true;
-            return Ok(())
+            return Ok(());
         }
 
         let bytes = response.into_body();

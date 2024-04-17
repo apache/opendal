@@ -225,7 +225,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let url = format!("{}/values/{}", self.url_prefix, path);
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
@@ -234,15 +234,12 @@ impl kv::Adapter for Adapter {
         let resp = self.client.send(req).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                let mut body = resp.into_body();
-                Ok(Some(body.copy_to_bytes(body.remaining()).to_vec()))
-            }
+            StatusCode::OK => Ok(Some(resp.into_body())),
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let url = format!("{}/values/{}", self.url_prefix, path);
         let req = Request::put(&url);
         let multipart = Multipart::new();

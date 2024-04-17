@@ -176,9 +176,9 @@ impl Writer {
         self.inner.close().await
     }
 
-    /// Convert writer into [`FuturesIoAsyncWriter`] which implements [`futures::AsyncWrite`],
-    pub fn into_futures_io_async_write(self) -> FuturesIoAsyncWriter {
-        FuturesIoAsyncWriter::new(self.inner)
+    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
+    pub fn into_futures_async_write(self) -> FuturesAsyncWriter {
+        FuturesAsyncWriter::new(self.inner)
     }
 }
 
@@ -204,7 +204,7 @@ pub mod into_futures_async_write {
     /// # TODO
     ///
     /// We should insert checks if the input slice changed after future created.
-    pub struct FuturesIoAsyncWriter {
+    pub struct FuturesAsyncWriter {
         state: State,
         buf: oio::FlexBuf,
     }
@@ -220,18 +220,18 @@ pub mod into_futures_async_write {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesIoAsyncWriter {
+    impl FuturesAsyncWriter {
         /// NOTE: don't allow users to create FuturesIoAsyncWriter directly.
         #[inline]
         pub fn new(r: oio::Writer) -> Self {
-            FuturesIoAsyncWriter {
+            FuturesAsyncWriter {
                 state: State::Idle(Some(r)),
                 buf: oio::FlexBuf::new(256 * 1024),
             }
         }
     }
 
-    impl AsyncWrite for FuturesIoAsyncWriter {
+    impl AsyncWrite for FuturesAsyncWriter {
         fn poll_write(
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,

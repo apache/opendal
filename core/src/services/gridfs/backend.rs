@@ -229,7 +229,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
         let options = GridFsFindOptions::builder().limit(Some(1)).build();
@@ -246,13 +246,13 @@ impl kv::Adapter for Adapter {
                     .download_to_futures_0_3_writer(file_id, &mut destination)
                     .await
                     .map_err(parse_mongodb_error)?;
-                Ok(Some(destination))
+                Ok(Some(Buffer::from(destination)))
             }
             None => Ok(None),
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
         // delete old file if exists
         let filter = doc! { "filename": path };
@@ -268,7 +268,7 @@ impl kv::Adapter for Adapter {
         // set new file
         let mut upload_stream = bucket.open_upload_stream(path, None);
         upload_stream
-            .write_all(value)
+            .write_all(&value.to_vec())
             .await
             .map_err(new_std_io_error)?;
         upload_stream.close().await.map_err(new_std_io_error)?;

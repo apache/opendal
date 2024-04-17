@@ -192,10 +192,26 @@ impl Accessor for DropboxBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        // Check if the from path exists.
+        let resp = self.core.dropbox_get_metadata(from).await?;
+        if StatusCode::OK != resp.status() {
+            let err = parse_error(resp).await?;
+            return Err(err);
+        }
+
+        // Check if the to path already exists.
+        // We need delete it fistly due to Dropbox doesn't support overwrite.
+        let resp = self.core.dropbox_get_metadata(to).await?;
+        if StatusCode::OK == resp.status() {
+            let resp = self.core.dropbox_delete(to).await?;
+            if StatusCode::OK != resp.status() {
+                let err = parse_error(resp).await?;
+                return Err(err);
+            }
+        }
+
         let resp = self.core.dropbox_copy(from, to).await?;
-
         let status = resp.status();
-
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => {
@@ -206,10 +222,26 @@ impl Accessor for DropboxBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        // Check if the from path exists.
+        let resp = self.core.dropbox_get_metadata(from).await?;
+        if StatusCode::OK != resp.status() {
+            let err = parse_error(resp).await?;
+            return Err(err);
+        }
+
+        // Check if the to path already exists.
+        // We need delete it fistly due to Dropbox doesn't support overwrite.
+        let resp = self.core.dropbox_get_metadata(to).await?;
+        if StatusCode::OK == resp.status() {
+            let resp = self.core.dropbox_delete(to).await?;
+            if StatusCode::OK != resp.status() {
+                let err = parse_error(resp).await?;
+                return Err(err);
+            }
+        }
+
         let resp = self.core.dropbox_move(from, to).await?;
-
         let status = resp.status();
-
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => {

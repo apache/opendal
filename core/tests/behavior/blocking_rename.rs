@@ -166,11 +166,6 @@ pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
 
 /// Rename to a exist path should overwrite successfully.
 pub fn test_blocking_rename_overwrite(op: BlockingOperator) -> Result<()> {
-    // Dropbox does not support rename overwrite.
-    if op.info().scheme() == Scheme::Dropbox {
-        return Ok(());
-    }
-
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 

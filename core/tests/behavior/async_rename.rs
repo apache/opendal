@@ -178,11 +178,6 @@ pub async fn test_rename_nested(op: Operator) -> Result<()> {
 
 /// Rename to a exist path should overwrite successfully.
 pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
-    // Dropbox does not support rename overwrite.
-    if op.info().scheme() == Scheme::Dropbox {
-        return Ok(());
-    }
-
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 

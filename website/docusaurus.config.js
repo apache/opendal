@@ -157,6 +157,10 @@ const config = {
                 label: 'object-store-opendal',
                 to: 'pathname:///docs/object-store-opendal/object_store_opendal'
               },
+              {
+                label: 'dav-server-opendalfs',
+                to: 'pathname:///docs/dav-server-opendalfs/dav_server_opendalfs'
+              }
             ]
           },
           {

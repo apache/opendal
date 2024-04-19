@@ -87,8 +87,8 @@ layers-throttle = ["dep:governor"]
 layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
-# Enable dtrace support.
 layers-blocking = ["internal-tokio-rt"]
+# Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
 services-alluxio = []
@@ -124,7 +124,7 @@ services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
-services-fs = ["tokio/fs"]
+services-fs = []
 services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
   "dep:reqsign",

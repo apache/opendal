@@ -281,7 +281,7 @@ impl Accessor for HdfsNativeBackend {
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        let list_status_iterator = self.client.list_status_iter(path, false);
+        let list_status_iterator = self.client.list_status_iter(&p, false);
         let l = HdfsNativeLister::new(&self.root, list_status_iterator);
         Ok((RpList::default(), Some(l)))
     }

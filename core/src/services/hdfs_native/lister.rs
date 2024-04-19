@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use chrono::DateTime;
 use hdfs_native::client::{FileStatus, ListStatusIterator};
 
 use crate::raw::oio::Entry;
@@ -38,7 +39,7 @@ impl HdfsNativeLister {
 
 impl oio::List for HdfsNativeLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
-        let de: FileStatus = match self.lsi.next() {
+        let de: FileStatus = match self.lsi.next().await {
             Some(res) => match res {
                 Ok(fs) => fs,
                 Err(e) => return Err(parse_hdfs_error(e)),
@@ -49,9 +50,19 @@ impl oio::List for HdfsNativeLister {
         let path = build_rel_path(&self.root, &de.path);
 
         let entry = if !de.isdir {
+            let odt = DateTime::from_timestamp(de.modification_time as i64, 0);
+            let dt = match odt {
+                Some(dt) => dt,
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("Failure in extracting modified_time for {}", path),
+                    ))
+                }
+            };
             let meta = Metadata::new(EntryMode::FILE)
                 .with_content_length(de.length as u64)
-                .with_last_modified(de.modification_time.into());
+                .with_last_modified(dt);
             oio::Entry::new(&path, meta)
         } else if de.isdir {
             // Make sure we are returning the correct path.

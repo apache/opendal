@@ -320,6 +320,33 @@ jobs:
           name: object-store-opendal-docs
           path: ./integrations/object_store/target/doc
 
+  build-dav-server-opendalfs-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install nightly-2024-01-01
+
+      - name: Build dav-server-opendalfs doc
+        working-directory: "integrations/dav-server"
+        run: cargo +nightly-2024-01-01 doc --lib --no-deps --all-features
+        env:
+          # Enable cfg docs to make sure docs are built.
+          RUSTDOCFLAGS: "--cfg docs"
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: dav-server-opendalfs-docs
+          path: ./integrations/dav-server/target/doc
+
   build-website:
     runs-on: ubuntu-latest
     needs:
@@ -333,6 +360,7 @@ jobs:
       - build-cpp-doc
       - build-ocaml-doc
       - build-object-store-opendal-doc
+      - build-dav-server-opendalfs-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -410,6 +438,12 @@ jobs:
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
+
+      - name: Download dav-server-opendalfs docs
+        uses: actions/download-artifact@v3
+        with:
+          name: dav-server-opendalfs-docs
+          path: ./website/static/docs/dav-server-opendalfs
 
       - name: Install Dependencies
         working-directory: website

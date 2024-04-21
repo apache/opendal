@@ -17,6 +17,7 @@
 
 mod send_wrapper;
 
+use std::future::IntoFuture;
 use std::ops::Range;
 
 use async_trait::async_trait;
@@ -40,7 +41,8 @@ use opendal::Entry;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
-use send_wrapper::SendWrapper;
+use send_wrapper::IntoSendFuture;
+use send_wrapper::IntoSendStream;
 use tokio::io::AsyncWrite;
 
 #[derive(Debug)]
@@ -64,7 +66,9 @@ impl std::fmt::Display for OpendalStore {
 #[async_trait]
 impl ObjectStore for OpendalStore {
     async fn put(&self, location: &Path, bytes: Bytes) -> Result<PutResult> {
-        SendWrapper::new(self.inner.write(location.as_ref(), bytes))
+        self.inner
+            .write(location.as_ref(), bytes)
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
         Ok(PutResult {
@@ -118,7 +122,10 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let meta = SendWrapper::new(self.inner.stat(location.as_ref()))
+        let meta = self
+            .inner
+            .stat(location.as_ref())
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -129,12 +136,16 @@ impl ObjectStore for OpendalStore {
             e_tag: meta.etag().map(|x| x.to_string()),
             version: meta.version().map(|x| x.to_string()),
         };
-        let r = SendWrapper::new(self.inner.reader(location.as_ref()))
+        let r = self
+            .inner
+            .reader(location.as_ref())
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
         let stream = r
             .into_futures_bytes_stream(0..meta.size as u64)
+            .into_send()
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",
                 source: Box::new(err),
@@ -148,20 +159,23 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
-        let bs = SendWrapper::new(async {
-            self.inner
-                .read_with(location.as_ref())
-                .range(range.start as u64..range.end as u64)
-                .await
-        })
-        .await
-        .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let bs = self
+            .inner
+            .read_with(location.as_ref())
+            .range(range.start as u64..range.end as u64)
+            .into_future()
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
         Ok(Bytes::from(bs))
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        let meta = SendWrapper::new(self.inner.stat(location.as_ref()))
+        let meta = self
+            .inner
+            .stat(location.as_ref())
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -175,7 +189,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
-        SendWrapper::new(self.inner.delete(location.as_ref()))
+        self.inner
+            .delete(location.as_ref())
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -205,7 +221,7 @@ impl ObjectStore for OpendalStore {
             Ok::<_, object_store::Error>(stream)
         };
 
-        SendWrapper::new(fut.into_stream().try_flatten()).boxed()
+        fut.into_stream().try_flatten().into_send().boxed()
     }
 
     fn list_with_offset(
@@ -218,54 +234,54 @@ impl ObjectStore for OpendalStore {
 
         let fut = async move {
             let fut = if self.inner.info().full_capability().list_with_start_after {
-                SendWrapper::new(
-                    self.inner
-                        .lister_with(&path)
-                        .start_after(offset.as_ref())
-                        .metakey(Metakey::ContentLength | Metakey::LastModified)
-                        .recursive(true)
-                        .await
-                        .map_err(|err| format_object_store_error(err, &path))?
-                        .then(try_format_object_meta),
-                )
-                .boxed()
+                self.inner
+                    .lister_with(&path)
+                    .start_after(offset.as_ref())
+                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .recursive(true)
+                    .into_future()
+                    .into_send()
+                    .await
+                    .map_err(|err| format_object_store_error(err, &path))?
+                    .then(try_format_object_meta)
+                    .into_send()
+                    .boxed()
             } else {
-                SendWrapper::new(
-                    self.inner
-                        .lister_with(&path)
-                        .metakey(Metakey::ContentLength | Metakey::LastModified)
-                        .recursive(true)
-                        .await
-                        .map_err(|err| format_object_store_error(err, &path))?
-                        .try_filter(move |entry| {
-                            futures::future::ready(entry.path() > offset.as_ref())
-                        })
-                        .then(try_format_object_meta),
-                )
-                .boxed()
+                self.inner
+                    .lister_with(&path)
+                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .recursive(true)
+                    .into_future()
+                    .into_send()
+                    .await
+                    .map_err(|err| format_object_store_error(err, &path))?
+                    .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
+                    .then(try_format_object_meta)
+                    .into_send()
+                    .boxed()
             };
             Ok::<_, object_store::Error>(fut)
         };
 
-        SendWrapper::new(fut.into_stream().try_flatten()).boxed()
+        fut.into_stream().into_send().try_flatten().boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
-        let stream = SendWrapper::new(async {
-            self.inner
-                .lister_with(&path)
-                .metakey(Metakey::Mode | Metakey::ContentLength | Metakey::LastModified)
-                .await
-        })
-        .await
-        .map_err(|err| format_object_store_error(err, &path))?;
-        let mut stream = SendWrapper::new(stream);
+        let mut stream = self
+            .inner
+            .lister_with(&path)
+            .metakey(Metakey::Mode | Metakey::ContentLength | Metakey::LastModified)
+            .into_future()
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, &path))?
+            .into_send();
 
         let mut common_prefixes = Vec::new();
         let mut objects = Vec::new();
 
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.next().into_send().await {
             let entry = res.map_err(|err| format_object_store_error(err, ""))?;
             let meta = entry.metadata();
 
@@ -346,6 +362,31 @@ async fn try_format_object_meta(res: Result<Entry, opendal::Error>) -> Result<Ob
     let meta = entry.metadata();
 
     Ok(format_object_meta(entry.path(), meta))
+}
+
+// Make sure `send_warpper` works as expected
+#[cfg(all(feature = "send_wrapper", target_arch = "wasm32"))]
+mod assert_send {
+    use object_store::ObjectStore;
+
+    #[allow(dead_code)]
+    fn assert_send<T: Send>(_: T) {}
+
+    #[allow(dead_code)]
+    fn assertion() {
+        let op = super::Operator::new(opendal::services::Memory::default())
+            .unwrap()
+            .finish();
+        let store = super::OpendalStore::new(op);
+        assert_send(store.put(&"test".into(), bytes::Bytes::new()));
+        assert_send(store.get(&"test".into()));
+        assert_send(store.get_range(&"test".into(), 0..1));
+        assert_send(store.head(&"test".into()));
+        assert_send(store.delete(&"test".into()));
+        assert_send(store.list(None));
+        assert_send(store.list_with_offset(None, &"test".into()));
+        assert_send(store.list_with_delimiter(None));
+    }
 }
 
 #[cfg(test)]

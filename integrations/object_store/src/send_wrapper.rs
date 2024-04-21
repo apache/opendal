@@ -18,6 +18,7 @@
 //! Conditionally add the `Send` marker trait for the wrapped type.
 //! Only take effect when the `send_wrapper` feature is enabled.
 
+use futures::Stream;
 #[cfg(feature = "send_wrapper")]
 pub use send_wrapper::SendWrapper;
 
@@ -68,5 +69,37 @@ mod noop_wrapper {
         pub fn new(item: T) -> Self {
             Self { item }
         }
+    }
+}
+
+pub trait IntoSendFuture {
+    type Output;
+
+    fn into_send(self) -> Self::Output;
+}
+
+impl<T> IntoSendFuture for T
+where
+    T: futures::Future,
+{
+    type Output = SendWrapper<T>;
+    fn into_send(self) -> Self::Output {
+        SendWrapper::new(self)
+    }
+}
+
+pub trait IntoSendStream {
+    type Output;
+
+    fn into_send(self) -> Self::Output;
+}
+
+impl<T> IntoSendStream for T
+where
+    T: Stream,
+{
+    type Output = SendWrapper<T>;
+    fn into_send(self) -> Self::Output {
+        SendWrapper::new(self)
     }
 }

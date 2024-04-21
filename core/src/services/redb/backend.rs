@@ -133,7 +133,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -143,7 +143,7 @@ impl kv::Adapter for Adapter {
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
@@ -157,22 +157,21 @@ impl kv::Adapter for Adapter {
             Ok(Some(v)) => Ok(Some(v.value().to_vec())),
             Ok(None) => Ok(None),
             Err(e) => Err(parse_storage_error(e)),
-        };
-        result
+        }?;
+        Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
-        let cloned_value = value.to_vec();
 
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
             .await
             .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
@@ -183,7 +182,9 @@ impl kv::Adapter for Adapter {
                 .open_table(table_define)
                 .map_err(parse_table_error)?;
 
-            table.insert(path, value).map_err(parse_storage_error)?;
+            table
+                .insert(path, &*value.to_vec())
+                .map_err(parse_storage_error)?;
         }
 
         write_txn.commit().map_err(parse_commit_error)?;

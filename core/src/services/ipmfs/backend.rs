@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -167,7 +166,7 @@ impl Accessor for IpmfsBackend {
 }
 
 impl IpmfsBackend {
-    async fn ipmfs_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -177,14 +176,12 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -199,14 +196,12 @@ impl IpmfsBackend {
         }
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -216,14 +211,12 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -233,14 +226,12 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -250,15 +241,13 @@ impl IpmfsBackend {
         );
 
         let req = Request::post(url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(&self, path: &str, body: Bytes) -> Result<Response<oio::Buffer>> {
+    pub async fn ipmfs_write(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

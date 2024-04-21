@@ -75,8 +75,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
 
 fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
     let path = jstring_to_string(env, &path)?;
-    let content = op.read(&path)?;
-    let result = env.byte_array_from_slice(content.as_slice())?;
+    let content = op.read(&path)?.to_bytes();
+    let result = env.byte_array_from_slice(&content)?;
     Ok(result.into_raw())
 }
 

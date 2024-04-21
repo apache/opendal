@@ -27,7 +27,6 @@ use backon::Retryable;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::Buffer;
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -687,7 +686,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         { || self.inner.as_ref().unwrap().read_at(offset, limit) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -707,13 +706,13 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 }
 
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         use backon::RetryableWithContext;
 
         let inner = self.inner.take().expect("inner must be valid");
 
         let ((inner, _), res) = {
-            |(mut r, bs): (R, oio::Buffer)| async move {
+            |(mut r, bs): (R, Buffer)| async move {
                 let res = r.write(bs.clone()).await;
 
                 ((r, bs), res)
@@ -805,7 +804,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         { || self.inner.as_mut().unwrap().write(bs.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -1034,7 +1033,7 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, _: u64, _: usize) -> Result<oio::Buffer> {
+        async fn read_at(&self, _: u64, _: usize) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -1108,7 +1107,7 @@ mod tests {
         let r = op.reader("retryable_error").await.unwrap();
         let mut content = Vec::new();
         let size = r
-            .read_to_end(&mut content)
+            .read_into(&mut content, ..)
             .await
             .expect("read must succeed");
         assert_eq!(size, 13);

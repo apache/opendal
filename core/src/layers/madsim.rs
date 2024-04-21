@@ -264,12 +264,12 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<Buffer> {
         if let Some(ref data) = self.data {
             let size = min(limit, data.len());
             Ok(data.clone().split_to(size).into())
         } else {
-            Ok(oio::Buffer::new())
+            Ok(Buffer::new())
         }
     }
 }
@@ -284,7 +284,7 @@ pub struct MadsimWriter {
 }
 
 impl oio::Write for MadsimWriter {
-    async fn write(&mut self, bs: oio::Buffer) -> crate::Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> crate::Result<usize> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);

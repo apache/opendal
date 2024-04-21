@@ -113,7 +113,7 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
 
 impl Operator {
     fn read(&self, path: &str) -> Result<Vec<u8>> {
-        Ok(self.0.read(path)?)
+        Ok(self.0.read(path)?.to_vec())
     }
 
     // To avoid copying the bytes, we use &'static [u8] here.
@@ -156,9 +156,7 @@ impl Operator {
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
         let meta = self.0.stat(path)?;
         Ok(Box::new(Reader(
-            self.0
-                .reader(path)?
-                .into_std_io_read(0..meta.content_length()),
+            self.0.reader(path)?.into_std_read(0..meta.content_length()),
         )))
     }
 

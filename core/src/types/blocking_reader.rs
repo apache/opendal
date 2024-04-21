@@ -46,21 +46,62 @@ impl BlockingReader {
         Ok(BlockingReader { inner: r })
     }
 
-    /// Read from underlying storage and write data into the specified buffer, starting at
-    /// the given offset and up to the limit.
+    /// Read give range from reader into [`Buffer`].
     ///
-    /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
-    /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
-    #[inline]
-    pub fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
-        let bs = self.inner.read_at(offset, limit)?;
-        let n = bs.remaining();
-        buf.put(bs);
-        Ok(n)
+    /// This operation is zero-copy, which means it keeps the [`Bytes`] returned by underlying
+    /// storage services without any extra copy or intensive memory allocations.
+    ///
+    /// # Notes
+    ///
+    /// - Buffer length smaller than range means we have reached the end of file.
+    pub fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
+        let start = match range.start_bound().cloned() {
+            Bound::Included(start) => start,
+            Bound::Excluded(start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound().cloned() {
+            Bound::Included(end) => Some(end + 1),
+            Bound::Excluded(end) => Some(end),
+            Bound::Unbounded => None,
+        };
+
+        // If range is empty, return Ok(0) directly.
+        if let Some(end) = end {
+            if end <= start {
+                return Ok(Buffer::new());
+            }
+        }
+
+        let mut bufs = Vec::new();
+        let mut offset = start;
+
+        loop {
+            // TODO: use service preferred io size instead.
+            let limit = end.map(|end| end - offset).unwrap_or(4 * 1024 * 1024) as usize;
+            let bs = self.inner.read_at(offset, limit)?;
+            let n = bs.remaining();
+            bufs.push(bs);
+            if n < limit {
+                return Ok(bufs.into_iter().flatten().collect());
+            }
+
+            offset += n as u64;
+            if Some(offset) == end {
+                return Ok(bufs.into_iter().flatten().collect());
+            }
+        }
     }
 
-    /// Read given range bytes of data from reader.
-    pub fn read_range(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize> {
+    ///
+    /// This operation will copy and write bytes into given [`BufMut`]. Allocation happens while
+    /// [`BufMut`] doesn't have enough space.
+    ///
+    /// # Notes
+    ///
+    /// - Returning length smaller than range means we have reached the end of file.
+    pub fn read_into(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize> {
         let start = match range.start_bound().cloned() {
             Bound::Included(start) => start,
             Bound::Excluded(start) => start + 1,
@@ -81,50 +122,37 @@ impl BlockingReader {
         }
 
         let mut offset = start;
-        let mut size = end.map(|end| end - start);
-
         let mut read = 0;
+
         loop {
-            let bs = self
-                .inner
-                // TODO: use service preferred io size instead.
-                .read_at(offset, size.unwrap_or(4 * 1024 * 1024) as usize)?;
+            // TODO: use service preferred io size instead.
+            let limit = end.map(|end| end - offset).unwrap_or(4 * 1024 * 1024) as usize;
+            let bs = self.inner.read_at(offset, limit)?;
             let n = bs.remaining();
-            read += n;
             buf.put(bs);
-            if n == 0 {
-                return Ok(read);
+            read += n as u64;
+            if n < limit {
+                return Ok(read as _);
             }
 
             offset += n as u64;
-
-            size = size.map(|v| v - n as u64);
-            if size == Some(0) {
-                return Ok(read);
+            if Some(offset) == end {
+                return Ok(read as _);
             }
         }
     }
 
-    /// Read all data from reader.
-    ///
-    /// This API is exactly the same with `BlockingReader::read_range(buf, ..)`.
-    #[inline]
-    pub fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
-        self.read_range(buf, ..)
-    }
-
-    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
+    /// Convert reader into [`StdReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_std_io_read(self, range: Range<u64>) -> StdIoReader {
+    pub fn into_std_read(self, range: Range<u64>) -> StdReader {
         // TODO: the capacity should be decided by services.
-        StdIoReader::new(self.inner, range)
+        StdReader::new(self.inner, range)
     }
 
-    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
-    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    /// Convert reader into [`StdBytesIterator`] which implements [`Iterator`].
     #[inline]
-    pub fn into_std_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
+    pub fn into_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
         StdBytesIterator::new(self.inner, range)
     }
 }
@@ -139,29 +167,29 @@ pub mod into_std_read {
 
     use bytes::Buf;
 
-    use crate::raw::format_std_io_error;
-    use crate::raw::oio;
+    use crate::raw::*;
+    use crate::*;
 
     /// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
     ///
     /// Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
     ///
     /// StdReader also implements [`Send`] and [`Sync`].
-    pub struct StdIoReader {
+    pub struct StdReader {
         inner: oio::BlockingReader,
         offset: u64,
         size: u64,
         cap: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: Buffer,
     }
 
-    impl StdIoReader {
+    impl StdReader {
         /// NOTE: don't allow users to create StdReader directly.
         #[inline]
         pub(super) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
-            StdIoReader {
+            StdReader {
                 inner: r,
                 offset: range.start,
                 size: range.end - range.start,
@@ -169,7 +197,7 @@ pub mod into_std_read {
                 cap: 4 * 1024 * 1024,
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: Buffer::new(),
             }
         }
 
@@ -180,7 +208,7 @@ pub mod into_std_read {
         }
     }
 
-    impl BufRead for StdIoReader {
+    impl BufRead for StdReader {
         fn fill_buf(&mut self) -> io::Result<&[u8]> {
             if self.buf.has_remaining() {
                 return Ok(self.buf.chunk());
@@ -206,7 +234,7 @@ pub mod into_std_read {
         }
     }
 
-    impl Read for StdIoReader {
+    impl Read for StdReader {
         #[inline]
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let bs = self.fill_buf()?;
@@ -217,7 +245,7 @@ pub mod into_std_read {
         }
     }
 
-    impl Seek for StdIoReader {
+    impl Seek for StdReader {
         #[inline]
         fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
             let new_pos = match pos {
@@ -239,7 +267,7 @@ pub mod into_std_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = Buffer::new()
             }
 
             self.cur = new_pos;

@@ -174,7 +174,12 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn read(&self, path: String) -> Result<Buffer> {
-        let res = self.0.read(&path).await.map_err(format_napi_error)?;
+        let res = self
+            .0
+            .read(&path)
+            .await
+            .map_err(format_napi_error)?
+            .to_vec();
         Ok(res.into())
     }
 
@@ -186,7 +191,7 @@ impl Operator {
         let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r.into_futures_io_async_read(0..meta.content_length()),
+            inner: r.into_futures_async_read(0..meta.content_length()),
         })
     }
 
@@ -198,7 +203,12 @@ impl Operator {
     /// ```
     #[napi]
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
-        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
+        let res = self
+            .0
+            .blocking()
+            .read(&path)
+            .map_err(format_napi_error)?
+            .to_vec();
         Ok(res.into())
     }
 
@@ -210,7 +220,7 @@ impl Operator {
         let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
         let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
         Ok(BlockingReader {
-            inner: r.into_std_io_read(0..meta.content_length()),
+            inner: r.into_std_read(0..meta.content_length()),
         })
     }
 
@@ -650,7 +660,7 @@ pub struct ListOptions {
 /// manner.
 #[napi]
 pub struct BlockingReader {
-    inner: opendal::StdIoReader,
+    inner: opendal::StdReader,
 }
 
 #[napi]
@@ -667,7 +677,7 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: opendal::FuturesIoAsyncReader,
+    inner: opendal::FuturesAsyncReader,
 }
 
 #[napi]
@@ -679,8 +689,8 @@ impl Reader {
     /// Read bytes from this reader into given buffer.
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let mut buf = buf.as_mut();
-        let n = self.inner.read(&mut buf).await.map_err(format_napi_error)?;
+        let buf = buf.as_mut();
+        let n = self.inner.read(buf).await.map_err(format_napi_error)?;
         Ok(n)
     }
 }

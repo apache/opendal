@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -41,10 +40,10 @@ impl VercelArtifactsWriter {
 }
 
 impl oio::OneShotWrite for VercelArtifactsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .backend
-            .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, AsyncBody::Bytes(bs))
+            .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, bs)
             .await?;
 
         let status = resp.status();

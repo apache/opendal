@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::IpmfsBackend;
@@ -36,7 +35,7 @@ impl IpmfsWriter {
 }
 
 impl oio::OneShotWrite for IpmfsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();

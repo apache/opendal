@@ -25,6 +25,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::*;
+use super::lister::DropboxLister;
 use super::reader::DropboxReader;
 use super::writer::DropboxWriter;
 use crate::raw::*;
@@ -39,7 +40,7 @@ pub struct DropboxBackend {
 impl Accessor for DropboxBackend {
     type Reader = DropboxReader;
     type Writer = oio::OneShotWriter<DropboxWriter>;
-    type Lister = ();
+    type Lister = oio::PageLister<DropboxLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -58,6 +59,13 @@ impl Accessor for DropboxBackend {
                 create_dir: true,
 
                 delete: true,
+
+                list: true,
+                list_with_recursive: true,
+
+                copy: true,
+
+                rename: true,
 
                 batch: true,
                 batch_delete: true,
@@ -165,6 +173,52 @@ impl Accessor for DropboxBackend {
                 let err = parse_error(resp).await?;
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpDelete::default()),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        Ok((
+            RpList::default(),
+            oio::PageLister::new(DropboxLister::new(
+                self.core.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+            )),
+        ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.dropbox_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpCopy::default()),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpCopy::default()),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        let resp = self.core.dropbox_move(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpRename::default()),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpRename::default()),
                     _ => Err(err),
                 }
             }

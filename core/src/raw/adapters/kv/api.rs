@@ -21,10 +21,8 @@ use async_trait::async_trait;
 
 use crate::raw::*;
 use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use crate::Scheme;
+use crate::*;
 
 /// KvAdapter is the adapter to underlying kv services.
 ///
@@ -37,10 +35,10 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>>;
+    async fn get(&self, path: &str) -> Result<Option<Buffer>>;
 
     /// The blocking version of get.
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let _ = path;
 
         Err(Error::new(
@@ -51,10 +49,10 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Set a key into service.
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()>;
+    async fn set(&self, path: &str, value: Buffer) -> Result<()>;
 
     /// The blocking version of set.
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let _ = (path, value);
 
         Err(Error::new(

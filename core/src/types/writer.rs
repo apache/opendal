@@ -90,14 +90,24 @@ impl Writer {
         Ok(Writer { inner: w })
     }
 
-    /// Write into inner writer.
-    pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+    /// Write Buffer into inner writer.
+    pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write(bs.clone().into()).await?;
+            let n = self.inner.write_dyn(bs.clone()).await?;
             bs.advance(n);
         }
+        Ok(())
+    }
 
+    /// Write bytes::Buf into inner writer.
+    pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
+        let mut bs = bs;
+        let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
+        while !bs.is_empty() {
+            let n = self.inner.write_dyn(bs.clone()).await?;
+            bs.advance(n);
+        }
         Ok(())
     }
 
@@ -166,9 +176,9 @@ impl Writer {
         self.inner.close().await
     }
 
-    /// Convert writer into [`FuturesIoAsyncWriter`] which implements [`futures::AsyncWrite`],
-    pub fn into_futures_io_async_write(self) -> FuturesIoAsyncWriter {
-        FuturesIoAsyncWriter::new(self.inner)
+    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
+    pub fn into_futures_async_write(self) -> FuturesAsyncWriter {
+        FuturesAsyncWriter::new(self.inner)
     }
 }
 
@@ -194,7 +204,7 @@ pub mod into_futures_async_write {
     /// # TODO
     ///
     /// We should insert checks if the input slice changed after future created.
-    pub struct FuturesIoAsyncWriter {
+    pub struct FuturesAsyncWriter {
         state: State,
         buf: oio::FlexBuf,
     }
@@ -210,18 +220,18 @@ pub mod into_futures_async_write {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesIoAsyncWriter {
+    impl FuturesAsyncWriter {
         /// NOTE: don't allow users to create FuturesIoAsyncWriter directly.
         #[inline]
         pub fn new(r: oio::Writer) -> Self {
-            FuturesIoAsyncWriter {
+            FuturesAsyncWriter {
                 state: State::Idle(Some(r)),
                 buf: oio::FlexBuf::new(256 * 1024),
             }
         }
     }
 
-    impl AsyncWrite for FuturesIoAsyncWriter {
+    impl AsyncWrite for FuturesAsyncWriter {
         fn poll_write(
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -239,7 +249,7 @@ pub mod into_futures_async_write {
                         let bs = this.buf.get().expect("frozen buffer must be valid");
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res = w.write(oio::Buffer::from(bs)).await;
+                            let res = w.write(Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));
@@ -277,7 +287,7 @@ pub mod into_futures_async_write {
 
                         let mut w = w.take().expect("writer must be valid");
                         let fut = async move {
-                            let res = w.write(oio::Buffer::from(bs)).await;
+                            let res = w.write(Buffer::from(bs)).await;
                             (w, res)
                         };
                         this.state = State::Writing(Box::pin(fut));
@@ -383,5 +393,61 @@ impl io::Write for BlockingWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use rand::rngs::ThreadRng;
+    use rand::Rng;
+    use rand::RngCore;
+
+    use crate::services;
+    use crate::Operator;
+
+    fn gen_random_bytes() -> Vec<u8> {
+        let mut rng = ThreadRng::default();
+        // Generate size between 1B..16MB.
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        content
+    }
+
+    #[tokio::test]
+    async fn test_writer_write() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        let mut writer = op.writer(path).await.unwrap();
+        writer
+            .write(content.clone())
+            .await
+            .expect("write must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_from() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        let mut writer = op.writer(path).await.unwrap();
+        writer
+            .write_from(Bytes::from(content.clone()))
+            .await
+            .expect("write must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
     }
 }

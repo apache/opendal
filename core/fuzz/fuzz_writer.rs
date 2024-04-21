@@ -97,7 +97,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 
     writer.close().await?;
 
-    let result = op.read(&path).await?;
+    let result = op.read(&path).await?.to_bytes();
 
     checker.check(&result);
 

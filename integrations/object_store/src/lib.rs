@@ -144,7 +144,7 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
         let stream = r
-            .into_futures_bytes_stream(0..meta.size as u64)
+            .into_bytes_stream(0..meta.size as u64)
             .into_send()
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",
@@ -168,7 +168,7 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        Ok(Bytes::from(bs))
+        Ok(bs.to_bytes())
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {

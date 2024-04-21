@@ -23,6 +23,7 @@ use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use opendal::raw::tests::TEST_RUNTIME;
+use opendal::raw::*;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
@@ -61,7 +62,7 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 /// Build a new async trail as a test case.
 pub fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
 where
-    F: FnOnce(Operator) -> Fut + Send + 'static,
+    F: FnOnce(Operator) -> Fut + MaybeSend + 'static,
     Fut: Future<Output = anyhow::Result<()>>,
 {
     let handle = TEST_RUNTIME.handle().clone();
@@ -86,7 +87,7 @@ macro_rules! async_trials {
 /// Build a new async trail as a test case.
 pub fn build_blocking_trial<F>(name: &str, op: &Operator, f: F) -> Trial
 where
-    F: FnOnce(BlockingOperator) -> anyhow::Result<()> + Send + 'static,
+    F: FnOnce(BlockingOperator) -> anyhow::Result<()> + MaybeSend + 'static,
 {
     let op = op.blocking();
 

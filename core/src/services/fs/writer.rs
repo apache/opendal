@@ -48,7 +48,7 @@ impl<F> FsWriter<F> {
 unsafe impl<F> Sync for FsWriter<F> {}
 
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         // TODO: use write_vectored instead.
@@ -83,7 +83,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         f.write(bs.chunk()).map_err(new_std_io_error)

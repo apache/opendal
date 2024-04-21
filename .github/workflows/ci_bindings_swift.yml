@@ -29,6 +29,7 @@ on:
     paths:
       - "bindings/swift/**"
       - "bindings/c/**"
+      - "core/**"
       - ".github/workflows/ci_bindings_swift.yml"
   workflow_dispatch:
 

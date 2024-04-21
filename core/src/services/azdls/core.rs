@@ -91,13 +91,13 @@ impl AzdlsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -113,9 +113,7 @@ impl AzdlsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -129,8 +127,8 @@ impl AzdlsCore {
         path: &str,
         resource: &str,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -161,7 +159,7 @@ impl AzdlsCore {
         Ok(req)
     }
 
-    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -178,7 +176,7 @@ impl AzdlsCore {
                 format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
             )
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -191,8 +189,8 @@ impl AzdlsCore {
         path: &str,
         size: Option<u64>,
         position: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // - close: Make this is the final action to this file.
@@ -217,7 +215,7 @@ impl AzdlsCore {
         Ok(req)
     }
 
-    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -231,15 +229,13 @@ impl AzdlsCore {
 
         let req = Request::head(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.client.send(req).await
     }
 
-    pub async fn azdls_delete(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azdls_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -253,9 +249,7 @@ impl AzdlsCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -266,7 +260,7 @@ impl AzdlsCore {
         path: &str,
         continuation: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -288,17 +282,14 @@ impl AzdlsCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn azdls_ensure_parent_path(
-        &self,
-        path: &str,
-    ) -> Result<Option<Response<oio::Buffer>>> {
+    pub async fn azdls_ensure_parent_path(&self, path: &str) -> Result<Option<Response<Buffer>>> {
         let abs_target_path = path.trim_end_matches('/').to_string();
         let abs_target_path = abs_target_path.as_str();
         let mut parts: Vec<&str> = abs_target_path
@@ -316,7 +307,7 @@ impl AzdlsCore {
                 &parent_path,
                 "directory",
                 &OpWrite::default(),
-                AsyncBody::Empty,
+                Buffer::new(),
             )?;
 
             self.sign(&mut req).await?;

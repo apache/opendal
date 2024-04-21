@@ -126,7 +126,7 @@ impl AzblobCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -168,7 +168,7 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -207,9 +207,7 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -219,7 +217,7 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let mut req = self.azblob_get_blob_request(path, range, args)?;
 
         self.sign(&mut req).await?;
@@ -232,8 +230,8 @@ impl AzblobCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -291,7 +289,7 @@ impl AzblobCore {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -322,9 +320,7 @@ impl AzblobCore {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -345,8 +341,8 @@ impl AzblobCore {
         path: &str,
         position: u64,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -376,8 +372,8 @@ impl AzblobCore {
         block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         // To be written as part of a blob, a block must have been successfully written to the server in an earlier Put Block operation.
         // refer to https://learn.microsoft.com/en-us/rest/api/storageservices/put-block?tabs=microsoft-entra-id
         let p = build_abs_path(&self.root, path);
@@ -417,8 +413,8 @@ impl AzblobCore {
         block_id: Uuid,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
 
         self.sign(&mut req).await?;
@@ -430,7 +426,7 @@ impl AzblobCore {
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?comp=blocklist",
@@ -461,7 +457,7 @@ impl AzblobCore {
         req = req.header(CONTENT_LENGTH, content.len());
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         Ok(req)
@@ -472,7 +468,7 @@ impl AzblobCore {
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let mut req = self
             .azblob_complete_put_block_list_request(path, block_ids, args)
             .await?;
@@ -482,11 +478,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub fn azblob_head_blob_request(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn azblob_head_blob_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -509,9 +501,7 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -520,14 +510,14 @@ impl AzblobCore {
         &self,
         path: &str,
         args: &OpStat,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let mut req = self.azblob_head_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -540,18 +530,18 @@ impl AzblobCore {
         let req = Request::delete(&url);
 
         req.header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = self.azblob_delete_blob_request(path)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -571,7 +561,7 @@ impl AzblobCore {
         let mut req = Request::put(&target)
             .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -584,7 +574,7 @@ impl AzblobCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -606,14 +596,14 @@ impl AzblobCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<oio::Buffer>> {
+    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
             self.endpoint, self.container

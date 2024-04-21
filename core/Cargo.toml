@@ -136,6 +136,7 @@ services-ghac = []
 services-github = []
 services-gridfs = ["dep:mongodb"]
 services-hdfs = ["dep:hdrs"]
+services-hdfs-native = ["hdfs-native"]
 services-http = []
 services-huggingface = []
 services-icloud = ["internal-path-cache"]
@@ -177,17 +178,16 @@ services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
 services-sled = ["dep:sled", "internal-tokio-rt"]
 services-sqlite = ["dep:rusqlite", "dep:r2d2", "internal-tokio-rt"]
 services-supabase = []
+services-surrealdb = ["dep:surrealdb"]
 services-swift = []
 services-tikv = ["tikv-client"]
 services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 services-vercel-blob = []
-services-hdfs-native = ["hdfs-native"]
 services-wasabi = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-surrealdb = ["dep:surrealdb"]
 
 [lib]
 bench = false
@@ -216,14 +216,14 @@ anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
 backon = "0.4.3"
 base64 = "0.22"
-bytes = "1.4"
+bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
   "clock",
   "std",
 ] }
 flagset = "0.4"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-http = "1.1 "
+http = "1.1"
 log = "0.4"
 md-5 = "0.10"
 # TODO: remove once_cell when lazy_lock is stable: https://doc.rust-lang.org/std/cell/struct.LazyCell.html

@@ -30,11 +30,11 @@ use tokio::sync::OnceCell;
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
 use crate::raw::ConfigDeserializer;
-use crate::Builder;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::{Buffer, Builder};
 
 /// Config for Surrealdb services support.
 #[derive(Default, Deserialize)]
@@ -330,7 +330,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> crate::Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> crate::Result<Option<Buffer>> {
         let query: String = if self.key_field == "id" {
             "SELECT type::field($value_field) FROM type::thing($table, $path)".to_string()
         } else {
@@ -352,10 +352,10 @@ impl kv::Adapter for Adapter {
             .take((0, self.value_field.as_str()))
             .map_err(parse_surrealdb_error)?;
 
-        Ok(value)
+        Ok(value.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> crate::Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> crate::Result<()> {
         let query = format!(
             "INSERT INTO {} ({}, {}) \
             VALUES ($path, $value) \
@@ -366,7 +366,7 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("path", path))
-            .bind(("value", value))
+            .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

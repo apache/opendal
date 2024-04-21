@@ -59,7 +59,7 @@ use crate::*;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
-/// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
 ///     let reporter =
 ///         minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
 ///             .unwrap();
@@ -295,13 +295,13 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     #[trace(enter_on_poll = true)]
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
         self.inner.read_at(offset, limit)
@@ -309,19 +309,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
         self.inner.write(bs)
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
         self.inner.abort()
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
         self.inner.close()
@@ -329,7 +329,7 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
         self.inner.write(bs)

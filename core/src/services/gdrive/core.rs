@@ -35,9 +35,7 @@ use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use crate::raw::*;
-use crate::types::Result;
-use crate::Error;
-use crate::ErrorKind;
+use crate::*;
 
 pub struct GdriveCore {
     pub root: String,
@@ -59,7 +57,7 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
-    pub async fn gdrive_stat(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
@@ -72,14 +70,14 @@ impl GdriveCore {
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
             file_id
         ))
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
 
-    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
@@ -93,7 +91,7 @@ impl GdriveCore {
 
         let mut req = Request::get(&url)
             .header(header::RANGE, range.to_header())
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
@@ -105,7 +103,7 @@ impl GdriveCore {
         file_id: &str,
         page_size: i32,
         next_page_token: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let q = format!("'{}' in parents and trashed = false", file_id);
         let mut url = format!(
             "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
@@ -117,7 +115,7 @@ impl GdriveCore {
         };
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
@@ -129,7 +127,7 @@ impl GdriveCore {
         &self,
         source: &str,
         target: &str,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             &format!("source path not found: {}", source),
@@ -155,7 +153,7 @@ impl GdriveCore {
             source_file_id
         );
         let mut req = Request::patch(url)
-            .body(AsyncBody::Bytes(Bytes::from(metadata.to_string())))
+            .body(Buffer::from(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -163,7 +161,7 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<Buffer>> {
         let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
         let body = serde_json::to_vec(&json!({
@@ -172,7 +170,7 @@ impl GdriveCore {
         .map_err(new_json_serialize_error)?;
 
         let mut req = Request::patch(&url)
-            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -185,8 +183,8 @@ impl GdriveCore {
         &self,
         path: &str,
         size: u64,
-        body: Bytes,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
@@ -235,8 +233,8 @@ impl GdriveCore {
         &self,
         file_id: &str,
         size: u64,
-        body: Bytes,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let url = format!(
             "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
             file_id
@@ -246,7 +244,7 @@ impl GdriveCore {
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
-            .body(AsyncBody::Bytes(body))
+            .body(body)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -305,7 +303,7 @@ impl GdriveSigner {
         {
             let req = Request::post(url)
                 .header(header::CONTENT_LENGTH, 0)
-                .body(AsyncBody::Empty)
+                .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
@@ -374,7 +372,7 @@ impl PathQuery for GdrivePathQuery {
         );
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.signer.lock().await.sign(&mut req).await?;
@@ -411,7 +409,7 @@ impl PathQuery for GdrivePathQuery {
 
         let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.signer.lock().await.sign(&mut req).await?;

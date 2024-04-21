@@ -53,7 +53,7 @@ impl<F> HdfsWriter<F> {
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
         f.write(bs.chunk()).await.map_err(new_std_io_error)
@@ -82,7 +82,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
         f.write(bs.chunk()).map_err(new_std_io_error)
     }

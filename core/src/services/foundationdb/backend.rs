@@ -149,12 +149,12 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let transaction = self.db.create_trx().expect("Unable to create transaction");
 
         match transaction.get(path.as_bytes(), false).await {
             Ok(slice) => match slice {
-                Some(data) => Ok(Some(data.to_vec())),
+                Some(data) => Ok(Some(Buffer::from(data.to_vec()))),
                 None => Err(Error::new(
                     ErrorKind::NotFound,
                     "foundationdb: key not found",
@@ -167,10 +167,10 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let transaction = self.db.create_trx().expect("Unable to create transaction");
 
-        transaction.set(path.as_bytes(), value);
+        transaction.set(path.as_bytes(), &value.to_vec());
 
         match transaction.commit().await {
             Ok(_) => Ok(()),

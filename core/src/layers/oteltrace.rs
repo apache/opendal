@@ -275,33 +275,33 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<oio::Buffer> {
+    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         self.inner.read_at(offset, limit)
     }
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> impl Future<Output = Result<usize>> + Send {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
         self.inner.write(bs)
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.abort()
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.close()
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.inner.write(bs)
     }
 

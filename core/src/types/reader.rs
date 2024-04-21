@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 
-use bytes::Buf;
 use bytes::BufMut;
+use futures::stream;
+use futures::StreamExt;
+use futures::TryStreamExt;
 
 use crate::raw::*;
 use crate::*;
@@ -36,8 +37,10 @@ use crate::*;
 /// ## Direct
 ///
 /// [`Reader`] provides public API including [`Reader::read`], [`Reader:read_range`], and [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
+#[derive(Clone)]
 pub struct Reader {
     inner: oio::Reader,
+    options: OpReader,
 }
 
 impl Reader {
@@ -48,93 +51,259 @@ impl Reader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let (_, r) = acc.read(path, op).await?;
+    pub(crate) async fn create(
+        acc: FusedAccessor,
+        path: &str,
+        args: OpRead,
+        options: OpReader,
+    ) -> Result<Self> {
+        let (_, r) = acc.read(path, args).await?;
 
-        Ok(Reader { inner: r })
+        Ok(Reader { inner: r, options })
     }
 
-    /// Read from underlying storage and write data into the specified buffer, starting at
-    /// the given offset and up to the limit.
+    /// Read give range from reader into [`Buffer`].
     ///
-    /// A return value of `n` signifies that `n` bytes of data have been read into `buf`.
-    /// If `n < limit`, it indicates that the reader has reached EOF (End of File).
-    #[inline]
-    pub async fn read(&self, buf: &mut impl BufMut, offset: u64, limit: usize) -> Result<usize> {
-        let bs = self.inner.read_at_dyn(offset, limit).await?;
-        let n = bs.remaining();
-        buf.put(bs);
-        Ok(n)
+    /// This operation is zero-copy, which means it keeps the [`Bytes`] returned by underlying
+    /// storage services without any extra copy or intensive memory allocations.
+    ///
+    /// # Notes
+    ///
+    /// - Buffer length smaller than range means we have reached the end of file.
+    pub async fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
+        let bufs: Vec<_> = self.clone().into_stream(range).try_collect().await?;
+        Ok(bufs.into_iter().flatten().collect())
     }
 
-    /// Read given range bytes of data from reader.
-    pub async fn read_range(
+    /// Read all data from reader into given [`BufMut`].
+    ///
+    /// This operation will copy and write bytes into given [`BufMut`]. Allocation happens while
+    /// [`BufMut`] doesn't have enough space.
+    ///
+    /// # Notes
+    ///
+    /// - Returning length smaller than range means we have reached the end of file.
+    pub async fn read_into(
         &self,
         buf: &mut impl BufMut,
         range: impl RangeBounds<u64>,
     ) -> Result<usize> {
-        let start = match range.start_bound().cloned() {
-            Bound::Included(start) => start,
-            Bound::Excluded(start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound().cloned() {
-            Bound::Included(end) => Some(end + 1),
-            Bound::Excluded(end) => Some(end),
-            Bound::Unbounded => None,
-        };
-
-        // If range is empty, return Ok(0) directly.
-        if let Some(end) = end {
-            if end <= start {
-                return Ok(0);
-            }
-        }
-
-        let mut offset = start;
-        let mut size = end.map(|end| end - start);
+        let mut stream = self.clone().into_stream(range);
 
         let mut read = 0;
         loop {
-            // TODO: use service preferred io size instead.
-            let limit = size.unwrap_or(4 * 1024 * 1024) as usize;
-            let bs = self.inner.read_at_dyn(offset, limit).await?;
-            let n = bs.remaining();
-            read += n;
+            let Some(bs) = stream.try_next().await? else {
+                return Ok(read);
+            };
+            read += bs.len();
             buf.put(bs);
-            if n < limit {
-                return Ok(read);
-            }
+        }
+    }
 
-            offset += n as u64;
-            size = size.map(|v| v - n as u64);
-            if size == Some(0) {
-                return Ok(read);
+    /// Fetch specific ranges from reader.
+    ///
+    /// This operation try to merge given ranges into a list of
+    /// non-overlapping ranges. Users may also specify a `gap` to merge
+    /// close ranges.
+    ///
+    /// The returning `Buffer` may share the same underlying memory without
+    /// any extra copy.
+    pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
+        let merged_ranges = self.merge_ranges(ranges.clone());
+
+        let merged_bufs: Vec<_> =
+            stream::iter(merged_ranges.clone().into_iter().map(|v| self.read(v)))
+                .buffered(self.options.concurrent())
+                .try_collect()
+                .await?;
+
+        let mut bufs = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            let idx = merged_ranges.partition_point(|v| v.start <= range.start) - 1;
+            let start = range.start - merged_ranges[idx].start;
+            let end = range.end - merged_ranges[idx].start;
+            bufs.push(merged_bufs[idx].slice(start as usize..end as usize));
+        }
+
+        Ok(bufs)
+    }
+
+    /// Merge given ranges into a list of non-overlapping ranges.
+    fn merge_ranges(&self, mut ranges: Vec<Range<u64>>) -> Vec<Range<u64>> {
+        let gap = self.options.gap().unwrap_or(1024 * 1024) as u64;
+        // We don't care about the order of range with same start, they
+        // will be merged in the next step.
+        ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
+
+        // We know that this vector will have at most element
+        let mut merged = Vec::with_capacity(ranges.len());
+        let mut cur = ranges[0].clone();
+
+        for range in ranges.into_iter().skip(1) {
+            if range.start <= cur.end + gap {
+                // There is an overlap or the gap is small enough to merge
+                cur.end = cur.end.max(range.end);
+            } else {
+                // No overlap and the gap is too large, push the current range to the list and start a new one
+                merged.push(cur);
+                cur = range;
+            }
+        }
+
+        // Push the last range
+        merged.push(cur);
+
+        merged
+    }
+
+    /// Create a buffer stream to read specific range from given reader.
+    ///
+    /// # Notes
+    ///
+    /// This API can be public but we are not sure if it's useful for users.
+    /// And the name `BufferStream` is not good enough to expose to users.
+    /// Let's keep it inside for now.
+    fn into_stream(self, range: impl RangeBounds<u64>) -> into_stream::BufferStream {
+        into_stream::BufferStream::new(self.inner, self.options, range)
+    }
+
+    /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
+    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    #[inline]
+    pub fn into_futures_async_read(self, range: Range<u64>) -> FuturesAsyncReader {
+        FuturesAsyncReader::new(self.inner, self.options.chunk(), range)
+    }
+
+    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
+    #[inline]
+    pub fn into_bytes_stream(self, range: impl RangeBounds<u64>) -> FuturesBytesStream {
+        let stream = self.into_stream(range);
+        FuturesBytesStream::new(stream)
+    }
+}
+
+pub mod into_stream {
+    use std::pin::Pin;
+    use std::sync::atomic::Ordering;
+    use std::task::{Context, Poll};
+    use std::{
+        ops::{Bound, RangeBounds},
+        sync::{atomic::AtomicBool, Arc},
+    };
+
+    use futures::stream::{self, Buffered, Iter};
+    use futures::{Stream, StreamExt};
+
+    use crate::raw::*;
+    use crate::*;
+
+    /// ReadFutureIterator is an iterator that returns future of [`Buffer`] from [`Reader`].
+    struct ReadFutureIterator {
+        r: oio::Reader,
+        chunk: Option<usize>,
+
+        offset: u64,
+        end: Option<u64>,
+        finished: Arc<AtomicBool>,
+    }
+
+    impl ReadFutureIterator {
+        #[inline]
+        fn new(r: oio::Reader, chunk: Option<usize>, range: impl RangeBounds<u64>) -> Self {
+            let start = match range.start_bound().cloned() {
+                Bound::Included(start) => start,
+                Bound::Excluded(start) => start + 1,
+                Bound::Unbounded => 0,
+            };
+            let end = match range.end_bound().cloned() {
+                Bound::Included(end) => Some(end + 1),
+                Bound::Excluded(end) => Some(end),
+                Bound::Unbounded => None,
+            };
+
+            ReadFutureIterator {
+                r,
+                chunk,
+                offset: start,
+                end,
+                finished: Arc::default(),
             }
         }
     }
 
-    /// Read all data from reader.
+    impl Iterator for ReadFutureIterator {
+        type Item = BoxedFuture<'static, Result<Buffer>>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.offset >= self.end.unwrap_or(u64::MAX) {
+                return None;
+            }
+            if self.finished.load(Ordering::Relaxed) {
+                return None;
+            }
+
+            let offset = self.offset;
+            // TODO: replace with services preferred chunk size.
+            let chunk = self.chunk.unwrap_or(4 * 1024 * 1024);
+            let limit = self
+                .end
+                .map(|end| ((end - self.offset) as usize).min(chunk))
+                .unwrap_or(chunk);
+            let finished = self.finished.clone();
+            let r = self.r.clone();
+
+            // Update self.offset before building future.
+            self.offset += limit as u64;
+            let fut = async move {
+                let buf = r.read_at_dyn(offset, limit).await?;
+                if buf.len() < limit || limit == 0 {
+                    // Update finished marked if buf is less than limit.
+                    finished.store(true, Ordering::Relaxed);
+                }
+                Ok(buf)
+            };
+
+            Some(Box::pin(fut))
+        }
+    }
+
+    /// BufferStream is a stream that returns [`Buffer`] from [`Reader`].
     ///
-    /// This API is exactly the same with `Reader::read_range(buf, ..)`.
-    #[inline]
-    pub async fn read_to_end(&self, buf: &mut impl BufMut) -> Result<usize> {
-        self.read_range(buf, ..).await
+    /// This stream will use concurrent read to fetch data from underlying storage.
+    ///
+    /// # Notes
+    ///
+    /// BufferStream uses `Buffered<Iter<ReadFutureIterator>>` internally,
+    /// but we want to hide those details from users.
+    pub struct BufferStream(Buffered<Iter<ReadFutureIterator>>);
+
+    impl BufferStream {
+        /// Create a new buffer stream from given reader.
+        #[inline]
+        pub fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
+            let iter = ReadFutureIterator::new(r, options.chunk(), range);
+            let stream = stream::iter(iter).buffered(options.concurrent());
+
+            BufferStream(stream)
+        }
     }
 
-    /// Convert reader into [`FuturesIoAsyncReader`] which implements [`futures::AsyncRead`],
-    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
-    #[inline]
-    pub fn into_futures_io_async_read(self, range: Range<u64>) -> FuturesIoAsyncReader {
-        FuturesIoAsyncReader::new(self.inner, range)
+    impl Stream for BufferStream {
+        type Item = Result<Buffer>;
+
+        #[inline]
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            self.0.poll_next_unpin(cx)
+        }
     }
 
-    /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`],
-    /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
-    #[inline]
-    pub fn into_futures_bytes_stream(self, range: Range<u64>) -> FuturesBytesStream {
-        FuturesBytesStream::new(self.inner, range)
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::raw::MaybeSend;
+
+        trait AssertTrait: Unpin + MaybeSend + 'static {}
+        impl AssertTrait for BufferStream {}
     }
 }
 
@@ -161,19 +330,19 @@ pub mod into_futures_async_read {
     /// Users can use this adapter in cases where they need to use [`AsyncRead`] related trait.
     ///
     /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
-    pub struct FuturesIoAsyncReader {
+    pub struct FuturesAsyncReader {
         state: State,
         offset: u64,
         size: u64,
-        cap: usize,
+        chunk: usize,
 
         cur: u64,
-        buf: oio::Buffer,
+        buf: Buffer,
     }
 
     enum State {
         Idle(Option<oio::Reader>),
-        Fill(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
+        Fill(BoxedStaticFuture<(oio::Reader, Result<Buffer>)>),
     }
 
     /// # Safety
@@ -181,30 +350,23 @@ pub mod into_futures_async_read {
     /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
     unsafe impl Sync for State {}
 
-    impl FuturesIoAsyncReader {
+    impl FuturesAsyncReader {
         /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
-        pub(super) fn new(r: oio::Reader, range: Range<u64>) -> Self {
-            FuturesIoAsyncReader {
+        pub(super) fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
+            FuturesAsyncReader {
                 state: State::Idle(Some(r)),
                 offset: range.start,
                 size: range.end - range.start,
-                // TODO: should use services preferred io size.
-                cap: 4 * 1024 * 1024,
+                chunk: chunk.unwrap_or(8 * 1024 * 1024),
 
                 cur: 0,
-                buf: oio::Buffer::new(),
+                buf: Buffer::new(),
             }
-        }
-
-        /// Set the capacity of this reader to control the IO size.
-        pub fn with_capacity(mut self, cap: usize) -> Self {
-            self.cap = cap;
-            self
         }
     }
 
-    impl AsyncBufRead for FuturesIoAsyncReader {
+    impl AsyncBufRead for FuturesAsyncReader {
         fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
             let this = self.get_mut();
             loop {
@@ -221,7 +383,7 @@ pub mod into_futures_async_read {
 
                         let r = r.take().expect("reader must be present");
                         let next_offset = this.offset + this.cur;
-                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
+                        let next_size = (this.size - this.cur).min(this.chunk as u64) as usize;
                         let fut = async move {
                             let res = r.read_at_dyn(next_offset, next_size).await;
                             (r, res)
@@ -239,11 +401,17 @@ pub mod into_futures_async_read {
 
         fn consume(mut self: Pin<&mut Self>, amt: usize) {
             self.buf.advance(amt);
+            // Make sure buf has been dropped before starting new request.
+            // Otherwise, we will hold those bytes in memory until next
+            // buffer reaching.
+            if self.buf.is_empty() {
+                self.buf = Buffer::new();
+            }
             self.cur += amt as u64;
         }
     }
 
-    impl AsyncRead for FuturesIoAsyncReader {
+    impl AsyncRead for FuturesAsyncReader {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -257,7 +425,7 @@ pub mod into_futures_async_read {
         }
     }
 
-    impl AsyncSeek for FuturesIoAsyncReader {
+    impl AsyncSeek for FuturesAsyncReader {
         fn poll_seek(
             mut self: Pin<&mut Self>,
             _: &mut Context<'_>,
@@ -282,7 +450,7 @@ pub mod into_futures_async_read {
                 let cnt = new_pos - self.cur;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = oio::Buffer::new()
+                self.buf = Buffer::new()
             }
 
             self.cur = new_pos;
@@ -293,16 +461,16 @@ pub mod into_futures_async_read {
 
 pub mod into_futures_stream {
     use std::io;
-    use std::ops::Range;
     use std::pin::Pin;
     use std::task::ready;
     use std::task::Context;
     use std::task::Poll;
 
-    use bytes::Buf;
     use bytes::Bytes;
     use futures::Stream;
+    use futures::StreamExt;
 
+    use super::into_stream::BufferStream;
     use crate::raw::*;
     use crate::*;
 
@@ -312,43 +480,18 @@ pub mod into_futures_stream {
     ///
     /// FuturesStream also implements [`Unpin`], [`Send`] and [`Sync`].
     pub struct FuturesBytesStream {
-        state: State,
-        offset: u64,
-        size: u64,
-        cap: usize,
-
-        cur: u64,
+        stream: BufferStream,
+        buf: Buffer,
     }
-
-    enum State {
-        Idle(Option<oio::Reader>),
-        Next(BoxedStaticFuture<(oio::Reader, Result<oio::Buffer>)>),
-    }
-
-    /// # Safety
-    ///
-    /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
-    unsafe impl Sync for State {}
 
     impl FuturesBytesStream {
         /// NOTE: don't allow users to create FuturesStream directly.
         #[inline]
-        pub(crate) fn new(r: oio::Reader, range: Range<u64>) -> Self {
+        pub(crate) fn new(stream: BufferStream) -> Self {
             FuturesBytesStream {
-                state: State::Idle(Some(r)),
-                offset: range.start,
-                size: range.end - range.start,
-                // TODO: should use services preferred io size.
-                cap: 4 * 1024 * 1024,
-
-                cur: 0,
+                stream,
+                buf: Buffer::new(),
             }
-        }
-
-        /// Set the capacity of this reader to control the IO size.
-        pub fn with_capacity(mut self, cap: usize) -> Self {
-            self.cap = cap;
-            self
         }
     }
 
@@ -359,35 +502,16 @@ pub mod into_futures_stream {
             let this = self.get_mut();
 
             loop {
-                match &mut this.state {
-                    State::Idle(r) => {
-                        // Make sure cur didn't exceed size.
-                        if this.cur >= this.size {
-                            return Poll::Ready(None);
-                        }
-
-                        let r = r.take().expect("reader must be present");
-                        let next_offset = this.offset + this.cur;
-                        let next_size = (this.size - this.cur).min(this.cap as u64) as usize;
-                        let fut = async move {
-                            let res = r.read_at_dyn(next_offset, next_size).await;
-                            (r, res)
-                        };
-                        this.state = State::Next(Box::pin(fut));
-                    }
-                    State::Next(fut) => {
-                        let (r, res) = ready!(fut.as_mut().poll(cx));
-                        this.state = State::Idle(Some(r));
-                        return match res {
-                            Ok(buf) if !buf.has_remaining() => Poll::Ready(None),
-                            Ok(mut buf) => {
-                                this.cur += buf.remaining() as u64;
-                                Poll::Ready(Some(Ok(buf.copy_to_bytes(buf.remaining()))))
-                            }
-                            Err(err) => Poll::Ready(Some(Err(format_std_io_error(err)))),
-                        };
-                    }
+                // Consume current buffer
+                if let Some(bs) = Iterator::next(&mut this.buf) {
+                    return Poll::Ready(Some(Ok(bs)));
                 }
+
+                this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
+                    Some(Ok(buf)) => buf,
+                    Some(Err(err)) => return Poll::Ready(Some(Err(format_std_io_error(err)))),
+                    None => return Poll::Ready(None),
+                };
             }
         }
     }
@@ -411,8 +535,68 @@ mod tests {
         content
     }
 
+    fn gen_fixed_bytes(size: usize) -> Vec<u8> {
+        let mut rng = ThreadRng::default();
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        content
+    }
+
     #[tokio::test]
-    async fn test_reader_async_read() {
+    async fn test_reader_read() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader(path).await.unwrap();
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_with_chunk() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).chunk(16).await.unwrap();
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_with_concurrent() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_random_bytes();
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op
+            .reader_with(path)
+            .chunk(128)
+            .concurrent(16)
+            .await
+            .unwrap();
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_into() {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let path = "test_file";
 
@@ -424,7 +608,7 @@ mod tests {
         let reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
-            .read_to_end(&mut buf)
+            .read_into(&mut buf, ..)
             .await
             .expect("read to end must succeed");
 
@@ -432,7 +616,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reader_async_seek() {
+    async fn test_merge_ranges() {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let path = "test_file";
 
@@ -441,12 +625,45 @@ mod tests {
             .await
             .expect("write must succeed");
 
-        let reader = op.reader(path).await.unwrap();
-        let mut buf = Vec::new();
-        reader
-            .read_to_end(&mut buf)
+        let reader = op.reader_with(path).gap(1).await.unwrap();
+
+        let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
+        let merged = reader.merge_ranges(ranges.clone());
+        assert_eq!(merged, vec![0..30, 40..60]);
+    }
+
+    #[tokio::test]
+    async fn test_fetch() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
             .await
-            .expect("read to end must succeed");
-        assert_eq!(buf, content);
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).gap(1).await.unwrap();
+
+        let ranges = vec![
+            0..10,
+            40..50,
+            45..59,
+            10..20,
+            21..30,
+            40..50,
+            40..60,
+            45..59,
+        ];
+        let merged = reader
+            .fetch(ranges.clone())
+            .await
+            .expect("fetch must succeed");
+
+        for (i, range) in ranges.iter().enumerate() {
+            assert_eq!(
+                merged[i].to_bytes(),
+                content[range.start as usize..range.end as usize]
+            );
+        }
     }
 }

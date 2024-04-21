@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -39,15 +38,10 @@ impl WebdavWriter {
 }
 
 impl oio::OneShotWrite for WebdavWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .core
-            .webdav_put(
-                &self.path,
-                Some(bs.len() as u64),
-                &self.op,
-                AsyncBody::Bytes(bs),
-            )
+            .webdav_put(&self.path, Some(bs.len() as u64), &self.op, bs)
             .await?;
 
         let status = resp.status();

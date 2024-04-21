@@ -21,9 +21,7 @@ use http::StatusCode;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
@@ -32,7 +30,7 @@ pub struct DropboxErrorResponse {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
+pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -73,7 +71,10 @@ pub async fn parse_error(resp: Response<oio::Buffer>) -> Result<Error> {
 ///
 /// See <https://www.dropbox.com/developers/documentation/http/documentation#error-handling>
 pub fn parse_dropbox_error_summary(summary: &str) -> Option<(ErrorKind, bool)> {
-    if summary.starts_with("path/not_found") || summary.starts_with("path_lookup/not_found") {
+    if summary.starts_with("path/not_found")
+        || summary.starts_with("path_lookup/not_found")
+        || summary.starts_with("from_lookup/not_found")
+    {
         Some((ErrorKind::NotFound, false))
     } else if summary.starts_with("path/conflict") {
         Some((ErrorKind::AlreadyExists, false))

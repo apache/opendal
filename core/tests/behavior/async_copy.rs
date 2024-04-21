@@ -50,7 +50,11 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
 
     op.copy(&source_path, &target_path).await?;
 
-    let target_content = op.read(&target_path).await.expect("read must succeed");
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
@@ -75,7 +79,11 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
     op.write(source_path, source_content.clone()).await?;
     op.copy(source_path, target_path).await?;
 
-    let target_content = op.read(target_path).await.expect("read must succeed");
+    let target_content = op
+        .read(target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
@@ -177,7 +185,11 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
     op.copy(&source_path, &target_path).await?;
 
-    let target_content = op.read(&target_path).await.expect("read must succeed");
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
@@ -203,7 +215,11 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
 
     op.copy(&source_path, &target_path).await?;
 
-    let target_content = op.read(&target_path).await.expect("read must succeed");
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),

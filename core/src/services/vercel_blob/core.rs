@@ -74,7 +74,7 @@ impl Debug for VercelBlobCore {
 
 impl VercelBlobCore {
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<oio::Buffer>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -89,7 +89,7 @@ impl VercelBlobCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
@@ -109,9 +109,7 @@ impl VercelBlobCore {
         }
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -121,8 +119,8 @@ impl VercelBlobCore {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -171,7 +169,7 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(req_body.to_string())))
+            .body(Buffer::from(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
@@ -184,7 +182,7 @@ impl VercelBlobCore {
         }
     }
 
-    pub async fn head(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn head(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let resp = self.list(&p, Some(1)).await?;
@@ -203,14 +201,12 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
         let resp = self.list(&from, Some(1)).await?;
@@ -234,9 +230,7 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -258,9 +252,7 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -282,7 +274,7 @@ impl VercelBlobCore {
         &self,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -302,9 +294,7 @@ impl VercelBlobCore {
         };
 
         // Set body
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -315,8 +305,8 @@ impl VercelBlobCore {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Response<oio::Buffer>> {
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -345,7 +335,7 @@ impl VercelBlobCore {
         path: &str,
         upload_id: &str,
         parts: Vec<Part>,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -365,7 +355,7 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(parts_json.to_string())))
+            .body(Buffer::from(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 
         self.send(req).await

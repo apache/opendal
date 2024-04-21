@@ -20,7 +20,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
 use futures::Future;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -65,10 +64,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     /// MultipartWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn write_once(&self, size: u64, body: AsyncBody) -> impl Future<Output = Result<()>>;
+    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
@@ -77,10 +73,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     /// - the total size of data is unknown.
     /// - the total size of data is known, but the size of current write
     /// is less then the total size.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn initiate_part(&self) -> impl Future<Output = Result<String>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn initiate_part(&self) -> impl Future<Output = Result<String>>;
+    fn initiate_part(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_part will write a part of the data and returns the result
     /// [`MultipartPart`].
@@ -89,43 +82,24 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     /// order.
     ///
     /// - part_number is the index of the part, starting from 0.
-    #[cfg(not(target_arch = "wasm32"))]
     fn write_part(
         &self,
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
-    ) -> impl Future<Output = Result<MultipartPart>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn write_part(
-        &self,
-        upload_id: &str,
-        part_number: usize,
-        size: u64,
-        body: AsyncBody,
-    ) -> impl Future<Output = Result<MultipartPart>>;
+        body: Buffer,
+    ) -> impl Future<Output = Result<MultipartPart>> + MaybeSend;
 
     /// complete_part will complete the multipart upload to build the final
     /// file.
-    #[cfg(not(target_arch = "wasm32"))]
     fn complete_part(
         &self,
         upload_id: &str,
         parts: &[MultipartPart],
-    ) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn complete_part(
-        &self,
-        upload_id: &str,
-        parts: &[MultipartPart],
-    ) -> impl Future<Output = Result<()>>;
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// abort_part will cancel the multipart upload and purge all data.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>> + Send;
-    #[cfg(target_arch = "wasm32")]
-    fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>>;
+    fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 /// The result of [`MultipartWrite::write_part`].
@@ -144,8 +118,8 @@ pub struct MultipartPart {
 
 /// WritePartResult is the result returned by [`WritePartFuture`].
 ///
-/// The error part will carries input `(part_number, bytes, err)` so caller can retry them.
-type WritePartResult = std::result::Result<MultipartPart, (usize, Bytes, Error)>;
+/// The error part will carries input `(part_number, buffer, err)` so caller can retry them.
+type WritePartResult = std::result::Result<MultipartPart, (usize, Buffer, Error)>;
 
 struct WritePartFuture(BoxedStaticFuture<WritePartResult>);
 
@@ -171,17 +145,12 @@ impl WritePartFuture {
         w: Arc<W>,
         upload_id: Arc<String>,
         part_number: usize,
-        bytes: Bytes,
+        bytes: Buffer,
     ) -> Self {
         let fut = async move {
-            w.write_part(
-                &upload_id,
-                part_number,
-                bytes.len() as u64,
-                AsyncBody::Bytes(bytes.clone()),
-            )
-            .await
-            .map_err(|err| (part_number, bytes, err))
+            w.write_part(&upload_id, part_number, bytes.len() as u64, bytes.clone())
+                .await
+                .map_err(|err| (part_number, bytes, err))
         };
 
         WritePartFuture(Box::pin(fut))
@@ -195,7 +164,7 @@ pub struct MultipartWriter<W: MultipartWrite> {
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
-    cache: Option<Bytes>,
+    cache: Option<Buffer>,
     futures: ConcurrentFutures<WritePartFuture>,
     next_part_number: usize,
 }
@@ -217,7 +186,7 @@ impl<W: MultipartWrite> MultipartWriter<W> {
         }
     }
 
-    fn fill_cache(&mut self, bs: Bytes) -> usize {
+    fn fill_cache(&mut self, bs: Buffer) -> usize {
         let size = bs.len();
         assert!(self.cache.is_none());
         self.cache = Some(bs);
@@ -229,13 +198,13 @@ impl<W> oio::Write for MultipartWriter<W>
 where
     W: MultipartWrite,
 {
-    async fn write(&mut self, bs: oio::Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
                 // Fill cache with the first write.
                 if self.cache.is_none() {
-                    let size = self.fill_cache(bs.to_bytes());
+                    let size = self.fill_cache(bs);
                     return Ok(size);
                 }
 
@@ -258,7 +227,7 @@ where
                     part_number,
                     cache,
                 ));
-                let size = self.fill_cache(bs.to_bytes());
+                let size = self.fill_cache(bs);
                 return Ok(size);
             }
 
@@ -287,8 +256,8 @@ where
             Some(v) => v,
             None => {
                 let (size, body) = match self.cache.clone() {
-                    Some(cache) => (cache.len(), AsyncBody::Bytes(cache)),
-                    None => (0, AsyncBody::Empty),
+                    Some(cache) => (cache.len(), cache),
+                    None => (0, Buffer::new()),
                 };
                 // Call write_once if there is no upload_id.
                 self.w.write_once(size as u64, body).await?;
@@ -381,7 +350,7 @@ mod tests {
     }
 
     impl MultipartWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, size: u64, _: AsyncBody) -> Result<()> {
+        async fn write_once(&self, size: u64, _: Buffer) -> Result<()> {
             self.lock().unwrap().length += size;
             Ok(())
         }
@@ -396,7 +365,7 @@ mod tests {
             upload_id: &str,
             part_number: usize,
             size: u64,
-            _: AsyncBody,
+            _: Buffer,
         ) -> Result<MultipartPart> {
             let mut test = self.lock().unwrap();
             assert_eq!(upload_id, test.upload_id);

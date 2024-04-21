@@ -171,7 +171,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -180,27 +180,27 @@ impl kv::Adapter for Adapter {
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         Ok(self
             .tree
             .get(path)
             .map_err(parse_error)?
-            .map(|v| v.to_vec()))
+            .map(|v| Buffer::from(v.to_vec())))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
-        let cloned_value = value.to_vec();
 
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
             .await
             .map_err(new_task_join_error)?
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.tree.insert(path, value).map_err(parse_error)?;
-
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
+        self.tree
+            .insert(path, value.to_vec())
+            .map_err(parse_error)?;
         Ok(())
     }
 

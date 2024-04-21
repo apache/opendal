@@ -74,8 +74,7 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
     group.bench_function("opendal_s3_reader", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
             let r = op.reader("file").await.unwrap();
-            let mut bs = Vec::new();
-            let _ = r.read_to_end(&mut bs).await.unwrap();
+            let _ = r.read(..).await.unwrap();
         });
     });
     group.bench_function("aws_s3_sdk_into_async_read", |b| {
@@ -97,8 +96,7 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
     group.bench_function("opendal_s3_reader_with_capacity", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
             let r = op.reader("file").await.unwrap();
-            let mut bs = Vec::with_capacity(16 * 1024 * 1024);
-            let _ = r.read_to_end(&mut bs).await.unwrap();
+            let _ = r.read(..16 * 1024 * 1024).await.unwrap();
         });
     });
     group.bench_function("aws_s3_sdk_into_async_read_with_capacity", |b| {

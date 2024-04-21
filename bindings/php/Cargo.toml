@@ -50,4 +50,3 @@ opendal = { version = "0.45.1", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
-

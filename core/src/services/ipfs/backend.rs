@@ -348,7 +348,7 @@ impl Accessor for IpfsBackend {
 }
 
 impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<oio::Buffer>> {
+    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -359,28 +359,24 @@ impl IpfsBackend {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    async fn ipfs_head(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let req = Request::head(&url);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    async fn ipfs_list(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -393,9 +389,7 @@ impl IpfsBackend {
         // ref: https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md
         req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

@@ -34,5 +34,5 @@ extend-exclude = [
   "fixtures/sftp/test_ssh_key",
   "fixtures/sftp/test_ssh_key.pub",
   # Generated pnpm locks.
-  "website/pnpm-lock.yaml"
+  "website/pnpm-lock.yaml",
 ]

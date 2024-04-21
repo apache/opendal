@@ -258,7 +258,7 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<AsyncBody>> {
+    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<Buffer>> {
         let p = format!(
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
@@ -281,7 +281,7 @@ impl Adapter {
         });
 
         let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
-        req.body(AsyncBody::Bytes(body.into()))
+        req.body(Buffer::from(body))
             .map_err(new_request_build_error)
     }
 }
@@ -303,7 +303,7 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let query = format!(
             "SELECT {} FROM {} WHERE {} = ? LIMIT 1",
             self.value_field, self.table, self.key_field
@@ -323,7 +323,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
@@ -334,7 +334,7 @@ impl kv::Adapter for Adapter {
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
 
-        let params = vec![path.into(), value.into()];
+        let params = vec![path.into(), value.to_vec().into()];
         let req = self.create_d1_query_request(&query, params)?;
 
         let resp = self.client.send(req).await?;

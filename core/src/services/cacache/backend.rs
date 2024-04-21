@@ -109,31 +109,27 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read(&self.datadir, path)
-                .await
-                .map_err(parse_error)?,
-        ))
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read_sync(&self.datadir, path).map_err(parse_error)?,
-        ))
-    }
-
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        cacache::write(&self.datadir, path, value)
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read(&self.datadir, path)
             .await
             .map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
+    }
 
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read_sync(&self.datadir, path).map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
+    }
+
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        cacache::write(&self.datadir, path, value.to_vec())
+            .await
+            .map_err(parse_error)?;
         Ok(())
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        cacache::write_sync(&self.datadir, path, value).map_err(parse_error)?;
-
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
+        cacache::write_sync(&self.datadir, path, value.to_vec()).map_err(parse_error)?;
         Ok(())
     }
 

@@ -80,7 +80,8 @@ pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
 
     let path = TEST_FIXTURE.new_file_path();
 
-    op.write(&path, vec![]).await?;
+    let bs: Vec<u8> = vec![];
+    op.write(&path, bs).await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), 0);
@@ -274,7 +275,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), (size * 2) as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -309,7 +310,7 @@ pub async fn test_writer_write_with_concurrent(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), (size * 2) as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -345,7 +346,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), (size * 2) as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -385,7 +386,7 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), (size * 2) as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -415,7 +416,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         .writer_with(&path)
         .buffer(8 * 1024 * 1024)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -425,7 +426,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -451,7 +452,7 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
         .buffer(8 * 1024 * 1024)
         .concurrent(4)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -461,7 +462,7 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -491,7 +492,11 @@ pub async fn test_write_with_append(op: Operator) -> Result<()> {
         .await
         .expect("append to an existing file must success");
 
-    let bs = op.read(&path).await.expect("read file must success");
+    let bs = op
+        .read(&path)
+        .await
+        .expect("read file must success")
+        .to_bytes();
 
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
@@ -510,7 +515,7 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
         .writer_with(&path)
         .append(true)
         .await?
-        .into_futures_io_async_write();
+        .into_futures_async_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -520,7 +525,7 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    let bs = op.read(&path).await?;
+    let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),

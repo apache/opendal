@@ -231,15 +231,17 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.get_connection()
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = self
+            .get_connection()
             .await?
             .get(path.to_owned())
             .await
-            .map_err(parse_tikv_error)
+            .map_err(parse_tikv_error)?;
+        Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         self.get_connection()
             .await?
             .put(path.to_owned(), value.to_vec())

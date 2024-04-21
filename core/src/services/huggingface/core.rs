@@ -49,7 +49,7 @@ impl Debug for HuggingfaceCore {
 }
 
 impl HuggingfaceCore {
-    pub async fn hf_path_info(&self, path: &str) -> Result<Response<oio::Buffer>> {
+    pub async fn hf_path_info(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -77,13 +77,13 @@ impl HuggingfaceCore {
         let req_body = format!("paths={}&expand=True", percent_encode_path(&p));
 
         let req = req
-            .body(AsyncBody::Bytes(Bytes::from(req_body)))
+            .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
 
-    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<oio::Buffer>> {
+    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -114,9 +114,7 @@ impl HuggingfaceCore {
             req = req.header(header::AUTHORIZATION, auth_header_content);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -126,7 +124,7 @@ impl HuggingfaceCore {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<oio::Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -157,9 +155,7 @@ impl HuggingfaceCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

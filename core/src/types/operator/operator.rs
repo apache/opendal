@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::time::Duration;
 
-use bytes::Bytes;
 use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
@@ -405,7 +404,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
+    pub async fn read(&self, path: &str) -> Result<Buffer> {
         self.read_with(path).await
     }
 
@@ -494,14 +493,14 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Vec<u8>>>> {
+    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Buffer>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), BytesRange::default()),
-            |inner, path, (args, range)| async move {
+            (OpRead::default(), OpReader::default()),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -511,11 +510,9 @@ impl Operator {
                     );
                 }
 
-                let size_hint = range.size();
-
-                let r = Reader::create(inner, &path, args).await?;
-                let mut buf = Vec::with_capacity(size_hint.unwrap_or_default() as _);
-                r.read_range(&mut buf, range.to_range()).await?;
+                let range = options.range();
+                let r = Reader::create(inner, &path, args, options).await?;
+                let buf = r.read(range.to_range()).await?;
                 Ok(buf)
             },
         )
@@ -574,8 +571,8 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpRead::default(),
-            |inner, path, args| async move {
+            (OpRead::default(), OpReader::default()),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
@@ -585,7 +582,7 @@ impl Operator {
                     );
                 }
 
-                Reader::create(inner.clone(), &path, args).await
+                Reader::create(inner.clone(), &path, args, options).await
             },
         )
     }
@@ -625,7 +622,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+    pub async fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<()> {
         let bs = bs.into();
         self.write_with(path, bs).await
     }
@@ -1114,7 +1111,7 @@ impl Operator {
     pub fn write_with(
         &self,
         path: &str,
-        bs: impl Into<Bytes>,
+        bs: impl Into<Buffer>,
     ) -> FutureWrite<impl Future<Output = Result<()>>> {
         let path = normalize_path(path);
         let bs = bs.into();
@@ -1791,7 +1788,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Lister>>> {
+    pub fn lister_with(&self, path: &str) -> FutureLister<impl Future<Output = Result<Lister>>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(

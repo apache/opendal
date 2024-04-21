@@ -282,7 +282,7 @@ impl Accessor for AzdlsBackend {
             path,
             "directory",
             &OpWrite::default(),
-            AsyncBody::Empty,
+            Buffer::new(),
         )?;
 
         self.core.sign(&mut req).await?;

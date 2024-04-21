@@ -364,7 +364,7 @@ async fn try_format_object_meta(res: Result<Entry, opendal::Error>) -> Result<Ob
     Ok(format_object_meta(entry.path(), meta))
 }
 
-// Make sure `send_warpper` works as expected
+// Make sure `send_wrapper` works as expected
 #[cfg(all(feature = "send_wrapper", target_arch = "wasm32"))]
 mod assert_send {
     use object_store::ObjectStore;

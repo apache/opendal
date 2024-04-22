@@ -33,14 +33,6 @@ impl HdfsNativeReader {
 
 impl oio::Read for HdfsNativeReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        // Check for offset being too large for usize on 32-bit systems
-        if offset > usize::MAX as u64 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Offset is too large for this platform",
-            ));
-        }
-
         // Perform the read operation using read_range
         let bytes = match self
             .f

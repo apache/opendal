@@ -40,7 +40,7 @@ runs:
         HADOOP_HOME=${HADOOP_HOME}
         CLASSPATH=${CLASSPATH}
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
-        OPENDAL_HDFS_ROOT=/tmp/opendal/
-        OPENDAL_HDFS_NAME_NODE=default
-        OPENDAL_HDFS_ENABLE_APPEND=false
+        OPENDAL_HDFS_NATIVE_ROOT=/tmp/opendal/
+        OPENDAL_HDFS_NATIVE_NAME_NODE=default
+        OPENDAL_HDFS_NATIVE_ENABLE_APPEND=false
         EOF

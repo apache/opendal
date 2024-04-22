@@ -18,6 +18,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use futures::AsyncReadExt;
+use futures::TryStreamExt;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
@@ -35,6 +37,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_full,
             test_read_range,
             test_read_large_range,
+            test_reader,
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
@@ -129,6 +132,57 @@ pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[offset as usize..])),
         "read content with large range"
+    );
+
+    Ok(())
+}
+
+/// Read full content should match.
+pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // Reader.
+    let bs = op.reader(&path).await?.read(..).await?.to_bytes();
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    // Bytes Stream
+    let bs = op
+        .reader(&path)
+        .await?
+        .into_bytes_stream(..)
+        .try_fold(Vec::new(), |mut acc, chunk| {
+            acc.extend_from_slice(&chunk);
+            async { Ok(acc) }
+        })
+        .await?;
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    // Futures Reader
+    let mut futures_reader = op
+        .reader(&path)
+        .await?
+        .into_futures_async_read(0..size as u64);
+    let mut bs = Vec::new();
+    futures_reader.read_to_end(&mut bs).await?;
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
     );
 
     Ok(())

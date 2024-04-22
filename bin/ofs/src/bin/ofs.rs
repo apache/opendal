@@ -18,7 +18,8 @@
 use anyhow::Result;
 use clap::Parser;
 
-#[tokio::main]
+// FIXME: https://github.com/Sherlock-Holo/fuse3/issues/91
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cfg = ofs::Config::parse();
 

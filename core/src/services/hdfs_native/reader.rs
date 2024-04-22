@@ -34,15 +34,11 @@ impl HdfsNativeReader {
 impl oio::Read for HdfsNativeReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
         // Perform the read operation using read_range
-        let bytes = match self
+        let bytes = self
             .f
             .read_range(offset as usize, limit)
             .await
-            .map_err(parse_hdfs_error)
-        {
-            Ok(data) => data,
-            Err(e) => return Err(e),
-        };
+            .map_err(parse_hdfs_error)?;
 
         Ok(Buffer::from(bytes))
     }

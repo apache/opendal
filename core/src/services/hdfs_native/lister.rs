@@ -16,7 +16,7 @@
 // under the License.
 
 use chrono::DateTime;
-use hdfs_native::client::{FileStatus, ListStatusIterator};
+use hdfs_native::client::ListStatusIterator;
 
 use crate::raw::oio::Entry;
 use crate::raw::{build_rel_path, oio};
@@ -39,38 +39,38 @@ impl HdfsNativeLister {
 
 impl oio::List for HdfsNativeLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
-        let Ok(de) = self
+        if let Some(de) = self
             .lsi
             .next()
             .await
             .transpose()
             .map_err(parse_hdfs_error)?
-        else {
-            return Ok(None);
-        };
+        {
+            let path = build_rel_path(&self.root, &de.path);
 
-        let path = build_rel_path(&self.root, &de.path);
+            let entry = if !de.isdir {
+                let odt = DateTime::from_timestamp(de.modification_time as i64, 0);
 
-        let entry = if !de.isdir {
-            let odt = DateTime::from_timestamp(de.modification_time as i64, 0);
-
-            let Some(dt) = odt else {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("Failure in extracting modified_time for {}", path),
-                ));
+                let Some(dt) = odt else {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("Failure in extracting modified_time for {}", path),
+                    ));
+                };
+                let meta = Metadata::new(EntryMode::FILE)
+                    .with_content_length(de.length as u64)
+                    .with_last_modified(dt);
+                oio::Entry::new(&path, meta)
+            } else if de.isdir {
+                // Make sure we are returning the correct path.
+                oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
+            } else {
+                oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
             };
-            let meta = Metadata::new(EntryMode::FILE)
-                .with_content_length(de.length as u64)
-                .with_last_modified(dt);
-            oio::Entry::new(&path, meta)
-        } else if de.isdir {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
-        } else {
-            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
-        };
 
-        Ok(Some(entry))
+            Ok(Some(entry))
+        } else {
+            Ok(None)
+        }
     }
 }

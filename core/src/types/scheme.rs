@@ -384,7 +384,7 @@ impl FromStr for Scheme {
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
             "mongodb" => Ok(Scheme::Mongodb),
-            "hdfs_native" => Ok(Scheme::HdfsNative),
+            "hdfs-native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
@@ -454,7 +454,7 @@ impl From<Scheme> for &'static str {
             Scheme::Upyun => "upyun",
             Scheme::YandexDisk => "yandex_disk",
             Scheme::Pcloud => "pcloud",
-            Scheme::HdfsNative => "hdfs_native",
+            Scheme::HdfsNative => "hdfs-native",
             Scheme::Surrealdb => "surrealdb",
             Scheme::Custom(v) => v,
         }

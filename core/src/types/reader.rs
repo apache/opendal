@@ -169,16 +169,19 @@ impl Reader {
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
+    ///
+    /// # TODO
+    ///
+    /// Extend this API to accept `impl RangeBounds`.
     #[inline]
     pub fn into_futures_async_read(self, range: Range<u64>) -> FuturesAsyncReader {
-        FuturesAsyncReader::new(self.inner, self.options.chunk(), range)
+        FuturesAsyncReader::new(self.inner, self.options, range)
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
     #[inline]
     pub fn into_bytes_stream(self, range: impl RangeBounds<u64>) -> FuturesBytesStream {
-        let stream = self.into_stream(range);
-        FuturesBytesStream::new(stream)
+        FuturesBytesStream::new(self.inner, self.options, range)
     }
 }
 
@@ -320,9 +323,12 @@ pub mod into_futures_async_read {
     use futures::AsyncBufRead;
     use futures::AsyncRead;
     use futures::AsyncSeek;
+    use futures::StreamExt;
 
     use crate::raw::*;
     use crate::*;
+
+    use super::into_stream::BufferStream;
 
     /// FuturesAsyncReader is the adapter of [`AsyncRead`], [`AsyncBufRead`] and [`AsyncSeek`]
     /// for [`Reader`].
@@ -331,37 +337,31 @@ pub mod into_futures_async_read {
     ///
     /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
     pub struct FuturesAsyncReader {
-        state: State,
-        offset: u64,
-        size: u64,
-        chunk: usize,
+        r: oio::Reader,
+        options: OpReader,
 
-        cur: u64,
+        stream: BufferStream,
         buf: Buffer,
+        start: u64,
+        end: u64,
+        pos: u64,
     }
-
-    enum State {
-        Idle(Option<oio::Reader>),
-        Fill(BoxedStaticFuture<(oio::Reader, Result<Buffer>)>),
-    }
-
-    /// # Safety
-    ///
-    /// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
-    unsafe impl Sync for State {}
 
     impl FuturesAsyncReader {
         /// NOTE: don't allow users to create FuturesAsyncReader directly.
         #[inline]
-        pub(super) fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
-            FuturesAsyncReader {
-                state: State::Idle(Some(r)),
-                offset: range.start,
-                size: range.end - range.start,
-                chunk: chunk.unwrap_or(8 * 1024 * 1024),
+        pub(super) fn new(r: oio::Reader, options: OpReader, range: Range<u64>) -> Self {
+            let (start, end) = (range.start, range.end);
+            let stream = BufferStream::new(r.clone(), options.clone(), range);
 
-                cur: 0,
+            FuturesAsyncReader {
+                r,
+                options,
+                stream,
                 buf: Buffer::new(),
+                start,
+                end,
+                pos: 0,
             }
         }
     }
@@ -374,28 +374,11 @@ pub mod into_futures_async_read {
                     return Poll::Ready(Ok(this.buf.chunk()));
                 }
 
-                match &mut this.state {
-                    State::Idle(r) => {
-                        // Make sure cur didn't exceed size.
-                        if this.cur >= this.size {
-                            return Poll::Ready(Ok(&[]));
-                        }
-
-                        let r = r.take().expect("reader must be present");
-                        let next_offset = this.offset + this.cur;
-                        let next_size = (this.size - this.cur).min(this.chunk as u64) as usize;
-                        let fut = async move {
-                            let res = r.read_at_dyn(next_offset, next_size).await;
-                            (r, res)
-                        };
-                        this.state = State::Fill(Box::pin(fut));
-                    }
-                    State::Fill(fut) => {
-                        let (r, res) = ready!(fut.as_mut().poll(cx));
-                        this.state = State::Idle(Some(r));
-                        this.buf = res?;
-                    }
-                }
+                this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
+                    Some(Ok(buf)) => buf,
+                    Some(Err(err)) => return Poll::Ready(Err(format_std_io_error(err))),
+                    None => return Poll::Ready(Ok(&[])),
+                };
             }
         }
 
@@ -407,21 +390,33 @@ pub mod into_futures_async_read {
             if self.buf.is_empty() {
                 self.buf = Buffer::new();
             }
-            self.cur += amt as u64;
+            self.pos += amt as u64;
         }
     }
 
+    /// TODO: implement vectored read.
     impl AsyncRead for FuturesAsyncReader {
         fn poll_read(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<io::Result<usize>> {
-            let bs = ready!(self.as_mut().poll_fill_buf(cx))?;
-            let n = bs.len().min(buf.len());
-            buf[..n].copy_from_slice(&bs[..n]);
-            self.as_mut().consume(n);
-            Poll::Ready(Ok(n))
+            let this = self.get_mut();
+
+            loop {
+                if this.buf.remaining() > 0 {
+                    let size = this.buf.remaining().min(buf.len());
+                    this.buf.copy_to_slice(&mut buf[..size]);
+                    this.pos += size as u64;
+                    return Poll::Ready(Ok(size));
+                }
+
+                this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
+                    Some(Ok(buf)) => buf,
+                    Some(Err(err)) => return Poll::Ready(Err(format_std_io_error(err))),
+                    None => return Poll::Ready(Ok(0)),
+                };
+            }
         }
     }
 
@@ -433,10 +428,11 @@ pub mod into_futures_async_read {
         ) -> Poll<io::Result<u64>> {
             let new_pos = match pos {
                 SeekFrom::Start(pos) => pos as i64,
-                SeekFrom::End(pos) => self.size as i64 + pos,
-                SeekFrom::Current(pos) => self.cur as i64 + pos,
+                SeekFrom::End(pos) => self.end as i64 - self.start as i64 + pos,
+                SeekFrom::Current(pos) => self.pos as i64 + pos,
             };
 
+            // Check if new_pos is negative.
             if new_pos < 0 {
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -446,21 +442,24 @@ pub mod into_futures_async_read {
 
             let new_pos = new_pos as u64;
 
-            if (self.cur..self.cur + self.buf.remaining() as u64).contains(&new_pos) {
-                let cnt = new_pos - self.cur;
+            if (self.pos..self.pos + self.buf.remaining() as u64).contains(&new_pos) {
+                let cnt = new_pos - self.pos;
                 self.buf.advance(cnt as _);
             } else {
-                self.buf = Buffer::new()
+                self.buf = Buffer::new();
+                self.stream =
+                    BufferStream::new(self.r.clone(), self.options.clone(), new_pos..self.end);
             }
 
-            self.cur = new_pos;
-            Poll::Ready(Ok(self.cur))
+            self.pos = new_pos;
+            Poll::Ready(Ok(self.pos))
         }
     }
 }
 
 pub mod into_futures_stream {
     use std::io;
+    use std::ops::RangeBounds;
     use std::pin::Pin;
     use std::task::ready;
     use std::task::Context;
@@ -487,7 +486,9 @@ pub mod into_futures_stream {
     impl FuturesBytesStream {
         /// NOTE: don't allow users to create FuturesStream directly.
         #[inline]
-        pub(crate) fn new(stream: BufferStream) -> Self {
+        pub(crate) fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
+            let stream = BufferStream::new(r, options, range);
+
             FuturesBytesStream {
                 stream,
                 buf: Buffer::new(),

@@ -221,9 +221,10 @@ def generate_language_binding_cases(
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
 
-    # Remove hdfs cases for java.
+    # Remove specified services cases for java.
+    excluded_services = {"hdfs", "hdfs-native"}  # Use a set for faster lookups
     if language == "java":
-        cases = [v for v in cases if v["service"] != "hdfs"]
+        cases = [v for v in cases if v["service"] not in excluded_services]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

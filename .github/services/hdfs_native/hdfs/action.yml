@@ -41,6 +41,6 @@ runs:
         CLASSPATH=${CLASSPATH}
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_NATIVE_ROOT=/tmp/opendal/
-        OPENDAL_HDFS_NATIVE_NAME_NODE=default
+        OPENDAL_HDFS_NATIVE_URL=default
         OPENDAL_HDFS_NATIVE_ENABLE_APPEND=false
         EOF

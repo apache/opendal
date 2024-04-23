@@ -32,9 +32,7 @@ mod reader;
 pub use reader::*;
 
 mod blocking_reader;
-pub use blocking_reader::into_std_iterator::StdBytesIterator;
-pub use blocking_reader::into_std_read::StdReader;
-pub use blocking_reader::BlockingReader;
+pub use blocking_reader::*;
 
 mod writer;
 pub use writer::into_futures_async_write::FuturesAsyncWriter;

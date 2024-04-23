@@ -76,11 +76,13 @@ impl Stream for FuturesBytesStream {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
-    use std::sync::Arc;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_futures_bytes_stream() {

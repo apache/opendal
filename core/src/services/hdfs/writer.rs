@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::io::Write;
 use std::sync::Arc;
 
+use bytes::Buf;
 use futures::AsyncWriteExt;
 
 use crate::raw::*;

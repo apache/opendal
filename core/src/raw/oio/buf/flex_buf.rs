@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
 use bytes::BytesMut;
-use bytes::{Buf, BufMut, Bytes};
 
 /// FlexBuf is a buffer that support frozen bytes and reuse existing allocated memory.
 ///

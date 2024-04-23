@@ -23,7 +23,8 @@ use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 
-use crate::{Buffer, Error};
+use crate::Buffer;
+use crate::Error;
 
 /// response data from d1
 #[derive(Deserialize, Debug)]

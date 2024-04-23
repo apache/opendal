@@ -15,16 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Bound;
+use std::ops::RangeBounds;
 use std::pin::Pin;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::task::{Context, Poll};
-use std::{
-    ops::{Bound, RangeBounds},
-    sync::{atomic::AtomicBool, Arc},
-};
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
-use futures::stream::{self, Buffered, FusedStream, Iter};
-use futures::{Stream, StreamExt};
+use futures::stream::Buffered;
+use futures::stream::FusedStream;
+use futures::stream::Iter;
+use futures::stream::{self};
+use futures::Stream;
+use futures::StreamExt;
 
 use crate::raw::*;
 use crate::*;
@@ -138,10 +143,12 @@ impl FusedStream for BufferStream {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use bytes::{Buf, Bytes};
+    use bytes::Buf;
+    use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     /// Make sure BufferStream implements `Unpin` and `Send`.
     trait AssertTrait: Unpin + MaybeSend + 'static {}

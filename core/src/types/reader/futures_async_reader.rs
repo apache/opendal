@@ -169,12 +169,15 @@ impl AsyncSeek for FuturesAsyncReader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use bytes::Bytes;
     use futures::AsyncBufReadExt;
-    use futures::{AsyncReadExt, AsyncSeekExt};
+    use futures::AsyncReadExt;
+    use futures::AsyncSeekExt;
     use pretty_assertions::assert_eq;
-    use std::sync::Arc;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_futures_async_read() {

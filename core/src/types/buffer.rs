@@ -17,16 +17,21 @@
 
 use std::collections::VecDeque;
 use std::convert::Infallible;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::io::IoSlice;
 use std::mem;
-use std::ops::{Bound, RangeBounds};
+use std::ops::Bound;
+use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
-use bytes::{Buf, BytesMut};
-use bytes::{BufMut, Bytes};
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
+use bytes::BytesMut;
 use futures::Stream;
 
 /// Buffer is a wrapper of contiguous `Bytes` and non contiguous `[Bytes]`.
@@ -48,8 +53,8 @@ use futures::Stream;
 ///
 /// ```rust
 /// use bytes::Buf;
-/// use serde_json;
 /// use opendal::Buffer;
+/// use serde_json;
 ///
 /// fn test(mut buf: Buffer) -> Vec<String> {
 ///     serde_json::from_reader(buf.reader()).unwrap()
@@ -75,8 +80,8 @@ use futures::Stream;
 ///
 /// ```rust
 /// use bytes::Bytes;
-/// use opendal::Buffer;
 /// use futures::TryStreamExt;
+/// use opendal::Buffer;
 ///
 /// async fn test(mut buf: Buffer) -> Vec<Bytes> {
 ///     buf.into_iter().try_collect().await.unwrap()
@@ -101,7 +106,6 @@ use futures::Stream;
 ///     buf.to_bytes()
 /// }
 /// ```
-///
 ///
 #[derive(Clone)]
 pub struct Buffer(Inner);

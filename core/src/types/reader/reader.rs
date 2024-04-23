@@ -180,13 +180,17 @@ impl Reader {
     /// ## Basic Usage
     ///
     /// ```
-    /// use opendal::Operator;
-    /// use opendal::Result;
-    /// use futures::io::AsyncReadExt;
     /// use std::io;
     ///
+    /// use futures::io::AsyncReadExt;
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut r = op.reader("hello.txt").await?.into_futures_async_read(1024..2048);
+    ///     let mut r = op
+    ///         .reader("hello.txt")
+    ///         .await?
+    ///         .into_futures_async_read(1024..2048);
     ///     let mut bs = Vec::new();
     ///     r.read_to_end(&mut bs).await?;
     ///
@@ -199,13 +203,19 @@ impl Reader {
     /// The following example reads data in 256B chunks with 8 concurrent.
     ///
     /// ```
-    /// use opendal::Operator;
-    /// use opendal::Result;
-    /// use futures::io::AsyncReadExt;
     /// use std::io;
     ///
+    /// use futures::io::AsyncReadExt;
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut r = op.reader_with("hello.txt").concurrent(8).chunk(256).await?.into_futures_async_read(1024..2048);
+    ///     let mut r = op
+    ///         .reader_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
+    ///         .await?
+    ///         .into_futures_async_read(1024..2048);
     ///     let mut bs = Vec::new();
     ///     r.read_to_end(&mut bs).await?;
     ///
@@ -224,11 +234,12 @@ impl Reader {
     /// ## Basic Usage
     ///
     /// ```
+    /// use std::io;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::TryStreamExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use futures::TryStreamExt;
-    /// use std::io;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op.reader("hello.txt").await?.into_bytes_stream(1024..2048);
@@ -243,14 +254,20 @@ impl Reader {
     /// The following example reads data in 256B chunks with 8 concurrent.
     ///
     /// ```
+    /// use std::io;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::TryStreamExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use futures::TryStreamExt;
-    /// use std::io;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut s = op.reader_with("hello.txt").concurrent(8).chunk(256).await?.into_bytes_stream(1024..2048);
+    ///     let mut s = op
+    ///         .reader_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
+    ///         .await?
+    ///         .into_bytes_stream(1024..2048);
     ///     let bs: Vec<Bytes> = s.try_collect().await?;
     ///
     ///     Ok(())

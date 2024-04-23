@@ -34,9 +34,8 @@ impl HdfsNativeWriter {
 impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
         let bytes = bs.to_bytes();
-        let total_bytes = bytes.len();
-        self.f.write(bytes).await.map_err(parse_hdfs_error)?;
-        Ok(total_bytes)
+        let n = self.f.write(bytes).await.map_err(parse_hdfs_error)?;
+        Ok(n)
     }
 
     async fn close(&mut self) -> Result<()> {

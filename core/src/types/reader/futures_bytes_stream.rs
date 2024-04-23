@@ -73,3 +73,40 @@ impl Stream for FuturesBytesStream {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use futures::TryStreamExt;
+    use pretty_assertions::assert_eq;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_futures_bytes_stream() {
+        let r: oio::Reader = Arc::new(Buffer::from(vec![
+            Bytes::from("Hello"),
+            Bytes::from("World"),
+        ]));
+
+        let s = FuturesBytesStream::new(r, OpReader::new(), 4..8);
+        let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
+        assert_eq!(&bufs[0], "o".as_bytes());
+        assert_eq!(&bufs[1], "Wor".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_futures_bytes_stream_with_concurrent() {
+        let r: oio::Reader = Arc::new(Buffer::from(vec![
+            Bytes::from("Hello"),
+            Bytes::from("World"),
+        ]));
+
+        let s = FuturesBytesStream::new(r, OpReader::new().with_concurrent(3).with_chunk(1), 4..8);
+        let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
+        assert_eq!(&bufs[0], "o".as_bytes());
+        assert_eq!(&bufs[1], "W".as_bytes());
+        assert_eq!(&bufs[2], "o".as_bytes());
+        assert_eq!(&bufs[3], "r".as_bytes());
+    }
+}

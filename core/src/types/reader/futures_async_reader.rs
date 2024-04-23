@@ -155,11 +155,79 @@ impl AsyncSeek for FuturesAsyncReader {
             self.buf.advance(cnt as _);
         } else {
             self.buf = Buffer::new();
-            self.stream =
-                BufferStream::new(self.r.clone(), self.options.clone(), new_pos..self.end);
+            self.stream = BufferStream::new(
+                self.r.clone(),
+                self.options.clone(),
+                new_pos + self.start..self.end,
+            );
         }
 
         self.pos = new_pos;
         Poll::Ready(Ok(self.pos))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use futures::AsyncBufReadExt;
+    use futures::{AsyncReadExt, AsyncSeekExt};
+    use pretty_assertions::assert_eq;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_futures_async_read() {
+        let r: oio::Reader = Arc::new(Buffer::from(vec![
+            Bytes::from("Hello"),
+            Bytes::from("World"),
+        ]));
+
+        let mut fr = FuturesAsyncReader::new(r, OpReader::new(), 4..8);
+        let mut bs = vec![];
+        fr.read_to_end(&mut bs).await.unwrap();
+        assert_eq!(&bs, "oWor".as_bytes());
+
+        let pos = fr.seek(SeekFrom::Current(-2)).await.unwrap();
+        assert_eq!(pos, 2);
+        let mut bs = vec![];
+        fr.read_to_end(&mut bs).await.unwrap();
+        assert_eq!(&bs, "or".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_futures_async_read_with_concurrent() {
+        let r: oio::Reader = Arc::new(Buffer::from(vec![
+            Bytes::from("Hello"),
+            Bytes::from("World"),
+        ]));
+
+        let mut fr =
+            FuturesAsyncReader::new(r, OpReader::new().with_concurrent(3).with_chunk(1), 4..8);
+        let mut bs = vec![];
+        fr.read_to_end(&mut bs).await.unwrap();
+        assert_eq!(&bs, "oWor".as_bytes());
+
+        let pos = fr.seek(SeekFrom::Current(-2)).await.unwrap();
+        assert_eq!(pos, 2);
+        let mut bs = vec![];
+        fr.read_to_end(&mut bs).await.unwrap();
+        assert_eq!(&bs, "or".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_futures_async_buf_read() {
+        let r: oio::Reader = Arc::new(Buffer::from(vec![
+            Bytes::from("Hello"),
+            Bytes::from("World"),
+        ]));
+
+        let mut fr = FuturesAsyncReader::new(r, OpReader::new(), 4..8);
+        let chunk = fr.fill_buf().await.unwrap();
+        assert_eq!(chunk, "o".as_bytes());
+
+        fr.consume_unpin(1);
+        let chunk = fr.fill_buf().await.unwrap();
+        assert_eq!(chunk, "Wor".as_bytes());
     }
 }

@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::pin::Pin;
 
+use bytes::Buf;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;

@@ -22,7 +22,8 @@ use async_trait::async_trait;
 
 use super::Adapter;
 use super::Value;
-use crate::raw::oio::{HierarchyLister, QueueBuf};
+use crate::raw::oio::HierarchyLister;
+use crate::raw::oio::QueueBuf;
 use crate::raw::*;
 use crate::*;
 

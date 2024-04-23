@@ -79,7 +79,8 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Buf, Bytes};
+    use bytes::Buf;
+    use bytes::Bytes;
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;

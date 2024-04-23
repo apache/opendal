@@ -21,12 +21,13 @@ use std::mem::size_of;
 use async_trait::async_trait;
 use chrono::Utc;
 
+use crate::Buffer;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
-use crate::{Buffer, EntryMode};
 
 /// Adapter is the typed adapter to underlying kv services.
 ///

@@ -170,9 +170,48 @@ impl Reader {
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     ///
-    /// # TODO
+    /// # Notes
     ///
-    /// Extend this API to accept `impl RangeBounds`.
+    /// FuturesAsyncReader is not a zero-cost abstraction. The underlying reader
+    /// returns an owned [`Buffer`], which involves an extra copy operation.
+    ///
+    /// # Examples
+    ///
+    /// ## Basic Usage
+    ///
+    /// ```
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    /// use futures::io::AsyncReadExt;
+    /// use std::io;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut r = op.reader("hello.txt").await?.into_futures_async_read(1024..2048);
+    ///     let mut bs = Vec::new();
+    ///     r.read_to_end(&mut bs).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## Concurrent Read
+    ///
+    /// The following example reads data in 256B chunks with 8 concurrent.
+    ///
+    /// ```
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    /// use futures::io::AsyncReadExt;
+    /// use std::io;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut r = op.reader_with("hello.txt").concurrent(8).chunk(256).await?.into_futures_async_read(1024..2048);
+    ///     let mut bs = Vec::new();
+    ///     r.read_to_end(&mut bs).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     #[inline]
     pub fn into_futures_async_read(self, range: Range<u64>) -> FuturesAsyncReader {
         FuturesAsyncReader::new(self.inner, self.options, range)

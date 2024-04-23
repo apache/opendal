@@ -18,7 +18,8 @@
 use anyhow::Result;
 use clap::Parser;
 
-#[tokio::main]
+// FIXME: https://github.com/apache/opendal/issues/4512
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cfg = ofs::Config::parse();
 

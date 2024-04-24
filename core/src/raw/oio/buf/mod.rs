@@ -20,3 +20,6 @@ pub use flex_buf::FlexBuf;
 
 mod queue_buf;
 pub use queue_buf::QueueBuf;
+
+mod pooled_buf;
+pub use pooled_buf::PooledBuf;

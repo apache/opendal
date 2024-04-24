@@ -97,7 +97,7 @@ impl FunctionWrite {
     /// Service could have their own minimum buffer size while perform write operations like
     /// multipart uploads. So the buffer size may be larger than the given buffer size.
     pub fn buffer(mut self, v: usize) -> Self {
-        self.0 = self.0.map_args(|(args, bs)| (args.with_buffer(v), bs));
+        self.0 = self.0.map_args(|(args, bs)| (args.with_chunk(v), bs));
         self
     }
 
@@ -163,7 +163,7 @@ impl FunctionWriter {
     /// Service could have their own minimum buffer size while perform write operations like
     /// multipart uploads. So the buffer size may be larger than the given buffer size.
     pub fn buffer(mut self, v: usize) -> Self {
-        self.0 = self.0.map_args(|args| args.with_buffer(v));
+        self.0 = self.0.map_args(|args| args.with_chunk(v));
         self
     }
 

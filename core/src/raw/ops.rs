@@ -548,7 +548,7 @@ impl OpStat {
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     append: bool,
-    buffer: Option<usize>,
+    chunk: Option<usize>,
     concurrent: usize,
 
     content_type: Option<String>,
@@ -583,23 +583,24 @@ impl OpWrite {
         self
     }
 
-    /// Get the buffer from op.
+    /// Get the chunk from op.
     ///
-    /// The buffer is used by service to decide the buffer size of the underlying writer.
-    pub fn buffer(&self) -> Option<usize> {
-        self.buffer
+    /// The chunk is used by service to decide the chunk size of the underlying writer.
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
     }
 
-    /// Set the buffer of op.
+    /// Set the chunk of op.
     ///
-    /// If buffer is set, the data will be buffered by the underlying writer.
+    /// If chunk is set, the data will be chunked by the underlying writer.
     ///
     /// ## NOTE
     ///
-    /// Service could have their own minimum buffer size while perform write operations like
-    /// multipart uploads. So the buffer size may be larger than the given buffer size.
-    pub fn with_buffer(mut self, buffer: usize) -> Self {
-        self.buffer = Some(buffer);
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk);
         self
     }
 

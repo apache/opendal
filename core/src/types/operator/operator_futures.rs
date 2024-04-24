@@ -289,13 +289,13 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
     ///
     /// Service could have their own minimum buffer size while perform write operations like
     /// multipart uploads. So the buffer size may be larger than the given buffer size.
-    pub fn buffer(self, v: usize) -> Self {
-        self.map(|(args, bs)| (args.with_buffer(v), bs))
+    pub fn chunk(self, v: usize) -> Self {
+        self.map(|(args, bs)| (args.with_chunk(v), bs))
     }
 
     /// Set the maximum concurrent write task amount.
     pub fn concurrent(self, v: usize) -> Self {
-        self.map(|(args, bs)| (args.with_buffer(v), bs))
+        self.map(|(args, bs)| (args.with_chunk(v), bs))
     }
 
     /// Set the content type of option
@@ -331,23 +331,23 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self.map(|args| args.with_append(v))
     }
 
-    /// Set the buffer size of op.
+    /// Set the chunk size of op.
     ///
-    /// If buffer size is set, the data will be buffered by the underlying writer.
+    /// If chunk size is set, the data will be chunked by the underlying writer.
     ///
     /// ## NOTE
     ///
-    /// Service could have their own limitation for buffer size. It's possible that buffer size
-    /// is not equal to the given buffer size.
+    /// Service could have their own limitation for chunk size. It's possible that chunk size
+    /// is not equal to the given chunk size.
     ///
     /// For example:
     ///
     /// - AWS S3 requires the part size to be in [5MiB, 5GiB].
     /// - GCS requires the part size to be aligned with 256 KiB.
     ///
-    /// The services will alter the buffer size to meet their requirements.
-    pub fn buffer(self, v: usize) -> Self {
-        self.map(|args| args.with_buffer(v))
+    /// The services will alter the chunk size to meet their requirements.
+    pub fn chunk(self, v: usize) -> Self {
+        self.map(|args| args.with_chunk(v))
     }
 
     /// Set the maximum concurrent write task amount.

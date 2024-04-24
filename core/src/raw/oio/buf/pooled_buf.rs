@@ -16,6 +16,8 @@
 // under the License.
 
 use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::fmt::{self, Formatter};
 use std::sync::Mutex;
 
 use bytes::BytesMut;
@@ -29,6 +31,15 @@ pub struct PooledBuf {
     pool: Mutex<VecDeque<BytesMut>>,
     size: usize,
     initial_capacity: usize,
+}
+
+impl Debug for PooledBuf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PooledBuf")
+            .field("size", &self.size)
+            .field("initial_capacity", &self.initial_capacity)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PooledBuf {

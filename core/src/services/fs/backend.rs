@@ -155,6 +155,7 @@ impl Builder for FsBuilder {
             core: Arc::new(FsCore {
                 root,
                 atomic_write_dir,
+                buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
             }),
         })
     }
@@ -254,7 +255,7 @@ impl Accessor for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(f.into_std().await);
+        let r = FsReader::new(self.core.clone(), f.into_std().await);
         Ok((RpRead::new(), r))
     }
 
@@ -416,7 +417,7 @@ impl Accessor for FsBackend {
             .open(p)
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(f);
+        let r = FsReader::new(self.core.clone(), f);
         Ok((RpRead::new(), r))
     }
 

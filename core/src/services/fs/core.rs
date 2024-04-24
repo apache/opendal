@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 pub struct FsCore {
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
+    pub buf_pool: oio::PooledBuf,
 }
 
 impl FsCore {

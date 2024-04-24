@@ -484,11 +484,11 @@ impl Operator {
     /// Set `concurrent` for the reader.
     ///
     /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
-    /// read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+    /// read large chunks of data. By setting `concurrent`, opendal will read files concurrently
     /// on support storage services.
     ///
-    /// By setting `concurrent``, opendal will fetch chunks concurrently with
-    /// the give chunk size.
+    /// By setting `concurrent`, opendal will fetch chunks concurrently with
+    /// the given chunk size.
     ///
     /// ```no_run
     /// # use opendal::Result;

@@ -35,8 +35,8 @@ mod one_shot_write;
 pub use one_shot_write::OneShotWrite;
 pub use one_shot_write::OneShotWriter;
 
-mod exact_buf_write;
-pub use exact_buf_write::ExactBufWriter;
+mod chunked_write;
+pub use chunked_write::ChunkedWriter;
 
 mod range_write;
 pub use range_write::RangeWrite;

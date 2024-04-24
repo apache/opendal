@@ -18,40 +18,38 @@
 use crate::raw::*;
 use crate::*;
 
-/// ExactBufWriter is used to implement [`oio::Write`] based on exact buffer strategy: flush the
-/// underlying storage when the buffered size is exactly the same as the buffer size.
+/// ChunkedWriter is used to implement [`oio::Write`] based on chunk:
+/// flush the underlying storage at the `chunk`` size.
 ///
-/// ExactBufWriter makes sure that the size of the data written to the underlying storage is exactly
-/// `buffer_size` bytes. It's useful when the underlying storage requires the size to be written.
-///
-/// For example, R2 requires all parts must be the same size except the last part.
-pub struct ExactBufWriter<W: oio::Write> {
+/// ChunkedWriter makes sure that the size of the data written to the
+/// underlying storage is exactly `chunk` bytes.
+pub struct ChunkedWriter<W: oio::Write> {
     inner: W,
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
-    buffer_size: usize,
+    chunk_size: usize,
     buffer: oio::QueueBuf,
 }
 
-impl<W: oio::Write> ExactBufWriter<W> {
+impl<W: oio::Write> ChunkedWriter<W> {
     /// Create a new exact buf writer.
-    pub fn new(inner: W, buffer_size: usize) -> Self {
+    pub fn new(inner: W, chunk_size: usize) -> Self {
         Self {
             inner,
-            buffer_size,
+            chunk_size,
             buffer: oio::QueueBuf::new(),
         }
     }
 }
 
-impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
+impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
     async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
-        if self.buffer.len() >= self.buffer_size {
+        if self.buffer.len() >= self.chunk_size {
             let written = self.inner.write(self.buffer.clone().collect()).await?;
             self.buffer.advance(written);
         }
 
-        let remaining = self.buffer_size - self.buffer.len();
+        let remaining = self.chunk_size - self.buffer.len();
         bs.truncate(remaining);
         let n = bs.len();
         self.buffer.push(bs);
@@ -126,7 +124,7 @@ mod tests {
         let mut expected = vec![0; 5];
         rng.fill_bytes(&mut expected);
 
-        let mut w = ExactBufWriter::new(MockWriter { buf: vec![] }, 10);
+        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10);
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
@@ -156,7 +154,7 @@ mod tests {
         let mut expected = vec![];
 
         let buffer_size = rng.gen_range(1..10);
-        let mut writer = ExactBufWriter::new(MockWriter { buf: vec![] }, buffer_size);
+        let mut writer = ChunkedWriter::new(MockWriter { buf: vec![] }, buffer_size);
         debug!("test_fuzz_exact_buf_writer: buffer size: {buffer_size}");
 
         for _ in 0..1000 {

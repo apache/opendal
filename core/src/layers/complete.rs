@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -376,8 +375,7 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type BlockingReader = CompleteReader<A::BlockingReader>;
-    type Writer =
-        TwoWays<CompleteWriter<A::Writer>, oio::ExactBufWriter<CompleteWriter<A::Writer>>>;
+    type Writer = TwoWays<CompleteWriter<A::Writer>, oio::ChunkedWriter<CompleteWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
@@ -426,16 +424,16 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         }
 
         // Calculate buffer size.
-        let buffer_size = args.buffer().map(|mut size| {
+        let chunk_size = args.chunk().map(|mut size| {
             if let Some(v) = capability.write_multi_max_size {
-                size = cmp::min(v, size);
+                size = size.min(v);
             }
             if let Some(v) = capability.write_multi_min_size {
-                size = cmp::max(v, size);
+                size = size.max(v);
             }
             if let Some(v) = capability.write_multi_align_size {
                 // Make sure size >= size first.
-                size = cmp::max(v, size);
+                size = size.max(v);
                 size -= size % v;
             }
 
@@ -445,9 +443,9 @@ impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
 
-        let w = match buffer_size {
+        let w = match chunk_size {
             None => TwoWays::One(w),
-            Some(size) => TwoWays::Two(oio::ExactBufWriter::new(w, size)),
+            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size)),
         };
 
         Ok((rp, w))
@@ -628,7 +626,6 @@ impl<W> CompleteWriter<W> {
 impl<W> Drop for CompleteWriter<W> {
     fn drop(&mut self) {
         if self.inner.is_some() {
-            // Do we need to panic here?
             log::warn!("writer has not been closed or aborted, must be a bug")
         }
     }

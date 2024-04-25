@@ -77,7 +77,7 @@ unsafe impl IoBuf for Buffer {
 #[cfg(test)]
 mod tests {
     use bytes::{Buf, Bytes};
-    use rand::{Rng, thread_rng};
+    use rand::{thread_rng, Rng};
 
     fn setup_buffer() -> (Buffer, usize, Bytes) {
         let mut rng = thread_rng();

@@ -176,6 +176,51 @@ impl Buffer {
         self.len() == 0
     }
 
+    /// Number of [`Bytes`] in [`Buffer`].
+    ///
+    /// For contiguous buffer, it's always 1. For non-contiguous buffer, it's number of bytes
+    /// available for use.
+    pub fn count(&self) -> usize {
+        match &self.0 {
+            Inner::Contiguous(_) => 1,
+            Inner::NonContiguous {
+                parts,
+                idx,
+                size,
+                offset,
+            } => {
+                parts
+                    .iter()
+                    .skip(*idx)
+                    .fold((0, size + offset), |(count, size), bytes| {
+                        if size == 0 {
+                            (count, 0)
+                        } else {
+                            (count + 1, size.saturating_sub(bytes.len()))
+                        }
+                    })
+                    .0
+            }
+        }
+    }
+
+    /// Get current [`Bytes`].
+    pub fn current(&self) -> Bytes {
+        match &self.0 {
+            Inner::Contiguous(inner) => inner.clone(),
+            Inner::NonContiguous {
+                parts,
+                idx,
+                offset,
+                size,
+            } => {
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                chunk.slice(*offset..*offset + n)
+            }
+        }
+    }
+
     /// Shortens the buffer, keeping the first `len` bytes and dropping the rest.
     ///
     /// If `len` is greater than the buffer’s current length, this has no effect.

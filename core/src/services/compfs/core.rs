@@ -76,6 +76,7 @@ unsafe impl IoBuf for Buffer {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use bytes::{Buf, Bytes};
     use rand::{thread_rng, Rng};
 

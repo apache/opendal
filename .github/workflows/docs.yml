@@ -51,7 +51,7 @@ jobs:
       # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-01
+          rustup toolchain install nightly-2024-04-14
 
       - uses: actions/setup-java@v4
         with:
@@ -60,7 +60,7 @@ jobs:
 
       - name: Build OpenDAL doc
         working-directory: core
-        run: cargo +nightly-2024-04-01 doc --lib --no-deps --all-features
+        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           # Enable cfg docs to make sure docs are built.
@@ -305,11 +305,11 @@ jobs:
       # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-01
+          rustup toolchain install nightly-2024-04-14
 
       - name: Build object-store-opendal doc
         working-directory: "integrations/object_store"
-        run: cargo +nightly-2024-04-01 doc --lib --no-deps --all-features
+        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
         env:
           # Enable cfg docs to make sure docs are built.
           RUSTDOCFLAGS: "--cfg docs"
@@ -332,11 +332,11 @@ jobs:
       # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-01
+          rustup toolchain install nightly-2024-04-14
 
       - name: Build dav-server-opendalfs doc
         working-directory: "integrations/dav-server"
-        run: cargo +nightly-2024-04-01 doc --lib --no-deps --all-features
+        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
         env:
           # Enable cfg docs to make sure docs are built.
           RUSTDOCFLAGS: "--cfg docs"

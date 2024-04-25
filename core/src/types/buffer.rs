@@ -183,7 +183,21 @@ impl Buffer {
     pub fn count(&self) -> usize {
         match &self.0 {
             Inner::Contiguous(_) => 1,
-            Inner::NonContiguous { parts, idx, .. } => parts.len() - idx,
+            Inner::NonContiguous {
+                parts, idx, size, offset
+            } => {
+                parts
+                    .iter()
+                    .skip(*idx)
+                    .fold((0, size + offset), |(count, size), bytes| {
+                        if size == 0 {
+                            (count, 0)
+                        } else {
+                            (count + 1, size.saturating_sub(bytes.len()))
+                        }
+                    })
+                    .0
+            }
         }
     }
 
@@ -192,8 +206,12 @@ impl Buffer {
         match &self.0 {
             Inner::Contiguous(inner) => inner.clone(),
             Inner::NonContiguous {
-                parts, idx, offset, ..
-            } => parts[*idx].slice(*offset..),
+                parts, idx, offset, size
+            } => {
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                chunk.slice(*offset..*offset + n)
+            },
         }
     }
 

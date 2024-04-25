@@ -104,8 +104,8 @@ impl Operator {
     pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
         let opwrite = build_opwrite(kwargs)?;
         let mut write = self.0.write_with(path, bs).append(opwrite.append());
-        if let Some(buffer) = opwrite.buffer() {
-            write = write.buffer(buffer);
+        if let Some(chunk) = opwrite.chunk() {
+            write = write.chunk(chunk);
         }
         if let Some(content_type) = opwrite.content_type() {
             write = write.content_type(content_type);
@@ -282,8 +282,8 @@ impl AsyncOperator {
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
             let mut write = this.write_with(&path, bs).append(opwrite.append());
-            if let Some(buffer) = opwrite.buffer() {
-                write = write.buffer(buffer);
+            if let Some(buffer) = opwrite.chunk() {
+                write = write.chunk(buffer);
             }
             if let Some(content_type) = opwrite.content_type() {
                 write = write.content_type(content_type);
@@ -504,11 +504,11 @@ pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpW
         op = op.with_append(v);
     }
 
-    if let Some(buffer) = dict.get_item("buffer")? {
-        let v = buffer
+    if let Some(chunk) = dict.get_item("chunk")? {
+        let v = chunk
             .extract::<usize>()
-            .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
-        op = op.with_buffer(v);
+            .map_err(|err| PyValueError::new_err(format!("chunk must be usize, got {}", err)))?;
+        op = op.with_chunk(v);
     }
 
     if let Some(content_type) = dict.get_item("content_type")? {

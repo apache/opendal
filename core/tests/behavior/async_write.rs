@@ -339,7 +339,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let content_b = gen_fixed_bytes(size);
     let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
 
-    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).chunk(5 * 1024 * 1024).await?;
     w.sink(stream).await?;
     w.close().await?;
 
@@ -377,7 +377,7 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
 
     let mut w = op
         .writer_with(&path)
-        .buffer(5 * 1024 * 1024)
+        .chunk(5 * 1024 * 1024)
         .concurrent(4)
         .await?;
     w.sink(stream).await?;
@@ -414,7 +414,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 
     let mut w = op
         .writer_with(&path)
-        .buffer(8 * 1024 * 1024)
+        .chunk(8 * 1024 * 1024)
         .await?
         .into_futures_async_write();
 
@@ -449,7 +449,7 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
 
     let mut w = op
         .writer_with(&path)
-        .buffer(8 * 1024 * 1024)
+        .chunk(8 * 1024 * 1024)
         .concurrent(4)
         .await?
         .into_futures_async_write();

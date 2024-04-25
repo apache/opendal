@@ -876,12 +876,13 @@ impl Builder for S3Builder {
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(S3ChecksumAlgorithm::Crc32c),
             None => None,
-            _ => return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "{v} is not a supported checksum_algorithm.",
-            )),
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "{v} is not a supported checksum_algorithm.",
+                ))
+            }
         };
-
 
         let client = if let Some(client) = self.http_client.take() {
             client

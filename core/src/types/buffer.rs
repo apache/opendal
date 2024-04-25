@@ -184,7 +184,10 @@ impl Buffer {
         match &self.0 {
             Inner::Contiguous(_) => 1,
             Inner::NonContiguous {
-                parts, idx, size, offset
+                parts,
+                idx,
+                size,
+                offset,
             } => {
                 parts
                     .iter()
@@ -206,12 +209,15 @@ impl Buffer {
         match &self.0 {
             Inner::Contiguous(inner) => inner.clone(),
             Inner::NonContiguous {
-                parts, idx, offset, size
+                parts,
+                idx,
+                offset,
+                size,
             } => {
                 let chunk = &parts[*idx];
                 let n = (chunk.len() - *offset).min(*size);
                 chunk.slice(*offset..*offset + n)
-            },
+            }
         }
     }
 

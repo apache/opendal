@@ -23,6 +23,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -256,7 +258,7 @@ impl S3Core {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
             let checksum = match checksum_algorithm {
                 S3ChecksumAlgorithm::Crc32c => {
-                    format!("{}", crc32c::crc32c(body.to_vec().as_slice()))
+                    BASE64_STANDARD.encode(crc32c::crc32c(body.to_vec().as_slice()).to_be_bytes())
                 }
             };
             req = req.header(checksum_algorithm.to_header_key(), checksum);

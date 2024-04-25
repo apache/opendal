@@ -204,6 +204,14 @@ pub struct S3Config {
     ///
     /// For example, R2 doesn't support stat with `response_content_type` query.
     pub disable_stat_with_override: bool,
+    /// Checksum Algorithm to use when sending checksums in HTTP headers.
+    /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
+    ///
+    /// Available options:
+    /// | Option   | HTTP Header           |
+    /// | -------- | ----------------------|
+    /// | "crc32c" | x-amz-checksum-crc32c |
+    pub checksum_algorithm: Option<String>,
 }
 
 impl Debug for S3Config {
@@ -663,6 +671,13 @@ impl S3Builder {
         self
     }
 
+    /// Set checksum algorithm of this backend.
+    pub fn checksum_algorithm(&mut self, checksum_algorithm: &str) -> &mut Self {
+        self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
+
+        self
+    }
+
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -858,6 +873,16 @@ impl Builder for S3Builder {
                 })?),
             };
 
+        let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
+            Some("crc32c") => Some(S3ChecksumAlgorithm::Crc32c),
+            None => None,
+            _ => return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "{v} is not a supported checksum_algorithm.",
+            )),
+        };
+
+
         let client = if let Some(client) = self.http_client.take() {
             client
         } else {
@@ -979,6 +1004,7 @@ impl Builder for S3Builder {
                 credential_loaded: AtomicBool::new(false),
                 client,
                 batch_max_operations,
+                checksum_algorithm,
             }),
         })
     }

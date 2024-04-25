@@ -88,6 +88,7 @@ pub struct S3Core {
     pub credential_loaded: AtomicBool,
     pub client: HttpClient,
     pub batch_max_operations: usize,
+    pub checksum_algorithm: Option<S3ChecksumAlgorithm>,
 }
 
 impl Debug for S3Core {
@@ -244,6 +245,22 @@ impl S3Core {
             )
         }
 
+        req
+    }
+
+    pub fn insert_checksum_header(
+        &self,
+        mut req: http::request::Builder,
+        body: &Buffer,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            let checksum = match checksum_algorithm {
+                S3ChecksumAlgorithm::Crc32c => {
+                    format!("{}", crc32c::crc32c(body.to_vec().as_slice()))
+                }
+            };
+            req = req.header(checksum_algorithm.to_header_key(), checksum);
+        }
         req
     }
 }
@@ -407,6 +424,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set Checksum header.
+        req = self.insert_checksum_header(req, &body);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -604,6 +624,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set Checksum header.
+        req = self.insert_checksum_header(req, &body);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -819,6 +842,17 @@ pub struct ListObjectsOutputContent {
 #[serde(rename_all = "PascalCase")]
 pub struct OutputCommonPrefix {
     pub prefix: String,
+}
+
+pub enum S3ChecksumAlgorithm {
+    Crc32c,
+}
+impl S3ChecksumAlgorithm {
+    pub fn to_header_key(&self) -> &str {
+        match self {
+            Self::Crc32c => "x-amz-checksum-crc32c",
+        }
+    }
 }
 
 #[cfg(test)]

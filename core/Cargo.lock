@@ -1675,6 +1675,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d9ae28226834dc0f8cd9af2a129488528bcaa4426baaba16072e13cff8440b"
 dependencies = [
  "arrayvec",
+ "bytes",
  "libc",
 ]
 

@@ -15,16 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-use compio::buf::{IntoInner, IoBuf, IoVectoredBuf, OwnedIter, OwnedIterator};
+use compio::buf::IoBuf;
 
 use crate::Buffer;
-
-#[derive(Debug, Clone)]
-struct BufferOwnedIter {
-    buf: Buffer,
-    current: Bytes,
-}
 
 unsafe impl IoBuf for Buffer {
     fn as_buf_ptr(&self) -> *const u8 {
@@ -41,37 +34,77 @@ unsafe impl IoBuf for Buffer {
     }
 }
 
-impl IoVectoredBuf for Buffer {
-    fn as_dyn_bufs(&self) -> impl Iterator<Item = &dyn IoBuf> {
-        self
+// TODO: impl IoVectoredBuf for Buffer
+// impl IoVectoredBuf for Buffer {
+//     fn as_dyn_bufs(&self) -> impl Iterator<Item = &dyn IoBuf> {}
+//
+//     fn owned_iter(self) -> Result<OwnedIter<impl OwnedIterator<Inner = Self>>, Self> {
+//         Ok(OwnedIter::new(BufferIter {
+//             current: self.current(),
+//             buf: self,
+//         }))
+//     }
+// }
+
+// #[derive(Debug, Clone)]
+// struct BufferIter {
+//     buf: Buffer,
+//     current: Bytes,
+// }
+
+// impl IntoInner for BufferIter {
+//     type Inner = Buffer;
+//
+//     fn into_inner(self) -> Self::Inner {
+//         self.buf
+//     }
+// }
+
+// impl OwnedIterator for BufferIter {
+//     fn next(mut self) -> Result<Self, Self::Inner> {
+//         let Some(current) = self.buf.next() else {
+//             return Err(self.buf);
+//         };
+//         self.current = current;
+//         Ok(self)
+//     }
+//
+//     fn current(&self) -> &dyn IoBuf {
+//         &self.current
+//     }
+// }
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Buf, Bytes};
+    use rand::{Rng, thread_rng};
+
+    use super::*;
+
+    fn setup_buffer() -> (Buffer, usize, Bytes) {
+        let mut rng = thread_rng();
+
+        let bs = (0..100)
+            .map(|_| {
+                let len = rng.gen_range(1..100);
+                let mut buf = vec![0; len];
+                rng.fill(&mut buf[..]);
+                Bytes::from(buf)
+            })
+            .collect::<Vec<_>>();
+
+        let total_size = bs.iter().map(|b| b.len()).sum::<usize>();
+        let total_content = bs.iter().flatten().copied().collect::<Bytes>();
+        let buf = Buffer::from(bs);
+
+        (buf, total_size, total_content)
     }
 
-    fn owned_iter(self) -> Result<OwnedIter<impl OwnedIterator<Inner = Self>>, Self> {
-        Ok(OwnedIter::new(BufferOwnedIter {
-            current: self.current(),
-            buf: self,
-        }))
-    }
-}
+    #[test]
+    fn test_io_buf() {
+        let (buf, _len, _bytes) = setup_buffer();
+        let slice = IoBuf::as_slice(&buf);
 
-impl IntoInner for BufferOwnedIter {
-    type Inner = Buffer;
-
-    fn into_inner(self) -> Self::Inner {
-        self.buf
-    }
-}
-
-impl OwnedIterator for BufferOwnedIter {
-    fn next(mut self) -> Result<Self, Self::Inner> {
-        let Some(current) = self.buf.next() else {
-            return Err(self.buf);
-        };
-        self.current = current;
-        Ok(self)
-    }
-
-    fn current(&self) -> &dyn IoBuf {
-        &self.current
+        assert_eq!(slice, buf.current().chunk())
     }
 }

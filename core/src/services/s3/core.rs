@@ -17,6 +17,7 @@
 
 use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::atomic;
@@ -264,7 +265,7 @@ impl S3Core {
                     BASE64_STANDARD.encode(crc.to_be_bytes())
                 }
             };
-            req = req.header(checksum_algorithm.to_header_key(), checksum);
+            req = req.header(checksum_algorithm.to_header_name(), checksum);
         }
         req
     }
@@ -276,9 +277,7 @@ impl S3Core {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
             req = req.header(
                 "x-amz-checksum-algorithm",
-                match checksum_algorithm {
-                    ChecksumAlgorithm::Crc32c => "CRC32C",
-                },
+                checksum_algorithm.to_string(),
             );
         }
         req
@@ -871,10 +870,21 @@ pub enum ChecksumAlgorithm {
     Crc32c,
 }
 impl ChecksumAlgorithm {
-    pub fn to_header_key(&self) -> &str {
+    pub fn to_header_name(&self) -> HeaderName {
         match self {
-            Self::Crc32c => "x-amz-checksum-crc32c",
+            Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
         }
+    }
+}
+impl Display for ChecksumAlgorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Crc32c => "CRC32C",
+            }
+        )
     }
 }
 

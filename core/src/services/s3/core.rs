@@ -275,10 +275,7 @@ impl S3Core {
         mut req: http::request::Builder,
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
-            req = req.header(
-                "x-amz-checksum-algorithm",
-                checksum_algorithm.to_string(),
-            );
+            req = req.header("x-amz-checksum-algorithm", checksum_algorithm.to_string());
         }
         req
     }

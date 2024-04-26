@@ -28,16 +28,17 @@ mod metadata;
 pub use metadata::Metadata;
 pub use metadata::Metakey;
 
-mod reader;
-pub use reader::*;
+mod read;
+pub use read::*;
 
-mod blocking_reader;
-pub use blocking_reader::*;
+mod blocking_read;
+pub use blocking_read::*;
 
-mod writer;
-pub use writer::into_futures_async_write::FuturesAsyncWriter;
-pub use writer::BlockingWriter;
-pub use writer::Writer;
+mod write;
+pub use write::*;
+
+mod blocking_write;
+pub use blocking_write::*;
 
 mod list;
 pub use list::BlockingLister;

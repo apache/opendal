@@ -90,7 +90,7 @@ pub struct S3Core {
     pub credential_loaded: AtomicBool,
     pub client: HttpClient,
     pub batch_max_operations: usize,
-    pub checksum_algorithm: Option<S3ChecksumAlgorithm>,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
 impl Debug for S3Core {
@@ -257,11 +257,29 @@ impl S3Core {
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
             let checksum = match checksum_algorithm {
-                S3ChecksumAlgorithm::Crc32c => {
-                    BASE64_STANDARD.encode(crc32c::crc32c(body.to_vec().as_slice()).to_be_bytes())
+                ChecksumAlgorithm::Crc32c => {
+                    let mut crc = 0u32;
+                    body.clone()
+                        .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
+                    BASE64_STANDARD.encode(crc.to_be_bytes())
                 }
             };
             req = req.header(checksum_algorithm.to_header_key(), checksum);
+        }
+        req
+    }
+
+    pub fn insert_checksum_type_header(
+        &self,
+        mut req: http::request::Builder,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            req = req.header(
+                "x-amz-checksum-algorithm",
+                match checksum_algorithm {
+                    ChecksumAlgorithm::Crc32c => "CRC32C",
+                },
+            );
         }
         req
     }
@@ -595,6 +613,9 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
+        // Set SSE headers.
+        let req = self.insert_checksum_type_header(req);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -846,10 +867,10 @@ pub struct OutputCommonPrefix {
     pub prefix: String,
 }
 
-pub enum S3ChecksumAlgorithm {
+pub enum ChecksumAlgorithm {
     Crc32c,
 }
-impl S3ChecksumAlgorithm {
+impl ChecksumAlgorithm {
     pub fn to_header_key(&self) -> &str {
         match self {
             Self::Crc32c => "x-amz-checksum-crc32c",

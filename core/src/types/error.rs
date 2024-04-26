@@ -43,7 +43,7 @@ use std::fmt::Formatter;
 use std::io;
 
 /// Result that is a wrapper of `Result<T, opendal::Error>`
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// ErrorKind is all kinds of Error of opendal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

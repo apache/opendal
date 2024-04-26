@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
-use crate::raw::*;
 use crate::raw::oio::BlockingWrite;
+use crate::raw::*;
+use crate::*;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
 ///
@@ -43,12 +43,18 @@ impl StdWriter {
     }
 
     /// Close the internal writer and make sure all data have been stored.
-    pub fn close(&mut self) ->  std::io::Result<()> {
-        let Some(mut w) = self.w.take() else  {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "writer has been closed"));
+    pub fn close(&mut self) -> std::io::Result<()> {
+        let Some(mut w) = self.w.take() else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "writer has been closed",
+            ));
         };
 
-        match w.close().map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)) {
+        match w
+            .close()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+        {
             Ok(()) => Ok(()),
             Err(err) => {
                 self.w = Some(w);
@@ -60,28 +66,33 @@ impl StdWriter {
 
 impl std::io::Write for StdWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let Some( w) = &mut self.w else  {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "writer has been closed"));
+        let Some(w) = &mut self.w else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "writer has been closed",
+            ));
         };
 
         loop {
             let n = self.buf.put(buf);
             if n > 0 {
-                return Ok(n)
+                return Ok(n);
             }
 
             let bs = self.buf.get().expect("frozen buffer must be valid");
-            let n =   w
+            let n = w
                 .write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             self.buf.advance(n);
         }
-
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        let Some( w) = &mut self.w else  {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "writer has been closed"));
+        let Some(w) = &mut self.w else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "writer has been closed",
+            ));
         };
 
         loop {
@@ -91,7 +102,7 @@ impl std::io::Write for StdWriter {
                 return Ok(());
             };
 
-            let n =   w
+            let n = w
                 .write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             self.buf.advance(n);

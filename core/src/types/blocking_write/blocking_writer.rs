@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-use crate::*;
 use crate::raw::*;
+use crate::*;
+use bytes::Buf;
 
 /// BlockingWriter is designed to write data into given path in an blocking
 /// manner.

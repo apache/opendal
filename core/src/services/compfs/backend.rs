@@ -24,12 +24,12 @@ use std::path::PathBuf;
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
-pub struct CompFSBuilder {
+pub struct CompfsBuilder {
     root: Option<PathBuf>,
 }
 
-impl CompFSBuilder {
-    /// Set root for CompFS
+impl CompfsBuilder {
+    /// Set root for Compfs
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -41,12 +41,12 @@ impl CompFSBuilder {
     }
 }
 
-impl Builder for CompFSBuilder {
-    const SCHEME: Scheme = Scheme::CompFS;
+impl Builder for CompfsBuilder {
+    const SCHEME: Scheme = Scheme::Compfs;
     type Accessor = ();
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CompFSBuilder::default();
+        let mut builder = CompfsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
 
@@ -59,12 +59,12 @@ impl Builder for CompFSBuilder {
 }
 
 #[derive(Debug)]
-pub struct CompFSBackend {
+pub struct CompfsBackend {
     rt: CompioThread,
 }
 
 #[async_trait]
-impl Accessor for CompFSBackend {
+impl Accessor for CompfsBackend {
     type Reader = ();
     type Writer = ();
     type Lister = ();

@@ -410,4 +410,4 @@ pub use surrealdb::SurrealdbConfig;
 #[cfg(feature = "services-compfs")]
 mod compfs;
 #[cfg(feature = "services-compfs")]
-pub use compfs::CompFS;
+pub use compfs::Compfs;

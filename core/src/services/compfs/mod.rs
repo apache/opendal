@@ -23,4 +23,4 @@ mod lister;
 mod reader;
 mod writer;
 
-pub use backend::CompFSBuilder as CompFS;
+pub use backend::CompfsBuilder as Compfs;

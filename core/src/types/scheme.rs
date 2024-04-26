@@ -40,8 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [B2][crate::services::B2]: Backblaze B2 Services.
     B2,
-    /// [CompFS][crate::services::CompFS]: Compio fs Services.
-    CompFS,
+    /// [Compfs][crate::services::Compfs]: Compio fs Services.
+    Compfs,
     /// [Seafile][crate::services::Seafile]: Seafile Services.
     Seafile,
     /// [Upyun][crate::services::Upyun]: Upyun Services.
@@ -208,7 +208,7 @@ impl Scheme {
             #[cfg(feature = "services-cos")]
             Scheme::Cos,
             #[cfg(feature = "services-compfs")]
-            Scheme::CompFS,
+            Scheme::Compfs,
             #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap,
             #[cfg(feature = "services-dropbox")]
@@ -336,7 +336,7 @@ impl FromStr for Scheme {
             "b2" => Ok(Scheme::B2),
             "chainsafe" => Ok(Scheme::Chainsafe),
             "cacache" => Ok(Scheme::Cacache),
-            "compfs" => Ok(Scheme::CompFS),
+            "compfs" => Ok(Scheme::Compfs),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),
@@ -407,7 +407,7 @@ impl From<Scheme> for &'static str {
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
-            Scheme::CompFS => "compfs",
+            Scheme::Compfs => "compfs",
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",

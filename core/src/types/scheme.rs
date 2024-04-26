@@ -207,6 +207,8 @@ impl Scheme {
             Scheme::Cacache,
             #[cfg(feature = "services-cos")]
             Scheme::Cos,
+            #[cfg(feature = "services-compfs")]
+            Scheme::CompFS,
             #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap,
             #[cfg(feature = "services-dropbox")]
@@ -334,6 +336,7 @@ impl FromStr for Scheme {
             "b2" => Ok(Scheme::B2),
             "chainsafe" => Ok(Scheme::Chainsafe),
             "cacache" => Ok(Scheme::Cacache),
+            "compfs" => Ok(Scheme::CompFS),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),

@@ -208,9 +208,7 @@ pub struct S3Config {
     /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
     ///
     /// Available options:
-    /// | Option   | HTTP Header           |
-    /// | -------- | ----------------------|
-    /// | "crc32c" | x-amz-checksum-crc32c |
+    /// - "crc32c"
     pub checksum_algorithm: Option<String>,
 }
 
@@ -672,6 +670,11 @@ impl S3Builder {
     }
 
     /// Set checksum algorithm of this backend.
+    /// 
+    /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
+    ///
+    /// Available options:
+    /// - "crc32c"
     pub fn checksum_algorithm(&mut self, checksum_algorithm: &str) -> &mut Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 
@@ -874,7 +877,7 @@ impl Builder for S3Builder {
             };
 
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
-            Some("crc32c") => Some(S3ChecksumAlgorithm::Crc32c),
+            Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
             _ => {
                 return Err(Error::new(

@@ -670,7 +670,6 @@ impl S3Builder {
     }
 
     /// Set checksum algorithm of this backend.
-    /// 
     /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
     ///
     /// Available options:

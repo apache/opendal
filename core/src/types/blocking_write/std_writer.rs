@@ -18,6 +18,7 @@
 use crate::raw::oio::BlockingWrite;
 use crate::raw::*;
 use crate::*;
+use std::io::Write;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
 ///
@@ -44,27 +45,27 @@ impl StdWriter {
 
     /// Close the internal writer and make sure all data have been stored.
     pub fn close(&mut self) -> std::io::Result<()> {
-        let Some(mut w) = self.w.take() else {
+        // Make sure all cache has been flushed.
+        self.flush()?;
+
+        let Some(w) = &mut self.w else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "writer has been closed",
             ));
         };
 
-        match w
-            .close()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-        {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                self.w = Some(w);
-                Err(err)
-            }
-        }
+        w.close()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        // Drop writer after close succeed;
+        self.w = None;
+
+        Ok(())
     }
 }
 
-impl std::io::Write for StdWriter {
+impl Write for StdWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let Some(w) = &mut self.w else {
             return Err(std::io::Error::new(

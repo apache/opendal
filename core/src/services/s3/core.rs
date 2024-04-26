@@ -17,12 +17,15 @@
 
 use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -88,6 +91,7 @@ pub struct S3Core {
     pub credential_loaded: AtomicBool,
     pub client: HttpClient,
     pub batch_max_operations: usize,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
 impl Debug for S3Core {
@@ -244,6 +248,35 @@ impl S3Core {
             )
         }
 
+        req
+    }
+
+    pub fn insert_checksum_header(
+        &self,
+        mut req: http::request::Builder,
+        body: &Buffer,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            let checksum = match checksum_algorithm {
+                ChecksumAlgorithm::Crc32c => {
+                    let mut crc = 0u32;
+                    body.clone()
+                        .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
+                    BASE64_STANDARD.encode(crc.to_be_bytes())
+                }
+            };
+            req = req.header(checksum_algorithm.to_header_name(), checksum);
+        }
+        req
+    }
+
+    pub fn insert_checksum_type_header(
+        &self,
+        mut req: http::request::Builder,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            req = req.header("x-amz-checksum-algorithm", checksum_algorithm.to_string());
+        }
         req
     }
 }
@@ -407,6 +440,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set Checksum header.
+        req = self.insert_checksum_header(req, &body);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -573,6 +609,9 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
+        // Set SSE headers.
+        let req = self.insert_checksum_type_header(req);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -604,6 +643,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set Checksum header.
+        req = self.insert_checksum_header(req, &body);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -819,6 +861,28 @@ pub struct ListObjectsOutputContent {
 #[serde(rename_all = "PascalCase")]
 pub struct OutputCommonPrefix {
     pub prefix: String,
+}
+
+pub enum ChecksumAlgorithm {
+    Crc32c,
+}
+impl ChecksumAlgorithm {
+    pub fn to_header_name(&self) -> HeaderName {
+        match self {
+            Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+        }
+    }
+}
+impl Display for ChecksumAlgorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Crc32c => "CRC32C",
+            }
+        )
+    }
 }
 
 #[cfg(test)]

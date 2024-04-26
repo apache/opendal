@@ -18,5 +18,9 @@
 mod writer;
 pub use writer::Writer;
 
+mod buffer_sink;
+pub use buffer_sink::BufferSink;
 mod futures_async_writer;
 pub use futures_async_writer::FuturesAsyncWriter;
+mod futures_bytes_sink;
+pub use futures_bytes_sink::FuturesBytesSink;

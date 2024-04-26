@@ -15,11 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::pin::pin;
-
 use bytes::Buf;
-use bytes::Bytes;
-use futures::TryStreamExt;
 
 use crate::raw::oio::Write;
 use crate::raw::*;
@@ -89,7 +85,31 @@ impl Writer {
         Ok(Writer { inner: w })
     }
 
-    /// Write Buffer into inner writer.
+    /// Write [`Buffer`] into writer.
+    ///
+    /// This operation will write all data in given buffer into writer.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    /// use bytes::Bytes;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let mut w = op
+    ///         .writer("hello.txt")
+    ///         .await?;
+    ///     // Buffer can be created from continues bytes.
+    ///     w.write("hello, world").await?;
+    ///     // Buffer can also be created from non-continues bytes.
+    ///     w.write(vec![Bytes::from("hello,"), Bytes::from("world!")]).await?;
+    ///
+    ///     // Make sure file has been written completely.
+    ///     w.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
@@ -99,7 +119,13 @@ impl Writer {
         Ok(())
     }
 
-    /// Write bytes::Buf into inner writer.
+    /// Write [`bytes::Buf`] into inner writer.
+    ///
+    /// This operation will write all data in given buffer into writer.
+    ///
+    /// # TODO
+    ///
+    /// Optimize this function to avoid unnecessary copy.
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
         let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
@@ -130,54 +156,122 @@ impl Writer {
         self.inner.close().await
     }
 
-    /// Sink into writer.
-    ///
-    /// sink will read data from given streamer and write them into writer
-    /// directly without extra in-memory buffer.
+    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
     ///
     /// # Notes
     ///
-    /// - Sink doesn't support to be used with write concurrently.
-    /// - Sink doesn't support to be used without content length now.
+    /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
+    /// requires an owned [`Buffer`], which involves an extra copy operation.
+    ///
+    /// FuturesAsyncWriters are automatically closed when they go out of scope. Errors detected on
+    /// closing are ignored by the implementation of Drop. Use the method `close` if these errors
+    /// must be manually handled.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use bytes::Bytes;
-    /// use futures::stream;
-    /// use futures::StreamExt;
+    /// ## Basic Usage
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use futures::io::AsyncWriteExt;
     /// use opendal::Operator;
     /// use opendal::Result;
     ///
-    /// async fn sink_example(op: Operator) -> Result<()> {
-    ///     let mut w = op.writer_with("path/to/file").await?;
-    ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
-    ///     w.sink(stream).await?;
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut w = op
+    ///         .writer("hello.txt")
+    ///         .await?
+    ///         .into_futures_async_write();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     w.write_all(bs).await?;
     ///     w.close().await?;
+    ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sink<S, T>(&mut self, sink_from: S) -> Result<u64>
-    where
-        S: futures::Stream<Item = Result<T>>,
-        T: Into<Bytes>,
-    {
-        let mut sink_from = pin!(sink_from);
-        let mut written = 0;
-        while let Some(bs) = sink_from.try_next().await? {
-            let mut bs = bs.into();
-            while !bs.is_empty() {
-                let n = self.inner.write(bs.clone().into()).await?;
-                bs.advance(n);
-                written += n as u64;
-            }
-        }
-        Ok(written)
-    }
-
-    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
+    ///
+    /// ## Concurrent Write
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use futures::io::AsyncWriteExt;
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut w = op
+    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .await?
+    ///         .into_futures_async_write();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     w.write_all(bs).await?;
+    ///     w.close().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn into_futures_async_write(self) -> FuturesAsyncWriter {
         FuturesAsyncWriter::new(self.inner)
+    }
+
+    /// Convert writer into [`FuturesBytesSink`] which implements [`futures::Sink<Bytes>`].
+    ///
+    /// # Notes
+    ///
+    /// FuturesBytesSink is a zero-cost abstraction. The underlying writer
+    /// will reuse the Bytes and won't perform any copy operation.
+    ///
+    /// # Examples
+    ///
+    /// ## Basic Usage
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use futures::SinkExt;
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    /// use bytes::Bytes;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut w = op
+    ///         .writer("hello.txt")
+    ///         .await?
+    ///         .into_bytes_sink();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     w.send(Bytes::from(bs)).await?;
+    ///     w.close().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## Concurrent Write
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use futures::SinkExt;
+    /// use opendal::Operator;
+    /// use opendal::Result;
+    /// use bytes::Bytes;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut w = op
+    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .await?
+    ///         .into_bytes_sink();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     w.send(Bytes::from(bs)).await?;
+    ///     w.close().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn into_bytes_sink(self) -> FuturesBytesSink {
+        FuturesBytesSink::new(self.inner)
     }
 }
 

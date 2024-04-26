@@ -285,8 +285,13 @@ mod tests {
     use rand::Rng;
     use rand::RngCore;
 
+    use super::*;
+    use crate::raw::MaybeSend;
     use crate::services;
     use crate::Operator;
+
+    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
+    impl AssertTrait for Reader {}
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();

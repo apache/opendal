@@ -16,10 +16,12 @@
 // under the License.
 
 use anyhow::Result;
+use bytes::Bytes;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
 use futures::AsyncWriteExt;
+use futures::SinkExt;
 use futures::StreamExt;
 use log::warn;
 use sha2::Digest;
@@ -337,10 +339,18 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
+    let mut stream = stream::iter(vec![
+        Bytes::from(content_a.clone()),
+        Bytes::from(content_b.clone()),
+    ])
+    .map(Ok);
 
-    let mut w = op.writer_with(&path).chunk(5 * 1024 * 1024).await?;
-    w.sink(stream).await?;
+    let mut w = op
+        .writer_with(&path)
+        .chunk(5 * 1024 * 1024)
+        .await?
+        .into_bytes_sink();
+    w.send_all(&mut stream).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
@@ -373,14 +383,19 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
+    let mut stream = stream::iter(vec![
+        Bytes::from(content_a.clone()),
+        Bytes::from(content_b.clone()),
+    ])
+    .map(Ok);
 
     let mut w = op
         .writer_with(&path)
         .chunk(5 * 1024 * 1024)
         .concurrent(4)
-        .await?;
-    w.sink(stream).await?;
+        .await?
+        .into_bytes_sink();
+    w.send_all(&mut stream).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

@@ -118,7 +118,7 @@ pub struct BufferStream(Buffered<Iter<FutureIterator>>);
 impl BufferStream {
     /// Create a new buffer stream from given reader.
     #[inline]
-    pub fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
+    pub(crate) fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
         let iter = FutureIterator::new(r, options.chunk(), range);
         let stream = stream::iter(iter).buffered(options.concurrent());
 
@@ -150,7 +150,6 @@ mod tests {
 
     use super::*;
 
-    /// Make sure BufferStream implements `Unpin` and `Send`.
     trait AssertTrait: Unpin + MaybeSend + 'static {}
     impl AssertTrait for BufferStream {}
 

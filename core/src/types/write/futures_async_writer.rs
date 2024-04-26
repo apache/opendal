@@ -21,9 +21,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::AsyncWrite;
+use futures::{AsyncWrite, SinkExt};
 
-use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
 
@@ -33,27 +32,16 @@ use crate::*;
 ///
 /// FuturesIoAsyncWriter also implements [`Unpin`], [`Send`] and [`Sync`]
 pub struct FuturesAsyncWriter {
-    state: State,
+    sink: BufferSink,
     buf: oio::FlexBuf,
 }
-
-enum State {
-    Idle(Option<oio::Writer>),
-    Writing(BoxedStaticFuture<(oio::Writer, Result<usize>)>),
-    Closing(BoxedStaticFuture<(oio::Writer, Result<()>)>),
-}
-
-/// # Safety
-///
-/// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
-unsafe impl Sync for State {}
 
 impl FuturesAsyncWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
     pub(crate) fn new(w: oio::Writer) -> Self {
         FuturesAsyncWriter {
-            state: State::Idle(Some(w)),
+            sink: BufferSink::new(w),
             buf: oio::FlexBuf::new(256 * 1024),
         }
     }
@@ -66,109 +54,65 @@ impl AsyncWrite for FuturesAsyncWriter {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
-        loop {
-            match &mut this.state {
-                State::Idle(w) => {
-                    let n = this.buf.put(buf);
-                    if n > 0 {
-                        return Poll::Ready(Ok(n));
-                    }
 
-                    let bs = this.buf.get().expect("frozen buffer must be valid");
-                    let mut w = w.take().expect("writer must be valid");
-                    let fut = async move {
-                        let res = w.write(Buffer::from(bs)).await;
-                        (w, res)
-                    };
-                    this.state = State::Writing(Box::pin(fut));
-                }
-                State::Writing(ref mut fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
-                    match res {
-                        Ok(n) => {
-                            this.buf.advance(n);
-                        }
-                        Err(err) => return Poll::Ready(Err(format_std_io_error(err))),
-                    };
-                }
-                _ => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        "another io operation is in progress",
-                    )))
-                }
+        loop {
+            let n = this.buf.put(buf);
+            if n > 0 {
+                return Poll::Ready(Ok(n));
             }
+
+            ready!(this.sink.poll_ready_unpin(cx)).map_err(format_std_io_error)?;
+
+            let bs = this.buf.get().expect("frozen buffer must be valid");
+            this.sink
+                .start_send_unpin(Buffer::from(bs))
+                .map_err(format_std_io_error)?;
+            this.buf.clean();
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        loop {
-            match &mut this.state {
-                State::Idle(w) => {
-                    // Make sure buf has been frozen.
-                    this.buf.freeze();
-                    let Some(bs) = this.buf.get() else {
-                        return Poll::Ready(Ok(()));
-                    };
 
-                    let mut w = w.take().expect("writer must be valid");
-                    let fut = async move {
-                        let res = w.write(Buffer::from(bs)).await;
-                        (w, res)
-                    };
-                    this.state = State::Writing(Box::pin(fut));
-                }
-                State::Writing(ref mut fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
-                    match res {
-                        Ok(n) => {
-                            this.buf.advance(n);
-                        }
-                        Err(err) => return Poll::Ready(Err(format_std_io_error(err))),
-                    };
-                }
-                _ => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        "another io operation is in progress",
-                    )))
-                }
-            }
+        loop {
+            // Make sure buf has been frozen.
+            this.buf.freeze();
+            let Some(bs) = this.buf.get() else {
+                return Poll::Ready(Ok(()));
+            };
+
+            ready!(this.sink.poll_ready_unpin(cx)).map_err(format_std_io_error)?;
+            this.sink
+                .start_send_unpin(Buffer::from(bs))
+                .map_err(format_std_io_error)?;
+            this.buf.clean();
         }
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        if self.buf.get().is_some() {
-            return self.poll_flush(cx);
-        }
-
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
 
         loop {
-            match &mut this.state {
-                State::Idle(w) => {
-                    let mut w = w.take().expect("writer must be valid");
-                    let fut = async move {
-                        let res = w.close().await;
-                        (w, res)
-                    };
-                    this.state = State::Closing(Box::pin(fut));
-                }
-                State::Closing(ref mut fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
-                    return Poll::Ready(res.map_err(format_std_io_error));
-                }
-                _ => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        "another io operation is in progress",
-                    )))
-                }
-            }
+            // Make sure buf has been frozen.
+            this.buf.freeze();
+            let Some(bs) = this.buf.get() else {
+                return this.sink.poll_close_unpin(cx).map_err(format_std_io_error);
+            };
+
+            ready!(this.sink.poll_ready_unpin(cx)).map_err(format_std_io_error)?;
+            this.sink
+                .start_send_unpin(Buffer::from(bs))
+                .map_err(format_std_io_error)?;
+            this.buf.clean();
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::MaybeSend;
+
+    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
+    impl AssertTrait for FuturesAsyncWriter {}
 }

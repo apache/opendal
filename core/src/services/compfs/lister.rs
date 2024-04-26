@@ -14,13 +14,3 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-#![allow(dead_code)] // TODO: Remove this after backend is implemented
-
-mod backend;
-mod core;
-mod lister;
-mod reader;
-mod writer;
-
-pub use backend::CompFSBuilder as CompFS;

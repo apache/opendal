@@ -40,6 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [B2][crate::services::B2]: Backblaze B2 Services.
     B2,
+    /// [CompFS][crate::services::CompFS]: Compio fs Services.
+    CompFS,
     /// [Seafile][crate::services::Seafile]: Seafile Services.
     Seafile,
     /// [Upyun][crate::services::Upyun]: Upyun Services.
@@ -402,6 +404,7 @@ impl From<Scheme> for &'static str {
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
+            Scheme::CompFS => "compfs",
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",

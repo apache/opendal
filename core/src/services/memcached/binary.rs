@@ -74,7 +74,7 @@ impl PacketHeader {
         Ok(())
     }
 
-    pub async fn read(reader: &mut TcpStream) -> std::result::Result<PacketHeader, io::Error> {
+    pub async fn read(reader: &mut TcpStream) -> Result<PacketHeader, io::Error> {
         let header = PacketHeader {
             magic: reader.read_u8().await?,
             opcode: reader.read_u8().await?,

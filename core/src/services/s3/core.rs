@@ -779,7 +779,7 @@ pub struct CompleteMultipartUploadRequestPart {
     ///     etag: String,
     /// }
     ///
-    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
+    /// fn partial_escape<S>(s: &str, ser: S) -> Result<S::Ok, S::Error>
     /// where
     ///     S: serde::Serializer,
     /// {

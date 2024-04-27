@@ -251,7 +251,7 @@ impl bb8::ManageConnection for Manager {
     type Connection = Sftp;
     type Error = Error;
 
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let mut session = SessionBuilder::default();
 
         if let Some(user) = &self.user {
@@ -297,7 +297,7 @@ impl bb8::ManageConnection for Manager {
     }
 
     // Check if connect valid by checking the root path.
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let _ = conn.fs().metadata("./").await.map_err(parse_sftp_error)?;
 
         Ok(())

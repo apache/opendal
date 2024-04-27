@@ -92,7 +92,7 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
 /// WriteBlockResult is the result returned by [`WriteBlockFuture`].
 ///
 /// The error part will carries input `(block_id, bytes, err)` so caller can retry them.
-type WriteBlockResult = std::result::Result<Uuid, (Uuid, Buffer, Error)>;
+type WriteBlockResult = Result<Uuid, (Uuid, Buffer, Error)>;
 
 struct WriteBlockFuture(BoxedStaticFuture<WriteBlockResult>);
 

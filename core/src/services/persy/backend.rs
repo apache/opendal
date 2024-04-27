@@ -114,7 +114,7 @@ impl Builder for PersyBuilder {
             persy: &persy::Persy,
             segment_name: &str,
             index_name: &str,
-        ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        ) -> Result<(), Box<dyn std::error::Error>> {
             let mut tx = persy.begin()?;
 
             if !tx.exists_segment(segment_name)? {

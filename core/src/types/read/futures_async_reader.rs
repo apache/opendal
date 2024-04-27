@@ -51,6 +51,9 @@ pub struct FuturesAsyncReader {
     pos: u64,
 }
 
+/// Safety: FuturesAsyncReader only exposes `&mut self` to the outside world,
+unsafe impl Sync for FuturesAsyncReader {}
+
 impl FuturesAsyncReader {
     /// NOTE: don't allow users to create FuturesAsyncReader directly.
     ///
@@ -178,6 +181,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
+    impl AssertTrait for FuturesAsyncReader {}
 
     #[tokio::test]
     async fn test_futures_async_read() {

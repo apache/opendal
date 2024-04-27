@@ -2,6 +2,10 @@
 
 ## Public API
 
+### MSRV Changed to 1.75
+
+Since 0.46, OpenDAL requires Rust 1.75.0 or later to use features like [`RPITIT`](https://rust-lang.github.io/rfcs/3425-return-position-impl-trait-in-traits.html) and [`AFIT`](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html).
+
 ### Services Feature Flag
 
 Starting with version 0.46, OpenDAL only includes the memory service by default to prevent compiling unnecessary service code. To use other services, please activate their respective feature flags.
@@ -11,6 +15,88 @@ Additionally, we have removed all `reqwest`-related feature flags:
 - Users must now directly use `reqwest`'s feature flags for options like `rustls`, `native-tls`, etc.
 - The `rustls` feature is no longer enabled by default; it must be activated manually.
 - OpenDAL no longer offers the `trust-dns` option; users should configure the client builder directly.
+
+### Range Based Read
+
+Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO. 
+
+`opendal::Reader` now have APIs like:
+
+```rust
+let r = op.reader("test.txt").await?;
+let buf = r.read(1024..2048).await?;
+```
+
+### Buffer Based IO
+
+Since version 0.46, OpenDAL features a native `Buffer` struct that supports both contiguous and non-contiguous buffers. This update enhances IO efficiency by minimizing unnecessary byte copying and enabling vectored IO.
+
+OpenDAL's `Reader` will return `Buffer` and `Writer` will accept `Buffer` as input. Users who have implemented their own IO traits should update their code to use the new `Buffer` struct.
+
+```rust
+let r = op.reader("test.txt").await?;
+// read returns `Buffer`
+let buf: Buffer = r.read(1024..2048).await?;
+
+let w = op.writer("test.txt").await?;
+
+// Buffer can be created from continues bytes.
+w.write("hello, world").await?;
+// Buffer can also be created from non-continues bytes.
+w.write(vec![Bytes::from("hello,"), Bytes::from("world!")]).await?;
+
+// Make sure file has been written completely.
+w.close().await?;
+```
+
+To enhance usability, we've integrated bridges into `bytes::Buf` and `bytes::BufMut`, allowing users to directly interact with the bytes API.
+
+```rust
+let r = op.reader("test.txt").await?;
+let mut bs = vec![];
+// read_into accepts bytes::BufMut
+let buf: Buffer = r.read_into(&mut bs, 1024..2048).await?;
+
+let w = op.writer("test.txt").await?;
+
+// write_from accepts bytes::Buf
+w.write_from("hello, world".as_bytes()).await?;
+
+// Make sure file has been written completely.
+w.close().await?;
+```
+
+### Bridge API
+
+OpenDAL's `Reader` and `Writer` previously implemented APIs such as `AsyncRead` and `AsyncWrite` directly. This design was not user-friendly, as it could lead to unexpected costs that users were unaware of in advance.
+
+Since v0.46, OpenDAL provides bridge APIs for `Reader` and `Writer` instead.
+
+```rust
+let r = op.reader("test.txt").await?;
+
+// Convert into futures AsyncRead + AsyncSeek.
+let reader = r.into_futures_async_read(1024..2048);
+// Convert into futures bytes stream.
+let stream = r.into_bytes_stream(1024..2048);
+
+let w = op.writer("test.txt").await?;
+
+// Convert into futures AsyncWrite
+let writer = w.into_futures_async_write();
+// Convert into futures bytes sink;
+let sink = w.into_bytes_sink();
+```
+
+## Raw API
+
+### Async in IO trait
+
+Since version 0.46, OpenDAL has adopted Rust's native [`async_in_trait`](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html) for our core IO traits, including `oio::Read`, `oio::Write`, and `oio::List`.
+
+This update eliminates the need for manually written, poll-based state machines and simplifies the codebase. Consequently, OpenDAL now requires Rust version 1.75.0 or later.
+
+Users who have implemented their own IO traits should update their code to use the new async trait syntax.
 
 # Upgrade to v0.45
 

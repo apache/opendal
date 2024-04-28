@@ -479,6 +479,43 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `concurrent`
+    ///
+    /// Set `concurrent` for the reader.
+    ///
+    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
+    /// read large chunks of data. By setting `concurrent`, opendal will read files concurrently
+    /// on support storage services.
+    ///
+    /// By setting `concurrent`, opendal will fetch chunks concurrently with
+    /// the given chunk size.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.read_with("path/to/file").concurrent(8).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `chunk`
+    ///
+    /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    ///
+    /// This following example will make opendal read data in 4MiB chunks:
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.read_with("path/to/file").chunk(4 * 1024 * 1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// Read the whole path into a bytes.
@@ -525,7 +562,7 @@ impl Operator {
     /// ## Extra Options
     ///
     /// [`Operator::reader`] is a wrapper of [`Operator::reader_with`] without any options. To use
-    /// extra options like `range` and `if_match`, please use [`Operator::reader_with`] instead.
+    /// extra options like `concurrent`, please use [`Operator::reader_with`] instead.
     ///
     /// # Examples
     ///
@@ -550,9 +587,46 @@ impl Operator {
     /// ## Extra Options
     ///
     /// [`Operator::reader`] is a wrapper of [`Operator::reader_with`] without any options. To use
-    /// extra options like `range` and `if_match`, please use [`Operator::reader_with`] instead.
+    /// extra options like `version`, please use [`Operator::reader_with`] instead.
     ///
     /// # Options
+    ///
+    /// ## `concurrent`
+    ///
+    /// Set `concurrent` for the reader.
+    ///
+    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
+    /// read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+    /// on support storage services.
+    ///
+    /// By setting `concurrent``, opendal will fetch chunks concurrently with
+    /// the give chunk size.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.reader_with("path/to/file").concurrent(8).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `chunk`
+    ///
+    /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    ///
+    /// This following example will make opendal read data in 4MiB chunks:
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.reader_with("path/to/file").chunk(4 * 1024 * 1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Examples
     ///
@@ -606,7 +680,7 @@ impl Operator {
     ///
     /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
     /// handle the multipart uploads for you. You can control the behavior of multipart uploads
-    /// by setting `buffer`, `concurrent` via [`Operator::writer_with`]
+    /// by setting `chunk`, `concurrent` via [`Operator::writer_with`]
     ///
     /// # Examples
     ///
@@ -752,16 +826,16 @@ impl Operator {
     /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
     /// instead.
     ///
-    /// ## Buffer
+    /// ## Chunk
     ///
-    /// OpenDAL is designed to write files directly without buffering by default, giving users
+    /// OpenDAL is designed to write files directly without chunking by default, giving users
     /// control over the exact size of their writes and helping avoid unnecessary costs.
     ///
     /// This is not efficient for cases when users write small chunks of data. Some storage services
     /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
     /// will cost more money if we write data in small chunks.
     ///
-    /// Users can use [`Operator::write_with`] to set a good buffer size might improve the performance,
+    /// Users can use [`Operator::write_with`] to set a good chunk size might improve the performance,
     ///
     /// # Examples
     ///
@@ -811,20 +885,20 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `buffer`
+    /// ## `chunk`
     ///
-    /// Set `buffer` for the writer.
+    /// Set `chunk` for the writer.
     ///
-    /// OpenDAL is designed to write files directly without buffering by default, giving users
+    /// OpenDAL is designed to write files directly without chunking by default, giving users
     /// control over the exact size of their writes and helping avoid unnecessary costs.
     ///
     /// This is not efficient for cases when users write small chunks of data. Some storage services
     /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
     /// will cost more money if we write data in small chunks.
     ///
-    /// Set a good buffer size might improve the performance, reduce the API calls and save money.
+    /// Set a good chunk size might improve the performance, reduce the API calls and save money.
     ///
-    /// The following example will set the writer buffer to 8MiB. Only one API call will be sent at
+    /// The following example will set the writer chunk to 8MiB. Only one API call will be sent at
     /// `close` instead.
     ///
     /// ```no_run
@@ -837,7 +911,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
     ///     .writer_with("path/to/file")
-    ///     .buffer(8 * 1024 * 1024)
+    ///     .chunk(8 * 1024 * 1024)
     ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
@@ -1004,7 +1078,7 @@ impl Operator {
     ///
     /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
     /// handle the multipart uploads for you. You can control the behavior of multipart uploads
-    /// by setting `buffer`, `concurrent` via [`Operator::writer_with`]
+    /// by setting `chunk`, `concurrent` via [`Operator::writer_with`]
     ///
     /// # Options
     ///

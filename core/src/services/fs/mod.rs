@@ -18,6 +18,7 @@
 mod backend;
 pub use backend::FsBuilder as Fs;
 
+mod core;
 mod lister;
 mod reader;
 mod writer;

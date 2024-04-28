@@ -272,7 +272,7 @@ impl bb8::ManageConnection for Manager {
     type Connection = Client;
     type Error = Error;
 
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let conn = Client::connect(self.endpoints.clone(), Some(self.options.clone()))
             .await
             .map_err(format_etcd_error)?;
@@ -280,7 +280,7 @@ impl bb8::ManageConnection for Manager {
         Ok(conn)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let _ = conn.status().await.map_err(format_etcd_error)?;
         Ok(())
     }

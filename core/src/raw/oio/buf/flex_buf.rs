@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+use bytes::BufMut;
+use bytes::Bytes;
 use bytes::BytesMut;
-use bytes::{Buf, BufMut, Bytes};
 
 /// FlexBuf is a buffer that support frozen bytes and reuse existing allocated memory.
 ///
@@ -101,10 +103,16 @@ impl FlexBuf {
         bs.advance(cnt);
 
         if bs.is_empty() {
-            self.frozen = None;
-            // This reserve cloud be cheap since we can reuse already allocated memory.
-            // (if all references to the frozen buffer are dropped)
-            self.buf.reserve(self.cap);
+            self.clean()
         }
+    }
+
+    /// Cleanup the buffer, reset to the initial state.
+    #[inline]
+    pub fn clean(&mut self) {
+        self.frozen = None;
+        // This reserve cloud be cheap since we can reuse already allocated memory.
+        // (if all references to the frozen buffer are dropped)
+        self.buf.reserve(self.cap);
     }
 }

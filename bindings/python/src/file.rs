@@ -41,7 +41,7 @@ pub struct File(FileState, Capability);
 
 enum FileState {
     Reader(ocore::StdReader),
-    Writer(ocore::BlockingWriter),
+    Writer(ocore::StdWriter),
     Closed,
 }
 
@@ -51,7 +51,7 @@ impl File {
     }
 
     pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
-        Self(FileState::Writer(writer), capability)
+        Self(FileState::Writer(writer.into_std_write()), capability)
     }
 }
 

@@ -18,16 +18,17 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::DateTime;
 use log::debug;
-use uuid::Uuid;
 
+use super::core::*;
 use super::lister::FsLister;
+use super::reader::FsReader;
 use super::writer::FsWriter;
 use crate::raw::*;
-use crate::services::fs::reader::FsReader;
 use crate::*;
 
 /// POSIX file system support.
@@ -63,17 +64,6 @@ impl FsBuilder {
             Some(PathBuf::from(dir))
         };
 
-        self
-    }
-
-    /// OpenDAL requires all input path are normalized to make sure the
-    /// behavior is consistent. By enable path check, we can make sure
-    /// fs will behave the same as other services.
-    ///
-    /// Enabling this feature will lead to extra metadata call in all
-    /// operations.
-    #[deprecated(note = "path always checked since RFC-3243 List Prefix")]
-    pub fn enable_path_check(&mut self) -> &mut Self {
         self
     }
 }
@@ -162,8 +152,11 @@ impl Builder for FsBuilder {
 
         debug!("backend build finished: {:?}", &self);
         Ok(FsBackend {
-            root,
-            atomic_write_dir,
+            core: Arc::new(FsCore {
+                root,
+                atomic_write_dir,
+                buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
+            }),
         })
     }
 }
@@ -171,72 +164,7 @@ impl Builder for FsBuilder {
 /// Backend is used to serve `Accessor` support for posix alike fs.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
-    root: PathBuf,
-    atomic_write_dir: Option<PathBuf>,
-}
-
-#[inline]
-fn tmp_file_of(path: &str) -> String {
-    let name = get_basename(path);
-    let uuid = Uuid::new_v4().to_string();
-
-    format!("{name}.{uuid}")
-}
-
-impl FsBackend {
-    // Synchronously build write path and ensure the parent dirs created
-    fn blocking_ensure_write_abs_path(parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = parent.join(path);
-
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", p.to_string_lossy())
-            })?
-            .to_path_buf();
-
-        std::fs::create_dir_all(parent).map_err(new_std_io_error)?;
-
-        Ok(p)
-    }
-
-    // Build write path and ensure the parent dirs created
-    async fn ensure_write_abs_path(parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = parent.join(path);
-
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", p.to_string_lossy())
-            })?
-            .to_path_buf();
-
-        tokio::fs::create_dir_all(&parent)
-            .await
-            .map_err(new_std_io_error)?;
-
-        Ok(p)
-    }
+    core: Arc<FsCore>,
 }
 
 #[async_trait]
@@ -251,7 +179,7 @@ impl Accessor for FsBackend {
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Fs)
-            .set_root(&self.root.to_string_lossy())
+            .set_root(&self.core.root.to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
 
@@ -277,7 +205,7 @@ impl Accessor for FsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         tokio::fs::create_dir_all(&p)
             .await
@@ -287,7 +215,7 @@ impl Accessor for FsBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
 
@@ -319,7 +247,7 @@ impl Accessor for FsBackend {
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = tokio::fs::OpenOptions::new()
             .read(true)
@@ -327,15 +255,20 @@ impl Accessor for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(f.into_std().await);
+        let r = FsReader::new(self.core.clone(), f.into_std().await);
         Ok((RpRead::new(), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
-            let tmp_path =
-                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
+            let target_path = self
+                .core
+                .ensure_write_abs_path(&self.core.root, path)
+                .await?;
+            let tmp_path = self
+                .core
+                .ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))
+                .await?;
 
             // If the target file exists, we should append to the end of it directly.
             if op.append()
@@ -348,7 +281,10 @@ impl Accessor for FsBackend {
                 (target_path, Some(tmp_path))
             }
         } else {
-            let p = Self::ensure_write_abs_path(&self.root, path).await?;
+            let p = self
+                .core
+                .ensure_write_abs_path(&self.core.root, path)
+                .await?;
 
             (p, None)
         };
@@ -370,7 +306,7 @@ impl Accessor for FsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let meta = tokio::fs::metadata(&p).await;
 
@@ -390,7 +326,7 @@ impl Accessor for FsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
@@ -403,18 +339,21 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.root, f);
+        let rd = FsLister::new(&self.core.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.core.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
-        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+        let to = self
+            .core
+            .ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))
+            .await?;
 
         tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
 
@@ -422,12 +361,15 @@ impl Accessor for FsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.core.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
-        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+        let to = self
+            .core
+            .ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))
+            .await?;
 
         tokio::fs::rename(from, to)
             .await
@@ -437,7 +379,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         std::fs::create_dir_all(p).map_err(new_std_io_error)?;
 
@@ -445,7 +387,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
 
@@ -468,22 +410,25 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = std::fs::OpenOptions::new()
             .read(true)
             .open(p)
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(f);
+        let r = FsReader::new(self.core.clone(), f);
         Ok((RpRead::new(), r))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
-            let tmp_path =
-                Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
+            let target_path = self
+                .core
+                .blocking_ensure_write_abs_path(&self.core.root, path)?;
+            let tmp_path = self
+                .core
+                .blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
 
             // If the target file exists, we should append to the end of it directly.
             if op.append()
@@ -496,7 +441,9 @@ impl Accessor for FsBackend {
                 (target_path, Some(tmp_path))
             }
         } else {
-            let p = Self::blocking_ensure_write_abs_path(&self.root, path)?;
+            let p = self
+                .core
+                .blocking_ensure_write_abs_path(&self.core.root, path)?;
 
             (p, None)
         };
@@ -518,7 +465,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let meta = std::fs::metadata(&p);
 
@@ -538,7 +485,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
@@ -551,18 +498,20 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.root, f);
+        let rd = FsLister::new(&self.core.root, f);
 
         Ok((RpList::default(), Some(rd)))
     }
 
     fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.core.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
         std::fs::metadata(&from).map_err(new_std_io_error)?;
 
-        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+        let to = self
+            .core
+            .blocking_ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))?;
 
         std::fs::copy(from, to).map_err(new_std_io_error)?;
 
@@ -570,12 +519,14 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.core.root.join(from.trim_end_matches('/'));
 
         // try to get the metadata of the source file to ensure it exists
         std::fs::metadata(&from).map_err(new_std_io_error)?;
 
-        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+        let to = self
+            .core
+            .blocking_ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))?;
 
         std::fs::rename(from, to).map_err(new_std_io_error)?;
 

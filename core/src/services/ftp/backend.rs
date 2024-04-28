@@ -216,7 +216,7 @@ impl bb8::ManageConnection for Manager {
     type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;
 
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
@@ -253,7 +253,7 @@ impl bb8::ManageConnection for Manager {
         Ok(ftp_stream)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         conn.noop().await
     }
 

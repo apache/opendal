@@ -30,11 +30,12 @@ use tokio::sync::OnceCell;
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
 use crate::raw::ConfigDeserializer;
+use crate::Buffer;
+use crate::Builder;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
-use crate::{Buffer, Builder};
 
 /// Config for Surrealdb services support.
 #[derive(Default, Deserialize)]

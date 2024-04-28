@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
-use bytes::Buf;
 use std::collections::VecDeque;
+
+use bytes::Buf;
+
+use crate::*;
 
 /// QueueBuf is a queue of [`Buffer`].
 ///

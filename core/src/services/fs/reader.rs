@@ -15,18 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
 use tokio::io::ReadBuf;
 
+use super::core::*;
 use crate::raw::*;
 use crate::*;
 
 pub struct FsReader {
+    core: Arc<FsCore>,
     f: std::fs::File,
 }
 
 impl FsReader {
-    pub fn new(f: std::fs::File) -> Self {
-        Self { f }
+    pub fn new(core: Arc<FsCore>, f: std::fs::File) -> Self {
+        Self { core, f }
     }
 
     fn try_clone(&self) -> Result<Self> {
@@ -38,7 +41,10 @@ impl FsReader {
             .set_source(err)
         })?;
 
-        Ok(Self { f })
+        Ok(Self {
+            core: self.core.clone(),
+            f,
+        })
     }
 
     #[cfg(target_family = "unix")]
@@ -75,12 +81,13 @@ impl oio::Read for FsReader {
 
 impl oio::BlockingRead for FsReader {
     fn read_at(&self, mut offset: u64, limit: usize) -> Result<Buffer> {
-        let mut bs = Vec::with_capacity(limit);
+        let mut bs = self.core.buf_pool.get();
+        bs.reserve(limit);
 
-        let buf = bs.spare_capacity_mut();
+        let buf = &mut bs.spare_capacity_mut()[..limit];
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
-        // SAFETY: Read at most `size` bytes into `read_buf`.
+        // SAFETY: Read at most `limit` bytes into `read_buf`.
         unsafe {
             read_buf.assume_init(limit);
         }
@@ -101,6 +108,11 @@ impl oio::BlockingRead for FsReader {
         // Safety: We make sure that bs contains `n` more bytes.
         let filled = read_buf.filled().len();
         unsafe { bs.set_len(filled) }
-        Ok(Buffer::from(bs))
+
+        let frozen = bs.split().freeze();
+        // Return the buffer to the pool.
+        self.core.buf_pool.put(bs);
+
+        Ok(Buffer::from(frozen))
     }
 }

@@ -77,12 +77,20 @@ async fn execute_inner(args: Args) -> Result<()> {
     mount_option.uid(uid.into());
     mount_option.gid(gid.into());
     mount_option.no_open_dir_support(true);
+    mount_option.read_only(true);
 
     let adapter = fuse::Fuse::new(args.backend, uid.into(), gid.into());
 
-    let mut mount_handle = Session::new(mount_option)
-        .mount_with_unprivileged(adapter, args.mount_path)
-        .await?;
+    let session = Session::new(mount_option);
+
+    let mut mount_handle = if uid.is_root() {
+        session.mount(adapter, args.mount_path).await?
+    } else {
+        log::warn!("unprivileged mount may not detect external unmount, tracking issue: https://github.com/Sherlock-Holo/fuse3/issues/72");
+        session
+            .mount_with_unprivileged(adapter, args.mount_path)
+            .await?
+    };
 
     let handle = &mut mount_handle;
 

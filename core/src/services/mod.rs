@@ -406,3 +406,8 @@ mod surrealdb;
 pub use surrealdb::Surrealdb;
 #[cfg(feature = "services-surrealdb")]
 pub use surrealdb::SurrealdbConfig;
+
+#[cfg(feature = "services-compfs")]
+mod compfs;
+#[cfg(feature = "services-compfs")]
+pub use compfs::Compfs;

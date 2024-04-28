@@ -17,13 +17,14 @@
 
 use bb8::PooledConnection;
 use bytes::Buf;
-use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use futures::AsyncRead;
+use futures::AsyncWrite;
+use futures::AsyncWriteExt;
 
+use super::backend::Manager;
 use crate::raw::*;
 use crate::services::ftp::err::parse_error;
 use crate::*;
-
-use super::backend::Manager;
 
 trait DataStream: AsyncRead + AsyncWrite {}
 impl<T> DataStream for T where T: AsyncRead + AsyncWrite {}

@@ -281,7 +281,7 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
     type Error = Error;
 
     /// TODO: Implement unix stream support.
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let conn = TcpStream::connect(&self.address)
             .await
             .map_err(new_std_io_error)?;
@@ -293,7 +293,7 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
         Ok(conn)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         conn.version().await.map(|_| ())
     }
 

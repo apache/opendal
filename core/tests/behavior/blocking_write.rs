@@ -133,7 +133,7 @@ pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut a = op.writer_with(&path).append(true).call()?;
+    let mut a = op.writer_with(&path).append(true).call()?.into_std_write();
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));

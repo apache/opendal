@@ -95,18 +95,11 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => {
-                let headers = resp.headers();
+                let body = resp.into_body();
+                let resp: Entry =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
-                let sha = parse_etag(headers)?;
-
-                let Some(sha) = sha else {
-                    return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "No ETag found in response headers",
-                    ));
-                };
-
-                Ok(Some(sha.trim_matches('"').to_string()))
+                Ok(Some(resp.sha))
             }
             StatusCode::NOT_FOUND => Ok(None),
             _ => Err(parse_error(resp).await?),
@@ -123,12 +116,12 @@ impl GithubCore {
             percent_encode_path(&path)
         );
 
-        let req = Request::head(url);
+        let req = Request::get(url);
 
         let req = self.sign(req)?;
 
         let req = req
-            .header("Accept", "application/vnd.github.raw+json")
+            .header("Accept", "application/vnd.github.object+json")
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -195,11 +188,19 @@ impl GithubCore {
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
-        let Some(sha) = self.get_file_sha(path).await? else {
+        // If path is a directory, we should delete path/.gitkeep
+        let formatted_path = format!("{}.gitkeep", path);
+        let p = if path.ends_with('/') {
+            formatted_path.as_str()
+        } else {
+            path
+        };
+
+        let Some(sha) = self.get_file_sha(p).await? else {
             return Ok(());
         };
 
-        let path = build_abs_path(&self.root, path);
+        let path = build_abs_path(&self.root, p);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -228,11 +229,12 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
+    pub async fn list(&self, path: &str) -> Result<ListResponse> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -259,7 +261,35 @@ impl GithubCore {
                 let resp: ListResponse =
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
-                Ok(resp.entries)
+                Ok(resp)
+            }
+            StatusCode::NOT_FOUND => Ok(ListResponse::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    /// We use git_url to call github's Tree based API.
+    pub async fn list_with_recursive(&self, git_url: &str) -> Result<Vec<Tree>> {
+        let url = format!("{}?recursive=true", git_url);
+
+        let req = Request::get(url);
+
+        let req = self.sign(req)?;
+
+        let req = req
+            .header("Accept", "application/vnd.github.object+json")
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let body = resp.into_body();
+                let resp: ListTreeResponse =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+
+                Ok(resp.tree)
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -280,7 +310,26 @@ pub struct DeleteContentsRequest {
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
+pub struct ListTreeResponse {
+    pub tree: Vec<Tree>,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
+pub struct Tree {
+    pub path: String,
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub size: Option<u64>,
+    pub sha: String,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
 pub struct ListResponse {
+    pub size: u64,
+    pub sha: String,
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub git_url: String,
     pub entries: Vec<Entry>,
 }
 

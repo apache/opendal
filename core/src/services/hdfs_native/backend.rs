@@ -174,10 +174,10 @@ unsafe impl Sync for HdfsNativeBackend {}
 #[async_trait]
 impl Accessor for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
-    type BlockingReader = ();
     type Writer = HdfsNativeWriter;
-    type BlockingWriter = ();
     type Lister = Option<HdfsNativeLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
@@ -186,7 +186,9 @@ impl Accessor for HdfsNativeBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
-
+                list: true,
+                read: true,
+                write: true,
                 delete: true,
                 rename: true,
                 blocking: true,
@@ -205,42 +207,6 @@ impl Accessor for HdfsNativeBackend {
             .await
             .map_err(parse_hdfs_error)?;
         Ok(RpCreateDir::default())
-    }
-
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
-
-        let r = HdfsNativeReader::new(f);
-
-        Ok((RpRead::new(), r))
-    }
-
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = self
-            .client
-            .create(&p, WriteOptions::default())
-            .await
-            .map_err(parse_hdfs_error)?;
-
-        let w = HdfsNativeWriter::new(f);
-
-        Ok((RpWrite::new(), w))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path = build_rooted_abs_path(&self.root, to);
-
-        self.client
-            .rename(&from_path, &to_path, false)
-            .await
-            .map_err(parse_hdfs_error)?;
-
-        Ok(RpRename::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -268,6 +234,30 @@ impl Accessor for HdfsNativeBackend {
         Ok(RpStat::new(metadata))
     }
 
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
+
+        let r = HdfsNativeReader::new(f);
+
+        Ok((RpRead::new(), r))
+    }
+
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self
+            .client
+            .create(&p, WriteOptions::default())
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        let w = HdfsNativeWriter::new(f);
+
+        Ok((RpWrite::new(), w))
+    }
+
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -284,5 +274,17 @@ impl Accessor for HdfsNativeBackend {
         let list_status_iterator = self.client.list_status_iter(&p, false);
         let l = HdfsNativeLister::new(&self.root, list_status_iterator);
         Ok((RpList::default(), Some(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        let to_path = build_rooted_abs_path(&self.root, to);
+
+        self.client
+            .rename(&from_path, &to_path, false)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(RpRename::default())
     }
 }

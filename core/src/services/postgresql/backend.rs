@@ -32,16 +32,16 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for PostGresQL services support.
+/// Config for PostgreSQL services support.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct PostgresqlConfig {
-    /// root of this backend.
+    /// Root of this backend.
     ///
     /// All operations will happen under this root.
     ///
-    /// default to `/` if not set.
+    /// Default to `/` if not set.
     pub root: Option<String>,
     /// the connection string of postgres server
     connection_string: Option<String>,
@@ -69,7 +69,7 @@ impl Debug for PostgresqlConfig {
     }
 }
 
-/// [Postgresql](https://www.postgresql.org/) services support.
+/// [PostgreSQL](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PostgresqlBuilder {

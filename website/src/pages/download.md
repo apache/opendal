@@ -4,9 +4,10 @@ The official Apache OpenDAL releases are provided as source artifacts.
 
 ## Releases
 
-The latest source release is [0.45.0](
-https://www.apache.org/dyn/closer.lua/opendal/0.45.0/apache-opendal-0.45.0-src.tar.gz?action=download) ([asc](https://downloads.apache.org/opendal/0.45.0/apache-opendal-0.45.0-src.tar.gz.asc),
-[sha512](https://downloads.apache.org/opendal/0.45.0/apache-opendal-0.45.0-src.tar.gz.sha512)).
+The latest source release is [0.45.1](
+https://www.apache.org/dyn/closer.lua/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz?action=download)
+([asc](https://downloads.apache.org/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz.asc),
+[sha512](https://downloads.apache.org/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz.sha512)).
 
 For older releases, please check the [archive](https://archive.apache.org/dist/opendal/).
 
@@ -25,15 +26,15 @@ You will need to download both the release artifact and the .asc signature file 
 * Download the KEYS file and the .asc signature files for the relevant release artifacts.
 * Import the KEYS file to your GPG keyring: 
 
-    ```shell
-    gpg --import KEYS
-    ```
+```shell
+gpg --import KEYS
+```
 
 * Verify the signature of the release artifact using the following command:
   
-    ```shell
-    gpg --verify <artifact>.asc <artifact>
-    ```
+```shell
+gpg --verify <artifact>.asc <artifact>
+```
 
 ### To verify the checksum of the release artifact
 

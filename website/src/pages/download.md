@@ -4,10 +4,11 @@ The official Apache OpenDAL releases are provided as source artifacts.
 
 ## Releases
 
-The latest source release is [0.45.1](
-https://www.apache.org/dyn/closer.lua/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz?action=download)
-([asc](https://downloads.apache.org/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz.asc),
-[sha512](https://downloads.apache.org/opendal/0.45.1/apache-opendal-0.45.0-src.tar.gz.sha512)).
+The latest source release is [0.45.1][source-link] ([asc][asc-link], [sha512][sha512-link]).
+
+[source-link]: https://www.apache.org/dyn/closer.lua/opendal/0.45.1/apache-opendal-core-0.45.1-src.tar.gz?action=download
+[asc-link]: https://downloads.apache.org/opendal/0.45.1/apache-opendal-core-0.45.1-src.tar.gz.asc
+[sha512-link]: https://downloads.apache.org/opendal/0.45.1/apache-opendal-core-0.45.1-src.tar.gz.sha512
 
 For older releases, please check the [archive](https://archive.apache.org/dist/opendal/).
 

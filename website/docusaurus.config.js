@@ -36,8 +36,8 @@ const config = {
   url: 'https://opendal.apache.org/',
   baseUrl: '/',
 
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'throw',
+  onBrokenMarkdownLinks: 'throw',
 
   i18n: {
     defaultLocale: 'en',

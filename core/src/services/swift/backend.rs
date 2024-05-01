@@ -243,7 +243,7 @@ impl Accessor for SwiftBackend {
 
         let w = oio::OneShotWriter::new(writer);
 
-        return Ok((RpWrite::default(), w));
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {

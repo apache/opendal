@@ -362,7 +362,7 @@ impl kv::Adapter for Adapter {
                     }),
             }) => {
                 if rows.is_empty() || rows[0].is_empty() {
-                    return Ok(None);
+                    Ok(None)
                 } else {
                     let val = &rows[0][0];
                     match val {

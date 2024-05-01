@@ -314,7 +314,7 @@ impl Accessor for SeafileBackend {
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
-        let _ = self.core.delete(path).await?;
+        self.core.delete(path).await?;
 
         Ok(RpDelete::default())
     }

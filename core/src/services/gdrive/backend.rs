@@ -143,7 +143,7 @@ impl Accessor for GdriveBackend {
 
         self.core.path_cache.remove(&path).await;
 
-        return Ok(RpDelete::default());
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -396,7 +396,7 @@ impl Accessor for SftpBackend {
             fs.set_cwd(&current);
         }
 
-        return Ok(RpCreateDir::default());
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

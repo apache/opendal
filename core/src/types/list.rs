@@ -178,7 +178,7 @@ impl Stream for Lister {
                             } else {
                                 let acc = self.acc.clone();
                                 let fut = async move {
-                                    let res = acc.stat_dyn(&path, OpStat::default()).await;
+                                    let res = acc.stat(&path, OpStat::default()).await;
                                     (path, res.map(|rp| rp.into_metadata()))
                                 };
                                 self.tasks.push_back(StatTask::Stating(Box::pin(fut)));

@@ -354,7 +354,7 @@ impl Accessor for AzfileBackend {
         } else {
             AzfileWriters::One(oio::OneShotWriter::new(w))
         };
-        return Ok((RpWrite::default(), w));
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

@@ -705,7 +705,7 @@ impl Access for () {
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
-/// `Accessor` for `Arc<impl Accessor>`.
+/// `Accessor` for `Arc<impl Access>`.
 // If we use async fn directly, some weird higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
 // Probably related to https://github.com/rust-lang/rust/issues/96865
 #[allow(clippy::manual_async_fn)]
@@ -842,7 +842,7 @@ pub struct AccessorInfo {
     full_capability: Capability,
 }
 
-impl AccessorInfo {
+impl AccessInfo {
     /// [`Scheme`] of backend.
     pub fn scheme(&self) -> Scheme {
         self.scheme

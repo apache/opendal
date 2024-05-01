@@ -20,7 +20,7 @@
 //! [`Layer`] itself is quite simple:
 //!
 //! ```ignore
-//! pub trait Layer<A: Accessor> {
+//! pub trait Layer<A: Access> {
 //!     type LayeredAccess: Accessor;
 //!
 //!     fn layer(&self, inner: A) -> Self::LayeredAccess;

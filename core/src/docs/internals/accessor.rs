@@ -122,7 +122,7 @@
 //! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
 //!
 //! ```ignore
-//! impl Accessor for MyBackend {
+//! impl Access for MyBackend {
 //!     fn metadata(&self) -> AccessorInfo {
 //!         let mut am = AccessorInfo::default();
 //!         am.set_capability(
@@ -285,7 +285,7 @@
 //! }
 //!
 //! #[async_trait]
-//! impl Accessor for DuckBackend {
+//! impl Access for DuckBackend {
 //!     type Reader = DuckReader;
 //!     type BlockingReader = ();
 //!     type Writer = ();

@@ -50,11 +50,11 @@ use crate::*;
 ///
 /// /// Implement the real accessor logic here.
 /// #[derive(Debug)]
-/// struct TraceAccessor<A: Accessor> {
+/// struct TraceAccessor<A: Access> {
 ///     inner: A,
 /// }
 ///
-/// impl<A: Accessor> LayeredAccess for TraceAccessor<A> {
+/// impl<A: Access> LayeredAccess for TraceAccessor<A> {
 ///     type Inner = A;
 ///     type Reader = A::Reader;
 ///     type BlockingReader = A::BlockingReader;
@@ -109,7 +109,7 @@ use crate::*;
 /// /// Will be used like `op.layer(TraceLayer)`
 /// struct TraceLayer;
 ///
-/// impl<A: Accessor> Layer<A> for TraceLayer {
+/// impl<A: Access> Layer<A> for TraceLayer {
 ///     type LayeredAccess = TraceAccessor<A>;
 ///
 ///     fn layer(&self, inner: A) -> Self::LayeredAccess {

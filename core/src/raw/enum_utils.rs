@@ -19,7 +19,7 @@
 //! So we can't write the following code:
 //!
 //! ```txt
-//! impl Accessor for S3Backend {
+//! impl Access for S3Backend {
 //!     type Writer = impl oio::Write;
 //! }
 //! ```
@@ -27,7 +27,7 @@
 //! Which means we have to write the type directly like:
 //!
 //! ```txt
-//! impl Accessor for OssBackend {
+//! impl Access for OssBackend {
 //!     type Writer = raw::TwoWays<
 //!         oio::MultipartWriter<OssWriter>,
 //!         oio::AppendWriter<OssWriter>,

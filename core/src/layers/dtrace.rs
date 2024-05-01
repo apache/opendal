@@ -168,7 +168,7 @@ use crate::*;
 #[derive(Default, Debug, Clone)]
 pub struct DtraceLayer {}
 
-impl<A: Accessor> Layer<A> for DtraceLayer {
+impl<A: Access> Layer<A> for DtraceLayer {
     type LayeredAccess = DTraceAccessor<A>;
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         DTraceAccessor { inner }
@@ -176,11 +176,11 @@ impl<A: Accessor> Layer<A> for DtraceLayer {
 }
 
 #[derive(Clone)]
-pub struct DTraceAccessor<A: Accessor> {
+pub struct DTraceAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> Debug for DTraceAccessor<A> {
+impl<A: Access> Debug for DTraceAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DTraceAccessor")
             .field("inner", &self.inner)
@@ -188,7 +188,7 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccess for DTraceAccessor<A> {
+impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;
     type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;

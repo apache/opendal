@@ -485,99 +485,117 @@ where
     >,
 {
     fn info_dyn(&self) -> AccessorInfo {
-        <Self as Accessor>::info(self)
+        self.info()
     }
+
     fn create_dir_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpCreateDir,
     ) -> BoxedFuture<'a, Result<RpCreateDir>> {
-        <Self as Accessor>::create_dir(self, path, args).boxed()
+        self.create_dir(path, args).boxed()
     }
+
     fn stat_dyn<'a>(&'a self, path: &'a str, args: OpStat) -> BoxedFuture<'a, Result<RpStat>> {
-        <Self as Accessor>::stat(self, path, args).boxed()
+        self.stat(path, args).boxed()
     }
+
     fn read_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpRead,
     ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>> {
-        <Self as Accessor>::read(self, path, args).boxed()
+        self.read(path, args).boxed()
     }
+
     fn write_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpWrite,
     ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>> {
-        <Self as Accessor>::write(self, path, args).boxed()
+        self.write(path, args).boxed()
     }
+
     fn delete_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpDelete,
     ) -> BoxedFuture<'a, Result<RpDelete>> {
-        <Self as Accessor>::delete(self, path, args).boxed()
+        self.delete(path, args).boxed()
     }
+
     fn list_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpList,
     ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>> {
-        <Self as Accessor>::list(self, path, args).boxed()
+        self.list(path, args).boxed()
     }
+
     fn copy_dyn<'a>(
         &'a self,
         from: &'a str,
         to: &'a str,
         args: OpCopy,
     ) -> BoxedFuture<'a, Result<RpCopy>> {
-        <Self as Accessor>::copy(self, from, to, args).boxed()
+        self.copy(from, to, args).boxed()
     }
+
     fn rename_dyn<'a>(
         &'a self,
         from: &'a str,
         to: &'a str,
         args: OpRename,
     ) -> BoxedFuture<'a, Result<RpRename>> {
-        <Self as Accessor>::rename(self, from, to, args).boxed()
+        self.rename(from, to, args).boxed()
     }
+
     fn presign_dyn<'a>(
         &'a self,
         path: &'a str,
         args: OpPresign,
     ) -> BoxedFuture<'a, Result<RpPresign>> {
-        <Self as Accessor>::presign(self, path, args).boxed()
+        self.presign(path, args).boxed()
     }
-    fn batch_dyn<'a>(&'a self, args: OpBatch) -> BoxedFuture<'a, Result<RpBatch>> {
-        <Self as Accessor>::batch(self, args).boxed()
+
+    fn batch_dyn(&self, args: OpBatch) -> BoxedFuture<'_, Result<RpBatch>> {
+        self.batch(args).boxed()
     }
+
     fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        <Self as Accessor>::blocking_create_dir(self, path, args)
+        self.blocking_create_dir(path, args)
     }
+
     fn blocking_stat_dyn(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        <Self as Accessor>::blocking_stat(self, path, args)
+        self.blocking_stat(path, args)
     }
+
     fn blocking_read_dyn(&self, path: &str, args: OpRead) -> Result<(RpRead, oio::BlockingReader)> {
-        <Self as Accessor>::blocking_read(self, path, args)
+        self.blocking_read(path, args)
     }
+
     fn blocking_write_dyn(
         &self,
         path: &str,
         args: OpWrite,
     ) -> Result<(RpWrite, oio::BlockingWriter)> {
-        <Self as Accessor>::blocking_write(self, path, args)
+        self.blocking_write(path, args)
     }
+
     fn blocking_delete_dyn(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        <Self as Accessor>::blocking_delete(self, path, args)
+        self.blocking_delete(path, args)
     }
+
     fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)> {
-        <Self as Accessor>::blocking_list(self, path, args)
+        self.blocking_list(path, args)
     }
+
     fn blocking_copy_dyn(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        <Self as Accessor>::blocking_copy(self, from, to, args)
+        self.blocking_copy(from, to, args)
     }
+
     fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        <Self as Accessor>::blocking_rename(self, from, to, args)
+        self.blocking_rename(from, to, args)
     }
 }
 
@@ -593,74 +611,40 @@ impl Accessor for dyn AccessorDyn {
         self.info_dyn()
     }
 
-    fn create_dir(
-        &self,
-        path: &str,
-        args: OpCreateDir,
-    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
-        async move { self.create_dir_dyn(path, args).await }
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        self.create_dir_dyn(path, args).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
-        async move { self.stat_dyn(path, args).await }
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.stat_dyn(path, args).await
     }
 
-    fn read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend {
-        async move { self.read_dyn(path, args).await }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.read_dyn(path, args).await
     }
 
-    fn write(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
-        async move { self.write_dyn(path, args).await }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.write_dyn(path, args).await
     }
 
-    fn delete(
-        &self,
-        path: &str,
-        args: OpDelete,
-    ) -> impl Future<Output = Result<RpDelete>> + MaybeSend {
-        async move { self.delete_dyn(path, args).await }
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        self.delete_dyn(path, args).await
     }
 
-    fn list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend {
-        async move { self.list_dyn(path, args).await }
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        self.list_dyn(path, args).await
     }
 
-    fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
-        async move { self.copy_dyn(from, to, args).await }
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.copy_dyn(from, to, args).await
     }
 
-    fn rename(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpRename,
-    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
-        async move { self.rename_dyn(from, to, args).await }
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.rename_dyn(from, to, args).await
     }
 
-    fn presign(
-        &self,
-        path: &str,
-        args: OpPresign,
-    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
-        async move { self.presign_dyn(path, args).await }
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.presign_dyn(path, args).await
     }
 
     fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
@@ -722,6 +706,9 @@ impl Accessor for () {
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<impl Accessor>`.
+// If we use async fn directly, some weired higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
+// Probably related to https://github.com/rust-lang/rust/issues/96865
+#[allow(clippy::manual_async_fn)]
 impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
     type Writer = T::Writer;
@@ -734,49 +721,88 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.as_ref().create_dir(path, args).await
+    fn create_dir(
+        &self,
+        path: &str,
+        args: OpCreateDir,
+    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
+        async move { self.as_ref().create_dir(path, args).await }
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().stat(path, args).await
-    }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.as_ref().read(path, args).await
+    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
+        async move { self.as_ref().stat(path, args).await }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.as_ref().write(path, args).await
+    fn read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend {
+        async move { self.as_ref().read(path, args).await }
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().delete(path, args).await
+    fn write(
+        &self,
+        path: &str,
+        args: OpWrite,
+    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
+        async move { self.as_ref().write(path, args).await }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.as_ref().list(path, args).await
-    }
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.as_ref().copy(from, to, args).await
-    }
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.as_ref().rename(from, to, args).await
+    fn delete(
+        &self,
+        path: &str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<RpDelete>> + MaybeSend {
+        async move { self.as_ref().delete(path, args).await }
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.as_ref().presign(path, args).await
+    fn list(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend {
+        async move { self.as_ref().list(path, args).await }
     }
 
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.as_ref().batch(args).await
+    fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
+        async move { self.as_ref().copy(from, to, args).await }
+    }
+
+    fn rename(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
+        async move { self.as_ref().rename(from, to, args).await }
+    }
+
+    fn presign(
+        &self,
+        path: &str,
+        args: OpPresign,
+    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
+        async move { self.as_ref().presign(path, args).await }
+    }
+
+    fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
+        async move { self.as_ref().batch(args).await }
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().blocking_create_dir(path, args)
     }
+
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().blocking_stat(path, args)
     }
+
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.as_ref().blocking_read(path, args)
     }
@@ -792,9 +818,11 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.as_ref().blocking_list(path, args)
     }
+
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.as_ref().blocking_copy(from, to, args)
     }
+
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.as_ref().blocking_rename(from, to, args)
     }

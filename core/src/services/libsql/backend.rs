@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use hrana_client_proto::pipeline::ClientMsg;
@@ -334,7 +333,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -364,7 +362,7 @@ impl kv::Adapter for Adapter {
                     }),
             }) => {
                 if rows.is_empty() || rows[0].is_empty() {
-                    return Ok(None);
+                    Ok(None)
                 } else {
                     let val = &rows[0][0];
                     match val {

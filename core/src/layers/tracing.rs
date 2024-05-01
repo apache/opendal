@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use tracing::Span;
 
@@ -127,8 +126,6 @@ pub struct TracingAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;

@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -247,7 +246,6 @@ pub struct ObsBackend {
     core: Arc<ObsCore>,
 }
 
-#[async_trait]
 impl Accessor for ObsBackend {
     type Reader = ObsReader;
     type Writer = ObsWriters;

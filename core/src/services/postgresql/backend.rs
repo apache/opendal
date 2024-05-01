@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use serde::Deserialize;
@@ -262,7 +261,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

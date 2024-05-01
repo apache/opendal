@@ -22,7 +22,7 @@ use std::str;
 use std::str::FromStr;
 
 use async_tls::TlsConnector;
-use async_trait::async_trait;
+
 use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
@@ -211,7 +211,7 @@ pub struct Manager {
     enable_secure: bool,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;
@@ -282,7 +282,6 @@ impl Debug for FtpBackend {
     }
 }
 
-#[async_trait]
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type Writer = FtpWriter;
@@ -337,7 +336,7 @@ impl Accessor for FtpBackend {
             }
         }
 
-        return Ok(RpCreateDir::default());
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

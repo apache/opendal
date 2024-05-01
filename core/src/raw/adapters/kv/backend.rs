@@ -18,8 +18,6 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
-use async_trait::async_trait;
-
 use super::Adapter;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
@@ -58,8 +56,6 @@ where
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = Buffer;
     type BlockingReader = Buffer;

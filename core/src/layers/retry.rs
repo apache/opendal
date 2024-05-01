@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -269,8 +268,6 @@ impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
     type Inner = A;
     type Reader = RetryWrapper<A::Reader, I>;
@@ -901,7 +898,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
-    use async_trait::async_trait;
     use bytes::Bytes;
     use futures::TryStreamExt;
 
@@ -932,8 +928,6 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = MockReader;
         type Writer = ();

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
@@ -75,8 +74,6 @@ pub struct ConcurrentLimitAccessor<A: Accessor> {
     semaphore: Arc<Semaphore>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitWrapper<A::Reader>;

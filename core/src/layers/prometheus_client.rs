@@ -21,7 +21,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -205,8 +204,6 @@ impl<A: Accessor> Debug for PrometheusAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     type Inner = A;
     type Reader = PrometheusMetricWrapper<A::Reader>;

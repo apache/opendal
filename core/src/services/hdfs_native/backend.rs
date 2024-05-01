@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use hdfs_native::WriteOptions;
 use log::debug;
 use serde::Deserialize;
@@ -171,7 +170,6 @@ pub struct HdfsNativeBackend {
 unsafe impl Send for HdfsNativeBackend {}
 unsafe impl Sync for HdfsNativeBackend {}
 
-#[async_trait]
 impl Accessor for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
     type BlockingReader = ();

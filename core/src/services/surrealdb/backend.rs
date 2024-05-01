@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use serde::Deserialize;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
@@ -317,7 +316,7 @@ impl Adapter {
             .map(|v| v.as_ref())
     }
 }
-#[async_trait]
+
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

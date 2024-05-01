@@ -17,7 +17,7 @@
 
 use std::collections::VecDeque;
 
-use async_trait::async_trait;
+use futures::Future;
 use moka::sync::Cache;
 use tokio::sync::Mutex;
 use tokio::sync::MutexGuard;
@@ -26,15 +26,21 @@ use crate::raw::*;
 use crate::*;
 
 /// The trait required for path cacher.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait PathQuery {
     /// Fetch the id for the root of the service.
-    async fn root(&self) -> Result<String>;
+    fn root(&self) -> impl Future<Output = Result<String>> + MaybeSend;
     /// Query the id by parent_id and name.
-    async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>>;
+    fn query(
+        &self,
+        parent_id: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<Option<String>>> + MaybeSend;
     /// Create a dir by parent_id and name.
-    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String>;
+    fn create_dir(
+        &self,
+        parent_id: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<String>> + MaybeSend;
 }
 
 /// PathCacher is a cache for path query.
@@ -194,7 +200,6 @@ impl<Q: PathQuery> PathCacher<Q> {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
 
     use crate::raw::PathCacher;
     use crate::raw::PathQuery;
@@ -202,7 +207,6 @@ mod tests {
 
     struct TestQuery {}
 
-    #[async_trait]
     impl PathQuery for TestQuery {
         async fn root(&self) -> Result<String> {
             Ok("root/".to_string())

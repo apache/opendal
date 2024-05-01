@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use http::header;
@@ -487,7 +486,6 @@ impl IcloudPathQuery {
     }
 }
 
-#[async_trait]
 impl PathQuery for IcloudPathQuery {
     async fn root(&self) -> Result<String> {
         Ok("FOLDER::com.apple.CloudDocs::root".to_string())

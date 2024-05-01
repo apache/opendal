@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 
-use async_trait::async_trait;
+use futures::Future;
 
 use crate::raw::*;
 use crate::*;
@@ -44,7 +44,7 @@ use crate::*;
 /// ```
 /// use std::sync::Arc;
 ///
-/// use async_trait::async_trait;
+///
 /// use opendal::raw::*;
 /// use opendal::*;
 ///
@@ -54,8 +54,6 @@ use crate::*;
 ///     inner: A,
 /// }
 ///
-/// #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-/// #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 /// impl<A: Accessor> LayeredAccessor for TraceAccessor<A> {
 ///     type Inner = A;
 ///     type Reader = A::Reader;
@@ -130,8 +128,7 @@ pub trait Layer<A: Accessor> {
 /// LayeredAccessor is layered accessor that forward all not implemented
 /// method to inner.
 #[allow(missing_docs)]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+
 pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: oio::Read;
@@ -147,38 +144,72 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner().create_dir(path, args).await
+    fn create_dir(
+        &self,
+        path: &str,
+        args: OpCreateDir,
+    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
+        self.inner().create_dir(path, args)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
+    fn read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
+    fn write(
+        &self,
+        path: &str,
+        args: OpWrite,
+    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend;
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner().copy(from, to, args).await
+    fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
+        self.inner().copy(from, to, args)
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner().rename(from, to, args).await
+    fn rename(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
+        self.inner().rename(from, to, args)
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner().stat(path, args).await
+    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
+        self.inner().stat(path, args)
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner().delete(path, args).await
+    fn delete(
+        &self,
+        path: &str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<RpDelete>> + MaybeSend {
+        self.inner().delete(path, args)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)>;
+    fn list(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend;
 
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner().batch(args).await
+    fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
+        self.inner().batch(args)
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner().presign(path, args).await
+    fn presign(
+        &self,
+        path: &str,
+        args: OpPresign,
+    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
+        self.inner().presign(path, args)
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -208,8 +239,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)>;
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
@@ -322,8 +351,6 @@ mod tests {
         }
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl<A: Accessor> Accessor for Test<A> {
         type Reader = ();
         type BlockingReader = ();

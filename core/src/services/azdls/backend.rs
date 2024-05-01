@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;
@@ -244,7 +243,6 @@ pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
 }
 
-#[async_trait]
 impl Accessor for AzdlsBackend {
     type Reader = AzdlsReader;
     type Writer = AzdlsWriters;

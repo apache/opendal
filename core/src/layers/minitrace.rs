@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
@@ -126,8 +125,6 @@ pub struct MinitraceAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     type Inner = A;
     type Reader = MinitraceWrapper<A::Reader>;

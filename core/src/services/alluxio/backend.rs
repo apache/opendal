@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 
@@ -180,7 +179,6 @@ pub struct AlluxioBackend {
     core: Arc<AlluxioCore>,
 }
 
-#[async_trait]
 impl Accessor for AlluxioBackend {
     type Reader = AlluxioReader;
     type Writer = AlluxioWriters;

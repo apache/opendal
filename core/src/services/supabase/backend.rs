@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 
@@ -155,7 +154,6 @@ pub struct SupabaseBackend {
     core: Arc<SupabaseCore>,
 }
 
-#[async_trait]
 impl Accessor for SupabaseBackend {
     type Reader = SupabaseReader;
     type Writer = oio::OneShotWriter<SupabaseWriter>;

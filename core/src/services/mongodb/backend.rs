@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
@@ -249,7 +248,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

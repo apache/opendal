@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;
@@ -265,7 +264,6 @@ pub struct AzfileBackend {
     core: Arc<AzfileCore>,
 }
 
-#[async_trait]
 impl Accessor for AzfileBackend {
     type Reader = AzfileReader;
     type Writer = AzfileWriters;
@@ -356,7 +354,7 @@ impl Accessor for AzfileBackend {
         } else {
             AzfileWriters::One(oio::OneShotWriter::new(w))
         };
-        return Ok((RpWrite::default(), w));
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use dashmap::DashMap;
 use serde::Deserialize;
 
@@ -83,7 +82,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(

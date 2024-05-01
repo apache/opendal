@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -236,7 +235,6 @@ impl Debug for WebdavBackend {
     }
 }
 
-#[async_trait]
 impl Accessor for WebdavBackend {
     type Reader = WebdavReader;
     type Writer = oio::OneShotWriter<WebdavWriter>;

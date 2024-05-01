@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
@@ -97,8 +96,6 @@ pub struct ChaosAccessor<A> {
     error_ratio: f64,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;

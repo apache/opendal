@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -331,8 +330,6 @@ pub struct GcsBackend {
     core: Arc<GcsCore>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GcsBackend {
     type Reader = GcsReader;
     type Writer = GcsWriters;

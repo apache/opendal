@@ -20,7 +20,6 @@ use std::fmt::Write;
 use std::str;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::Request;
 use http::Response;
@@ -62,7 +61,6 @@ impl IpmfsBackend {
     }
 }
 
-#[async_trait]
 impl Accessor for IpmfsBackend {
     type Reader = IpmfsReader;
     type Writer = oio::OneShotWriter<IpmfsWriter>;

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;
@@ -59,8 +58,6 @@ impl<A: Accessor> Debug for ErrorContextAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = ErrorContextWrapper<A::Reader>;

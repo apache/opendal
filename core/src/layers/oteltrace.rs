@@ -17,7 +17,6 @@
 
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
@@ -63,8 +62,6 @@ pub struct OtelTraceAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     type Inner = A;
     type Reader = OtelTraceWrapper<A::Reader>;

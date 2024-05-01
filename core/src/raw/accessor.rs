@@ -706,7 +706,7 @@ impl Accessor for () {
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<impl Accessor>`.
-// If we use async fn directly, some weired higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
+// If we use async fn directly, some weird higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
 // Probably related to https://github.com/rust-lang/rust/issues/96865
 #[allow(clippy::manual_async_fn)]
 impl<T: Accessor + ?Sized> Accessor for Arc<T> {

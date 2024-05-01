@@ -493,11 +493,11 @@ where
         path: &'a str,
         args: OpCreateDir,
     ) -> BoxedFuture<'a, Result<RpCreateDir>> {
-        self.create_dir(path, args).boxed()
+        Box::pin(self.create_dir(path, args))
     }
 
     fn stat_dyn<'a>(&'a self, path: &'a str, args: OpStat) -> BoxedFuture<'a, Result<RpStat>> {
-        self.stat(path, args).boxed()
+        Box::pin(self.stat(path, args))
     }
 
     fn read_dyn<'a>(
@@ -505,7 +505,7 @@ where
         path: &'a str,
         args: OpRead,
     ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>> {
-        self.read(path, args).boxed()
+        Box::pin(self.read(path, args))
     }
 
     fn write_dyn<'a>(
@@ -513,7 +513,7 @@ where
         path: &'a str,
         args: OpWrite,
     ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>> {
-        self.write(path, args).boxed()
+        Box::pin(self.write(path, args))
     }
 
     fn delete_dyn<'a>(
@@ -521,7 +521,7 @@ where
         path: &'a str,
         args: OpDelete,
     ) -> BoxedFuture<'a, Result<RpDelete>> {
-        self.delete(path, args).boxed()
+        Box::pin(self.delete(path, args))
     }
 
     fn list_dyn<'a>(
@@ -529,7 +529,7 @@ where
         path: &'a str,
         args: OpList,
     ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>> {
-        self.list(path, args).boxed()
+        Box::pin(self.list(path, args))
     }
 
     fn copy_dyn<'a>(
@@ -538,7 +538,7 @@ where
         to: &'a str,
         args: OpCopy,
     ) -> BoxedFuture<'a, Result<RpCopy>> {
-        self.copy(from, to, args).boxed()
+        Box::pin(self.copy(from, to, args))
     }
 
     fn rename_dyn<'a>(
@@ -547,7 +547,7 @@ where
         to: &'a str,
         args: OpRename,
     ) -> BoxedFuture<'a, Result<RpRename>> {
-        self.rename(from, to, args).boxed()
+        Box::pin(self.rename(from, to, args))
     }
 
     fn presign_dyn<'a>(
@@ -555,11 +555,11 @@ where
         path: &'a str,
         args: OpPresign,
     ) -> BoxedFuture<'a, Result<RpPresign>> {
-        self.presign(path, args).boxed()
+        Box::pin(self.presign(path, args))
     }
 
     fn batch_dyn(&self, args: OpBatch) -> BoxedFuture<'_, Result<RpBatch>> {
-        self.batch(args).boxed()
+        Box::pin(self.batch(args))
     }
 
     fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

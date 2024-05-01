@@ -842,7 +842,7 @@ pub struct AccessorInfo {
     full_capability: Capability,
 }
 
-impl AccessInfo {
+impl AccessorInfo {
     /// [`Scheme`] of backend.
     pub fn scheme(&self) -> Scheme {
         self.scheme

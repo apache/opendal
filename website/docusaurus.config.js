@@ -26,12 +26,22 @@ const repoAddress = 'https://github.com/apache/opendal';
 
 const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL ? process.env.OPENDAL_WEBSITE_BASE_URL : '/';
 const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST ? process.env.OPENDAL_WEBSITE_NOT_LATEST : false;
+const websiteStaging = process.env.OPENDAL_WEBSITE_STAGING ? process.env.OPENDAL_WEBSITE_STAGING : false;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Apache OpenDAL™',
   tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
   favicon: 'img/favicon.ico',
+
+  customFields: {
+    isStaging: websiteStaging,
+    version: (function () {
+      const semver = require('semver');
+      const version = semver.parse('v0.45.1-169-gc53c33065c', {});
+      return `${version.major}.${version.minor}.${version.patch}`;
+    })()
+  },
 
   url: 'https://opendal.apache.org/',
   baseUrl: '/',

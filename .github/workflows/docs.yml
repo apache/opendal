@@ -21,6 +21,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -467,6 +469,26 @@ jobs:
       - name: Clear build
         run: rm -rf ./website/build
 
+      - name: Build for staging version
+        working-directory: website
+        run: pnpm build
+        env:
+            OPENDAL_WEBSITE_STAGING: true
+
+      - name: Copy asf file
+        run: cp .asf.yaml ./website/build/.asf.yaml
+
+      - name: Deploy to asf-staging
+        uses: peaceiris/actions-gh-pages@v3.9.2
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: website/build
+          publish_branch: asf-staging
+
+      - name: Clear build
+        run: rm -rf ./website/build
+
       - name: Build for nightlies with tagged version
         working-directory: website
         run: pnpm build
@@ -477,7 +499,7 @@ jobs:
 
       - name: Deploy to nightlies for tagged version
         uses: burnett01/rsync-deployments@5.2
-        if: "startsWith(github.ref, 'refs/tags/')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr
           path: website/build/
@@ -498,7 +520,7 @@ jobs:
 
       - name: Deploy to nightlies for stable version
         uses: burnett01/rsync-deployments@5.2
-        if: "startsWith(github.ref, 'refs/tags/')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr --delete
           path: website/build/

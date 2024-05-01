@@ -44,5 +44,9 @@ notifications:
   pullrequests: commits@opendal.apache.org
   discussions: commits@opendal.apache.org
 
+staging:
+  profile: ~
+  whoami:  asf-staging
+
 publish:
   whoami: gh-pages

@@ -7,6 +7,8 @@ function SourceTarballUrl() {
         siteConfig: {customFields},
     } = useDocusaurusContext();
     const version = customFields.version;
+    // TODO: We can retrieve if staging as customFields.isStaging,
+    //  but which links should we use for staging?
     const link = `https://www.apache.org/dyn/closer.lua/opendal/${version}/apache-opendal-core-${version}-src.tar.gz?action=download`;
     return <Link to={link}>0.45.1</Link>
 }

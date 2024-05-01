@@ -243,7 +243,7 @@ pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
 }
 
-impl Accessor for AzdlsBackend {
+impl Access for AzdlsBackend {
     type Reader = AzdlsReader;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;

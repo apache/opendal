@@ -374,7 +374,7 @@ pub struct OssBackend {
     core: Arc<OssCore>,
 }
 
-impl Accessor for OssBackend {
+impl Access for OssBackend {
     type Reader = OssReader;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;

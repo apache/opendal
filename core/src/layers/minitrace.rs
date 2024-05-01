@@ -112,10 +112,10 @@ use crate::*;
 /// For real-world usage, please take a look at [`minitrace-datadog`](https://crates.io/crates/minitrace-datadog) or [`minitrace-jaeger`](https://crates.io/crates/minitrace-jaeger) .
 pub struct MinitraceLayer;
 
-impl<A: Accessor> Layer<A> for MinitraceLayer {
-    type LayeredAccessor = MinitraceAccessor<A>;
+impl<A: Access> Layer<A> for MinitraceLayer {
+    type LayeredAccess = MinitraceAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         MinitraceAccessor { inner }
     }
 }
@@ -125,7 +125,7 @@ pub struct MinitraceAccessor<A> {
     inner: A,
 }
 
-impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
+impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
     type Inner = A;
     type Reader = MinitraceWrapper<A::Reader>;
     type BlockingReader = MinitraceWrapper<A::BlockingReader>;

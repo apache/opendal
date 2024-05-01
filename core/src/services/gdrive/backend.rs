@@ -39,7 +39,7 @@ pub struct GdriveBackend {
     pub core: Arc<GdriveCore>,
 }
 
-impl Accessor for GdriveBackend {
+impl Access for GdriveBackend {
     type Reader = GdriveReader;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;

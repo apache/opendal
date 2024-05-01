@@ -264,7 +264,7 @@ pub struct AzfileBackend {
     core: Arc<AzfileCore>,
 }
 
-impl Accessor for AzfileBackend {
+impl Access for AzfileBackend {
     type Reader = AzfileReader;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;

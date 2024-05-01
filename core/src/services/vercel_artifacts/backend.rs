@@ -43,7 +43,7 @@ impl Debug for VercelArtifactsBackend {
     }
 }
 
-impl Accessor for VercelArtifactsBackend {
+impl Access for VercelArtifactsBackend {
     type Reader = VercelArtifactsReader;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();

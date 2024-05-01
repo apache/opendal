@@ -61,7 +61,7 @@ impl IpmfsBackend {
     }
 }
 
-impl Accessor for IpmfsBackend {
+impl Access for IpmfsBackend {
     type Reader = IpmfsReader;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;

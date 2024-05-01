@@ -243,7 +243,7 @@ pub struct HdfsBackend {
 unsafe impl Send for HdfsBackend {}
 unsafe impl Sync for HdfsBackend {}
 
-impl Accessor for HdfsBackend {
+impl Access for HdfsBackend {
     type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;

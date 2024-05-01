@@ -235,7 +235,7 @@ impl Debug for WebdavBackend {
     }
 }
 
-impl Accessor for WebdavBackend {
+impl Access for WebdavBackend {
     type Reader = WebdavReader;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;

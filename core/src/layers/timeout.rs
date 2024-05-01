@@ -135,10 +135,10 @@ impl TimeoutLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for TimeoutLayer {
-    type LayeredAccessor = TimeoutAccessor<A>;
+impl<A: Access> Layer<A> for TimeoutLayer {
+    type LayeredAccess = TimeoutAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TimeoutAccessor {
             inner,
 
@@ -149,14 +149,14 @@ impl<A: Accessor> Layer<A> for TimeoutLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct TimeoutAccessor<A: Accessor> {
+pub struct TimeoutAccessor<A: Access> {
     inner: A,
 
     timeout: Duration,
     io_timeout: Duration,
 }
 
-impl<A: Accessor> TimeoutAccessor<A> {
+impl<A: Access> TimeoutAccessor<A> {
     async fn timeout<F: Future<Output = Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
         tokio::time::timeout(self.timeout, fut).await.map_err(|_| {
             Error::new(ErrorKind::Unexpected, "operation timeout reached")
@@ -182,7 +182,7 @@ impl<A: Accessor> TimeoutAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
+impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
     type BlockingReader = A::BlockingReader;
@@ -336,7 +336,7 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService;
 
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
@@ -392,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_operation_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_timeout(Duration::from_secs(1)));
 
@@ -411,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_io_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
@@ -426,7 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc).layer(
             TimeoutLayer::new()
                 .with_timeout(Duration::from_secs(1))
@@ -452,7 +452,7 @@ mod tests {
             .with_io_timeout(Duration::from_secs(1));
         let timeout_acc = timeout_layer.layer(acc);
 
-        let (_, mut lister) = Accessor::list(&timeout_acc, "test", OpList::default())
+        let (_, mut lister) = Access::list(&timeout_acc, "test", OpList::default())
             .await
             .unwrap();
 

@@ -242,7 +242,7 @@ pub struct HuggingfaceBackend {
     core: Arc<HuggingfaceCore>,
 }
 
-impl Accessor for HuggingfaceBackend {
+impl Access for HuggingfaceBackend {
     type Reader = HuggingfaceReader;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;

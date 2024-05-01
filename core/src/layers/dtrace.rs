@@ -22,7 +22,7 @@ use std::fmt::Formatter;
 use bytes::Buf;
 use probe::probe_lazy;
 
-use crate::raw::Accessor;
+use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
@@ -169,8 +169,8 @@ use crate::*;
 pub struct DtraceLayer {}
 
 impl<A: Accessor> Layer<A> for DtraceLayer {
-    type LayeredAccessor = DTraceAccessor<A>;
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    type LayeredAccess = DTraceAccessor<A>;
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         DTraceAccessor { inner }
     }
 }
@@ -188,7 +188,7 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
+impl<A: Accessor> LayeredAccess for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;
     type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;

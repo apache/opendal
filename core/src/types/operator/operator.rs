@@ -62,7 +62,7 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct Operator {
     // accessor is what Operator delegates for
-    accessor: FusedAccessor,
+    accessor: Accessor,
 
     // limit is usually the maximum size of data that operator will handle in one operation
     limit: usize,
@@ -70,11 +70,11 @@ pub struct Operator {
 
 /// # Operator basic API.
 impl Operator {
-    pub(super) fn inner(&self) -> &FusedAccessor {
+    pub(super) fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
-    pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
+    pub(crate) fn from_inner(accessor: Accessor) -> Self {
         let limit = accessor
             .info()
             .full_capability()
@@ -83,7 +83,7 @@ impl Operator {
         Self { accessor, limit }
     }
 
-    pub(super) fn into_inner(self) -> FusedAccessor {
+    pub(super) fn into_inner(self) -> Accessor {
         self.accessor
     }
 

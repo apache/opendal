@@ -165,7 +165,7 @@ pub struct DbfsBackend {
     core: Arc<DbfsCore>,
 }
 
-impl Accessor for DbfsBackend {
+impl Access for DbfsBackend {
     type Reader = DbfsReader;
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;

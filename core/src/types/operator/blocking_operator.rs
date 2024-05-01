@@ -82,13 +82,13 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct BlockingOperator {
-    accessor: FusedAccessor,
+    accessor: Accessor,
 
     limit: usize,
 }
 
 impl BlockingOperator {
-    pub(super) fn inner(&self) -> &FusedAccessor {
+    pub(super) fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
@@ -96,7 +96,7 @@ impl BlockingOperator {
     ///
     /// # Note
     /// default batch limit is 1000.
-    pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
+    pub(crate) fn from_inner(accessor: Accessor) -> Self {
         let limit = accessor
             .info()
             .full_capability()

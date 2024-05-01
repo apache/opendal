@@ -203,10 +203,10 @@ impl RetryLayer {
     }
 }
 
-impl<A: Accessor, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
-    type LayeredAccessor = RetryAccessor<A, I>;
+impl<A: Access, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
+    type LayeredAccess = RetryAccessor<A, I>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         RetryAccessor {
             inner,
             builder: self.builder.clone(),
@@ -254,13 +254,13 @@ impl RetryInterceptor for DefaultRetryInterceptor {
     }
 }
 
-pub struct RetryAccessor<A: Accessor, I: RetryInterceptor> {
+pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
     inner: A,
     builder: ExponentialBuilder,
     notify: Arc<I>,
 }
 
-impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
+impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
@@ -268,7 +268,7 @@ impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     }
 }
 
-impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
+impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Inner = A;
     type Reader = RetryWrapper<A::Reader, I>;
     type BlockingReader = RetryWrapper<A::BlockingReader, I>;
@@ -928,7 +928,7 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;

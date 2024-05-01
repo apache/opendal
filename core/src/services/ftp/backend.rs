@@ -282,7 +282,7 @@ impl Debug for FtpBackend {
     }
 }
 
-impl Accessor for FtpBackend {
+impl Access for FtpBackend {
     type Reader = FtpReader;
     type Writer = FtpWriter;
     type Lister = FtpLister;

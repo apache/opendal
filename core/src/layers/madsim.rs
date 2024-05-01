@@ -120,10 +120,10 @@ impl MadsimLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for MadsimLayer {
-    type LayeredAccessor = MadsimAccessor;
+impl<A: Access> Layer<A> for MadsimLayer {
+    type LayeredAccess = MadsimAccessor;
 
-    fn layer(&self, _: A) -> Self::LayeredAccessor {
+    fn layer(&self, _: A) -> Self::LayeredAccess {
         #[cfg(madsim)]
         {
             MadsimAccessor { addr: self.addr }
@@ -141,7 +141,7 @@ pub struct MadsimAccessor {
     addr: SocketAddr,
 }
 
-impl LayeredAccessor for MadsimAccessor {
+impl LayeredAccess for MadsimAccessor {
     type Inner = ();
     type Reader = MadsimReader;
     type BlockingReader = ();

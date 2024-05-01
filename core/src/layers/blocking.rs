@@ -147,10 +147,10 @@ impl BlockingLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for BlockingLayer {
-    type LayeredAccessor = BlockingAccessor<A>;
+impl<A: Access> Layer<A> for BlockingLayer {
+    type LayeredAccess = BlockingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         BlockingAccessor {
             inner,
             handle: self.handle.clone(),
@@ -159,13 +159,13 @@ impl<A: Accessor> Layer<A> for BlockingLayer {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockingAccessor<A: Accessor> {
+pub struct BlockingAccessor<A: Access> {
     inner: A,
 
     handle: Handle,
 }
 
-impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
+impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = BlockingWrapper<A::Reader>;

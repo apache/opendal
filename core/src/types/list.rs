@@ -39,7 +39,7 @@ use crate::*;
 /// - Lister implements `Stream<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct Lister {
-    acc: FusedAccessor,
+    acc: Accessor,
     lister: Option<oio::Lister>,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
@@ -126,7 +126,7 @@ unsafe impl Sync for Lister {}
 
 impl Lister {
     /// Create a new lister.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
+    pub(crate) async fn create(acc: Accessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
         let concurrent = cmp::max(1, args.concurrent());
 
@@ -218,7 +218,7 @@ impl Stream for Lister {
 /// - Lister implements `Iterator<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct BlockingLister {
-    acc: FusedAccessor,
+    acc: Accessor,
     /// required_metakey is the metakey required by users.
     required_metakey: FlagSet<Metakey>,
 
@@ -233,7 +233,7 @@ unsafe impl Sync for BlockingLister {}
 
 impl BlockingLister {
     /// Create a new lister.
-    pub(crate) fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
+    pub(crate) fn create(acc: Accessor, path: &str, args: OpList) -> Result<Self> {
         let required_metakey = args.metakey();
         let (_, lister) = acc.blocking_list(path, args)?;
 

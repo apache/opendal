@@ -341,7 +341,7 @@ impl SftpBackend {
     }
 }
 
-impl Accessor for SftpBackend {
+impl Access for SftpBackend {
     type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;

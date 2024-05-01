@@ -234,7 +234,7 @@ pub struct KoofrBackend {
     core: Arc<KoofrCore>,
 }
 
-impl Accessor for KoofrBackend {
+impl Access for KoofrBackend {
     type Reader = KoofrReader;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;

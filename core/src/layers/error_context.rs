@@ -37,28 +37,28 @@ use crate::*;
 /// - `path`: The path of this operation
 pub struct ErrorContextLayer;
 
-impl<A: Accessor> Layer<A> for ErrorContextLayer {
-    type LayeredAccessor = ErrorContextAccessor<A>;
+impl<A: Access> Layer<A> for ErrorContextLayer {
+    type LayeredAccess = ErrorContextAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         ErrorContextAccessor { meta, inner }
     }
 }
 
 /// Provide error context wrapper for backend.
-pub struct ErrorContextAccessor<A: Accessor> {
+pub struct ErrorContextAccessor<A: Access> {
     meta: AccessorInfo,
     inner: A,
 }
 
-impl<A: Accessor> Debug for ErrorContextAccessor<A> {
+impl<A: Access> Debug for ErrorContextAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
+impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = ErrorContextWrapper<A::Reader>;
     type BlockingReader = ErrorContextWrapper<A::BlockingReader>;

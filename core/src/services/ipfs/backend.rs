@@ -159,7 +159,7 @@ impl Debug for IpfsBackend {
     }
 }
 
-impl Accessor for IpfsBackend {
+impl Access for IpfsBackend {
     type Reader = IpfsReader;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;

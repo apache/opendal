@@ -541,7 +541,7 @@ pub struct AzblobBackend {
     has_sas_token: bool,
 }
 
-impl Accessor for AzblobBackend {
+impl Access for AzblobBackend {
     type Reader = AzblobReader;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;

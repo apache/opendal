@@ -35,7 +35,7 @@ pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
 }
 
-impl Accessor for DropboxBackend {
+impl Access for DropboxBackend {
     type Reader = DropboxReader;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;

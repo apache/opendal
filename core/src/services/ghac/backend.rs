@@ -226,7 +226,7 @@ pub struct GhacBackend {
     pub client: HttpClient,
 }
 
-impl Accessor for GhacBackend {
+impl Access for GhacBackend {
     type Reader = GhacReader;
     type Writer = GhacWriter;
     type Lister = ();

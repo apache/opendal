@@ -147,10 +147,10 @@ impl LoggingLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for LoggingLayer {
-    type LayeredAccessor = LoggingAccessor<A>;
+impl<A: Access> Layer<A> for LoggingLayer {
+    type LayeredAccess = LoggingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         LoggingAccessor {
             inner,
@@ -200,7 +200,7 @@ impl LoggingContext {
 }
 
 #[derive(Clone, Debug)]
-pub struct LoggingAccessor<A: Accessor> {
+pub struct LoggingAccessor<A: Access> {
     inner: A,
 
     ctx: LoggingContext,
@@ -208,7 +208,7 @@ pub struct LoggingAccessor<A: Accessor> {
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
+impl<A: Access> LayeredAccess for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;

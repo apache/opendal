@@ -52,20 +52,20 @@ impl AwaitTreeLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for AwaitTreeLayer {
-    type LayeredAccessor = AwaitTreeAccessor<A>;
+impl<A: Access> Layer<A> for AwaitTreeLayer {
+    type LayeredAccess = AwaitTreeAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccessor {
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
         AwaitTreeAccessor { inner: accessor }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AwaitTreeAccessor<A: Accessor> {
+pub struct AwaitTreeAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
+impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;

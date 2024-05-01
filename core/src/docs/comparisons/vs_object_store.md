@@ -64,7 +64,7 @@ let stream = object_store
     .into_stream();
 ```
 
-`opendal` has a similar trait called [`Accessor`][crate::raw::Accessor]
+`opendal` has a similar trait called [`Access`][crate::raw::Access]
 
 But `opendal` don't expose this trait to end users directly. Instead, `opendal` expose a new struct called [`Operator`][crate::Operator] and builds public API on it.
 

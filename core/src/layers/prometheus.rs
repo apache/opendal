@@ -32,7 +32,7 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::raw::Accessor;
+use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
@@ -143,10 +143,10 @@ impl PrometheusLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for PrometheusLayer {
-    type LayeredAccessor = PrometheusAccessor<A>;
+impl<A: Access> Layer<A> for PrometheusLayer {
+    type LayeredAccess = PrometheusAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         let scheme = meta.scheme();
 
@@ -250,13 +250,13 @@ impl PrometheusMetrics {
 }
 
 #[derive(Clone)]
-pub struct PrometheusAccessor<A: Accessor> {
+pub struct PrometheusAccessor<A: Access> {
     inner: A,
     stats: Arc<PrometheusMetrics>,
     scheme: Scheme,
 }
 
-impl<A: Accessor> Debug for PrometheusAccessor<A> {
+impl<A: Access> Debug for PrometheusAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrometheusAccessor")
             .field("inner", &self.inner)
@@ -264,7 +264,7 @@ impl<A: Accessor> Debug for PrometheusAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
+impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     type Inner = A;
     type Reader = PrometheusMetricWrapper<A::Reader>;
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;

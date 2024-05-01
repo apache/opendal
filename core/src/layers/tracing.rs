@@ -113,10 +113,10 @@ use crate::*;
 /// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
 pub struct TracingLayer;
 
-impl<A: Accessor> Layer<A> for TracingLayer {
-    type LayeredAccessor = TracingAccessor<A>;
+impl<A: Access> Layer<A> for TracingLayer {
+    type LayeredAccess = TracingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TracingAccessor { inner }
     }
 }
@@ -126,7 +126,7 @@ pub struct TracingAccessor<A> {
     inner: A,
 }
 
-impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
+impl<A: Access> LayeredAccess for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;
     type BlockingReader = TracingWrapper<A::BlockingReader>;

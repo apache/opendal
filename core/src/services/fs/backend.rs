@@ -166,7 +166,7 @@ pub struct FsBackend {
     core: Arc<FsCore>,
 }
 
-impl Accessor for FsBackend {
+impl Access for FsBackend {
     type Reader = FsReader;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;

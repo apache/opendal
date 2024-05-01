@@ -60,7 +60,7 @@
 //! ```
 //!
 //! # Operator
-//! The [`Operator`] is a delegate for Service, the underlying implementation detail that implements [`Accessor`][crate::raw::Accessor],
+//! The [`Operator`] is a delegate for Service, the underlying implementation detail that implements [`Access`][crate::raw::Access],
 //! and it also provides one unified access interface.
 //! It will hold one reference of Service with its all generic types erased by OpenDAL,
 //! which is the reason why we say the Operator is the delegate of one Service.

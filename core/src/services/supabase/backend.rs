@@ -154,7 +154,7 @@ pub struct SupabaseBackend {
     core: Arc<SupabaseCore>,
 }
 
-impl Accessor for SupabaseBackend {
+impl Access for SupabaseBackend {
     type Reader = SupabaseReader;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list and scan

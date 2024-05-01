@@ -1018,7 +1018,7 @@ pub struct S3Backend {
     core: Arc<S3Core>,
 }
 
-impl Accessor for S3Backend {
+impl Access for S3Backend {
     type Reader = S3Reader;
     type Writer = S3Writers;
     type Lister = oio::PageLister<S3Lister>;

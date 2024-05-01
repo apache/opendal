@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<S: Adapter> Accessor for Backend<S> {
+impl<S: Adapter> Access for Backend<S> {
     type Reader = Buffer;
     type BlockingReader = Buffer;
     type Writer = KvWriter<S>;

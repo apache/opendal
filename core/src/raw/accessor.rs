@@ -27,14 +27,14 @@ use crate::*;
 /// Underlying trait of all backends for implementers.
 ///
 /// The actual data access of storage service happens in Accessor layer.
-/// Every storage supported by OpenDAL must implement [`Accessor`] but not all
-/// methods of [`Accessor`] will be implemented according to how the storage service is.
+/// Every storage supported by OpenDAL must implement [`Access`] but not all
+/// methods of [`Access`] will be implemented according to how the storage service is.
 ///
 /// For example, user can not modify the content from one HTTP file server directly.
 /// So [`Http`][crate::services::Http] implements and provides only read related actions.
 ///
-/// [`Accessor`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
-/// And what action this [`Accessor`] supports will be pointed out in [`AccessorInfo`].
+/// [`Access`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
+/// And what action this [`Access`] supports will be pointed out in [`AccessorInfo`].
 ///
 /// # Note
 ///
@@ -54,7 +54,7 @@ use crate::*;
 /// - Operations with capability requirement like `presign` are optional operations.
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`ErrorKind::Unsupported`].
-pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// Reader is the associated reader returned in `read` operation.
     type Reader: oio::Read;
     /// Writer is the associated writer returned in `write` operation.
@@ -395,7 +395,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
-/// `AccessorDyn` is the dyn version of [`Accessor`] make it possible to use as
+/// `AccessorDyn` is the dyn version of [`Access`] make it possible to use as
 /// `Box<dyn AccessorDyn>`.
 pub trait AccessorDyn: Send + Sync + Debug + Unpin {
     /// Dyn version of [`Accessor::info`]
@@ -475,7 +475,7 @@ pub trait AccessorDyn: Send + Sync + Debug + Unpin {
 
 impl<A: ?Sized> AccessorDyn for A
 where
-    A: Accessor<
+    A: Access<
         Reader = oio::Reader,
         BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
@@ -599,7 +599,7 @@ where
     }
 }
 
-impl Accessor for dyn AccessorDyn {
+impl Access for dyn AccessorDyn {
     type Reader = oio::Reader;
     type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
@@ -685,7 +685,7 @@ impl Accessor for dyn AccessorDyn {
 }
 
 /// Dummy implementation of accessor.
-impl Accessor for () {
+impl Access for () {
     type Reader = ();
     type Writer = ();
     type Lister = ();
@@ -709,7 +709,7 @@ impl Accessor for () {
 // If we use async fn directly, some weird higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
 // Probably related to https://github.com/rust-lang/rust/issues/96865
 #[allow(clippy::manual_async_fn)]
-impl<T: Accessor + ?Sized> Accessor for Arc<T> {
+impl<T: Access + ?Sized> Access for Arc<T> {
     type Reader = T::Reader;
     type Writer = T::Writer;
     type Lister = T::Lister;
@@ -828,8 +828,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
 }
 
-/// FusedAccessor is the type erased accessor with `Arc<dyn Accessor>`.
-pub type FusedAccessor = Arc<dyn AccessorDyn>;
+/// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
+pub type Accessor = Arc<dyn AccessorDyn>;
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]

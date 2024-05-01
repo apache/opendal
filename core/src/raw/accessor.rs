@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::future::ready;
 use std::sync::Arc;
 
-use futures::{Future, FutureExt};
+use futures::Future;
 
 use crate::raw::*;
 use crate::*;

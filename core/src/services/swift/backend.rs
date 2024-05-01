@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 
@@ -189,7 +188,6 @@ pub struct SwiftBackend {
     core: Arc<SwiftCore>,
 }
 
-#[async_trait]
 impl Accessor for SwiftBackend {
     type Reader = SwiftReader;
     type Writer = oio::OneShotWriter<SwiftWriter>;

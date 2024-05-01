@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::env;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use http::header;
@@ -227,7 +226,6 @@ pub struct GhacBackend {
     pub client: HttpClient,
 }
 
-#[async_trait]
 impl Accessor for GhacBackend {
     type Reader = GhacReader;
     type Writer = GhacWriter;

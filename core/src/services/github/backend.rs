@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -217,7 +216,6 @@ pub struct GithubBackend {
     core: Arc<GithubCore>,
 }
 
-#[async_trait]
 impl Accessor for GithubBackend {
     type Reader = GithubReader;
 

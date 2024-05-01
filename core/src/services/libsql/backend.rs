@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use hrana_client_proto::pipeline::ClientMsg;
@@ -334,7 +333,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

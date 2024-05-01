@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use backon::Retryable;
 use bytes::Buf;
 use http::StatusCode;
@@ -36,7 +35,6 @@ pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
 }
 
-#[async_trait]
 impl Accessor for DropboxBackend {
     type Reader = DropboxReader;
     type Writer = oio::OneShotWriter<DropboxWriter>;

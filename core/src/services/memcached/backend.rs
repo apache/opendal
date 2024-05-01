@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use bb8::RunError;
 use serde::Deserialize;
 use tokio::net::TcpStream;
@@ -215,7 +214,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -275,7 +273,7 @@ impl MemcacheConnectionManager {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl bb8::ManageConnection for MemcacheConnectionManager {
     type Connection = binary::Connection;
     type Error = Error;

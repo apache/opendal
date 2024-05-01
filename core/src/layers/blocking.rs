@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -166,8 +165,6 @@ pub struct BlockingAccessor<A: Accessor> {
     handle: Handle,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;

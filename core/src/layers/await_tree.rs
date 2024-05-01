@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use await_tree::InstrumentAwait;
 
 use crate::raw::*;
@@ -66,8 +65,6 @@ pub struct AwaitTreeAccessor<A: Accessor> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;

@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
 use crate::raw::TwoWays;
@@ -369,8 +367,6 @@ impl<A: Accessor> CompleteAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
@@ -694,7 +690,6 @@ where
 mod tests {
     use std::time::Duration;
 
-    use async_trait::async_trait;
     use http::HeaderMap;
     use http::Method as HttpMethod;
 
@@ -705,8 +700,6 @@ mod tests {
         capability: Capability,
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = oio::Reader;
         type Writer = oio::Writer;

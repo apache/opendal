@@ -18,8 +18,6 @@
 use std::future::Future;
 use std::time::Duration;
 
-use async_trait::async_trait;
-
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -184,8 +182,6 @@ impl<A: Accessor> TimeoutAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
@@ -328,7 +324,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use async_trait::async_trait;
     use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
@@ -341,8 +336,6 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService;
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl Accessor for MockService {
         type Reader = MockReader;
         type Writer = ();

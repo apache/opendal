@@ -179,7 +179,6 @@ mod tests {
     use std::vec;
     use std::vec::IntoIter;
 
-    use async_trait::async_trait;
     use log::debug;
     use oio::BlockingList;
 
@@ -209,7 +208,6 @@ mod tests {
         }
     }
 
-    #[async_trait]
     impl Accessor for MockService {
         type Reader = ();
         type BlockingReader = ();

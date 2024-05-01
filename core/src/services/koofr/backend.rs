@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -235,7 +234,6 @@ pub struct KoofrBackend {
     core: Arc<KoofrCore>,
 }
 
-#[async_trait]
 impl Accessor for KoofrBackend {
     type Reader = KoofrReader;
     type Writer = KoofrWriters;

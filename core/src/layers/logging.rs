@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -209,8 +208,6 @@ pub struct LoggingAccessor<A: Accessor> {
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;

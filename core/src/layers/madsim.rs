@@ -34,7 +34,6 @@ use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 #[cfg(madsim)]
 use madsim::net::Endpoint;
@@ -142,8 +141,6 @@ pub struct MadsimAccessor {
     addr: SocketAddr,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl LayeredAccessor for MadsimAccessor {
     type Inner = ();
     type Reader = MadsimReader;

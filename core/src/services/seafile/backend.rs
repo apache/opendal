@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -253,7 +252,6 @@ pub struct SeafileBackend {
     core: Arc<SeafileCore>,
 }
 
-#[async_trait]
 impl Accessor for SeafileBackend {
     type Reader = SeafileReader;
     type Writer = SeafileWriters;

@@ -19,8 +19,6 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::vec::IntoIter;
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -133,8 +131,6 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;

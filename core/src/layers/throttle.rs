@@ -19,7 +19,6 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::thread;
 
-use async_trait::async_trait;
 use governor::clock::Clock;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
@@ -109,8 +108,6 @@ pub struct ThrottleAccessor<A: Accessor> {
     rate_limiter: SharedRateLimiter,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;

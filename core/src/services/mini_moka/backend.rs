@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
@@ -137,7 +136,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(

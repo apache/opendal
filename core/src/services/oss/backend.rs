@@ -21,7 +21,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
@@ -375,7 +374,6 @@ pub struct OssBackend {
     core: Arc<OssCore>,
 }
 
-#[async_trait]
 impl Accessor for OssBackend {
     type Reader = OssReader;
     type Writer = OssWriters;

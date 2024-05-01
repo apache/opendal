@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use chrono::Utc;
@@ -40,8 +39,6 @@ pub struct GdriveBackend {
     pub core: Arc<GdriveCore>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for GdriveBackend {
     type Reader = GdriveReader;
     type Writer = oio::OneShotWriter<GdriveWriter>;

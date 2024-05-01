@@ -21,7 +21,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use async_trait::async_trait;
 use serde::Deserialize;
 
 use self::raw::ConfigDeserializer;
@@ -86,7 +85,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(

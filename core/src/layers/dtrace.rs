@@ -19,7 +19,6 @@ use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use probe::probe_lazy;
 
@@ -189,7 +188,6 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
     }
 }
 
-#[async_trait]
 impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;

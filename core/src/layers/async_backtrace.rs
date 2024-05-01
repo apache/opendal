@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -58,8 +56,6 @@ pub struct AsyncBacktraceAccessor<A: Accessor> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<A: Accessor> LayeredAccessor for AsyncBacktraceAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;

@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
@@ -542,8 +541,6 @@ pub struct AzblobBackend {
     has_sas_token: bool,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Accessor for AzblobBackend {
     type Reader = AzblobReader;
     type Writer = AzblobWriters;

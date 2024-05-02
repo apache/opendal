@@ -20,6 +20,9 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
+const semver = require("semver");
+const exec = require('child_process').execSync;
+
 const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const repoAddress = 'https://github.com/apache/opendal';
@@ -37,8 +40,14 @@ const config = {
   customFields: {
     isStaging: websiteStaging,
     version: (function () {
-      const semver = require('semver');
-      const version = semver.parse('v0.45.1-169-gc53c33065c', {});
+      if (websiteStaging && process.env.GITHUB_REF_TYPE === 'tag') {
+        const refName = process.env.GITHUB_REF_NAME;
+        const version = semver.parse(refName, {}, true);
+        return `${version.major}.${version.minor}.${version.patch}`;
+      }
+
+      const refName = exec("git describe --tags --abbrev=0 --exclude '*rc*'").toString();
+      const version = semver.parse(refName, {}, true);
       return `${version.major}.${version.minor}.${version.patch}`;
     })()
   },

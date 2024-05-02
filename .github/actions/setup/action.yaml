@@ -31,7 +31,7 @@ inputs:
   github-token:
     description: "Github Token"
     default: ""
-  
+
 runs:
   using: "composite"
   steps:
@@ -87,12 +87,12 @@ runs:
         path: |
           ~/.cargo/bin/cargo-deny
           ~/.cargo/bin/cargo-deny.exe
-        key: r0-${{runner.os}}-deny-0.14.3
+        key: r0-${{runner.os}}-deny-0.14.22
 
     - name: Build cargo-deny if not cached
       if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
       shell: bash
-      run: cargo install cargo-deny@0.14.3 --locked
+      run: cargo install cargo-deny@0.14.22 --locked
 
     - name: Setup rust on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'

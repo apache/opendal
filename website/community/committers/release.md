@@ -321,6 +321,10 @@ Pypi testing repo:
 
 https://test.pypi.org/project/opendal/
 
+Website staged:
+
+https://opendal-rc.staged.apache.org/
+
 Please download, verify, and test.
 
 The VOTE will be open for at least 72 hours and until the necessary
@@ -424,14 +428,6 @@ git push origin ${opendal_version}
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_version} https://dist.apache.org/repos/dist/release/opendal/${opendal_version} -m "Release ${opendal_version}"
 ```
-
-### Change OpenDAL Website download link
-
-Change the [download](https://github.com/apache/opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
-
-Update the latest release link and add the new release link to the version list.
-
-Take [Add 0.39.0 release link to download.md](https://github.com/apache/opendal/pull/2882) as an example.
 
 ### Release Maven artifacts
 

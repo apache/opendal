@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-linux-arm64-gnu",
-  "version": "0.45.1",
+  "version": "0.45.2",
   "repository": "git@github.com/apache/opendal.git",
   "os": [
     "linux"

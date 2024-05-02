@@ -24,6 +24,6 @@ rust-version = "1.75"
 version = "0.0.0"
 
 [dependencies]
-opendal = { path = "../../", features = ["tests"] }
+opendal = { path = "../..", features = ["tests"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["serde", "v4"] }

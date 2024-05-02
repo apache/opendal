@@ -1,7 +1,7 @@
 {
   "name": "@opendal/lib-darwin-arm64",
   "repository": "git@github.com/apache/opendal.git",
-  "version": "0.45.1",
+  "version": "0.45.2",
   "os": [
     "darwin"
   ],

@@ -5,6 +5,182 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+## [v0.46.0] - 2024-05-02
+
+### Added
+* feat(services/github): add github contents support by @hoslo in https://github.com/apache/opendal/pull/4281
+* feat: Allow selecting webpki for reqwest by @arlyon in https://github.com/apache/opendal/pull/4303
+* feat(services/swift): add support for storage_url configuration in swift service by @zjregee in https://github.com/apache/opendal/pull/4302
+* feat(services/swift): add ceph test setup for swift by @zjregee in https://github.com/apache/opendal/pull/4307
+* docs(website): add local content search based on lunr plugin by @m1911star in https://github.com/apache/opendal/pull/4348
+* feat(services/sled): add SledConfig by @yufan022 in https://github.com/apache/opendal/pull/4351
+* feat : Implementing config for part of services by @AnuRage-git in https://github.com/apache/opendal/pull/4344
+* feat(bindings/java): explicit async runtime  by @tisonkun in https://github.com/apache/opendal/pull/4376
+* feat(services/surrealdb): support surrealdb service by @yufan022 in https://github.com/apache/opendal/pull/4375
+* feat(bindings/java): avoid double dispose NativeObject by @tisonkun in https://github.com/apache/opendal/pull/4377
+* feat : Implement config for services/foundationdb by @AnuRage-git in https://github.com/apache/opendal/pull/4355
+* feat: add ofs ctrl-c exit unmount hook by @oowl in https://github.com/apache/opendal/pull/4393
+* feat: Implement RFC-4382 Range Based Read by @Xuanwo in https://github.com/apache/opendal/pull/4381
+* feat(ofs): rename2 lseek copy_file_range getattr API support by @oowl in https://github.com/apache/opendal/pull/4395
+* feat(services/github): make access_token optional by @hoslo in https://github.com/apache/opendal/pull/4404
+* feat(core/oio): Add readable buf by @Xuanwo in https://github.com/apache/opendal/pull/4407
+* feat(ofs): add freebsd OS support by @oowl in https://github.com/apache/opendal/pull/4403
+* feat(core/raw/oio): Add Writable Buf by @Xuanwo in https://github.com/apache/opendal/pull/4410
+* feat(bin/ofs): Add behavior test for ofs by @ho-229 in https://github.com/apache/opendal/pull/4373
+* feat(core/raw/buf): Reduce one allocation by `Arc::from_iter` by @Xuanwo in https://github.com/apache/opendal/pull/4440
+* feat: ?Send async trait for HttpBackend when the target is wasm32 by @waynexia in https://github.com/apache/opendal/pull/4444
+* feat: add `HttpClient::with()` constructor by @waynexia in https://github.com/apache/opendal/pull/4447
+* feat: Move Buffer as public API by @Xuanwo in https://github.com/apache/opendal/pull/4450
+* feat: Optimize buffer implementation and add stream support by @Xuanwo in https://github.com/apache/opendal/pull/4458
+* feat(core): Implement FromIterator for Buffer by @Xuanwo in https://github.com/apache/opendal/pull/4459
+* feat(services/ftp): Support multiple write by @xxxuuu in https://github.com/apache/opendal/pull/4425
+* feat(raw/oio): block write change to buffer by @hoslo in https://github.com/apache/opendal/pull/4466
+* feat(core): Implement read and read_into for Reader by @Xuanwo in https://github.com/apache/opendal/pull/4467
+* feat(core): Implement into_stream for Reader by @Xuanwo in https://github.com/apache/opendal/pull/4473
+* feat(core): Tune buffer operations  based on benchmark results by @Xuanwo in https://github.com/apache/opendal/pull/4468
+* feat(raw/oio): Use `Buffer` as cache in `RangeWrite` by @reswqa in https://github.com/apache/opendal/pull/4476
+* feat(raw/oio): Use `Buffer` as cache in `OneshotWrite` by @reswqa in https://github.com/apache/opendal/pull/4477
+* feat: add list/copy/rename for dropbox by @zjregee in https://github.com/apache/opendal/pull/4424
+* feat(core): Implement write and write_from for Writer by @zjregee in https://github.com/apache/opendal/pull/4482
+* feat(core): Add auto ranged read and concurrent read support by @Xuanwo in https://github.com/apache/opendal/pull/4486
+* feat(core): Implement fetch for Reader by @Xuanwo in https://github.com/apache/opendal/pull/4488
+* feat(core): Allow concurrent reading on bytes stream by @Xuanwo in https://github.com/apache/opendal/pull/4499
+* feat: provide send-wrapper to contidionally implement Send for operators by @waynexia in https://github.com/apache/opendal/pull/4443
+* feat(bin/ofs): privileged mount by @ho-229 in https://github.com/apache/opendal/pull/4507
+* feat(services/compfs): init compfs by @George-Miao in https://github.com/apache/opendal/pull/4519
+* feat(raw/oio): Add PooledBuf to allow reuse buffer by @Xuanwo in https://github.com/apache/opendal/pull/4522
+* feat(services/fs): Add PooledBuf in fs to allow reusing memory by @Xuanwo in https://github.com/apache/opendal/pull/4525
+* feat(core): add access methods for `Buffer` by @George-Miao in https://github.com/apache/opendal/pull/4530
+* feat(core): implement `IoBuf` for `Buffer` by @George-Miao in https://github.com/apache/opendal/pull/4532
+* feat(services/compfs): compio runtime and compfs structure by @George-Miao in https://github.com/apache/opendal/pull/4534
+* feat(core): change Result to default error by @George-Miao in https://github.com/apache/opendal/pull/4535
+* feat(services/github): support list recursive by @hoslo in https://github.com/apache/opendal/pull/4423
+* feat: Add crc32c checksums to S3 Service by @JWackerbauer in https://github.com/apache/opendal/pull/4533
+* feat: Add into_bytes_sink for Writer by @Xuanwo in https://github.com/apache/opendal/pull/4541
+### Changed
+* refactor(core/raw): Migrate `oio::Read` to async in trait by @Xuanwo in https://github.com/apache/opendal/pull/4336
+* refactor(core/raw): Align oio::BlockingRead API with oio::Read by @Xuanwo in https://github.com/apache/opendal/pull/4349
+* refactor(core/oio): Migrate `oio::List` to async fn in trait by @Xuanwo in https://github.com/apache/opendal/pull/4352
+* refactor(core/raw): Migrate oio::Write from WriteBuf to Bytes by @Xuanwo in https://github.com/apache/opendal/pull/4356
+* refactor(core/raw): Migrate `oio::Write` to async in trait by @Xuanwo in https://github.com/apache/opendal/pull/4358
+* refactor(bindings/python): Change the return type of `File::read` to `PyResult<&PyBytes>` by @reswqa in https://github.com/apache/opendal/pull/4360
+* refactor(core/raw): Cleanup not used `oio::WriteBuf` and `oio::ChunkedBytes` after refactor by @Xuanwo in https://github.com/apache/opendal/pull/4361
+* refactor: Remove reqwest related features by @Xuanwo in https://github.com/apache/opendal/pull/4365
+* refactor(bin/ofs): make `ofs` API public by @ho-229 in https://github.com/apache/opendal/pull/4387
+* refactor: Impl into_futures_io_async_write for Writer by @Xuanwo in https://github.com/apache/opendal/pull/4406
+* refactor(core/oio): Use ReadableBuf to remove extra clone during write by @Xuanwo in https://github.com/apache/opendal/pull/4408
+* refactor(core/raw/oio): Mark oio::Write::write as an unsafe function by @Xuanwo in https://github.com/apache/opendal/pull/4413
+* refactor(core/raw/oio): Use oio buffer in write by @Xuanwo in https://github.com/apache/opendal/pull/4436
+* refactor(core/raw): oio::Write is safe operation now by @Xuanwo in https://github.com/apache/opendal/pull/4438
+* refactor(core): Use Buffer in http request by @Xuanwo in https://github.com/apache/opendal/pull/4460
+* refactor(core): Polish FuturesBytesStream by avoiding extra copy by @Xuanwo in https://github.com/apache/opendal/pull/4474
+* refactor: Use Buffer as cache in MultipartWrite by @tisonkun in https://github.com/apache/opendal/pull/4493
+* refactor: kv::adapter should use Buffer (read part) by @tisonkun in https://github.com/apache/opendal/pull/4494
+* refactor: typed_kv::adapter should use Buffer by @tisonkun in https://github.com/apache/opendal/pull/4497
+* refactor: kv::adapter should use Buffer (write part) by @tisonkun in https://github.com/apache/opendal/pull/4496
+* refactor: Migrate FuturesAsyncReader to stream based by @Xuanwo in https://github.com/apache/opendal/pull/4508
+* refactor(services/fs): Extract FsCore from FsBackend by @Xuanwo in https://github.com/apache/opendal/pull/4523
+* refactor(core): Migrate `Accessor` to async fn in trait by @George-Miao in https://github.com/apache/opendal/pull/4562
+* refactor(core): Align naming for `Accessor` by @George-Miao in https://github.com/apache/opendal/pull/4564
+### Fixed
+* fix(bin/ofs): crashes when fh=None by @ho-229 in https://github.com/apache/opendal/pull/4297
+* fix(services/hdfs): fix poll_close when retry by @hoslo in https://github.com/apache/opendal/pull/4309
+* fix: fix main CI  by @xxchan in https://github.com/apache/opendal/pull/4319
+* fix: fix ghac CI by @xxchan in https://github.com/apache/opendal/pull/4320
+* fix(services/dropbox): fix dropbox batch test panic in ci by @zjregee in https://github.com/apache/opendal/pull/4329
+* fix(services/hdfs-native): remove unsupported capabilities by @jihuayu in https://github.com/apache/opendal/pull/4333
+* fix(bin/ofs): build failed when target_os != linux by @ho-229 in https://github.com/apache/opendal/pull/4334
+* fix(bin/ofs): only memory backend available by @ho-229 in https://github.com/apache/opendal/pull/4353
+* fix(bindings/python): Fix the semantic of `size` argument for python `File::read` by @reswqa in https://github.com/apache/opendal/pull/4359
+* fix(bindings/python): `File::write` should return the written bytes by @reswqa in https://github.com/apache/opendal/pull/4367
+* fix(services/s3): omit default ports by @yufan022 in https://github.com/apache/opendal/pull/4379
+* fix(core/services/gdrive): Fix gdrive test failed for refresh token by @Xuanwo in https://github.com/apache/opendal/pull/4435
+* fix(core/services/cos): Don't allow empty credential by @Xuanwo in https://github.com/apache/opendal/pull/4457
+* fix(oay): support `WebdavFile` continuous reading and writing by @G-XD in https://github.com/apache/opendal/pull/4374
+* fix(integrations/webdav): Fix read file API changes by @Xuanwo in https://github.com/apache/opendal/pull/4462
+* fix(s3): don't delete bucket by @sameer in https://github.com/apache/opendal/pull/4430
+* fix(core): Buffer offset misuse by @George-Miao in https://github.com/apache/opendal/pull/4481
+* fix(core): Read chunk should respect users input by @Xuanwo in https://github.com/apache/opendal/pull/4487
+* fix(services/cos): fix mdx by @hoslo in https://github.com/apache/opendal/pull/4510
+* fix: minor doc issue by @George-Miao in https://github.com/apache/opendal/pull/4517
+* fix(website): community sync calendar iframe by @suyanhanx in https://github.com/apache/opendal/pull/4549
+* fix: community sync calendar iframe load failed by @suyanhanx in https://github.com/apache/opendal/pull/4550
+### Docs
+* docs: Add gsoc proposal guide by @Xuanwo in https://github.com/apache/opendal/pull/4287
+* docs: Add blog for apache opendal participates in gsoc 2024 by @Xuanwo in https://github.com/apache/opendal/pull/4288
+* docs: Fix and improve docs for presign operations by @Xuanwo in https://github.com/apache/opendal/pull/4294
+* docs: Polish the docs for writer by @Xuanwo in https://github.com/apache/opendal/pull/4296
+* docs: Add redirect for discord and maillist by @Xuanwo in https://github.com/apache/opendal/pull/4312
+* docs: update swift docs by @zjregee in https://github.com/apache/opendal/pull/4327
+* docs: publish docs for object-store-opendal by @zjregee in https://github.com/apache/opendal/pull/4328
+* docs: fix redirect error in object-store-opendal by @zjregee in https://github.com/apache/opendal/pull/4332
+* docs(website): fix grammar and spelling by @jbampton in https://github.com/apache/opendal/pull/4340
+* docs: fix nodejs binding docs footer copyright by @m1911star in https://github.com/apache/opendal/pull/4346
+* docs(bin/ofs): update README by @ho-229 in https://github.com/apache/opendal/pull/4354
+* docs(services/gcs): update gcs credentials description by @zjregee in https://github.com/apache/opendal/pull/4362
+* docs(bindings/python): ipynb examples for polars and pandas by @reswqa in https://github.com/apache/opendal/pull/4368
+* docs(core): correct the doc for icloud and memcached by @Kilerd in https://github.com/apache/opendal/pull/4422
+* docs: polish release doc for vote result by @suyanhanx in https://github.com/apache/opendal/pull/4429
+* docs: Update links to o.a.o/discord by @Xuanwo in https://github.com/apache/opendal/pull/4442
+* docs: add layers example by @zjregee in https://github.com/apache/opendal/pull/4449
+* docs: publish docs for dav-server-opendalfs by @zjregee in https://github.com/apache/opendal/pull/4503
+* docs: Add docs for read_with and reader_with by @Xuanwo in https://github.com/apache/opendal/pull/4516
+* docs: Add upgrade doc for rust core 0.46 by @Xuanwo in https://github.com/apache/opendal/pull/4543
+* docs: update the outdated download link by @suyanhanx in https://github.com/apache/opendal/pull/4546
+### CI
+* ci(binding/java): Don't create too many files in CI by @Xuanwo in https://github.com/apache/opendal/pull/4289
+* ci: Address Node.js 16 actions are deprecated by @Xuanwo in https://github.com/apache/opendal/pull/4293
+* ci: Disable vsftpd test for it's keeping failure by @Xuanwo in https://github.com/apache/opendal/pull/4295
+* build: remove `service-*` from default features by @xxchan in https://github.com/apache/opendal/pull/4311
+* ci: upgrade typos in ci by @Young-Flash in https://github.com/apache/opendal/pull/4322
+* ci: Disable R2 until we figure what happened by @Xuanwo in https://github.com/apache/opendal/pull/4323
+* ci(s3/minio): Disable IMDSv2 for mini anonymous tests by @Xuanwo in https://github.com/apache/opendal/pull/4326
+* ci: Fix unit tests missing protoc by @Xuanwo in https://github.com/apache/opendal/pull/4369
+* ci: Fix foundationdb not setup for unit test by @Xuanwo in https://github.com/apache/opendal/pull/4370
+* ci: bump license header formatter by @tisonkun in https://github.com/apache/opendal/pull/4390
+* ci: fix dragonflydb docker-compose healthcheck broken by @oowl in https://github.com/apache/opendal/pull/4431
+* ci: fix planner for bin ofs by @ho-229 in https://github.com/apache/opendal/pull/4448
+* ci: Revert oay changes to fix CI by @Xuanwo in https://github.com/apache/opendal/pull/4463
+* ci: Fix CI for all bindings by @Xuanwo in https://github.com/apache/opendal/pull/4469
+* ci: Disable dropbox test until #4484 fixed by @Xuanwo in https://github.com/apache/opendal/pull/4485
+* ci: Fix build of python binding for chunk write changes by @Xuanwo in https://github.com/apache/opendal/pull/4529
+* build(core): bump compio version to v0.10.0 by @George-Miao in https://github.com/apache/opendal/pull/4531
+* ci: Disable tikv for pingcap's mirror is unstable by @Xuanwo in https://github.com/apache/opendal/pull/4538
+* build: staging website  by @tisonkun in https://github.com/apache/opendal/pull/4565
+* build: fixup follow asfyaml rules by @tisonkun in https://github.com/apache/opendal/pull/4566
+### Chore
+* chore(deps): bump tempfile from 3.9.0 to 3.10.1 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4298
+* chore(deps): bump wasm-bindgen-test from 0.3.40 to 0.3.41 in /core by @dependabot in https://github.com/apache/opendal/pull/4299
+* chore(deps): bump log from 0.4.20 to 0.4.21 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4301
+* chore(services/redis): Fix docs & comments typos by @AJIOB in https://github.com/apache/opendal/pull/4306
+* chore(editorconfig): add `yaml` file type by @jbampton in https://github.com/apache/opendal/pull/4339
+* chore(editorconfig): add `rdf` file type as `indent_size = 2` by @jbampton in https://github.com/apache/opendal/pull/4341
+* chore(editorconfig): order entries and add `indent_style = tab` for Go by @jbampton in https://github.com/apache/opendal/pull/4342
+* chore(labeler): order the GitHub labeler labels by @jbampton in https://github.com/apache/opendal/pull/4343
+* chore: Cleanup of oio::Read, docs, comments, naming by @Xuanwo in https://github.com/apache/opendal/pull/4345
+* chore: Remove not exist read operations by @Xuanwo in https://github.com/apache/opendal/pull/4412
+* chore(deps): bump toml from 0.8.10 to 0.8.12 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4418
+* chore(deps): bump toml from 0.8.10 to 0.8.12 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4420
+* chore(deps): bump tokio from 1.36.0 to 1.37.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4419
+* chore(deps): bump prometheus-client from 0.22.1 to 0.22.2 in /core by @dependabot in https://github.com/apache/opendal/pull/4417
+* chore: update copyright year to 2024 in NOTICE by @shoothzj in https://github.com/apache/opendal/pull/4433
+* chore: Bump bytes to 1.6 to avoid compileing error by @Xuanwo in https://github.com/apache/opendal/pull/4472
+* chore: Add output types in OperatorFutures by @Xuanwo in https://github.com/apache/opendal/pull/4475
+* chore(core): Use reader's chunk size instead by @Xuanwo in https://github.com/apache/opendal/pull/4489
+* chore: sort tomls by taplo by @tisonkun in https://github.com/apache/opendal/pull/4491
+* chore(core): Align Reader and Writer's API design by @Xuanwo in https://github.com/apache/opendal/pull/4498
+* chore: Add docs and tests for reader related types by @Xuanwo in https://github.com/apache/opendal/pull/4513
+* chore: Reorganize the blocking reader layout by @Xuanwo in https://github.com/apache/opendal/pull/4514
+* chore: Align with chunk instead of confusing buffer by @Xuanwo in https://github.com/apache/opendal/pull/4528
+* chore: Refactor Write and BlockingWrite API by @Xuanwo in https://github.com/apache/opendal/pull/4540
+* chore(core): Change std result to opendal result in core by @tannal in https://github.com/apache/opendal/pull/4542
+* chore: fixup download links by @tisonkun in https://github.com/apache/opendal/pull/4547
+* chore(deps): bump clap from 4.5.1 to 4.5.4 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4557
+* chore(deps): bump anyhow from 1.0.80 to 1.0.82 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4559
+* chore(deps): bump libc from 0.2.153 to 0.2.154 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4558
+
 ## [v0.45.1] - 2024-02-22
 
 ### Added

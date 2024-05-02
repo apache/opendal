@@ -17,8 +17,8 @@
 # under the License.
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
+from pathlib import Path
 import subprocess
-import os
 from constants import PACKAGES
 
 def check_deps():
@@ -31,15 +31,17 @@ def check_deps():
 def generate_deps():
     cargo_dirs = PACKAGES
     for root in cargo_dirs:
-        print(f"Generating dependencies {root}")
-        result = subprocess.run(
-            ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-        )
-        with open(f"{root}/DEPENDENCIES.rust.tsv", "w") as f:
-            f.write(result.stdout)
+        if (Path(root) / "Cargo.toml").exists():
+            print(f"Generating dependencies {root}")
+            result = subprocess.check_output(
+                ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
+                cwd=root,
+                text=True,
+            )
+            with open(f"{root}/DEPENDENCIES.rust.tsv", "w") as f:
+                f.write(result)
+        else:
+            print(f"Skipping {root} as Cargo.toml does not exist")
 
 
 if __name__ == "__main__":

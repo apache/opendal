@@ -24,7 +24,8 @@
     "lunr": "^2.3.9",
     "prism-react-renderer": "^1.3.5",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.1"

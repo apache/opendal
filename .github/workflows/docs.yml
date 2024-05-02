@@ -484,7 +484,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
-          publish_branch: site-main
+          publish_branch: site/main
 
       - name: Deploy to rc staged
         uses: peaceiris/actions-gh-pages@v3.9.2
@@ -492,7 +492,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
-          publish_branch: site-${{ github.ref_name }}
+          publish_branch: site/${{ github.ref_name }}
 
       - name: Clear build
         run: rm -rf ./website/build

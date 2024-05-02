@@ -47,7 +47,7 @@ notifications:
 
 staging:
   profile: ~
-  autostage: site-*
+  autostage: site/*
 
 publish:
   whoami: gh-pages

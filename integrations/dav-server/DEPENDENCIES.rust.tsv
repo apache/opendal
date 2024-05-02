@@ -25,7 +25,7 @@ cpufeatures@0.2.12		X						X
 crc32c@0.6.5		X						X					
 crypto-common@0.1.6		X						X					
 dav-server@0.5.8		X											
-dav-server-opendalfs@0.0.1		X											
+dav-server-opendalfs@0.0.2		X											
 deranged@0.3.11		X						X					
 digest@0.10.7		X						X					
 dirs@5.0.1		X						X					

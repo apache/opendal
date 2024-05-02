@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.41.1"
+version = "0.41.2"
 dependencies = [
  "anyhow",
  "assert_cmd",

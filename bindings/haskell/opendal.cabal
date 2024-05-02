@@ -41,7 +41,7 @@ source-repository head
 source-repository this
     type:     git
     location: https://github.com/apache/opendal
-    tag:      v0.46.0
+    tag:      v0.45.2
     subdir:   bindings/haskell
 
 common base

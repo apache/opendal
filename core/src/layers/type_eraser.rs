@@ -32,26 +32,26 @@ use crate::*;
 /// external users. We use this layer to erase any generic types.
 pub struct TypeEraseLayer;
 
-impl<A: Accessor> Layer<A> for TypeEraseLayer {
-    type LayeredAccessor = TypeEraseAccessor<A>;
+impl<A: Access> Layer<A> for TypeEraseLayer {
+    type LayeredAccess = TypeEraseAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TypeEraseAccessor { inner }
     }
 }
 
 /// Provide reader wrapper for backend.
-pub struct TypeEraseAccessor<A: Accessor> {
+pub struct TypeEraseAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> Debug for TypeEraseAccessor<A> {
+impl<A: Access> Debug for TypeEraseAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
+impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     type Inner = A;
     type Reader = oio::Reader;
     type BlockingReader = oio::BlockingReader;

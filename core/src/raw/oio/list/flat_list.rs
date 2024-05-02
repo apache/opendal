@@ -54,7 +54,7 @@ use crate::*;
 /// Especially, for storage services that can't return dirs first, ToFlatLister
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
-pub struct FlatLister<A: Accessor, L> {
+pub struct FlatLister<A: Access, L> {
     acc: A,
     root: String,
 
@@ -65,15 +65,15 @@ pub struct FlatLister<A: Accessor, L> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this FlatLister.
-unsafe impl<A: Accessor, L> Send for FlatLister<A, L> {}
+unsafe impl<A: Access, L> Send for FlatLister<A, L> {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for FsLister.
-unsafe impl<A: Accessor, L> Sync for FlatLister<A, L> {}
+unsafe impl<A: Access, L> Sync for FlatLister<A, L> {}
 
 impl<A, L> FlatLister<A, L>
 where
-    A: Accessor,
+    A: Access,
 {
     /// Create a new flat lister
     pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
@@ -88,7 +88,7 @@ where
 
 impl<A, L> oio::List for FlatLister<A, L>
 where
-    A: Accessor<Lister = L>,
+    A: Access<Lister = L>,
     L: oio::List,
 {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
@@ -131,7 +131,7 @@ where
 
 impl<A, P> oio::BlockingList for FlatLister<A, P>
 where
-    A: Accessor<BlockingLister = P>,
+    A: Access<BlockingLister = P>,
     P: oio::BlockingList,
 {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
@@ -208,7 +208,7 @@ mod tests {
         }
     }
 
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = ();
         type BlockingReader = ();
         type Writer = ();

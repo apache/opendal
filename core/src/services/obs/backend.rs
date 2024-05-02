@@ -246,7 +246,7 @@ pub struct ObsBackend {
     core: Arc<ObsCore>,
 }
 
-impl Accessor for ObsBackend {
+impl Access for ObsBackend {
     type Reader = ObsReader;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;

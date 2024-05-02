@@ -179,7 +179,7 @@ pub struct AlluxioBackend {
     core: Arc<AlluxioCore>,
 }
 
-impl Accessor for AlluxioBackend {
+impl Access for AlluxioBackend {
     type Reader = AlluxioReader;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;

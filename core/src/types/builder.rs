@@ -39,7 +39,7 @@ pub trait Builder: Default {
     /// Associated scheme for this builder. It indicates what underlying service is.
     const SCHEME: Scheme;
     /// The accessor that built by this builder.
-    type Accessor: Accessor;
+    type Accessor: Access;
 
     /// Construct a builder from given map which contains several parameters needed by underlying service.
     fn from_map(map: HashMap<String, String>) -> Self;

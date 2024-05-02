@@ -529,7 +529,7 @@ impl WebhdfsBackend {
     }
 }
 
-impl Accessor for WebhdfsBackend {
+impl Access for WebhdfsBackend {
     type Reader = WebhdfsReader;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;

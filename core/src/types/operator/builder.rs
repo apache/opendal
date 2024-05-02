@@ -73,7 +73,7 @@ impl Operator {
     /// }
     /// ```
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
+    pub fn new<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Access>> {
         let acc = ab.build()?;
         Ok(OperatorBuilder::new(acc))
     }
@@ -111,7 +111,7 @@ impl Operator {
     /// ```
     pub fn from_map<B: Builder>(
         map: HashMap<String, String>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
+    ) -> Result<OperatorBuilder<impl Access>> {
         let acc = B::from_map(map).build()?;
         Ok(OperatorBuilder::new(acc))
     }
@@ -309,7 +309,7 @@ impl Operator {
     /// # }
     /// ```
     #[must_use]
-    pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
+    pub fn layer<L: Layer<Accessor>>(self, layer: L) -> Self {
         Self::from_inner(Arc::new(
             TypeEraseLayer.layer(layer.layer(self.into_inner())),
         ))
@@ -360,14 +360,14 @@ impl Operator {
 ///     Ok(())
 /// }
 /// ```
-pub struct OperatorBuilder<A: Accessor> {
+pub struct OperatorBuilder<A: Access> {
     accessor: A,
 }
 
-impl<A: Accessor> OperatorBuilder<A> {
+impl<A: Access> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
+    pub fn new(accessor: A) -> OperatorBuilder<impl Access> {
         // Make sure error context layer has been attached.
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
@@ -404,7 +404,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// # }
     /// ```
     #[must_use]
-    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
+    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccess> {
         OperatorBuilder {
             accessor: layer.layer(self.accessor),
         }
@@ -413,6 +413,6 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         let ob = self.layer(TypeEraseLayer);
-        Operator::from_inner(Arc::new(ob.accessor) as FusedAccessor)
+        Operator::from_inner(Arc::new(ob.accessor) as Accessor)
     }
 }

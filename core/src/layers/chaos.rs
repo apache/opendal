@@ -76,10 +76,10 @@ impl ChaosLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ChaosLayer {
-    type LayeredAccessor = ChaosAccessor<A>;
+impl<A: Access> Layer<A> for ChaosLayer {
+    type LayeredAccess = ChaosAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
             rng: StdRng::from_entropy(),
@@ -96,7 +96,7 @@ pub struct ChaosAccessor<A> {
     error_ratio: f64,
 }
 
-impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
+impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;
     type BlockingReader = ChaosReader<A::BlockingReader>;

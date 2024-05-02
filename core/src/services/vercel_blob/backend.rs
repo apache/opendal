@@ -177,7 +177,7 @@ pub struct VercelBlobBackend {
     core: Arc<VercelBlobCore>,
 }
 
-impl Accessor for VercelBlobBackend {
+impl Access for VercelBlobBackend {
     type Reader = VercelBlobReader;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;

@@ -231,7 +231,7 @@ pub struct UpyunBackend {
     core: Arc<UpyunCore>,
 }
 
-impl Accessor for UpyunBackend {
+impl Access for UpyunBackend {
     type Reader = UpyunReader;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;

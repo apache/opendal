@@ -50,11 +50,11 @@ use crate::*;
 ///
 /// /// Implement the real accessor logic here.
 /// #[derive(Debug)]
-/// struct TraceAccessor<A: Accessor> {
+/// struct TraceAccessor<A: Access> {
 ///     inner: A,
 /// }
 ///
-/// impl<A: Accessor> LayeredAccessor for TraceAccessor<A> {
+/// impl<A: Access> LayeredAccess for TraceAccessor<A> {
 ///     type Inner = A;
 ///     type Reader = A::Reader;
 ///     type BlockingReader = A::BlockingReader;
@@ -109,28 +109,28 @@ use crate::*;
 /// /// Will be used like `op.layer(TraceLayer)`
 /// struct TraceLayer;
 ///
-/// impl<A: Accessor> Layer<A> for TraceLayer {
-///     type LayeredAccessor = TraceAccessor<A>;
+/// impl<A: Access> Layer<A> for TraceLayer {
+///     type LayeredAccess = TraceAccessor<A>;
 ///
-///     fn layer(&self, inner: A) -> Self::LayeredAccessor {
+///     fn layer(&self, inner: A) -> Self::LayeredAccess {
 ///         TraceAccessor { inner }
 ///     }
 /// }
 /// ```
-pub trait Layer<A: Accessor> {
+pub trait Layer<A: Access> {
     /// The layered accessor that returned by this layer.
-    type LayeredAccessor: Accessor;
+    type LayeredAccess: Access;
 
     /// Intercept the operations on the underlying storage.
-    fn layer(&self, inner: A) -> Self::LayeredAccessor;
+    fn layer(&self, inner: A) -> Self::LayeredAccess;
 }
 
-/// LayeredAccessor is layered accessor that forward all not implemented
+/// LayeredAccess is layered accessor that forward all not implemented
 /// method to inner.
 #[allow(missing_docs)]
 
-pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
-    type Inner: Accessor;
+pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
+    type Inner: Access;
     type Reader: oio::Read;
     type BlockingReader: oio::BlockingRead;
     type Writer: oio::Write;
@@ -239,7 +239,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)>;
 }
 
-impl<L: LayeredAccessor> Accessor for L {
+impl<L: LayeredAccess> Access for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
     type Writer = L::Writer;
@@ -334,16 +334,16 @@ mod tests {
     use crate::services::Memory;
 
     #[derive(Debug)]
-    struct Test<A: Accessor> {
+    struct Test<A: Access> {
         #[allow(dead_code)]
         inner: Option<A>,
         deleted: Arc<Mutex<bool>>,
     }
 
-    impl<A: Accessor> Layer<A> for &Test<A> {
-        type LayeredAccessor = Test<A>;
+    impl<A: Access> Layer<A> for &Test<A> {
+        type LayeredAccess = Test<A>;
 
-        fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        fn layer(&self, inner: A) -> Self::LayeredAccess {
             Test {
                 inner: Some(inner),
                 deleted: self.deleted.clone(),
@@ -351,7 +351,7 @@ mod tests {
         }
     }
 
-    impl<A: Accessor> Accessor for Test<A> {
+    impl<A: Access> Access for Test<A> {
         type Reader = ();
         type BlockingReader = ();
         type Writer = ();

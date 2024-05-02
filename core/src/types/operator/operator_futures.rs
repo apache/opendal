@@ -39,13 +39,13 @@ use crate::*;
 /// users to use this struct directly.
 pub struct OperatorFuture<I, O, F: Future<Output = Result<O>>> {
     /// The accessor to the underlying object storage
-    acc: FusedAccessor,
+    acc: Accessor,
     /// The path of string
     path: String,
     /// The input args
     args: I,
     /// The function which will move all the args and return a static future
-    f: fn(FusedAccessor, String, I) -> F,
+    f: fn(Accessor, String, I) -> F,
 }
 
 impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
@@ -54,10 +54,10 @@ impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
     /// This struct is by design to keep in crate. We don't want
     /// users to use this struct directly.
     pub(crate) fn new(
-        inner: FusedAccessor,
+        inner: Accessor,
         path: String,
         args: I,
-        f: fn(FusedAccessor, String, I) -> F,
+        f: fn(Accessor, String, I) -> F,
     ) -> Self {
         OperatorFuture {
             acc: inner,

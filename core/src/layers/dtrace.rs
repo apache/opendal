@@ -22,7 +22,7 @@ use std::fmt::Formatter;
 use bytes::Buf;
 use probe::probe_lazy;
 
-use crate::raw::Accessor;
+use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
@@ -168,19 +168,19 @@ use crate::*;
 #[derive(Default, Debug, Clone)]
 pub struct DtraceLayer {}
 
-impl<A: Accessor> Layer<A> for DtraceLayer {
-    type LayeredAccessor = DTraceAccessor<A>;
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+impl<A: Access> Layer<A> for DtraceLayer {
+    type LayeredAccess = DTraceAccessor<A>;
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         DTraceAccessor { inner }
     }
 }
 
 #[derive(Clone)]
-pub struct DTraceAccessor<A: Accessor> {
+pub struct DTraceAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> Debug for DTraceAccessor<A> {
+impl<A: Access> Debug for DTraceAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DTraceAccessor")
             .field("inner", &self.inner)
@@ -188,7 +188,7 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
+impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;
     type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;

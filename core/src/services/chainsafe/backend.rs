@@ -202,7 +202,7 @@ pub struct ChainsafeBackend {
     core: Arc<ChainsafeCore>,
 }
 
-impl Accessor for ChainsafeBackend {
+impl Access for ChainsafeBackend {
     type Reader = ChainsafeReader;
     type Writer = ChainsafeWriters;
     type Lister = oio::PageLister<ChainsafeLister>;

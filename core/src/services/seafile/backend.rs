@@ -252,7 +252,7 @@ pub struct SeafileBackend {
     core: Arc<SeafileCore>,
 }
 
-impl Accessor for SeafileBackend {
+impl Access for SeafileBackend {
     type Reader = SeafileReader;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;

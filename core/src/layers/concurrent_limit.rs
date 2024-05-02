@@ -57,10 +57,10 @@ impl ConcurrentLimitLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ConcurrentLimitLayer {
-    type LayeredAccessor = ConcurrentLimitAccessor<A>;
+impl<A: Access> Layer<A> for ConcurrentLimitLayer {
+    type LayeredAccess = ConcurrentLimitAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ConcurrentLimitAccessor {
             inner,
             semaphore: Arc::new(Semaphore::new(self.permits)),
@@ -69,12 +69,12 @@ impl<A: Accessor> Layer<A> for ConcurrentLimitLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConcurrentLimitAccessor<A: Accessor> {
+pub struct ConcurrentLimitAccessor<A: Access> {
     inner: A,
     semaphore: Arc<Semaphore>,
 }
 
-impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
+impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitWrapper<A::Reader>;
     type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;

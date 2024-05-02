@@ -83,10 +83,10 @@ impl ThrottleLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ThrottleLayer {
-    type LayeredAccessor = ThrottleAccessor<A>;
+impl<A: Access> Layer<A> for ThrottleLayer {
+    type LayeredAccess = ThrottleAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccessor {
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
         let rate_limiter = Arc::new(RateLimiter::direct(
             Quota::per_second(self.bandwidth).allow_burst(self.burst),
         ));
@@ -103,12 +103,12 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
 type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;
 
 #[derive(Debug, Clone)]
-pub struct ThrottleAccessor<A: Accessor> {
+pub struct ThrottleAccessor<A: Access> {
     inner: A,
     rate_limiter: SharedRateLimiter,
 }
 
-impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
+impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
     type BlockingReader = ThrottleWrapper<A::BlockingReader>;

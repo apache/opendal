@@ -112,10 +112,10 @@ static LABEL_ERROR: &str = "error";
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;
 
-impl<A: Accessor> Layer<A> for MetricsLayer {
-    type LayeredAccessor = MetricsAccessor<A>;
+impl<A: Access> Layer<A> for MetricsLayer {
+    type LayeredAccess = MetricsAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
 
         MetricsAccessor {
@@ -388,12 +388,12 @@ impl MetricsHandler {
 }
 
 #[derive(Clone)]
-pub struct MetricsAccessor<A: Accessor> {
+pub struct MetricsAccessor<A: Access> {
     inner: A,
     handle: Arc<MetricsHandler>,
 }
 
-impl<A: Accessor> Debug for MetricsAccessor<A> {
+impl<A: Access> Debug for MetricsAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsAccessor")
             .field("inner", &self.inner)
@@ -401,7 +401,7 @@ impl<A: Accessor> Debug for MetricsAccessor<A> {
     }
 }
 
-impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
+impl<A: Access> LayeredAccess for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricWrapper<A::Reader>;
     type BlockingReader = MetricWrapper<A::BlockingReader>;

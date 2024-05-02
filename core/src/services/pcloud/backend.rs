@@ -227,7 +227,7 @@ pub struct PcloudBackend {
     core: Arc<PcloudCore>,
 }
 
-impl Accessor for PcloudBackend {
+impl Access for PcloudBackend {
     type Reader = PcloudReader;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;

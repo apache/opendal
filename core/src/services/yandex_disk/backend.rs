@@ -177,7 +177,7 @@ pub struct YandexDiskBackend {
     core: Arc<YandexDiskCore>,
 }
 
-impl Accessor for YandexDiskBackend {
+impl Access for YandexDiskBackend {
     type Reader = YandexDiskReader;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;

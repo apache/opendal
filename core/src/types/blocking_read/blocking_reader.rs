@@ -40,7 +40,7 @@ impl BlockingReader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> crate::Result<Self> {
+    pub(crate) fn create(acc: Accessor, path: &str, op: OpRead) -> crate::Result<Self> {
         let (_, r) = acc.blocking_read(path, op)?;
 
         Ok(BlockingReader { inner: r })

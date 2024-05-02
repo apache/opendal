@@ -221,7 +221,7 @@ impl Debug for HttpBackend {
     }
 }
 
-impl Accessor for HttpBackend {
+impl Access for HttpBackend {
     type Reader = HttpReader;
     type Writer = ();
     type Lister = ();

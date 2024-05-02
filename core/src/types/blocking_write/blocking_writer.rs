@@ -33,7 +33,7 @@ impl BlockingWriter {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
+    pub(crate) fn create(acc: Accessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.blocking_write(path, op)?;
 
         Ok(BlockingWriter { inner: w })

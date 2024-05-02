@@ -188,7 +188,7 @@ pub struct SwiftBackend {
     core: Arc<SwiftCore>,
 }
 
-impl Accessor for SwiftBackend {
+impl Access for SwiftBackend {
     type Reader = SwiftReader;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;

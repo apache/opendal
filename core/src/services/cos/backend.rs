@@ -252,7 +252,7 @@ pub struct CosBackend {
     core: Arc<CosCore>,
 }
 
-impl Accessor for CosBackend {
+impl Access for CosBackend {
     type Reader = CosReader;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;

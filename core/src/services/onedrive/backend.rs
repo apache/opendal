@@ -61,7 +61,7 @@ impl Debug for OnedriveBackend {
     }
 }
 
-impl Accessor for OnedriveBackend {
+impl Access for OnedriveBackend {
     type Reader = OnedriveReader;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;

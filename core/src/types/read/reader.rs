@@ -52,7 +52,7 @@ impl Reader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) async fn create(
-        acc: FusedAccessor,
+        acc: Accessor,
         path: &str,
         args: OpRead,
         options: OpReader,

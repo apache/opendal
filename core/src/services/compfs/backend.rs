@@ -63,7 +63,7 @@ pub struct CompfsBackend {
     rt: CompioThread,
 }
 
-impl Accessor for CompfsBackend {
+impl Access for CompfsBackend {
     type Reader = ();
     type Writer = ();
     type Lister = ();

@@ -170,7 +170,7 @@ pub struct HdfsNativeBackend {
 unsafe impl Send for HdfsNativeBackend {}
 unsafe impl Sync for HdfsNativeBackend {}
 
-impl Accessor for HdfsNativeBackend {
+impl Access for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
     type BlockingReader = ();
     type Writer = HdfsNativeWriter;

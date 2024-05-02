@@ -216,7 +216,7 @@ pub struct GithubBackend {
     core: Arc<GithubCore>,
 }
 
-impl Accessor for GithubBackend {
+impl Access for GithubBackend {
     type Reader = GithubReader;
 
     type Writer = GithubWriters;

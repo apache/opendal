@@ -330,7 +330,7 @@ pub struct GcsBackend {
     core: Arc<GcsCore>,
 }
 
-impl Accessor for GcsBackend {
+impl Access for GcsBackend {
     type Reader = GcsReader;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;

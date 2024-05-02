@@ -264,7 +264,7 @@ pub struct IcloudBackend {
     core: Arc<IcloudCore>,
 }
 
-impl Accessor for IcloudBackend {
+impl Access for IcloudBackend {
     type Reader = IcloudReader;
     type BlockingReader = ();
     type Writer = ();

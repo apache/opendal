@@ -488,13 +488,20 @@ jobs:
           publish_dir: website/build
           publish_branch: site/main-staging
 
+      - name: Prepare rc staged name
+        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
+        run: |
+          export OPENDAL_WEBSITE_STAGED_NAME=$(echo ${{ github.ref_name }} | sed 's/[.-]/_/g')
+          echo OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME}
+          echo OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME} >> $GITHUB_ENV
+
       - name: Deploy to rc staged
         uses: peaceiris/actions-gh-pages@v3.9.2
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
-          publish_branch: site/${{ github.ref_name }}-staging
+          publish_branch: site/${{ env.OPENDAL_WEBSITE_STAGED_NAME }}-staging
 
       - name: Clear build
         run: rm -rf ./website/build

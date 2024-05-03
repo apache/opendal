@@ -78,6 +78,10 @@ mod tests {
     use super::*;
     use crate::raw::MaybeSend;
 
-    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
-    impl AssertTrait for FuturesBytesStream {}
+    #[test]
+    fn test_trait() {
+        let v = FuturesBytesSink::new(Box::new(()));
+
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
 }

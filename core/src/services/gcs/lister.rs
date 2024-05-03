@@ -86,7 +86,7 @@ impl oio::PageList for GcsLister {
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
-            ctx.token = token.clone();
+            ctx.token.clone_from(token);
         } else {
             ctx.done = true;
         }

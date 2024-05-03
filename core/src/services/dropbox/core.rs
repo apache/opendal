@@ -108,7 +108,7 @@ impl DropboxCore {
             serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
         // Update signer after token refreshed.
-        signer.access_token = token.access_token.clone();
+        signer.access_token.clone_from(&token.access_token);
 
         // Refresh it 2 minutes earlier.
         signer.expires_in = Utc::now()

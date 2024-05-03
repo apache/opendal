@@ -284,14 +284,22 @@ mod tests {
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
+    use std::sync::Arc;
 
     use super::*;
     use crate::raw::MaybeSend;
     use crate::services;
     use crate::Operator;
 
-    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
-    impl AssertTrait for Reader {}
+    #[test]
+    fn test_trait() {
+        let v = Reader {
+            inner: Arc::new(Buffer::new()),
+            options: OpReader::new(),
+        };
+
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();

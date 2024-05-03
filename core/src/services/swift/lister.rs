@@ -67,7 +67,7 @@ impl oio::PageList for SwiftLister {
                 ListOpResponse::Subdir { subdir } => subdir,
                 ListOpResponse::FileInfo { name, .. } => name,
             };
-            ctx.token = path.clone();
+            ctx.token.clone_from(path);
         } else {
             ctx.done = true;
         }

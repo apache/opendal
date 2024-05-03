@@ -162,6 +162,10 @@ mod tests {
     use crate::raw::MaybeSend;
     use crate::BufferSink;
 
-    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
-    impl AssertTrait for BufferSink {}
+    #[test]
+    fn test_trait() {
+        let v = BufferSink::new(Box::new(()));
+
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
 }

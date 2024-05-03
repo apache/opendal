@@ -395,8 +395,8 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
-/// `AccessorDyn` is the dyn version of [`Access`] make it possible to use as
-/// `Box<dyn AccessorDyn>`.
+/// `AccessDyn` is the dyn version of [`Access`] make it possible to use as
+/// `Box<dyn AccessDyn>`.
 pub trait AccessDyn: Send + Sync + Debug + Unpin {
     /// Dyn version of [`Accessor::info`]
     fn info_dyn(&self) -> AccessorInfo;

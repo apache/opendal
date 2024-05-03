@@ -289,7 +289,7 @@ impl B2Core {
         };
 
         if let Some(mime) = args.content_type() {
-            start_large_file_request.content_type = mime.to_owned();
+            mime.clone_into(&mut start_large_file_request.content_type)
         }
 
         let body =

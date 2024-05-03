@@ -182,8 +182,12 @@ mod tests {
 
     use super::*;
 
-    trait AssertTrait: Unpin + MaybeSend + Sync + 'static {}
-    impl AssertTrait for FuturesAsyncReader {}
+    #[test]
+    fn test_trait() {
+        let v = FuturesAsyncReader::new(Arc::new(Buffer::new()), OpReader::new(), 4..8);
+
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
 
     #[tokio::test]
     async fn test_futures_async_read() {

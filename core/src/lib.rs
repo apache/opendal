@@ -160,7 +160,6 @@ mod tests {
         assert_eq!(24, size_of::<Scheme>());
     }
 
-    /// This is used to make sure our public API implement Send + Sync
     trait AssertSendSync: Send + Sync {}
     impl AssertSendSync for Entry {}
     impl AssertSendSync for Capability {}
@@ -173,4 +172,10 @@ mod tests {
     impl AssertSendSync for BlockingWriter {}
     impl AssertSendSync for BlockingLister {}
     impl AssertSendSync for BlockingOperator {}
+
+    /// This is used to make sure our public API implement Send + Sync
+    #[test]
+    fn test_trait() {
+        let _: Box<dyn AssertSendSync> = Box::new(Writer::new(Box::new(())));
+    }
 }

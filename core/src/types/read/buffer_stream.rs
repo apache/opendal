@@ -150,8 +150,12 @@ mod tests {
 
     use super::*;
 
-    trait AssertTrait: Unpin + MaybeSend + 'static {}
-    impl AssertTrait for BufferStream {}
+    #[test]
+    fn test_trait() {
+        let v = BufferStream::new(Arc::new(Buffer::new()), OpReader::new(), 4..8);
+
+        let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
+    }
 
     #[test]
     fn test_future_iterator() {

@@ -101,6 +101,7 @@ def generate_checksum():
 
 
 if __name__ == "__main__":
+    (ROOT_DIR / "dist").mkdir(exist_ok=True)
     for v in PACKAGES:
         archive_package(v)
     generate_signature()

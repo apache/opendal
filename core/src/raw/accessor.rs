@@ -395,9 +395,9 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
-/// `AccessorDyn` is the dyn version of [`Access`] make it possible to use as
-/// `Box<dyn AccessorDyn>`.
-pub trait AccessorDyn: Send + Sync + Debug + Unpin {
+/// `AccessDyn` is the dyn version of [`Access`] make it possible to use as
+/// `Box<dyn AccessDyn>`.
+pub trait AccessDyn: Send + Sync + Debug + Unpin {
     /// Dyn version of [`Accessor::info`]
     fn info_dyn(&self) -> AccessorInfo;
     /// Dyn version of [`Accessor::create_dir`]
@@ -473,7 +473,7 @@ pub trait AccessorDyn: Send + Sync + Debug + Unpin {
     fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename>;
 }
 
-impl<A: ?Sized> AccessorDyn for A
+impl<A: ?Sized> AccessDyn for A
 where
     A: Access<
         Reader = oio::Reader,
@@ -599,7 +599,7 @@ where
     }
 }
 
-impl Access for dyn AccessorDyn {
+impl Access for dyn AccessDyn {
     type Reader = oio::Reader;
     type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
@@ -829,7 +829,7 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 }
 
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
-pub type Accessor = Arc<dyn AccessorDyn>;
+pub type Accessor = Arc<dyn AccessDyn>;
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]

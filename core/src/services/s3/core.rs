@@ -447,7 +447,7 @@ impl S3Core {
         if let Some(checksum) = self.calculate_checksum(&body) {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
-        }   
+        }
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -631,7 +631,7 @@ impl S3Core {
         part_number: usize,
         size: u64,
         body: Buffer,
-        checksum: Option<String>
+        checksum: Option<String>,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -654,7 +654,7 @@ impl S3Core {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
         }
-        
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -801,7 +801,7 @@ pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "ETag")]
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C")]
-    pub checksum_crc32c: Option<String>  
+    pub checksum_crc32c: Option<String>,
 }
 
 /// Request of DeleteObjects.

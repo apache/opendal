@@ -348,12 +348,22 @@ fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::E
 }
 
 fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
+    let version = match meta.metakey().contains(Metakey::Version) {
+        true => meta.version().map(|x| x.to_string()),
+        false => None,
+    };
+
+    let e_tag = match meta.metakey().contains(Metakey::Etag) {
+        true => meta.etag().map(|x| x.to_string()),
+        false => None,
+    };
+
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
-        e_tag: meta.etag().map(|x| x.to_string()),
-        version: meta.version().map(|x| x.to_string()),
+        e_tag,
+        version,
     }
 }
 

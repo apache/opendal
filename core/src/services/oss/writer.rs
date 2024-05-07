@@ -117,7 +117,11 @@ impl oio::MultipartWrite for OssWriter {
                     })?
                     .to_string();
 
-                Ok(oio::MultipartPart { part_number, etag })
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag,
+                    checksum: None,
+                })
             }
             _ => Err(parse_error(resp).await?),
         }

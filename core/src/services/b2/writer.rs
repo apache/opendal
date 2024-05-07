@@ -106,6 +106,7 @@ impl oio::MultipartWrite for B2Writer {
                 Ok(oio::MultipartPart {
                     etag: result.content_sha1,
                     part_number,
+                    checksum: None,
                 })
             }
             _ => Err(parse_error(resp).await?),

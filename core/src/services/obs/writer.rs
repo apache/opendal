@@ -112,7 +112,11 @@ impl oio::MultipartWrite for ObsWriter {
                     })?
                     .to_string();
 
-                Ok(MultipartPart { part_number, etag })
+                Ok(MultipartPart {
+                    part_number,
+                    etag,
+                    checksum: None,
+                })
             }
             _ => Err(parse_error(resp).await?),
         }

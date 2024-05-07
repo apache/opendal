@@ -95,9 +95,14 @@ impl oio::MultipartWrite for S3Writer {
 
         let checksum = self.core.calculate_checksum(&body);
 
-        let mut req =
-            self.core
-                .s3_upload_part_request(&self.path, upload_id, part_number, size, body, checksum.clone())?;
+        let mut req = self.core.s3_upload_part_request(
+            &self.path,
+            upload_id,
+            part_number,
+            size,
+            body,
+            checksum.clone(),
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -116,7 +121,11 @@ impl oio::MultipartWrite for S3Writer {
                     })?
                     .to_string();
 
-                Ok(oio::MultipartPart { part_number, etag, checksum})
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag,
+                    checksum,
+                })
             }
             _ => Err(parse_error(resp).await?),
         }

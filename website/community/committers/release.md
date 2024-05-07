@@ -116,7 +116,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 - [ ] Push the release git tag
 - [ ] Publish artifacts to SVN RELEASE branch
-- [ ] Update the download link on [OpenDAL Website](https://opendal.apache.org) to the new release version
 - [ ] Release Maven artifacts
 - [ ] Send the announcement
 
@@ -323,7 +322,7 @@ https://test.pypi.org/project/opendal/
 
 Website staged:
 
-https://opendal-rc.staged.apache.org/
+https://opendal-v${release_version | replace('.', '-')}.staged.apache.org/
 
 Please download, verify, and test.
 
@@ -365,11 +364,11 @@ The vote should be open for **at least 72 hours** except the following cases:
 2. The wild user effected bug fixes
 3. Any other emergency cases
 
-The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.
+The Release manager should claim the emergency cases in the vote email if he wants to vote it rapidly.
 
 > Tips: The 72 hours is the minimum time for voting, so we can ensure that community members from various time zones can participate in the verification process.
 
-After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://opendal.apache.org/community/#committers)) and no veto, claim the vote result:
+After at least 3 `+1` binding vote ([from OpenDAL PMC member](https://people.apache.org/phonebook.html?project=opendal)) and more +1 bindings than -1 bindings, claim the vote result:
 
 Title:
 

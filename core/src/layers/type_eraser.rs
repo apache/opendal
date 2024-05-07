@@ -88,7 +88,7 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
+            .map(|(rp, r)| (rp, Arc::new(r) as oio::BlockingReader))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

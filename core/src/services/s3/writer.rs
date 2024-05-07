@@ -93,9 +93,11 @@ impl oio::MultipartWrite for S3Writer {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
+        let checksum = self.core.calculate_checksum(&body);
+
         let mut req =
             self.core
-                .s3_upload_part_request(&self.path, upload_id, part_number, size, body)?;
+                .s3_upload_part_request(&self.path, upload_id, part_number, size, body, checksum.clone())?;
 
         self.core.sign(&mut req).await?;
 
@@ -114,7 +116,7 @@ impl oio::MultipartWrite for S3Writer {
                     })?
                     .to_string();
 
-                Ok(oio::MultipartPart { part_number, etag })
+                Ok(oio::MultipartPart { part_number, etag, checksum})
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -123,9 +125,20 @@ impl oio::MultipartWrite for S3Writer {
     async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
         let parts = parts
             .iter()
-            .map(|p| CompleteMultipartUploadRequestPart {
-                part_number: p.part_number,
-                etag: p.etag.clone(),
+            .map(|p| match &self.core.checksum_algorithm {
+                None => CompleteMultipartUploadRequestPart {
+                    part_number: p.part_number,
+                    etag: p.etag.clone(),
+                    ..Default::default()
+                },
+                Some(checksum_algorithm) => match checksum_algorithm {
+                    ChecksumAlgorithm::Crc32c => CompleteMultipartUploadRequestPart {
+                        part_number: p.part_number,
+                        etag: p.etag.clone(),
+                        checksum_crc32c: p.checksum.clone(),
+                        ..Default::default()
+                    },
+                },
             })
             .collect();
 

@@ -108,12 +108,15 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
 ///
 /// - `part_number` is the index of the part, starting from 0.
 /// - `etag` is the `ETag` of the part.
+/// - `checksum` is the optional checksum of the part.
 #[derive(Clone)]
 pub struct MultipartPart {
     /// The number of the part, starting from 0.
     pub part_number: usize,
     /// The etag of the part.
     pub etag: String,
+    /// The checksum of the part.
+    pub checksum: Option<String>
 }
 
 /// WritePartResult is the result returned by [`WritePartFuture`].
@@ -381,6 +384,7 @@ mod tests {
             Ok(MultipartPart {
                 part_number,
                 etag: "etag".to_string(),
+                checksum: None,
             })
         }
 

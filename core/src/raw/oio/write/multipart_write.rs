@@ -116,7 +116,7 @@ pub struct MultipartPart {
     /// The etag of the part.
     pub etag: String,
     /// The checksum of the part.
-    pub checksum: Option<String>
+    pub checksum: Option<String>,
 }
 
 /// WritePartResult is the result returned by [`WritePartFuture`].

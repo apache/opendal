@@ -85,6 +85,7 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
 - [mozilla/sccache](https://github.com/mozilla/sccache/): `sccache` is [`ccache`](https://github.com/ccache/ccache) with cloud storage
 - [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
+- [ParadeDB](https://github.com/paradedb/paradedb): Postgres for Search and Analytics - fast full-text search and analytics in Postgres and over cloud storage. Built as an extension.
 - [Pants](https://github.com/pantsbuild/pants): A fast, scalable, user-friendly build system for codebases of all sizes.
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing

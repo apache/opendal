@@ -98,6 +98,7 @@ impl oio::MultipartWrite for UpyunWriter {
             StatusCode::NO_CONTENT | StatusCode::CREATED => Ok(oio::MultipartPart {
                 part_number,
                 etag: "".to_string(),
+                checksum: None,
             }),
             _ => Err(parse_error(resp).await?),
         }

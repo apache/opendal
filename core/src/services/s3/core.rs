@@ -800,7 +800,7 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
     pub etag: String,
-    #[serde(rename = "ChecksumCRC32C")]
+    #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
     pub checksum_crc32c: Option<String>,
 }
 

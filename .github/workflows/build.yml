@@ -1,0 +1,113 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build and Test
+
+# Controls when the workflow will run
+on: 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build-sdist:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.12
+      - name: Test with Python 3.12
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y
+          python3 -m pip install maturin && maturin build --sdist
+          export EGG=$(ls target/wheels/*.tar.gz)
+          python3 -m pip install ${EGG}[test]
+          make test
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: sdist
+          path: target/wheels/*.tar.gz
+  build-qemu:
+    strategy:
+      matrix:
+        python-minor-version: ["9", "10", "11", "12"]
+        libc: ["manylinux", "musllinux"]
+      fail-fast: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+      - name: Set up Python 3.${{ matrix.python-minor-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.${{ matrix.python-minor-version }}
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.16.5
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: 'cp3${{ matrix.python-minor-version }}-${{ matrix.libc }}*'
+          CIBW_ARCHS: 'aarch64'
+          CIBW_ENVIRONMENT: 'PATH="$HOME/.cargo/bin:$PATH" CARGO_TERM_COLOR="always"'
+          CIBW_BEFORE_BUILD_LINUX: >
+            curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y &&
+            rustup show
+          CIBW_TEST_EXTRAS: "test"
+          CIBW_TEST_COMMAND: "pytest {project}/tests"
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-ubuntu-aarch64-${{ matrix.libc }}-3.${{ matrix.python-minor-version }}
+          compression-level: 0
+          path: wheelhouse/*.whl
+  build:
+    # The type of runner that the job will run on
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-14]
+        python-minor-version: ["9", "10", "11", "12"]
+        exclude:
+          - os: macos-14
+            python-minor-version: "9"
+      fail-fast: true
+    runs-on: ${{ matrix.os }}
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.${{ matrix.python-minor-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.${{ matrix.python-minor-version }}
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.16.5
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: 'cp3${{ matrix.python-minor-version }}-*'
+          # rust doesn't seem to be available for musl linux on i686
+          CIBW_SKIP: '*-musllinux_i686 *_ppc64le *_s390x'
+        #   # we build for "alt_arch_name" if it exists, else 'auto'
+          CIBW_ARCHS: 'auto'
+          CIBW_ENVIRONMENT: 'PATH="$HOME/.cargo/bin:$PATH" CARGO_TERM_COLOR="always"'
+        #   CIBW_ENVIRONMENT_WINDOWS: 'PATH="$UserProfile\.cargo\bin;$PATH"'
+        #   CIBW_BEFORE_BUILD: rustup show
+          CIBW_BEFORE_BUILD_LINUX: >
+            curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y &&
+            rustup show
+          CIBW_TEST_EXTRAS: "test"
+          CIBW_TEST_COMMAND: "pytest {project}/tests"
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-3.${{ matrix.python-minor-version }}
+          compression-level: 0
+          path: wheelhouse/*.whl
+

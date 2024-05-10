@@ -39,6 +39,8 @@ use crate::*;
 pub struct GdriveCore {
     pub root: String,
 
+    pub drive_id: Option<String>,
+
     pub client: HttpClient,
 
     pub signer: Arc<Mutex<GdriveSigner>>,
@@ -112,6 +114,10 @@ impl GdriveCore {
         if !next_page_token.is_empty() {
             url += &format!("&pageToken={next_page_token}");
         };
+
+        if let Some(drive_id) = self.drive_id.as_ref() {
+            url += &format!("&drive_id={}&supportsAllDrives=true", drive_id);
+        }
 
         let mut req = Request::get(&url)
             .body(Buffer::new())

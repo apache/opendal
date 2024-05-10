@@ -52,6 +52,8 @@ pub struct GdriveConfig {
     pub client_id: Option<String>,
     /// Client secret for gdrive.
     pub client_secret: Option<String>,
+    /// ID of shared drive to search.
+    pub drive_id: Option<String>,
 }
 
 impl Debug for GdriveConfig {
@@ -124,6 +126,12 @@ impl GdriveBuilder {
     /// This is required for OAuth 2.0 Flow with refresh the access token.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
         self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+
+    /// Set the drive id for GoogleDrive
+    pub fn drive_id(&mut self, drive_id: &str) -> &mut Self {
+        self.config.drive_id = Some(drive_id.to_string());
         self
     }
 
@@ -219,6 +227,7 @@ impl Builder for GdriveBuilder {
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
                 root,
+                drive_id: self.config.drive_id.clone(),
                 signer: signer.clone(),
                 client: client.clone(),
                 path_cache: PathCacher::new(GdrivePathQuery::new(client, signer)).with_lock(),

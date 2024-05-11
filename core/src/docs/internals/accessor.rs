@@ -102,7 +102,7 @@
 //!
 //! - `Reader`: reader returned by `read` operation.
 //! - `BlockingReader`: reader returned by `blocking_read` operation.
-//! - `Lister`: lister returned by `scan` or `list` operation.
+//! - `Lister`: lister returned by `list` operation.
 //! - `BlockingLister`: lister returned by `blocking_scan` or `blocking_list` operation.
 //!
 //! Implementer of `Accessor` should take care the following things:
@@ -184,7 +184,6 @@
 //! /// - [x] read
 //! /// - [ ] write
 //! /// - [ ] list
-//! /// - [ ] scan
 //! /// - [ ] presign
 //! /// - [ ] blocking
 //! ///

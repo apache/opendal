@@ -157,7 +157,7 @@ pub struct SupabaseBackend {
 impl Access for SupabaseBackend {
     type Reader = SupabaseReader;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
-    // todo: implement Lister to support list and scan
+    // todo: implement Lister to support list
     type Lister = ();
     type BlockingReader = ();
     type BlockingWriter = ();

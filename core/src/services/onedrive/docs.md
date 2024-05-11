@@ -7,7 +7,6 @@ This service can be used to:
 - [x] list
 - [ ] copy
 - [ ] rename
-- [ ] ~~scan~~
 - [ ] ~~presign~~
 - [ ] blocking
 

@@ -35,4 +35,5 @@ extend-exclude = [
   "fixtures/sftp/test_ssh_key.pub",
   # Generated pnpm locks.
   "website/pnpm-lock.yaml",
+  "CHANGELOG.md",
 ]

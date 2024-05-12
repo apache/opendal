@@ -11,21 +11,21 @@ cargo bench --bench types --features tests
 The following are the test results for reference:
 
 ```shell
-bench_contiguous_buffer/bytes buf chunk with 256 KiB chunk
+bench_contiguous_buffer/bytes buf 256 KiB chunk
                         time:   [210.54 ps 211.54 ps 212.62 ps]
-bench_contiguous_buffer/contiguous buffer chunk with 256 KiB chunk
+bench_contiguous_buffer/contiguous buffer 256 KiB chunk
                         time:   [233.12 ps 233.90 ps 234.69 ps]
-bench_contiguous_buffer/bytes buf chunk with 256 KiB advance
+bench_contiguous_buffer/bytes buf 256 KiB advance
                         time:   [10.238 ns 10.239 ns 10.240 ns]
-bench_contiguous_buffer/contiguous buffer chunk with 256 KiB advance
+bench_contiguous_buffer/contiguous buffer 256 KiB advance
                         time:   [14.758 ns 14.764 ns 14.771 ns]
-bench_contiguous_buffer/bytes buf chunk with 4.00 MiB chunk
+bench_contiguous_buffer/bytes buf 4.00 MiB chunk
                         time:   [210.26 ps 211.32 ps 212.45 ps]
-bench_contiguous_buffer/contiguous buffer chunk with 4.00 MiB chunk
+bench_contiguous_buffer/contiguous buffer 4.00 MiB chunk
                         time:   [256.97 ps 257.30 ps 257.62 ps]
-bench_contiguous_buffer/bytes buf chunk with 4.00 MiB advance
+bench_contiguous_buffer/bytes buf 4.00 MiB advance
                         time:   [10.238 ns 10.239 ns 10.240 ns]
-bench_contiguous_buffer/contiguous buffer chunk with 4.00 MiB advance
+bench_contiguous_buffer/contiguous buffer 4.00 MiB advance
                         time:   [14.756 ns 14.760 ns 14.764 ns]
 
 bench_non_contiguous_buffer/bytes buf 256 KiB * 4  chunk

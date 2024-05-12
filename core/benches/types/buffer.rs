@@ -35,8 +35,8 @@ pub fn bench_contiguous_buffer(c: &mut Criterion) {
         let bytes_buf = gen_bytes(&mut rng, size.bytes() as usize);
         let buffer = Buffer::from(bytes_buf.clone());
 
-        let bytes_buf_name = format!("bytes buf chunk with {}", size.to_string());
-        let buffer_name = format!("contiguous buffer chunk with {}", size.to_string());
+        let bytes_buf_name = format!("bytes buf {}", size.to_string());
+        let buffer_name = format!("contiguous buffer {}", size.to_string());
 
         group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| b.iter(|| bytes_buf.chunk() ));
         group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| b.iter(|| buffer.chunk() ));

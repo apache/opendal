@@ -77,7 +77,6 @@ async fn execute_inner(args: Args) -> Result<()> {
     mount_option.uid(uid.into());
     mount_option.gid(gid.into());
     mount_option.no_open_dir_support(true);
-    mount_option.read_only(true);
 
     let adapter = fuse::Fuse::new(args.backend, uid.into(), gid.into());
 

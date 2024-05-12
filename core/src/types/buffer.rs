@@ -320,21 +320,6 @@ impl Buffer {
 
     /// Splits the current object into two parts at the specified index (`at`).
     ///
-    /// The portion before the index is stored in the left tuple element, while the portion
-    /// after the index is stored in the right tuple element.
-    #[inline]
-    pub fn split(&self, at: usize) -> (Self, Self) {
-        let mut left = self.clone();
-        let mut right = self.clone();
-
-        left.truncate(at);
-        right.advance(at);
-
-        (left, right)
-    }
-
-    /// Splits the current object into two parts at the specified index (`at`).
-    ///
     /// The portion before the index is stored in the `left` object, while the portion
     /// after the index is removed from the current object (`self`).
     #[inline]

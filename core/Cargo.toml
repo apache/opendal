@@ -203,6 +203,11 @@ harness = false
 name = "oio"
 required-features = ["tests"]
 
+[[bench]]
+harness = false
+name = "types"
+required-features = ["tests"]
+
 [[test]]
 harness = false
 name = "behavior"

@@ -822,8 +822,8 @@ impl Operator {
     ///
     /// ## Extra Options
     ///
-    /// [`Operator::write`] is a wrapper of [`Operator::write_with`] without any options. To use
-    /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
+    /// [`Operator::writer`] is a wrapper of [`Operator::writer_with`] without any options. To use
+    /// extra options like `content_type` and `cache_control`, please use [`Operator::writer_with`]
     /// instead.
     ///
     /// ## Chunk
@@ -835,7 +835,7 @@ impl Operator {
     /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
     /// will cost more money if we write data in small chunks.
     ///
-    /// Users can use [`Operator::write_with`] to set a good chunk size might improve the performance,
+    /// Users can use [`Operator::writer_with`] to set a good chunk size might improve the performance,
     ///
     /// # Examples
     ///

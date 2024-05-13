@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use size::Size;
 use bytes::Buf;
+use criterion::Criterion;
 use opendal::Buffer;
 use rand::thread_rng;
-use criterion::Criterion;
+use size::Size;
 
 use super::utils::*;
 
@@ -28,28 +28,33 @@ pub fn bench_contiguous_buffer(c: &mut Criterion) {
 
     let mut rng = thread_rng();
 
-    for size in [
-        Size::from_kibibytes(256),
-        Size::from_mebibytes(4),
-    ] {
+    for size in [Size::from_kibibytes(256), Size::from_mebibytes(4)] {
         let bytes_buf = gen_bytes(&mut rng, size.bytes() as usize);
         let buffer = Buffer::from(bytes_buf.clone());
 
         let bytes_buf_name = format!("bytes buf {}", size.to_string());
         let buffer_name = format!("contiguous buffer {}", size.to_string());
 
-        group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| b.iter(|| bytes_buf.chunk() ));
-        group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| b.iter(|| buffer.chunk() ));
+        group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| {
+            b.iter(|| bytes_buf.chunk())
+        });
+        group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
+            b.iter(|| buffer.chunk())
+        });
 
-        group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| b.iter(|| {
-            let mut bytes_buf = bytes_buf.clone();
-            bytes_buf.advance((size.bytes() as f64 * 0.5) as usize);
-        }));
-        group.bench_function(format!("{} {}", buffer_name, "advance"), |b| b.iter(|| {
-            let mut buffer = buffer.clone();
-            // Advance non-integer number of Bytes.
-            buffer.advance((size.bytes() as f64 * 0.5) as usize);
-        }));
+        group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| {
+            b.iter(|| {
+                let mut bytes_buf = bytes_buf.clone();
+                bytes_buf.advance((size.bytes() as f64 * 0.5) as usize);
+            })
+        });
+        group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
+            b.iter(|| {
+                let mut buffer = buffer.clone();
+                // Advance non-integer number of Bytes.
+                buffer.advance((size.bytes() as f64 * 0.5) as usize);
+            })
+        });
     }
 
     group.finish()
@@ -60,10 +65,7 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
 
     let mut rng = thread_rng();
 
-    for size in [
-        Size::from_kibibytes(256),
-        Size::from_mebibytes(4),
-    ] {
+    for size in [Size::from_kibibytes(256), Size::from_mebibytes(4)] {
         for num in [4, 32] {
             let bytes_buf = gen_bytes(&mut rng, size.bytes() as usize * num);
             let mut bytes_vec = vec![];
@@ -74,19 +76,27 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
 
             let bytes_buf_name = format!("bytes buf {} * {} ", size.to_string(), num);
             let buffer_name = format!("non contiguous buffer {} * {}", size.to_string(), num);
-    
-            group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| b.iter(|| bytes_buf.chunk() ));
-            group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| b.iter(|| buffer.chunk() ));
 
-            group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| b.iter(|| {
-                let mut bytes_buf = bytes_buf.clone();
-                bytes_buf.advance((size.bytes() as f64 * 3.5) as usize);
-            }));
-            group.bench_function(format!("{} {}", buffer_name, "advance"), |b| b.iter(|| {
-                let mut buffer = buffer.clone();
-                // Advance non-integer number of Bytes.
-                buffer.advance((size.bytes() as f64 * 3.5) as usize);
-            }));
+            group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| {
+                b.iter(|| bytes_buf.chunk())
+            });
+            group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
+                b.iter(|| buffer.chunk())
+            });
+
+            group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| {
+                b.iter(|| {
+                    let mut bytes_buf = bytes_buf.clone();
+                    bytes_buf.advance((size.bytes() as f64 * 3.5) as usize);
+                })
+            });
+            group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
+                b.iter(|| {
+                    let mut buffer = buffer.clone();
+                    // Advance non-integer number of Bytes.
+                    buffer.advance((size.bytes() as f64 * 3.5) as usize);
+                })
+            });
         }
     }
 

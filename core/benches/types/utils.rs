@@ -16,8 +16,8 @@
 // under the License.
 
 use bytes::Bytes;
-use rand::RngCore;
 use rand::prelude::ThreadRng;
+use rand::RngCore;
 
 pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Bytes {
     let mut content = vec![0; size];

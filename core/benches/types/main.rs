@@ -15,11 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod utils;
 mod buffer;
+mod utils;
 
 use criterion::criterion_group;
 use criterion::criterion_main;
 
-criterion_group!(benches, buffer::bench_contiguous_buffer, buffer::bench_non_contiguous_buffer);
+criterion_group!(
+    benches,
+    buffer::bench_contiguous_buffer,
+    buffer::bench_non_contiguous_buffer
+);
 criterion_main!(benches);

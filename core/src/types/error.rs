@@ -393,6 +393,16 @@ impl Error {
         self
     }
 
+    /// Set temporary status for error by given temporary.
+    ///
+    /// By set temporary, we indicate this error is retryable.
+    pub(crate) fn with_temporary(mut self, temporary: bool) -> Self {
+        if temporary {
+            self.status = ErrorStatus::Temporary;
+        }
+        self
+    }
+
     /// Set persistent status for error.
     ///
     /// By setting persistent, we indicate the retry should be stopped.

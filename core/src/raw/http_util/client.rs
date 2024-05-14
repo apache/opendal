@@ -106,28 +106,11 @@ impl HttpClient {
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = !(
-                // Builder related error should not be retried.
-                err.is_builder() ||
-                // Error returned by RedirectPolicy.
-                //
-                // Don't retry error if we redirect too many.
-                err.is_redirect() ||
-                // We never use `Response::error_for_status`, just don't allow retry.
-                //
-                // Status should be checked by our services.
-                err.is_status()
-            );
-
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
+            Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("http_util::Client::send")
                 .with_context("url", uri.to_string())
-                .set_source(err);
-            if is_temporary {
-                oerr = oerr.set_temporary();
-            }
-
-            oerr
+                .with_temporary(is_temporary_error(&err))
+                .set_source(err)
         })?;
 
         // Get content length from header so that we can check it.
@@ -162,7 +145,9 @@ impl HttpClient {
             .await
             .map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from http response")
+                    .with_operation("http_util::Client::send")
                     .with_context("url", uri.to_string())
+                    .with_temporary(is_temporary_error(&err))
                     .set_source(err)
             })?;
 
@@ -193,4 +178,14 @@ fn check(expect: u64, actual: u64) -> Result<()> {
         )
         .set_temporary()),
     }
+}
+
+#[inline]
+fn is_temporary_error(err: &reqwest::Error) -> bool {
+    // error sending request
+    err.is_request()||
+    // request or response body error
+    err.is_body() ||
+    // error decoding response body, for example, connection reset.
+    err.is_decode()
 }

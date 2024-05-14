@@ -106,7 +106,7 @@ impl HttpClient {
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = err.is_request();
+            let is_temporary = is_temporary_error(&err);
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("http_util::Client::send")
@@ -150,12 +150,7 @@ impl HttpClient {
             .try_collect()
             .await
             .map_err(|err| {
-                let is_temporary =
-                    // request or response body error
-                    err.is_body() ||
-                    // error decoding response body, for example, connection reset.
-                    err.is_decode()
-                ;
+                let is_temporary = is_temporary_error(&err);
 
                 let mut oerr = Error::new(ErrorKind::Unexpected, "read data from http response")
                     .with_operation("http_util::Client::send")
@@ -195,4 +190,14 @@ fn check(expect: u64, actual: u64) -> Result<()> {
         )
         .set_temporary()),
     }
+}
+
+#[inline]
+fn is_temporary_error(err: &reqwest::Error) -> bool {
+    // error sending request
+    err.is_request()||
+    // request or response body error
+    err.is_body() ||
+    // error decoding response body, for example, connection reset.
+    err.is_decode()
 }

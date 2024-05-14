@@ -106,18 +106,7 @@ impl HttpClient {
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = !(
-                // Builder related error should not be retried.
-                err.is_builder() ||
-                // Error returned by RedirectPolicy.
-                //
-                // Don't retry error if we redirect too many.
-                err.is_redirect() ||
-                // We never use `Response::error_for_status`, just don't allow retry.
-                //
-                // Status should be checked by our services.
-                err.is_status()
-            );
+            let is_temporary = err.is_request();
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("http_util::Client::send")
@@ -161,9 +150,22 @@ impl HttpClient {
             .try_collect()
             .await
             .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "read data from http response")
+                let is_temporary =
+                    // request or response body error
+                    err.is_body() ||
+                    // error decoding response body, for example, connection reset.
+                    err.is_decode()
+                ;
+
+                let mut oerr = Error::new(ErrorKind::Unexpected, "read data from http response")
+                    .with_operation("http_util::Client::send")
                     .with_context("url", uri.to_string())
-                    .set_source(err)
+                    .set_source(err);
+                if is_temporary {
+                    oerr = oerr.set_temporary();
+                }
+
+                oerr
             })?;
 
         let buffer = Buffer::from(bs);

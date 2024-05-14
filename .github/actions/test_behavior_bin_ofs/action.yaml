@@ -41,7 +41,8 @@ runs:
           - name: Run Test Ofs
             shell: bash
             working-directory: bin/ofs
-            run: cargo test --features ${{ inputs.feature }} --no-default-features
+            timeout-minutes: 1
+            run: cargo test --features ${{ inputs.feature }} --no-default-features -- --nocapture
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

@@ -55,11 +55,7 @@ fn test_file_append(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    let mut file = File::options()
-        .write(true)
-        .append(true)
-        .open(&path)
-        .unwrap();
+    let mut file = File::options().append(true).open(&path).unwrap();
     file.write_all(b"test").unwrap();
     drop(file);
 

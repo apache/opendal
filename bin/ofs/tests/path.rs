@@ -17,15 +17,16 @@
 
 mod common;
 
+use std::fs;
+
 use common::OfsTestContext;
 
 use test_context::test_context;
-use tokio::fs;
 use walkdir::WalkDir;
 
 #[test_context(OfsTestContext)]
-#[tokio::test]
-async fn test_path(ctx: &mut OfsTestContext) {
+#[test]
+fn test_path(ctx: &mut OfsTestContext) {
     let actual_entries = [
         ("dir1", false),
         ("dir2", false),
@@ -44,8 +45,8 @@ async fn test_path(ctx: &mut OfsTestContext) {
     for (path, is_file) in actual_entries.iter() {
         let path = ctx.mount_point.path().join(path);
         match is_file {
-            true => fs::write(path, "hello").await.unwrap(),
-            false => fs::create_dir(path).await.unwrap(),
+            true => fs::write(path, "hello").unwrap(),
+            false => fs::create_dir(path).unwrap(),
         }
     }
 

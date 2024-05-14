@@ -106,17 +106,11 @@ impl HttpClient {
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = is_temporary_error(&err);
-
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send http request")
+            Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("http_util::Client::send")
                 .with_context("url", uri.to_string())
-                .set_source(err);
-            if is_temporary {
-                oerr = oerr.set_temporary();
-            }
-
-            oerr
+                .with_temporary(is_temporary_error(&err))
+                .set_source(err)
         })?;
 
         // Get content length from header so that we can check it.
@@ -150,17 +144,11 @@ impl HttpClient {
             .try_collect()
             .await
             .map_err(|err| {
-                let is_temporary = is_temporary_error(&err);
-
-                let mut oerr = Error::new(ErrorKind::Unexpected, "read data from http response")
+                Error::new(ErrorKind::Unexpected, "read data from http response")
                     .with_operation("http_util::Client::send")
                     .with_context("url", uri.to_string())
-                    .set_source(err);
-                if is_temporary {
-                    oerr = oerr.set_temporary();
-                }
-
-                oerr
+                    .with_temporary(is_temporary_error(&err))
+                    .set_source(err)
             })?;
 
         let buffer = Buffer::from(bs);

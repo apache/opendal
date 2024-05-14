@@ -36,7 +36,7 @@ impl TestContext for OfsTestContext {
     fn setup() -> Self {
         let backend = backend_scheme().unwrap();
 
-        INIT_LOGGER.get_or_init(|| env_logger::init());
+        INIT_LOGGER.get_or_init(env_logger::init);
 
         let mount_point = tempfile::tempdir().unwrap();
         let mount_point_str = mount_point.path().to_string_lossy().to_string();

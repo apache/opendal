@@ -484,7 +484,16 @@ impl PathFilesystem for Fuse {
                 .append(is_append)
                 .await
                 .map_err(opendal_error2errno)?;
-            Some(Arc::new(Mutex::new(InnerWriter { writer, written: 0 })))
+            let written = if is_append {
+                self.op
+                    .stat(&path.to_string_lossy())
+                    .await
+                    .map_err(opendal_error2errno)?
+                    .content_length()
+            } else {
+                0
+            };
+            Some(Arc::new(Mutex::new(InnerWriter { writer, written })))
         } else {
             None
         };

@@ -210,7 +210,6 @@ jobs:
             services-supabase
             services-tikv
             services-vercel-artifacts
-            services-wasabi
             services-webdav
             services-webhdfs
           )
@@ -263,7 +262,7 @@ jobs:
         working-directory: core
         run: |
           cargo nextest run --no-fail-fast --all-features
-          cargo test --doc --all-features   
+          cargo test --doc --all-features
         env:
           # Add rocksdb and java lib path to LD_LIBRARY_PATH
           LD_LIBRARY_PATH: /tmp/rocksdb/lib:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

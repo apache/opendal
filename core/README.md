@@ -39,7 +39,6 @@
 - oss: [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS)
 - s3: [AWS S3](https://aws.amazon.com/s3/) alike services
 - supabase: [Supabase Storage](https://supabase.com/docs/guides/storage) Service *being worked on*
-- wasabi: [Wasabi](https://wasabi.com/) Cloud Storage
 
 </details>
 

@@ -17,75 +17,73 @@
 
 mod common;
 
-use std::io::SeekFrom;
+use std::{
+    fs::{self, File},
+    io::{Read, Seek, SeekFrom, Write},
+};
 
 use common::OfsTestContext;
 
 use test_context::test_context;
-use tokio::{
-    fs::{self, File},
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
-};
 
 static TEST_TEXT: &str = include_str!("../Cargo.toml");
 
 #[test_context(OfsTestContext)]
-#[tokio::test]
-async fn test_file(ctx: &mut OfsTestContext) {
+#[test]
+fn test_file(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file.txt");
-    let mut file = File::create(&path).await.unwrap();
+    let mut file = File::create(&path).unwrap();
 
-    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    let mut file = File::open(&path).await.unwrap();
+    let mut file = File::open(&path).unwrap();
     let mut buf = String::new();
-    file.read_to_string(&mut buf).await.unwrap();
+    file.read_to_string(&mut buf).unwrap();
     assert_eq!(buf, TEST_TEXT);
     drop(file);
 
-    fs::remove_file(path).await.unwrap();
+    fs::remove_file(path).unwrap();
 }
 
 #[test_context(OfsTestContext)]
-#[tokio::test]
-async fn test_file_append(ctx: &mut OfsTestContext) {
+#[test]
+fn test_file_append(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file_append.txt");
-    let mut file = File::create(&path).await.unwrap();
+    let mut file = File::create(&path).unwrap();
 
-    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    let mut file = File::options().append(true).open(&path).await.unwrap();
-    file.write_all(b"test").await.unwrap();
+    let mut file = File::options().append(true).open(&path).unwrap();
+    file.write_all(b"test").unwrap();
     drop(file);
 
-    let mut file = File::open(&path).await.unwrap();
+    let mut file = File::open(&path).unwrap();
     let mut buf = String::new();
-    file.read_to_string(&mut buf).await.unwrap();
+    file.read_to_string(&mut buf).unwrap();
     assert_eq!(buf, TEST_TEXT.to_owned() + "test");
     drop(file);
 
-    fs::remove_file(path).await.unwrap();
+    fs::remove_file(path).unwrap();
 }
 
 #[test_context(OfsTestContext)]
-#[tokio::test]
-async fn test_file_seek(ctx: &mut OfsTestContext) {
+#[test]
+fn test_file_seek(ctx: &mut OfsTestContext) {
     let path = ctx.mount_point.path().join("test_file_seek.txt");
-    let mut file = File::create(&path).await.unwrap();
+    let mut file = File::create(&path).unwrap();
 
-    file.write_all(TEST_TEXT.as_bytes()).await.unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    let mut file = File::open(&path).await.unwrap();
+    let mut file = File::open(&path).unwrap();
     file.seek(SeekFrom::Start(TEST_TEXT.len() as u64 / 2))
-        .await
         .unwrap();
     let mut buf = String::new();
-    file.read_to_string(&mut buf).await.unwrap();
+    file.read_to_string(&mut buf).unwrap();
     assert_eq!(buf, TEST_TEXT[TEST_TEXT.len() / 2..]);
     drop(file);
 
-    fs::remove_file(path).await.unwrap();
+    fs::remove_file(path).unwrap();
 }

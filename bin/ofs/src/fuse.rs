@@ -675,7 +675,7 @@ impl PathFilesystem for Fuse {
             let metadata = op
                 .stat(e.name())
                 .await
-                .unwrap_or_else(|_| e.metadata().clone());
+                .unwrap_or_else(|_| e.metadata().clone().with_content_length(0));
             let attr = metadata2file_attr(&metadata, now, uid, gid);
             Result::Ok(DirectoryEntryPlus {
                 kind: entry_mode2file_type(metadata.mode()),

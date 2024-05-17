@@ -150,6 +150,8 @@ impl Operator {
     #[allow(unused_variables, unreachable_code)]
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
         let op = match scheme {
+            #[cfg(feature = "services-aliyun-drive")]
+            Scheme::AliyunDrive => Self::from_map::<services::AliyunDrive>(map)?.finish(),
             #[cfg(feature = "services-atomicserver")]
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-alluxio")]

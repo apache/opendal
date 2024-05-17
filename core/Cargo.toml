@@ -188,6 +188,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-aliyun-drive = ["dep:sha1"]
 
 [lib]
 bench = false

@@ -151,7 +151,7 @@ impl BlockingReader {
 
     /// Convert reader into [`StdBytesIterator`] which implements [`Iterator`].
     #[inline]
-    pub fn into_bytes_iterator(self, range: Range<u64>) -> StdBytesIterator {
+    pub fn into_bytes_iterator(self, range: impl RangeBounds<u64>) -> StdBytesIterator {
         StdBytesIterator::new(self.inner, range)
     }
 }

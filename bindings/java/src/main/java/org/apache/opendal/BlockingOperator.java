@@ -73,6 +73,10 @@ public class BlockingOperator extends NativeObject {
         return read(nativeHandle, path);
     }
 
+    public OperatorInputStream createInputStream(String path) {
+        return new OperatorInputStream(this, path);
+    }
+
     public void delete(String path) {
         delete(nativeHandle, path);
     }
@@ -104,23 +108,23 @@ public class BlockingOperator extends NativeObject {
     @Override
     protected native void disposeInternal(long handle);
 
-    private static native long duplicate(long nativeHandle);
+    private static native long duplicate(long op);
 
-    private static native void write(long nativeHandle, String path, byte[] content);
+    private static native void write(long op, String path, byte[] content);
 
-    private static native byte[] read(long nativeHandle, String path);
+    private static native byte[] read(long op, String path);
 
-    private static native void delete(long nativeHandle, String path);
+    private static native void delete(long op, String path);
 
-    private static native Metadata stat(long nativeHandle, String path);
+    private static native Metadata stat(long op, String path);
 
-    private static native long createDir(long nativeHandle, String path);
+    private static native long createDir(long op, String path);
 
-    private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+    private static native long copy(long op, String sourcePath, String targetPath);
 
-    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+    private static native long rename(long op, String sourcePath, String targetPath);
 
-    private static native void removeAll(long nativeHandle, String path);
+    private static native void removeAll(long op, String path);
 
-    private static native Entry[] list(long nativeHandle, String path);
+    private static native Entry[] list(long op, String path);
 }

@@ -32,6 +32,8 @@ use crate::Error;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
+    /// [aliyun_drive][crate::services::AliyunDrive]: Aliyun Drive services.
+    AliyunDrive,
     /// [atomicserver][crate::services::Atomicserver]: Atomicserver services.
     Atomicserver,
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
@@ -191,6 +193,8 @@ impl Scheme {
     /// ```
     pub fn enabled() -> HashSet<Scheme> {
         HashSet::from([
+            #[cfg(feature = "services-aliyun-drive")]
+            Scheme::AliyunDrive,
             #[cfg(feature = "services-atomicserver")]
             Scheme::Atomicserver,
             #[cfg(feature = "services-alluxio")]
@@ -325,6 +329,7 @@ impl FromStr for Scheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         match s.as_str() {
+            "aliyun_drive" => Ok(Scheme::AliyunDrive),
             "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
             "alluxio" => Ok(Scheme::Alluxio),
@@ -399,6 +404,7 @@ impl FromStr for Scheme {
 impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
+            Scheme::AliyunDrive => "aliyun_drive",
             Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",

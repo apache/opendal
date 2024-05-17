@@ -18,7 +18,7 @@
 mod common;
 
 use std::{
-    fs::{self, File},
+    fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
 };
 
@@ -84,6 +84,31 @@ fn test_file_seek(ctx: &mut OfsTestContext) {
     file.read_to_string(&mut buf).unwrap();
     assert_eq!(buf, TEST_TEXT[TEST_TEXT.len() / 2..]);
     drop(file);
+
+    fs::remove_file(path).unwrap();
+}
+
+#[test_context(OfsTestContext)]
+#[test]
+fn test_file_truncate(ctx: &mut OfsTestContext) {
+    let path = ctx.mount_point.path().join("test_file_truncate.txt");
+    let mut file = File::create(&path).unwrap();
+    file.write_all(TEST_TEXT.as_bytes()).unwrap();
+    drop(file);
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .unwrap();
+    file.write_all(TEST_TEXT[..TEST_TEXT.len() / 2].as_bytes())
+        .unwrap();
+    drop(file);
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        TEST_TEXT[..TEST_TEXT.len() / 2]
+    );
 
     fs::remove_file(path).unwrap();
 }

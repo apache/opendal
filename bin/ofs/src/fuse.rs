@@ -98,9 +98,13 @@ impl Fuse {
 
         let mode = flags & libc::O_ACCMODE as u32;
         let is_read = mode == libc::O_RDONLY as u32 || mode == libc::O_RDWR as u32;
-        let is_write =
-            mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32 || is_trunc || is_append;
+        let is_write = mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32 || is_append;
         if !is_read && !is_write {
+            Err(Errno::from(libc::EINVAL))?;
+        }
+        // OpenDAL only supports truncate write and append write,
+        // so O_TRUNC or O_APPEND needs to be specified explicitly
+        if (is_write && !is_trunc && !is_append) || is_trunc && !is_write {
             Err(Errno::from(libc::EINVAL))?;
         }
 
@@ -108,8 +112,7 @@ impl Fuse {
         if is_read && !capability.read {
             Err(Errno::from(libc::EACCES))?;
         }
-        // OpenDAL truncates file when writing, so O_TRUNC needs to be specified explicitly
-        if (!is_trunc || !capability.write) && is_write {
+        if is_trunc && !capability.write {
             Err(Errno::from(libc::EACCES))?;
         }
         if is_append && !capability.write_can_append {
@@ -117,9 +120,10 @@ impl Fuse {
         }
 
         log::trace!(
-            "check_flags: is_read={}, is_trunc={}, is_append={}",
+            "check_flags: is_read={}, is_write={}, is_trunc={}, is_append={}",
             is_read,
             is_write,
+            is_trunc,
             is_append
         );
         Ok((is_read, is_trunc, is_append))

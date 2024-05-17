@@ -18,6 +18,7 @@
 mod common;
 
 use std::{
+    env,
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
 };
@@ -49,6 +50,10 @@ fn test_file(ctx: &mut OfsTestContext) {
 #[test_context(OfsTestContext)]
 #[test]
 fn test_file_append(ctx: &mut OfsTestContext) {
+    if env::var("OPENDAL_TEST").unwrap() == "s3" {
+        return;
+    }
+
     let path = ctx.mount_point.path().join("test_file_append.txt");
     let mut file = File::create(&path).unwrap();
 

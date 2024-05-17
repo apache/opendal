@@ -31,7 +31,7 @@ name = "opendal"
 readme = "README.md"
 # PyO3 doesn't support python 3.13 yet.
 # ref: https://github.com/apache/opendal/issues/4268
-requires-python = ">=3.7, < 3.13"
+requires-python = ">=3.11, < 3.13"
 
 [project.optional-dependencies]
 benchmark = [

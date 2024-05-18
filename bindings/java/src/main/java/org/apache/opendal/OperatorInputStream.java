@@ -61,7 +61,6 @@ public class OperatorInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         reader.close();
-        super.close();
     }
 
     private static native long constructReader(long op, String path);

@@ -15,78 +15,81 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::convert::jstring_to_string;
-use jni::objects::{JByteArray, JClass, JObject, JString};
-use jni::sys::{jbyteArray, jlong};
+use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::jlong;
 use jni::JNIEnv;
-use opendal::{BlockingOperator, StdBytesIterator};
+
+use opendal::{BlockingOperator, BlockingWriter};
+
+use crate::convert::jstring_to_string;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader(
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_constructWriter(
     mut env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
 ) -> jlong {
-    intern_construct_reader(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_construct_write(&mut env, &mut *op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_construct_reader(
+fn intern_construct_write(
     env: &mut JNIEnv,
     op: &mut BlockingOperator,
     path: JString,
 ) -> crate::Result<jlong> {
     let path = jstring_to_string(env, &path)?;
-    let reader = op.reader(&path)?.into_bytes_iterator(..);
-    Ok(Box::into_raw(Box::new(reader)) as jlong)
+    let writer = op.writer(&path)?;
+    Ok(Box::into_raw(Box::new(writer)) as jlong)
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader(
-    _: JNIEnv,
-    _: JClass,
-    reader: *mut StdBytesIterator,
-) {
-    drop(Box::from_raw(reader));
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator is ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes(
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_disposeWriter(
     mut env: JNIEnv,
     _: JClass,
-    reader: *mut StdBytesIterator,
-) -> jbyteArray {
-    intern_read_next_bytes(&mut env, &mut *reader).unwrap_or_else(|e| {
+    writer: *mut BlockingWriter,
+) {
+    let mut writer = Box::from_raw(writer);
+    intern_dispose_write(&mut writer).unwrap_or_else(|e| {
         e.throw(&mut env);
-        JByteArray::default().into_raw()
     })
 }
 
-fn intern_read_next_bytes(
+fn intern_dispose_write(writer: &mut BlockingWriter) -> crate::Result<()> {
+    writer.close()?;
+    Ok(())
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator is ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeBytes(
+    mut env: JNIEnv,
+    _: JClass,
+    writer: *mut BlockingWriter,
+    content: JByteArray,
+) {
+    intern_write_bytes(&mut env, &mut *writer, content).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_write_bytes(
     env: &mut JNIEnv,
-    reader: &mut StdBytesIterator,
-) -> crate::Result<jbyteArray> {
-    match reader
-        .next()
-        .transpose()
-        .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, &err.to_string()))?
-    {
-        None => Ok(JObject::null().into_raw()),
-        Some(content) => {
-            let result = env.byte_array_from_slice(&content)?;
-            Ok(result.into_raw())
-        }
-    }
+    writer: &mut BlockingWriter,
+    content: JByteArray,
+) -> crate::Result<()> {
+    let content = env.convert_byte_array(content)?;
+    writer.write(content)?;
+    Ok(())
 }

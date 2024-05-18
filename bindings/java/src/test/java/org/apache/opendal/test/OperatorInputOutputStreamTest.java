@@ -29,27 +29,28 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.OperatorInputStream;
+import org.apache.opendal.OperatorOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class OperatorInputStreamTest {
+public class OperatorInputOutputStreamTest {
     @TempDir
     private static Path tempDir;
 
     @Test
-    void testReadWithInputStream() throws Exception {
+    void testReadWriteWithStream() throws Exception {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
         try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
-            final String path = "OperatorInputStreamTest.txt";
-            final StringBuilder content = new StringBuilder();
+            final String path = "OperatorInputOutputStreamTest.txt";
+            final long multi = 1024 * 1024;
 
-            final long multi = 1024;
-            for (long i = 0; i < multi; i++) {
-                content.append("[content] OperatorInputStreamTest\n");
+            try (final OperatorOutputStream os = op.createOutputStream(path)) {
+                for (long i = 0; i < multi; i++) {
+                    os.write("[content] OperatorInputStreamTest\n".getBytes());
+                }
             }
-            op.write(path, content.toString().getBytes());
 
             try (final OperatorInputStream is = op.createInputStream(path)) {
                 final Stream<String> lines = new BufferedReader(new InputStreamReader(is)).lines();

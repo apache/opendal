@@ -69,6 +69,10 @@ public class BlockingOperator extends NativeObject {
         write(nativeHandle, path, content);
     }
 
+    public OperatorOutputStream createOutputStream(String path) {
+        return new OperatorOutputStream(this, path);
+    }
+
     public byte[] read(String path) {
         return read(nativeHandle, path);
     }

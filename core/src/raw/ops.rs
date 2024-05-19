@@ -387,7 +387,7 @@ impl OpRead {
 pub struct OpReader {
     /// The range of the read request.
     ///
-    /// Not available for `reader``.
+    /// Not available for `reader`.
     range: BytesRange,
     /// The concurrent requests that reader can send.
     concurrent: usize,

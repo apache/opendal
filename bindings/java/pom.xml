@@ -67,6 +67,7 @@
 
         <!-- library dependencies -->
         <assertj.version>3.23.1</assertj.version>
+        <commons-io.version>2.16.1</commons-io.version>
         <dotenv.version>2.3.2</dotenv.version>
         <lombok.version>1.18.30</lombok.version>
         <slf4j.version>2.0.7</slf4j.version>
@@ -111,6 +112,12 @@
                 <version>${dotenv.version}</version>
             </dependency>
             <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commons-io.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>
                 <artifactId>httpclient5</artifactId>
                 <version>${httpclient.version}</version>
@@ -149,6 +156,11 @@
         <dependency>
             <groupId>io.github.cdimascio</groupId>
             <artifactId>dotenv-java</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

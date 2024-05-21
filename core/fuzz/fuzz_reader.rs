@@ -63,7 +63,7 @@ impl Arbitrary<'_> for FuzzInput {
 
         for _ in 0..count {
             let offset = u.int_in_range(0..=total_size)?;
-            let size = u.int_in_range(0..=total_size * 2)?;
+            let size = u.int_in_range(0..=total_size - offset)?;
 
             actions.push(ReadAction::Read(offset, size));
         }

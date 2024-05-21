@@ -46,8 +46,8 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::BlockingReader, size: u64, capability: Capability) -> Self {
-        Self(FileState::Reader(reader.into_std_read(0..size)), capability)
+    pub fn new_reader(reader: ocore::StdReader, capability: Capability) -> Self {
+        Self(FileState::Reader(reader), capability)
     }
 
     pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {

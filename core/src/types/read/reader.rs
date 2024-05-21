@@ -270,7 +270,10 @@ impl Reader {
     /// }
     /// ```
     #[inline]
-    pub async fn into_futures_async_read(self, range: Range<u64>) -> Result<FuturesAsyncReader> {
+    pub async fn into_futures_async_read(
+        self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<FuturesAsyncReader> {
         let range = self.parse_range(range).await?;
         Ok(FuturesAsyncReader::new(self.inner, self.options, range))
     }

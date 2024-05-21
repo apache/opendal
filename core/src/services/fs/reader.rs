@@ -61,12 +61,12 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let handle = self.try_clone()?;
 
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, offset, limit))
+                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, offset, size))
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
@@ -80,16 +80,16 @@ impl oio::Read for FsReader {
 }
 
 impl oio::BlockingRead for FsReader {
-    fn read_at(&self, mut offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, mut offset: u64, size: usize) -> Result<Buffer> {
         let mut bs = self.core.buf_pool.get();
-        bs.reserve(limit);
+        bs.reserve(size);
 
-        let buf = &mut bs.spare_capacity_mut()[..limit];
+        let buf = &mut bs.spare_capacity_mut()[..size];
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
         // SAFETY: Read at most `limit` bytes into `read_buf`.
         unsafe {
-            read_buf.assume_init(limit);
+            read_buf.assume_init(size);
         }
 
         loop {

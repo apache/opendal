@@ -45,15 +45,15 @@ impl AliyunDriveReader {
 }
 
 impl oio::Read for AliyunDriveReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         // AliyunDrive responds with status OK even if the range is not statisfiable.
         // and then the whole file will be read.
         let limit = if offset >= self.size {
             return Ok(Buffer::new());
-        } else if offset + (limit as u64) - 1 > self.size {
+        } else if offset + (size as u64) - 1 > self.size {
             self.size - offset
         } else {
-            limit as u64
+            size as u64
         };
         let range = BytesRange::new(offset, Some(limit));
         let req = Request::get(self.download_url.as_str())

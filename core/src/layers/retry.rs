@@ -656,13 +656,13 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         {
             || {
                 self.inner
                     .as_ref()
                     .expect("inner must be valid")
-                    .read_at(offset, limit)
+                    .read_at(offset, size)
             }
         }
         .retry(&self.builder)
@@ -683,8 +683,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        { || self.inner.as_ref().unwrap().read_at(offset, limit) }
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        { || self.inner.as_ref().unwrap().read_at(offset, size) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {

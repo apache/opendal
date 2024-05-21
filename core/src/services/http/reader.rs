@@ -40,8 +40,8 @@ impl HttpReader {
 }
 
 impl oio::Read for HttpReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        let range = BytesRange::new(offset, Some(size as u64));
 
         let resp = self.core.http_get(&self.path, range, &self.op).await?;
 
@@ -49,7 +49,6 @@ impl oio::Read for HttpReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -34,11 +34,11 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let r = Self { f: self.f.clone() };
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&r, offset, limit))
+                .spawn_blocking(move || oio::BlockingRead::read_at(&r, offset, size))
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
@@ -52,15 +52,15 @@ impl oio::Read for HdfsReader {
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut offset: u64, limit: usize) -> Result<Buffer> {
-        let mut bs = Vec::with_capacity(limit);
+    fn read_at(&self, mut offset: u64, size: usize) -> Result<Buffer> {
+        let mut bs = Vec::with_capacity(size);
 
         let buf = bs.spare_capacity_mut();
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
         // SAFETY: Read at most `size` bytes into `read_buf`.
         unsafe {
-            read_buf.assume_init(limit);
+            read_buf.assume_init(size);
         }
 
         loop {

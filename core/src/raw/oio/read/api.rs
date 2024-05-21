@@ -78,12 +78,7 @@ pub type Reader = Arc<dyn ReadDyn>;
 /// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
-    /// Read at the given offset with the given limit.
-    ///
-    /// # Notes
-    ///
-    /// Storage services should try to read as much as possible, only return bytes less than the
-    /// limit while reaching the end of the file.
+    /// Read at the given offset with the given size.
     fn read_at(&self, offset: u64, size: usize)
         -> impl Future<Output = Result<Buffer>> + MaybeSend;
 }

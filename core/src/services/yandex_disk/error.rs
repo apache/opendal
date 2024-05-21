@@ -38,7 +38,6 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let bs = body.copy_to_bytes(body.remaining());
 
     let (kind, retryable) = match parts.status.as_u16() {
-        400 => (ErrorKind::InvalidInput, false),
         410 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         // We should retry it when we get 423 error.

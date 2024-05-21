@@ -110,10 +110,6 @@ impl Reader {
     ///
     /// This operation is zero-copy, which means it keeps the [`Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
-    ///
-    /// # Notes
-    ///
-    /// - Buffer length smaller than range means we have reached the end of file.
     pub async fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
         let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;
         Ok(bufs.into_iter().flatten().collect())
@@ -123,10 +119,6 @@ impl Reader {
     ///
     /// This operation will copy and write bytes into given [`BufMut`]. Allocation happens while
     /// [`BufMut`] doesn't have enough space.
-    ///
-    /// # Notes
-    ///
-    /// - Returning length smaller than range means we have reached the end of file.
     pub async fn read_into(
         &self,
         buf: &mut impl BufMut,

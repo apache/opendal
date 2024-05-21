@@ -33,10 +33,10 @@ use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
-use opendal::Entry;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::Operator;
 use opendal::Writer;
 use sharded_slab::Slab;
@@ -670,36 +670,34 @@ impl PathFilesystem for Fuse {
             offset
         );
 
-        let make_entry = |op: Operator, i: usize, entry: opendal::Result<Entry>, uid, gid, now| async move {
-            let e = entry.map_err(opendal_error2errno)?;
-            let metadata = op
-                .stat(e.name())
-                .await
-                .unwrap_or_else(|_| e.metadata().clone().with_content_length(0));
-            let attr = metadata2file_attr(&metadata, now, uid, gid);
-            Result::Ok(DirectoryEntryPlus {
-                kind: entry_mode2file_type(metadata.mode()),
-                name: e.name().trim_matches('/').into(),
-                offset: (i + 3) as i64,
-                attr,
-                entry_ttl: TTL,
-                attr_ttl: TTL,
-            })
-        };
-
         let now = SystemTime::now();
         let mut current_dir = PathBuf::from(parent);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
-        let op = self.op.clone();
         let uid = self.uid;
         let gid = self.gid;
+
         let children = self
             .op
-            .lister(&current_dir.to_string_lossy())
+            .lister_with(&current_dir.to_string_lossy())
+            .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
             .enumerate()
-            .then(move |(i, entry)| make_entry(op.clone(), i, entry, uid, gid, now));
+            .map(move |(i, entry)| {
+                entry
+                    .map(|e| {
+                        let metadata = e.metadata();
+                        DirectoryEntryPlus {
+                            kind: entry_mode2file_type(metadata.mode()),
+                            name: e.name().trim_matches('/').into(),
+                            offset: (i + 3) as i64,
+                            attr: metadata2file_attr(metadata, now, uid, gid),
+                            entry_ttl: TTL,
+                            attr_ttl: TTL,
+                        }
+                    })
+                    .map_err(opendal_error2errno)
+            });
 
         let relative_path_metadata = Metadata::new(EntryMode::DIR);
         let relative_path_attr = metadata2file_attr(&relative_path_metadata, now, uid, gid);

@@ -152,8 +152,8 @@ impl BlockingReader {
     /// Convert reader into [`StdReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_std_read(self, range: Range<u64>) -> Result<StdReader> {
-        // TODO: extend to RangeBounds support.
+    pub fn into_std_read(self, range: impl RangeBounds<u64>) -> Result<StdReader> {
+        let range = self.parse_range(range)?;
         Ok(StdReader::new(self.inner, range))
     }
 

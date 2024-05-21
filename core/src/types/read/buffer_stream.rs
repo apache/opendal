@@ -15,12 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Bound;
-use std::ops::RangeBounds;
+use std::ops::Range;
 use std::pin::Pin;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -41,30 +37,17 @@ struct FutureIterator {
     chunk: Option<usize>,
 
     offset: u64,
-    end: Option<u64>,
-    finished: Arc<AtomicBool>,
+    end: u64,
 }
 
 impl FutureIterator {
     #[inline]
-    fn new(r: oio::Reader, chunk: Option<usize>, range: impl RangeBounds<u64>) -> Self {
-        let start = match range.start_bound().cloned() {
-            Bound::Included(start) => start,
-            Bound::Excluded(start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match range.end_bound().cloned() {
-            Bound::Included(end) => Some(end + 1),
-            Bound::Excluded(end) => Some(end),
-            Bound::Unbounded => None,
-        };
-
+    fn new(r: oio::Reader, chunk: Option<usize>, range: Range<u64>) -> Self {
         FutureIterator {
             r,
             chunk,
-            offset: start,
-            end,
-            finished: Arc::default(),
+            offset: range.start,
+            end: range.end,
         }
     }
 }
@@ -73,31 +56,21 @@ impl Iterator for FutureIterator {
     type Item = BoxedFuture<'static, Result<Buffer>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.offset >= self.end.unwrap_or(u64::MAX) {
-            return None;
-        }
-        if self.finished.load(Ordering::Relaxed) {
+        if self.offset >= self.end {
             return None;
         }
 
         let offset = self.offset;
-        // TODO: replace with services preferred chunk size.
-        let chunk = self.chunk.unwrap_or(4 * 1024 * 1024);
-        let limit = self
-            .end
-            .map(|end| ((end - self.offset) as usize).min(chunk))
-            .unwrap_or(chunk);
-        let finished = self.finished.clone();
-        let r = self.r.clone();
+        let mut limit = (self.end - self.offset) as usize;
+        if let Some(chunk) = self.chunk {
+            limit = limit.min(chunk)
+        }
 
         // Update self.offset before building future.
         self.offset += limit as u64;
+        let r = self.r.clone();
         let fut = async move {
             let buf = r.read_at_dyn(offset, limit).await?;
-            if buf.len() < limit || limit == 0 {
-                // Update finished marked if buf is less than limit.
-                finished.store(true, Ordering::Relaxed);
-            }
             Ok(buf)
         };
 
@@ -118,7 +91,7 @@ pub struct BufferStream(Buffered<Iter<FutureIterator>>);
 impl BufferStream {
     /// Create a new buffer stream from given reader.
     #[inline]
-    pub(crate) fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
+    pub(crate) fn new(r: oio::Reader, options: OpReader, range: Range<u64>) -> Self {
         let iter = FutureIterator::new(r, options.chunk(), range);
         let stream = stream::iter(iter).buffered(options.concurrent());
 
@@ -147,6 +120,7 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
+    use std::sync::Arc;
 
     use super::*;
 

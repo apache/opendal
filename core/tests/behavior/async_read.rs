@@ -159,6 +159,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
         .reader(&path)
         .await?
         .into_bytes_stream(..)
+        .await?
         .try_fold(Vec::new(), |mut acc, chunk| {
             acc.extend_from_slice(&chunk);
             async { Ok(acc) }
@@ -175,7 +176,8 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     let mut futures_reader = op
         .reader(&path)
         .await?
-        .into_futures_async_read(0..size as u64);
+        .into_futures_async_read(0..size as u64)
+        .await?;
     let mut bs = Vec::new();
     futures_reader.read_to_end(&mut bs).await?;
     assert_eq!(size, bs.len(), "read size");

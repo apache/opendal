@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
 use std::ops::RangeBounds;
+use std::ops::{Bound, Range};
+use std::sync::Arc;
 
 use bytes::BufMut;
 use futures::stream;
@@ -39,8 +40,14 @@ use crate::*;
 /// [`Reader`] provides public API including [`Reader::read`], [`Reader:read_range`], and [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
 #[derive(Clone)]
 pub struct Reader {
+    acc: Accessor,
+    path: Arc<String>,
+
     inner: oio::Reader,
     options: OpReader,
+
+    /// Total size of the reader.
+    size: Arc<AtomicContentLength>,
 }
 
 impl Reader {
@@ -53,13 +60,50 @@ impl Reader {
     /// in crate only.
     pub(crate) async fn create(
         acc: Accessor,
-        path: &str,
+        path: Arc<String>,
         args: OpRead,
         options: OpReader,
     ) -> Result<Self> {
-        let (_, r) = acc.read(path, args).await?;
+        let (_, r) = acc.read(&path, args).await?;
 
-        Ok(Reader { inner: r, options })
+        Ok(Reader {
+            acc,
+            path,
+            inner: r,
+            options,
+            size: Arc::new(AtomicContentLength::new()),
+        })
+    }
+
+    /// Parse users input range bounds into valid `Range<u64>`.
+    ///
+    /// To avoid duplicated stat call, we will cache the size of the reader.
+    async fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
+        let start = match range.start_bound() {
+            Bound::Included(v) => *v,
+            Bound::Excluded(v) => v + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(v) => v + 1,
+            Bound::Excluded(v) => *v,
+            Bound::Unbounded => match self.size.load() {
+                Some(v) => v,
+                None => {
+                    let size = self
+                        .acc
+                        .stat(&self.path, OpStat::new())
+                        .await?
+                        .into_metadata()
+                        .content_length();
+                    self.size.store(size);
+                    size
+                }
+            },
+        };
+
+        Ok(start..end)
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -71,7 +115,7 @@ impl Reader {
     ///
     /// - Buffer length smaller than range means we have reached the end of file.
     pub async fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
-        let bufs: Vec<_> = self.clone().into_stream(range).try_collect().await?;
+        let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;
         Ok(bufs.into_iter().flatten().collect())
     }
 
@@ -88,7 +132,7 @@ impl Reader {
         buf: &mut impl BufMut,
         range: impl RangeBounds<u64>,
     ) -> Result<usize> {
-        let mut stream = self.clone().into_stream(range);
+        let mut stream = self.clone().into_stream(range).await?;
 
         let mut read = 0;
         loop {
@@ -163,8 +207,9 @@ impl Reader {
     /// This API can be public but we are not sure if it's useful for users.
     /// And the name `BufferStream` is not good enough to expose to users.
     /// Let's keep it inside for now.
-    fn into_stream(self, range: impl RangeBounds<u64>) -> BufferStream {
-        BufferStream::new(self.inner, self.options, range)
+    async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
+        let range = self.parse_range(range).await?;
+        Ok(BufferStream::new(self.inner, self.options, range))
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -190,7 +235,8 @@ impl Reader {
     ///     let mut r = op
     ///         .reader("hello.txt")
     ///         .await?
-    ///         .into_futures_async_read(1024..2048);
+    ///         .into_futures_async_read(1024..2048)
+    ///         .await?;
     ///     let mut bs = Vec::new();
     ///     r.read_to_end(&mut bs).await?;
     ///
@@ -215,7 +261,8 @@ impl Reader {
     ///         .concurrent(8)
     ///         .chunk(256)
     ///         .await?
-    ///         .into_futures_async_read(1024..2048);
+    ///         .into_futures_async_read(1024..2048)
+    ///         .await?;
     ///     let mut bs = Vec::new();
     ///     r.read_to_end(&mut bs).await?;
     ///
@@ -223,8 +270,9 @@ impl Reader {
     /// }
     /// ```
     #[inline]
-    pub fn into_futures_async_read(self, range: Range<u64>) -> FuturesAsyncReader {
-        FuturesAsyncReader::new(self.inner, self.options, range)
+    pub async fn into_futures_async_read(self, range: Range<u64>) -> Result<FuturesAsyncReader> {
+        let range = self.parse_range(range).await?;
+        Ok(FuturesAsyncReader::new(self.inner, self.options, range))
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
@@ -242,7 +290,7 @@ impl Reader {
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut s = op.reader("hello.txt").await?.into_bytes_stream(1024..2048);
+    ///     let mut s = op.reader("hello.txt").await?.into_bytes_stream(1024..2048).await?;;
     ///     let bs: Vec<Bytes> = s.try_collect().await?;
     ///
     ///     Ok(())
@@ -267,20 +315,25 @@ impl Reader {
     ///         .concurrent(8)
     ///         .chunk(256)
     ///         .await?
-    ///         .into_bytes_stream(1024..2048);
+    ///         .into_bytes_stream(1024..2048).await?;
     ///     let bs: Vec<Bytes> = s.try_collect().await?;
     ///
     ///     Ok(())
     /// }
     /// ```
     #[inline]
-    pub fn into_bytes_stream(self, range: impl RangeBounds<u64>) -> FuturesBytesStream {
-        FuturesBytesStream::new(self.inner, self.options, range)
+    pub async fn into_bytes_stream(
+        self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<FuturesBytesStream> {
+        let range = self.parse_range(range).await?;
+        Ok(FuturesBytesStream::new(self.inner, self.options, range))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::layers::TypeEraseLayer;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
@@ -294,8 +347,11 @@ mod tests {
     #[test]
     fn test_trait() {
         let v = Reader {
+            acc: Arc::new(TypeEraseLayer.layer(())),
+            path: Arc::new("hello".to_string()),
             inner: Arc::new(Buffer::new()),
             options: OpReader::new(),
+            size: Arc::new(AtomicContentLength::new()),
         };
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);

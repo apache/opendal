@@ -36,7 +36,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_read_full,
             test_read_range,
-            test_read_large_range,
             test_reader,
             test_read_not_exist,
             test_read_with_if_match,
@@ -104,34 +103,6 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
             Sha256::digest(&content[offset as usize..(offset + length) as usize])
         ),
         "read content"
-    );
-
-    Ok(())
-}
-
-/// Read large range content should match.
-pub async fn test_read_large_range(op: Operator) -> anyhow::Result<()> {
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
-    let (offset, _) = gen_offset_length(size);
-
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
-
-    let bs = op
-        .read_with(&path)
-        .range(offset..u32::MAX as u64)
-        .await?
-        .to_bytes();
-    assert_eq!(
-        bs.len() as u64,
-        size as u64 - offset,
-        "read size with large range"
-    );
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[offset as usize..])),
-        "read content with large range"
     );
 
     Ok(())

@@ -70,13 +70,3 @@ class ConditionNotMatch(Error):
 
     pass
 
-class ContentTruncated(Error):
-    """Content truncated"""
-
-    pass
-
-class ContentIncomplete(Error):
-    """Content incomplete"""
-
-    pass
-

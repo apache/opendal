@@ -57,8 +57,6 @@ impl Error {
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
-            ErrorKind::ContentTruncated => "ContentTruncated",
-            ErrorKind::ContentIncomplete => "ContentIncomplete",
             _ => "Unexpected",
         })?;
         let message = env.new_string(format!("{:?}", self.inner))?;

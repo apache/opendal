@@ -67,7 +67,7 @@ impl Iterator for StdBytesIterator {
         }
 
         let next_offset = self.offset + self.cur;
-        let next_size = (self.end - self.offset).min(self.cap as u64) as usize;
+        let next_size = (self.end - self.offset - self.cur).min(self.cap as u64) as usize;
         match self.inner.read_at(next_offset, next_size) {
             Ok(buf) if !buf.has_remaining() => None,
             Ok(mut buf) => {

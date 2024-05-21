@@ -832,8 +832,6 @@ fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
         ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
         ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
         ErrorKind::NotADirectory => Errno::from(libc::ENOTDIR),
-        ErrorKind::ContentTruncated => Errno::from(libc::EAGAIN),
-        ErrorKind::ContentIncomplete => Errno::from(libc::EIO),
         _ => Errno::from(libc::ENOENT),
     }
 }

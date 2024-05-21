@@ -168,13 +168,13 @@ fn check(expect: u64, actual: u64) -> Result<()> {
     match actual.cmp(&expect) {
         Ordering::Equal => Ok(()),
         Ordering::Less => Err(Error::new(
-            ErrorKind::ContentIncomplete,
-            &format!("reader got too little data, expect: {expect}, actual: {actual}"),
+            ErrorKind::Unexpected,
+            &format!("http response got too little data, expect: {expect}, actual: {actual}"),
         )
         .set_temporary()),
         Ordering::Greater => Err(Error::new(
-            ErrorKind::ContentTruncated,
-            &format!("reader got too much data, expect: {expect}, actual: {actual}"),
+            ErrorKind::Unexpected,
+            &format!("http response got too much data, expect: {expect}, actual: {actual}"),
         )
         .set_temporary()),
     }

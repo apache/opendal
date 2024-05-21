@@ -292,11 +292,9 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::Reader, size: u64, capability: Capability) -> Self {
+    pub fn new_reader(reader: ocore::FuturesAsyncReader, capability: Capability) -> Self {
         Self(
-            Arc::new(Mutex::new(AsyncFileState::Reader(
-                reader.into_futures_async_read(0..size),
-            ))),
+            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
             capability,
         )
     }

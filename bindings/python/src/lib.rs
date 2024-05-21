@@ -105,7 +105,6 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     exception_module.add("ConditionNotMatch", py.get_type::<ConditionNotMatchError>())?;
     exception_module.add("ContentTruncated", py.get_type::<ContentTruncatedError>())?;
     exception_module.add("ContentIncomplete", py.get_type::<ContentIncompleteError>())?;
-    exception_module.add("InvalidInput", py.get_type::<InvalidInputError>())?;
     m.add_submodule(exception_module)?;
     py.import("sys")?
         .getattr("modules")?

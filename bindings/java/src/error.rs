@@ -59,7 +59,6 @@ impl Error {
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
             ErrorKind::ContentTruncated => "ContentTruncated",
             ErrorKind::ContentIncomplete => "ContentIncomplete",
-            ErrorKind::InvalidInput => "InvalidInput",
             _ => "Unexpected",
         })?;
         let message = env.new_string(format!("{:?}", self.inner))?;

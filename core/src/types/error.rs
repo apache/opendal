@@ -100,10 +100,6 @@ pub enum ErrorKind {
     /// - Users expected to read 1024 bytes, but service returned less bytes.
     /// - Service expected to write 1024 bytes, but users write less bytes.
     ContentIncomplete,
-    /// The input is invalid.
-    ///
-    /// For example, user try to seek to a negative position
-    InvalidInput,
 }
 
 impl ErrorKind {
@@ -135,7 +131,6 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
             ErrorKind::ContentTruncated => "ContentTruncated",
             ErrorKind::ContentIncomplete => "ContentIncomplete",
-            ErrorKind::InvalidInput => "InvalidInput",
         }
     }
 }
@@ -427,7 +422,6 @@ impl From<Error> for io::Error {
         let kind = match err.kind() {
             ErrorKind::NotFound => io::ErrorKind::NotFound,
             ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
-            ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
             _ => io::ErrorKind::Other,
         };
 

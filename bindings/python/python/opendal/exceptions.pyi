@@ -80,7 +80,3 @@ class ContentIncomplete(Error):
 
     pass
 
-class InvalidInput(Error):
-    """Invalid input"""
-
-    pass

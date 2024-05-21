@@ -66,6 +66,7 @@ async fn execute(cfg: Config) -> Result<()> {
     }?;
     let backend = Operator::via_map(scheme, op_args)?;
 
+    #[cfg(target_os = "linux")]
     let mut mount_handle = if nix::unistd::getuid().is_root() {
         let mut fuse = Fuse::new();
         if let Some(gid) = env::var("SUDO_GID")
@@ -86,6 +87,9 @@ async fn execute(cfg: Config) -> Result<()> {
             .mount_with_unprivileged(cfg.mount_path, backend)
             .await?
     };
+
+    #[cfg(target_os = "freebsd")]
+    let mut mount_handle = Fuse::new().mount(cfg.mount_path, backend).await?;
 
     let handle = &mut mount_handle;
     tokio::select! {

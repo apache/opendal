@@ -940,6 +940,7 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
+                stat: true,
                 list: true,
                 list_with_recursive: true,
                 batch: true,
@@ -947,6 +948,12 @@ mod tests {
             });
 
             am
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(
+                Metadata::new(EntryMode::FILE).with_content_length(13),
+            ))
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {

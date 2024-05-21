@@ -43,7 +43,7 @@ fn intern_construct_reader(
     path: JString,
 ) -> crate::Result<jlong> {
     let path = jstring_to_string(env, &path)?;
-    let reader = op.reader(&path)?.into_bytes_iterator(..);
+    let reader = op.reader(&path)?.into_bytes_iterator(..)?;
     Ok(Box::into_raw(Box::new(reader)) as jlong)
 }
 

@@ -80,9 +80,12 @@ impl Operator {
         let this = self.0.clone();
         let capability = self.capability()?;
         if mode == "rb" {
-            let meta = this.stat(&path).map_err(format_pyerr)?;
-            let r = this.reader(&path).map_err(format_pyerr)?;
-            Ok(File::new_reader(r, meta.content_length(), capability))
+            let r = this
+                .reader(&path)
+                .map_err(format_pyerr)?
+                .into_std_read(..)
+                .map_err(format_pyerr)?;
+            Ok(File::new_reader(r, capability))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
             Ok(File::new_writer(w, capability))

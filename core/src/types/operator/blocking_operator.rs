@@ -17,6 +17,7 @@
 
 use bytes::Buf;
 use bytes::Bytes;
+use std::sync::Arc;
 
 use super::operator_functions::*;
 use crate::raw::*;
@@ -396,7 +397,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let r = BlockingReader::create(inner, &path, args)?;
+                let path = Arc::new(path);
+                let r = BlockingReader::create(inner, path, args)?;
                 let buf = r.read(range.to_range())?;
                 Ok(buf)
             },
@@ -454,7 +456,8 @@ impl BlockingOperator {
                     );
                 }
 
-                BlockingReader::create(inner.clone(), &path, args)
+                let path = Arc::new(path);
+                BlockingReader::create(inner.clone(), path, args)
             },
         ))
     }

@@ -71,6 +71,14 @@ typedef enum opendal_code {
    * The given file paths are same.
    */
   OPENDAL_IS_SAME_FILE,
+  /**
+   * The condition of this operation is not match.
+   */
+  OPENDAL_CONDITION_NOT_MATCH,
+  /**
+   * The range of the content is not satisfied.
+   */
+  OPENDAL_RANGE_NOT_SATISFIED,
 } opendal_code;
 
 /**

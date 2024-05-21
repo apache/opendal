@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::Bound;
 use std::io;
-use std::ops::RangeBounds;
+use std::ops::Range;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -41,23 +40,11 @@ pub struct StdBytesIterator {
 impl StdBytesIterator {
     /// NOTE: don't allow users to create StdIterator directly.
     #[inline]
-    pub(crate) fn new(r: oio::BlockingReader, range: impl RangeBounds<u64>) -> Self {
-        let start = match range.start_bound().cloned() {
-            Bound::Included(start) => start,
-            Bound::Excluded(start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound().cloned() {
-            Bound::Included(end) => Some(end + 1),
-            Bound::Excluded(end) => Some(end),
-            Bound::Unbounded => None,
-        };
-
+    pub(crate) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
         StdBytesIterator {
             inner: r,
-            offset: start,
-            end: end.unwrap_or(u64::MAX),
+            offset: range.start,
+            end: range.end,
             // TODO: should use services preferred io size.
             cap: 4 * 1024 * 1024,
             cur: 0,
@@ -80,7 +67,7 @@ impl Iterator for StdBytesIterator {
         }
 
         let next_offset = self.offset + self.cur;
-        let next_size = (self.end - self.offset).min(self.cap as u64) as usize;
+        let next_size = (self.end - self.offset - self.cur).min(self.cap as u64) as usize;
         match self.inner.read_at(next_offset, next_size) {
             Ok(buf) if !buf.has_remaining() => None,
             Ok(mut buf) => {

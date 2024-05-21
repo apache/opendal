@@ -369,8 +369,8 @@ pub unsafe extern "C" fn opendal_operator_reader(
     let op = (*op).as_ref();
 
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
-    let meta = match op.stat(path) {
-        Ok(meta) => meta,
+    let reader = match op.reader(path) {
+        Ok(reader) => reader,
         Err(err) => {
             return opendal_result_operator_reader {
                 reader: std::ptr::null_mut(),
@@ -379,9 +379,9 @@ pub unsafe extern "C" fn opendal_operator_reader(
         }
     };
 
-    match op.reader(path) {
+    match reader.into_std_read(..) {
         Ok(reader) => opendal_result_operator_reader {
-            reader: Box::into_raw(Box::new(opendal_reader::new(reader, meta.content_length()))),
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
             error: std::ptr::null_mut(),
         },
         Err(e) => opendal_result_operator_reader {

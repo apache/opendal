@@ -52,19 +52,19 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            TwoWays::One(v) => v.read_at(offset, limit).await,
-            TwoWays::Two(v) => v.read_at(offset, limit).await,
+            TwoWays::One(v) => v.read_at(offset, size).await,
+            TwoWays::Two(v) => v.read_at(offset, size).await,
         }
     }
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, limit),
-            Self::Two(v) => v.read_at(offset, limit),
+            Self::One(v) => v.read_at(offset, size),
+            Self::Two(v) => v.read_at(offset, size),
         }
     }
 }
@@ -105,11 +105,11 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            ThreeWays::One(v) => v.read_at(offset, limit).await,
-            ThreeWays::Two(v) => v.read_at(offset, limit).await,
-            ThreeWays::Three(v) => v.read_at(offset, limit).await,
+            ThreeWays::One(v) => v.read_at(offset, size).await,
+            ThreeWays::Two(v) => v.read_at(offset, size).await,
+            ThreeWays::Three(v) => v.read_at(offset, size).await,
         }
     }
 }
@@ -117,11 +117,11 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, limit),
-            Self::Two(v) => v.read_at(offset, limit),
-            Self::Three(v) => v.read_at(offset, limit),
+            Self::One(v) => v.read_at(offset, size),
+            Self::Two(v) => v.read_at(offset, size),
+            Self::Three(v) => v.read_at(offset, size),
         }
     }
 }
@@ -175,12 +175,12 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            FourWays::One(v) => v.read_at(offset, limit).await,
-            FourWays::Two(v) => v.read_at(offset, limit).await,
-            FourWays::Three(v) => v.read_at(offset, limit).await,
-            FourWays::Four(v) => v.read_at(offset, limit).await,
+            FourWays::One(v) => v.read_at(offset, size).await,
+            FourWays::Two(v) => v.read_at(offset, size).await,
+            FourWays::Three(v) => v.read_at(offset, size).await,
+            FourWays::Four(v) => v.read_at(offset, size).await,
         }
     }
 }
@@ -192,12 +192,12 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, limit),
-            Self::Two(v) => v.read_at(offset, limit),
-            Self::Three(v) => v.read_at(offset, limit),
-            Self::Four(v) => v.read_at(offset, limit),
+            Self::One(v) => v.read_at(offset, size),
+            Self::Two(v) => v.read_at(offset, size),
+            Self::Three(v) => v.read_at(offset, size),
+            Self::Four(v) => v.read_at(offset, size),
         }
     }
 }

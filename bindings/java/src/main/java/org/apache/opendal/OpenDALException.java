@@ -71,7 +71,6 @@ public class OpenDALException extends RuntimeException {
         RateLimited,
         IsSameFile,
         ConditionNotMatch,
-        ContentTruncated,
-        ContentIncomplete,
+        RangeNotSatisfied,
     }
 }

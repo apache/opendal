@@ -82,6 +82,10 @@ pub enum ErrorKind {
     /// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
     /// So users could to handle this error by themselves.
     ConditionNotMatch,
+    /// The range of the content is not satisfied.
+    ///
+    /// OpenDAL returns this error to indicate that the range of the read request is not satisfied.
+    RangeNotSatisfied,
 }
 
 impl ErrorKind {
@@ -111,6 +115,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
+            ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
         }
     }
 }

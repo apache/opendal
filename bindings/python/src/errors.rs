@@ -38,7 +38,6 @@ create_exception!(
 );
 create_exception!(opendal, ContentTruncatedError, Error, "Content truncated");
 create_exception!(opendal, ContentIncompleteError, Error, "Content incomplete");
-create_exception!(opendal, InvalidInputError, Error, "Invalid input");
 
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
     use ocore::ErrorKind::*;
@@ -55,7 +54,6 @@ pub fn format_pyerr(err: ocore::Error) -> PyErr {
         ConditionNotMatch => ConditionNotMatchError::new_err(err.to_string()),
         ContentTruncated => ContentTruncatedError::new_err(err.to_string()),
         ContentIncomplete => ContentIncompleteError::new_err(err.to_string()),
-        InvalidInput => InvalidInputError::new_err(err.to_string()),
         _ => UnexpectedError::new_err(err.to_string()),
     }
 }

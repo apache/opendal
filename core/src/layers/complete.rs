@@ -592,7 +592,16 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, size).await
+        let buf = self.0.read_at(offset, size).await?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 
@@ -602,7 +611,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, size)
+        let buf = self.0.read_at(offset, size)?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 

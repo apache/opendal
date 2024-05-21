@@ -234,7 +234,7 @@ impl BlockingRead for Buffer {
 /// `Arc<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Arc<T> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        (**self).read_at(offset, limit)
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        (**self).read_at(offset, size)
     }
 }

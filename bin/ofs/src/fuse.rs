@@ -291,9 +291,8 @@ impl PathFilesystem for Fuse {
             .await
             .map_err(opendal_error2errno)?;
 
-        let metadata = Metadata::new(EntryMode::DIR);
         let now = SystemTime::now();
-        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
+        let attr = dummy_file_attr(FileType::Directory, now, self.uid, self.gid);
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -406,12 +405,7 @@ impl PathFilesystem for Fuse {
         };
 
         let now = SystemTime::now();
-        let metadata = self
-            .op
-            .stat(&path.to_string_lossy())
-            .await
-            .map_err(opendal_error2errno)?;
-        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
+        let attr = dummy_file_attr(FileType::RegularFile, now, self.uid, self.gid);
 
         let key = self
             .opened_files
@@ -700,8 +694,7 @@ impl PathFilesystem for Fuse {
                     .map_err(opendal_error2errno)
             });
 
-        let relative_path_metadata = Metadata::new(EntryMode::DIR);
-        let relative_path_attr = metadata2file_attr(&relative_path_metadata, now, uid, gid);
+        let relative_path_attr = dummy_file_attr(FileType::Directory, now, uid, gid);
         let relative_paths = stream::iter([
             Result::Ok(DirectoryEntryPlus {
                 kind: FileType::Directory,
@@ -795,10 +788,19 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
         size: metadata.content_length(),
-        blocks: 0,
-        atime,
         mtime: last_modified,
         ctime: last_modified,
+        ..dummy_file_attr(kind, atime, uid, gid)
+    }
+}
+
+const fn dummy_file_attr(kind: FileType, now: SystemTime, uid: u32, gid: u32) -> FileAttr {
+    FileAttr {
+        size: 0,
+        blocks: 0,
+        atime: now,
+        mtime: now,
+        ctime: now,
         kind,
         perm: fuse3::perm_from_mode_and_kind(kind, 0o775),
         nlink: 0,

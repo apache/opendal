@@ -25,7 +25,6 @@ use std::time::SystemTime;
 
 use bytes::Bytes;
 
-use chrono::Utc;
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
@@ -406,10 +405,12 @@ impl PathFilesystem for Fuse {
             None
         };
 
-        let now = Utc::now();
-        let metadata = Metadata::new(EntryMode::FILE)
-            .with_last_modified(now)
-            .with_content_length(0);
+        let now = SystemTime::now();
+        let metadata = self
+            .op
+            .stat(&path.to_string_lossy())
+            .await
+            .map_err(opendal_error2errno)?;
         let attr = metadata2file_attr(&metadata, now.into(), self.uid, self.gid);
 
         let key = self

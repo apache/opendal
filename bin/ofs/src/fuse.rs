@@ -641,7 +641,6 @@ impl PathFilesystem for Fuse {
     async fn access(&self, _req: Request, path: &OsStr, mask: u32) -> Result<()> {
         log::debug!("access(path={:?}, mask=0x{:x})", path, mask);
 
-        self.check_flags(mask)?;
         self.op
             .stat(&path.to_string_lossy())
             .await

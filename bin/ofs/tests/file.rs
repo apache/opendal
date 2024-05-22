@@ -64,9 +64,13 @@ fn test_file_append(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
+    thread::sleep(Duration::from_secs(1));
+
     let mut file = File::options().append(true).open(&path).unwrap();
     file.write_all(b"test").unwrap();
     drop(file);
+
+    thread::sleep(Duration::from_secs(1));
 
     let mut file = File::open(&path).unwrap();
     let mut buf = String::new();

@@ -411,7 +411,7 @@ impl PathFilesystem for Fuse {
             .stat(&path.to_string_lossy())
             .await
             .map_err(opendal_error2errno)?;
-        let attr = metadata2file_attr(&metadata, now.into(), self.uid, self.gid);
+        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
 
         let key = self
             .opened_files

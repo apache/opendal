@@ -539,7 +539,7 @@ impl PathFilesystem for Fuse {
         let data = self
             .op
             .read_with(&file_path)
-            .range(offset..offset + size as u64)
+            .range(offset..)
             .await
             .map_err(opendal_error2errno)?;
 
@@ -819,6 +819,8 @@ fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
         ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
         ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
         ErrorKind::NotADirectory => Errno::from(libc::ENOTDIR),
+        ErrorKind::RangeNotSatisfied => Errno::from(libc::EINVAL),
+        ErrorKind::RateLimited => Errno::from(libc::EBUSY),
         _ => Errno::from(libc::ENOENT),
     }
 }

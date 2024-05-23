@@ -54,6 +54,8 @@ fn test_file(ctx: &mut OfsTestContext) {
 #[test]
 fn test_file_append(ctx: &mut OfsTestContext) {
     if !ctx.capability.write_can_append {
+        // wait for ofs to be ready
+        thread::sleep(Duration::from_secs(1));
         return;
     }
 

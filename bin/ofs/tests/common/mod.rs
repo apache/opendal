@@ -62,9 +62,11 @@ impl TestContext for OfsTestContext {
     }
 
     fn teardown(self) {
-        RUNTIME.get().expect("runtime").block_on(async move {
-            self.mount_handle.unmount().await.unwrap();
-        });
+        RUNTIME
+            .get()
+            .expect("runtime")
+            .block_on(async move { self.mount_handle.unmount().await })
+            .unwrap();
         self.mount_point.close().unwrap();
     }
 }

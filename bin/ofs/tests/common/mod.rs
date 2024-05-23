@@ -15,27 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{collections::HashMap, env, process::Command};
+use std::{collections::HashMap, env, process::Command, sync::OnceLock, thread, time::Duration};
 
 use tempfile::TempDir;
-use test_context::AsyncTestContext;
-use tokio::task::JoinHandle;
+use test_context::TestContext;
+use tokio::{
+    runtime::{self, Runtime},
+    task::JoinHandle,
+};
+
+static INIT_LOGGER: OnceLock<()> = OnceLock::new();
+static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 pub(crate) struct OfsTestContext {
     pub mount_point: TempDir,
-    ofs_task: JoinHandle<anyhow::Result<()>>,
+    ofs_task: JoinHandle<()>,
 }
 
-impl AsyncTestContext for OfsTestContext {
-    async fn setup() -> Self {
+impl TestContext for OfsTestContext {
+    fn setup() -> Self {
         let backend = backend_scheme().unwrap();
 
-        let mount_point = tempfile::tempdir().unwrap();
+        INIT_LOGGER.get_or_init(env_logger::init);
 
-        let ofs_task = tokio::spawn(ofs::execute(ofs::Config {
-            mount_path: mount_point.path().to_string_lossy().to_string(),
-            backend: backend.parse().unwrap(),
-        }));
+        let mount_point = tempfile::tempdir().unwrap();
+        let mount_point_str = mount_point.path().to_string_lossy().to_string();
+        let ofs_task = RUNTIME
+            .get_or_init(|| {
+                runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("build runtime")
+            })
+            .spawn(async move {
+                ofs::execute(ofs::Config {
+                    mount_path: mount_point_str,
+                    backend: backend.parse().unwrap(),
+                })
+                .await
+                .unwrap();
+            });
+
+        // wait for ofs to start
+        thread::sleep(Duration::from_secs(1));
 
         OfsTestContext {
             mount_point,
@@ -43,7 +65,7 @@ impl AsyncTestContext for OfsTestContext {
         }
     }
 
-    async fn teardown(self) {
+    fn teardown(self) {
         // FIXME: ofs could not unmount
         Command::new("fusermount3")
             .args(["-u", self.mount_point.path().to_str().unwrap()])

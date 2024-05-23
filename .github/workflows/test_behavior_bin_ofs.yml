@@ -31,6 +31,8 @@ jobs:
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 10
+
     strategy:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}

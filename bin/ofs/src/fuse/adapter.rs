@@ -25,7 +25,6 @@ use std::time::SystemTime;
 
 use bytes::Bytes;
 
-use chrono::Utc;
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;

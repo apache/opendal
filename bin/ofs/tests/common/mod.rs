@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{collections::HashMap, env, process::Command, sync::OnceLock, thread, time::Duration};
+use std::{collections::HashMap, env, sync::OnceLock};
 
 use opendal::{Capability, Operator};
 use tempfile::TempDir;

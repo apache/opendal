@@ -33,10 +33,10 @@ use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
-use opendal::Entry;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::Operator;
 use opendal::Writer;
 use sharded_slab::Slab;
@@ -292,9 +292,8 @@ impl PathFilesystem for FuseAdapter {
             .await
             .map_err(opendal_error2errno)?;
 
-        let metadata = Metadata::new(EntryMode::DIR);
         let now = SystemTime::now();
-        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
+        let attr = dummy_file_attr(FileType::Directory, now, self.uid, self.gid);
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -406,11 +405,8 @@ impl PathFilesystem for FuseAdapter {
             None
         };
 
-        let now = Utc::now();
-        let metadata = Metadata::new(EntryMode::FILE)
-            .with_last_modified(now)
-            .with_content_length(0);
-        let attr = metadata2file_attr(&metadata, now.into(), self.uid, self.gid);
+        let now = SystemTime::now();
+        let attr = dummy_file_attr(FileType::RegularFile, now, self.uid, self.gid);
 
         let key = self
             .opened_files
@@ -544,7 +540,7 @@ impl PathFilesystem for FuseAdapter {
         let data = self
             .op
             .read_with(&file_path)
-            .range(offset..offset + size as u64)
+            .range(offset..)
             .await
             .map_err(opendal_error2errno)?;
 
@@ -646,7 +642,6 @@ impl PathFilesystem for FuseAdapter {
     async fn access(&self, _req: Request, path: &OsStr, mask: u32) -> Result<()> {
         log::debug!("access(path={:?}, mask=0x{:x})", path, mask);
 
-        self.check_flags(mask)?;
         self.op
             .stat(&path.to_string_lossy())
             .await
@@ -670,39 +665,36 @@ impl PathFilesystem for FuseAdapter {
             offset
         );
 
-        let make_entry = |op: Operator, i: usize, entry: opendal::Result<Entry>, uid, gid, now| async move {
-            let e = entry.map_err(opendal_error2errno)?;
-            let metadata = op
-                .stat(e.name())
-                .await
-                .unwrap_or_else(|_| e.metadata().clone().with_content_length(0));
-            let attr = metadata2file_attr(&metadata, now, uid, gid);
-            Result::Ok(DirectoryEntryPlus {
-                kind: entry_mode2file_type(metadata.mode()),
-                name: e.name().trim_matches('/').into(),
-                offset: (i + 3) as i64,
-                attr,
-                entry_ttl: TTL,
-                attr_ttl: TTL,
-            })
-        };
-
         let now = SystemTime::now();
         let mut current_dir = PathBuf::from(parent);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
-        let op = self.op.clone();
         let uid = self.uid;
         let gid = self.gid;
+
         let children = self
             .op
-            .lister(&current_dir.to_string_lossy())
+            .lister_with(&current_dir.to_string_lossy())
+            .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
             .enumerate()
-            .then(move |(i, entry)| make_entry(op.clone(), i, entry, uid, gid, now));
+            .map(move |(i, entry)| {
+                entry
+                    .map(|e| {
+                        let metadata = e.metadata();
+                        DirectoryEntryPlus {
+                            kind: entry_mode2file_type(metadata.mode()),
+                            name: e.name().trim_matches('/').into(),
+                            offset: (i + 3) as i64,
+                            attr: metadata2file_attr(metadata, now, uid, gid),
+                            entry_ttl: TTL,
+                            attr_ttl: TTL,
+                        }
+                    })
+                    .map_err(opendal_error2errno)
+            });
 
-        let relative_path_metadata = Metadata::new(EntryMode::DIR);
-        let relative_path_attr = metadata2file_attr(&relative_path_metadata, now, uid, gid);
+        let relative_path_attr = dummy_file_attr(FileType::Directory, now, uid, gid);
         let relative_paths = stream::iter([
             Result::Ok(DirectoryEntryPlus {
                 kind: FileType::Directory,
@@ -796,10 +788,19 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
         size: metadata.content_length(),
-        blocks: 0,
-        atime,
         mtime: last_modified,
         ctime: last_modified,
+        ..dummy_file_attr(kind, atime, uid, gid)
+    }
+}
+
+const fn dummy_file_attr(kind: FileType, now: SystemTime, uid: u32, gid: u32) -> FileAttr {
+    FileAttr {
+        size: 0,
+        blocks: 0,
+        atime: now,
+        mtime: now,
+        ctime: now,
         kind,
         perm: fuse3::perm_from_mode_and_kind(kind, 0o775),
         nlink: 0,
@@ -819,8 +820,8 @@ fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
         ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
         ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
         ErrorKind::NotADirectory => Errno::from(libc::ENOTDIR),
-        ErrorKind::ContentTruncated => Errno::from(libc::EAGAIN),
-        ErrorKind::ContentIncomplete => Errno::from(libc::EIO),
+        ErrorKind::RangeNotSatisfied => Errno::from(libc::EINVAL),
+        ErrorKind::RateLimited => Errno::from(libc::EBUSY),
         _ => Errno::from(libc::ENOENT),
     }
 }

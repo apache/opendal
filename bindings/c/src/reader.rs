@@ -30,9 +30,9 @@ pub struct opendal_reader {
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::BlockingReader, size: u64) -> Self {
+    pub(crate) fn new(reader: core::StdReader) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader.into_std_read(0..size))),
+            inner: Box::into_raw(Box::new(reader)),
         }
     }
 

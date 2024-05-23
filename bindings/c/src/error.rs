@@ -45,6 +45,10 @@ pub enum opendal_code {
     OPENDAL_RATE_LIMITED,
     /// The given file paths are same.
     OPENDAL_IS_SAME_FILE,
+    /// The condition of this operation is not match.
+    OPENDAL_CONDITION_NOT_MATCH,
+    /// The range of the content is not satisfied.
+    OPENDAL_RANGE_NOT_SATISFIED,
 }
 
 impl From<core::ErrorKind> for opendal_code {
@@ -60,6 +64,8 @@ impl From<core::ErrorKind> for opendal_code {
             core::ErrorKind::AlreadyExists => opendal_code::OPENDAL_ALREADY_EXISTS,
             core::ErrorKind::RateLimited => opendal_code::OPENDAL_RATE_LIMITED,
             core::ErrorKind::IsSameFile => opendal_code::OPENDAL_IS_SAME_FILE,
+            core::ErrorKind::ConditionNotMatch => opendal_code::OPENDAL_CONDITION_NOT_MATCH,
+            core::ErrorKind::RangeNotSatisfied => opendal_code::OPENDAL_RANGE_NOT_SATISFIED,
             // if this is triggered, check the [`core`] crate and add a
             // new error code accordingly
             _ => panic!("The newly added ErrorKind in core crate is not handled in C bindings"),

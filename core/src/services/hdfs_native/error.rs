@@ -29,8 +29,6 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
             false,
             "checksums didn't match".to_string(),
         ),
-        HdfsError::InvalidPath(msg) => (ErrorKind::InvalidInput, false, msg.clone()),
-        HdfsError::InvalidArgument(msg) => (ErrorKind::InvalidInput, false, msg.clone()),
         HdfsError::UrlParseError(err) => (ErrorKind::Unexpected, false, err.to_string()),
         HdfsError::AlreadyExists(msg) => (ErrorKind::AlreadyExists, false, msg.clone()),
         HdfsError::OperationFailed(msg) => (ErrorKind::Unexpected, false, msg.clone()),

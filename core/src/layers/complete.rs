@@ -587,22 +587,40 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if limit == 0 {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, limit).await
+        let buf = self.0.read_at(offset, size).await?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if limit == 0 {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, limit)
+        let buf = self.0.read_at(offset, size)?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 

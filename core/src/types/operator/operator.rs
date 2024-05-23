@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream;
@@ -547,8 +548,9 @@ impl Operator {
                     );
                 }
 
+                let path = Arc::new(path);
                 let range = options.range();
-                let r = Reader::create(inner, &path, args, options).await?;
+                let r = Reader::create(inner, path, args, options).await?;
                 let buf = r.read(range.to_range()).await?;
                 Ok(buf)
             },
@@ -656,7 +658,8 @@ impl Operator {
                     );
                 }
 
-                Reader::create(inner.clone(), &path, args, options).await
+                let path = Arc::new(path);
+                Reader::create(inner.clone(), path, args, options).await
             },
         )
     }

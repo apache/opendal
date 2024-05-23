@@ -143,7 +143,7 @@ impl Builder for GridFsBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(
-                    Error::new(ErrorKind::InvalidInput, "connection_string is required")
+                    Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", Scheme::Gridfs),
                 )
             }
@@ -151,7 +151,7 @@ impl Builder for GridFsBuilder {
         let database = match &self.database.clone() {
             Some(v) => v.clone(),
             None => {
-                return Err(Error::new(ErrorKind::InvalidInput, "database is required")
+                return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", Scheme::Gridfs))
             }
         };

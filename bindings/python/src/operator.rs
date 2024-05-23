@@ -80,9 +80,12 @@ impl Operator {
         let this = self.0.clone();
         let capability = self.capability()?;
         if mode == "rb" {
-            let meta = this.stat(&path).map_err(format_pyerr)?;
-            let r = this.reader(&path).map_err(format_pyerr)?;
-            Ok(File::new_reader(r, meta.content_length(), capability))
+            let r = this
+                .reader(&path)
+                .map_err(format_pyerr)?
+                .into_std_read(..)
+                .map_err(format_pyerr)?;
+            Ok(File::new_reader(r, capability))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
             Ok(File::new_writer(w, capability))
@@ -245,9 +248,14 @@ impl AsyncOperator {
 
         future_into_py(py, async move {
             if mode == "rb" {
-                let meta = this.stat(&path).await.map_err(format_pyerr)?;
-                let r = this.reader(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_reader(r, meta.content_length(), capability))
+                let r = this
+                    .reader(&path)
+                    .await
+                    .map_err(format_pyerr)?
+                    .into_futures_async_read(..)
+                    .await
+                    .map_err(format_pyerr)?;
+                Ok(AsyncFile::new_reader(r, capability))
             } else if mode == "wb" {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
                 Ok(AsyncFile::new_writer(w, capability))

@@ -23,43 +23,6 @@ use size::Size;
 
 use super::utils::*;
 
-pub fn bench_contiguous_buffer(c: &mut Criterion) {
-    let mut group = c.benchmark_group("bench_contiguous_buffer");
-
-    let mut rng = thread_rng();
-
-    for size in [Size::from_kibibytes(256), Size::from_mebibytes(4)] {
-        let bytes_buf = gen_bytes(&mut rng, size.bytes() as usize);
-        let buffer = Buffer::from(bytes_buf.clone());
-
-        let bytes_buf_name = format!("bytes buf {}", size.to_string());
-        let buffer_name = format!("contiguous buffer {}", size.to_string());
-
-        group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| {
-            b.iter(|| bytes_buf.chunk())
-        });
-        group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
-            b.iter(|| buffer.chunk())
-        });
-
-        group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| {
-            b.iter(|| {
-                let mut bytes_buf = bytes_buf.clone();
-                bytes_buf.advance((size.bytes() as f64 * 0.5) as usize);
-            })
-        });
-        group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
-            b.iter(|| {
-                let mut buffer = buffer.clone();
-                // Advance non-integer number of Bytes.
-                buffer.advance((size.bytes() as f64 * 0.5) as usize);
-            })
-        });
-    }
-
-    group.finish()
-}
-
 pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_non_contiguous_buffer");
 
@@ -75,7 +38,7 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
             let buffer = Buffer::from(bytes_vec);
 
             let bytes_buf_name = format!("bytes buf {} * {} ", size.to_string(), num);
-            let buffer_name = format!("non contiguous buffer {} * {}", size.to_string(), num);
+            let buffer_name = format!("buffer {} * {}", size.to_string(), num);
 
             group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| {
                 b.iter(|| bytes_buf.chunk())
@@ -87,6 +50,7 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
             group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| {
                 b.iter(|| {
                     let mut bytes_buf = bytes_buf.clone();
+                    // Advance non-integer number of Bytes.
                     bytes_buf.advance((size.bytes() as f64 * 3.5) as usize);
                 })
             });
@@ -97,7 +61,61 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
                     buffer.advance((size.bytes() as f64 * 3.5) as usize);
                 })
             });
+
+            group.bench_function(format!("{} {}", bytes_buf_name, "truncate"), |b| {
+                b.iter(|| {
+                    let mut bytes_buf = bytes_buf.clone();
+                    // Truncate non-integer number of Bytes.
+                    bytes_buf.truncate((size.bytes() as f64 * 3.5) as usize);
+                })
+            });
+            group.bench_function(format!("{} {}", buffer_name, "truncate"), |b| {
+                b.iter(|| {
+                    let mut buffer = buffer.clone();
+                    // Truncate non-integer number of Bytes.
+                    buffer.truncate((size.bytes() as f64 * 3.5) as usize);
+                })
+            });
         }
+    }
+
+    group.finish()
+}
+
+pub fn bench_non_contiguous_buffer_with_extreme(c: &mut Criterion) {
+    let mut group: criterion::BenchmarkGroup<criterion::measurement::WallTime> =
+        c.benchmark_group("bench_non_contiguous_buffer_with_extreme");
+
+    let mut rng = thread_rng();
+
+    let size = Size::from_kibibytes(256);
+    let bytes = gen_bytes(&mut rng, size.bytes() as usize);
+    for num in [1000, 10000, 100000, 1000000] {
+        let repeated_bytes = RepeatedBytes {
+            bytes: bytes.clone(),
+            index: 0,
+            count: num,
+        };
+        let buffer = Buffer::from_iter(repeated_bytes);
+        let buffer_name = format!("{} * {}k", size.to_string(), num / 1000);
+
+        group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
+            b.iter(|| buffer.chunk())
+        });
+
+        group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
+            b.iter(|| {
+                let mut buffer = buffer.clone();
+                buffer.advance(buffer.len());
+            })
+        });
+
+        group.bench_function(format!("{} {}", buffer_name, "truncate"), |b| {
+            b.iter(|| {
+                let mut buffer = buffer.clone();
+                buffer.truncate(buffer.len());
+            })
+        });
     }
 
     group.finish()

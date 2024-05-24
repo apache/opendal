@@ -23,7 +23,7 @@ use criterion::criterion_main;
 
 criterion_group!(
     benches,
-    buffer::bench_contiguous_buffer,
-    buffer::bench_non_contiguous_buffer
+    buffer::bench_non_contiguous_buffer,
+    buffer::bench_non_contiguous_buffer_with_extreme,
 );
 criterion_main!(benches);

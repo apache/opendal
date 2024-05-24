@@ -19,6 +19,25 @@ use bytes::Bytes;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
 
+pub struct RepeatedBytes {
+    pub bytes: Bytes,
+    pub index: usize,
+    pub count: usize,
+}
+
+impl Iterator for RepeatedBytes {
+    type Item = Bytes;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.count {
+            self.index += 1;
+            Some(self.bytes.clone())
+        } else {
+            None
+        }
+    }
+}
+
 pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Bytes {
     let mut content = vec![0; size];
     rng.fill_bytes(&mut content);

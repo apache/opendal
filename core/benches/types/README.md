@@ -11,53 +11,77 @@ cargo bench --bench types --features tests
 The following are the test results for reference:
 
 ```shell
-bench_contiguous_buffer/bytes buf 256 KiB chunk
-                        time:   [210.54 ps 211.54 ps 212.62 ps]
-bench_contiguous_buffer/contiguous buffer 256 KiB chunk
-                        time:   [233.12 ps 233.90 ps 234.69 ps]
-bench_contiguous_buffer/bytes buf 256 KiB advance
-                        time:   [10.238 ns 10.239 ns 10.240 ns]
-bench_contiguous_buffer/contiguous buffer 256 KiB advance
-                        time:   [14.758 ns 14.764 ns 14.771 ns]
-bench_contiguous_buffer/bytes buf 4.00 MiB chunk
-                        time:   [210.26 ps 211.32 ps 212.45 ps]
-bench_contiguous_buffer/contiguous buffer 4.00 MiB chunk
-                        time:   [256.97 ps 257.30 ps 257.62 ps]
-bench_contiguous_buffer/bytes buf 4.00 MiB advance
-                        time:   [10.238 ns 10.239 ns 10.240 ns]
-bench_contiguous_buffer/contiguous buffer 4.00 MiB advance
-                        time:   [14.756 ns 14.760 ns 14.764 ns]
-
 bench_non_contiguous_buffer/bytes buf 256 KiB * 4  chunk
-                        time:   [250.12 ps 250.53 ps 250.97 ps]
-bench_non_contiguous_buffer/non contiguous buffer 256 KiB * 4 chunk
-                        time:   [307.16 ps 307.24 ps 307.34 ps]
+                        time:   [226.31 ps 227.81 ps 229.33 ps]
+bench_non_contiguous_buffer/buffer 256 KiB * 4 chunk
+                        time:   [319.85 ps 325.66 ps 332.61 ps]
 bench_non_contiguous_buffer/bytes buf 256 KiB * 4  advance
-                        time:   [10.236 ns 10.238 ns 10.241 ns]
-bench_non_contiguous_buffer/non contiguous buffer 256 KiB * 4 advance
-                        time:   [9.2202 ns 9.2216 ns 9.2239 ns]
+                        time:   [10.241 ns 10.242 ns 10.243 ns]
+bench_non_contiguous_buffer/buffer 256 KiB * 4 advance
+                        time:   [9.2208 ns 9.2216 ns 9.2226 ns]
+bench_non_contiguous_buffer/bytes buf 256 KiB * 4  truncate
+                        time:   [10.248 ns 10.253 ns 10.258 ns]
+bench_non_contiguous_buffer/buffer 256 KiB * 4 truncate
+                        time:   [8.8055 ns 8.8068 ns 8.8085 ns]
 bench_non_contiguous_buffer/bytes buf 256 KiB * 32  chunk
-                        time:   [210.27 ps 211.64 ps 213.35 ps]
-bench_non_contiguous_buffer/non contiguous buffer 256 KiB * 32 chunk
-                        time:   [307.28 ps 307.34 ps 307.40 ps]
+                        time:   [228.76 ps 230.04 ps 231.29 ps]
+bench_non_contiguous_buffer/buffer 256 KiB * 32 chunk
+                        time:   [319.49 ps 323.25 ps 327.83 ps]
 bench_non_contiguous_buffer/bytes buf 256 KiB * 32  advance
-                        time:   [10.239 ns 10.241 ns 10.244 ns]
-bench_non_contiguous_buffer/non contiguous buffer 256 KiB * 32 advance
-                        time:   [9.2201 ns 9.2214 ns 9.2235 ns]
+                        time:   [10.244 ns 10.245 ns 10.246 ns]
+bench_non_contiguous_buffer/buffer 256 KiB * 32 advance
+                        time:   [9.2172 ns 9.2184 ns 9.2197 ns]
+bench_non_contiguous_buffer/bytes buf 256 KiB * 32  truncate
+                        time:   [10.242 ns 10.243 ns 10.246 ns]
+bench_non_contiguous_buffer/buffer 256 KiB * 32 truncate
+                        time:   [8.8071 ns 8.8089 ns 8.8118 ns]
 bench_non_contiguous_buffer/bytes buf 4.00 MiB * 4  chunk
-                        time:   [210.68 ps 211.47 ps 212.35 ps]
-bench_non_contiguous_buffer/non contiguous buffer 4.00 MiB * 4 chunk
-                        time:   [307.11 ps 307.14 ps 307.16 ps]
+                        time:   [222.45 ps 223.42 ps 224.47 ps]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 4 chunk
+                        time:   [364.31 ps 373.49 ps 382.43 ps]
 bench_non_contiguous_buffer/bytes buf 4.00 MiB * 4  advance
-                        time:   [10.240 ns 10.242 ns 10.245 ns]
-bench_non_contiguous_buffer/non contiguous buffer 4.00 MiB * 4 advance
-                        time:   [9.2179 ns 9.2200 ns 9.2233 ns]
+                        time:   [10.243 ns 10.244 ns 10.245 ns]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 4 advance
+                        time:   [9.2196 ns 9.2204 ns 9.2213 ns]
+bench_non_contiguous_buffer/bytes buf 4.00 MiB * 4  truncate
+                        time:   [10.244 ns 10.245 ns 10.246 ns]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 4 truncate
+                        time:   [8.8083 ns 8.8094 ns 8.8105 ns]
 bench_non_contiguous_buffer/bytes buf 4.00 MiB * 32  chunk
-                        time:   [210.61 ps 211.60 ps 212.65 ps]
-bench_non_contiguous_buffer/non contiguous buffer 4.00 MiB * 32 chunk
-                        time:   [307.34 ps 307.36 ps 307.39 ps]
+                        time:   [229.61 ps 230.68 ps 231.71 ps]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 32 chunk
+                        time:   [364.61 ps 369.01 ps 373.13 ps]
 bench_non_contiguous_buffer/bytes buf 4.00 MiB * 32  advance
-                        time:   [10.244 ns 10.244 ns 10.245 ns]
-bench_non_contiguous_buffer/non contiguous buffer 4.00 MiB * 32 advance
-                        time:   [9.2168 ns 9.2186 ns 9.2212 ns]
+                        time:   [10.239 ns 10.240 ns 10.242 ns]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 32 advance
+                        time:   [9.2188 ns 9.2238 ns 9.2336 ns]
+bench_non_contiguous_buffer/bytes buf 4.00 MiB * 32  truncate
+                        time:   [10.249 ns 10.265 ns 10.291 ns]
+bench_non_contiguous_buffer/buffer 4.00 MiB * 32 truncate
+                        time:   [8.8080 ns 8.8092 ns 8.8106 ns]
+
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1k chunk
+                        time:   [352.06 ps 361.52 ps 371.51 ps]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1k advance
+                        time:   [378.80 ns 378.97 ns 379.18 ns]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1k truncate
+                        time:   [8.8039 ns 8.8049 ns 8.8061 ns]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 10k chunk
+                        time:   [318.90 ps 320.87 ps 322.97 ps]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 10k advance
+                        time:   [3.6598 µs 3.6613 µs 3.6634 µs]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 10k truncate
+                        time:   [8.8065 ns 8.8074 ns 8.8083 ns]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 100k chunk
+                        time:   [319.32 ps 326.56 ps 334.76 ps]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 100k advance
+                        time:   [40.561 µs 40.623 µs 40.690 µs]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 100k truncate
+                        time:   [8.8071 ns 8.8081 ns 8.8092 ns]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1000k chunk
+                        time:   [322.26 ps 329.02 ps 336.15 ps]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1000k advance
+                        time:   [848.22 µs 848.97 µs 849.64 µs]
+bench_non_contiguous_buffer_with_extreme/256 KiB * 1000k truncate
+                        time:   [8.8061 ns 8.8073 ns 8.8086 ns]
 ```

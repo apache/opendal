@@ -48,7 +48,6 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         kind = match alluxio_err.status_code.as_str() {
             "ALREADY_EXISTS" => ErrorKind::AlreadyExists,
             "NOT_FOUND" => ErrorKind::NotFound,
-            "INVALID_ARGUMENT" => ErrorKind::InvalidInput,
             _ => ErrorKind::Unexpected,
         }
     }
@@ -77,10 +76,6 @@ mod tests {
             (
                 r#"{"statusCode":"NOT_FOUND","message":"The resource you requested does not exist"}"#,
                 ErrorKind::NotFound,
-            ),
-            (
-                r#"{"statusCode":"INVALID_ARGUMENT","message":"The argument you provided is invalid"}"#,
-                ErrorKind::InvalidInput,
             ),
             (
                 r#"{"statusCode":"INTERNAL_SERVER_ERROR","message":"Internal server error"}"#,

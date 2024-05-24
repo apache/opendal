@@ -16,7 +16,7 @@
 // under the License.
 
 use std::io;
-use std::ops::RangeBounds;
+use std::ops::Range;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
@@ -46,7 +46,7 @@ unsafe impl Sync for FuturesBytesStream {}
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
     #[inline]
-    pub(crate) fn new(r: oio::Reader, options: OpReader, range: impl RangeBounds<u64>) -> Self {
+    pub(crate) fn new(r: oio::Reader, options: OpReader, range: Range<u64>) -> Self {
         let stream = BufferStream::new(r, options, range);
 
         FuturesBytesStream {

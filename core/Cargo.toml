@@ -185,10 +185,10 @@ services-tikv = ["tikv-client"]
 services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 services-vercel-blob = []
-services-wasabi = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-aliyun-drive = ["dep:sha1"]
 
 [lib]
 bench = false

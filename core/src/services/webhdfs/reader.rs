@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use http::StatusCode;
 
 use super::error::parse_error;
-use super::error::parse_error_msg;
 use crate::raw::*;
 use crate::services::webhdfs::backend::WebhdfsBackend;
 use crate::*;
@@ -42,8 +40,8 @@ impl WebhdfsReader {
 }
 
 impl oio::Read for WebhdfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        let range = BytesRange::new(offset, Some(limit as u64));
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        let range = BytesRange::new(offset, Some(size as u64));
 
         let resp = self.core.webhdfs_read_file(&self.path, range).await?;
 
@@ -51,18 +49,6 @@ impl oio::Read for WebhdfsReader {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body()),
-            // WebHDFS will returns 403 when range is outside of the end.
-            StatusCode::FORBIDDEN => {
-                let (parts, mut body) = resp.into_parts();
-                let bs = body.copy_to_bytes(body.remaining());
-                let s = String::from_utf8_lossy(&bs);
-                if s.contains("out of the range") {
-                    Ok(Buffer::new())
-                } else {
-                    Err(parse_error_msg(parts, &s)?)
-                }
-            }
-            StatusCode::RANGE_NOT_SATISFIABLE => Ok(Buffer::new()),
             _ => Err(parse_error(resp).await?),
         }
     }

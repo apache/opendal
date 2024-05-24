@@ -188,10 +188,12 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub async fn reader(&self, path: String) -> Result<Reader> {
-        let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
         let r = self.0.reader(&path).await.map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r.into_futures_async_read(0..meta.content_length()),
+            inner: r
+                .into_futures_async_read(..)
+                .await
+                .map_err(format_napi_error)?,
         })
     }
 
@@ -217,10 +219,9 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
-        let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
         let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
         Ok(BlockingReader {
-            inner: r.into_std_read(0..meta.content_length()),
+            inner: r.into_std_read(..).map_err(format_napi_error)?,
         })
     }
 

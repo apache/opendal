@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional
+from typing import Optional, final
 
 class Layer:
     pass
 
+@final
 class RetryLayer(Layer):
     def __init__(
         self,

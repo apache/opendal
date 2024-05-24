@@ -656,13 +656,13 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         {
             || {
                 self.inner
                     .as_ref()
                     .expect("inner must be valid")
-                    .read_at(offset, limit)
+                    .read_at(offset, size)
             }
         }
         .retry(&self.builder)
@@ -683,8 +683,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        { || self.inner.as_ref().unwrap().read_at(offset, limit) }
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        { || self.inner.as_ref().unwrap().read_at(offset, size) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -940,6 +940,7 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
+                stat: true,
                 list: true,
                 list_with_recursive: true,
                 batch: true,
@@ -947,6 +948,12 @@ mod tests {
             });
 
             am
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(
+                Metadata::new(EntryMode::FILE).with_content_length(13),
+            ))
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {

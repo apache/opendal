@@ -139,6 +139,11 @@ impl ObjectStore for OpendalStore {
 
         let stream = r
             .into_bytes_stream(0..meta.size as u64)
+            .await
+            .map_err(|err| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            })?
             .into_send()
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",

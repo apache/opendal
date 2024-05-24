@@ -136,7 +136,11 @@ impl Metadata {
     /// Cache control of this entry.
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::CacheControl`], otherwise this method returns `None`.
     pub fn cache_control(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::CacheControl)
                 || self.metakey.contains(Metakey::Complete),
@@ -206,11 +210,10 @@ impl Metadata {
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentMd5`], otherwise it will panic.
+    /// [`Metakey::ContentMd5`], otherwise this method returns `None`.
     pub fn content_md5(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::ContentMd5) || self.metakey.contains(Metakey::Complete),
             "visiting not set metadata: content_md5, maybe a bug"
@@ -243,11 +246,10 @@ impl Metadata {
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentType`], otherwise it will panic.
+    /// [`Metakey::ContentType`], otherwise this method returns `None`.
     pub fn content_type(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::ContentType) || self.metakey.contains(Metakey::Complete),
             "visiting not set metadata: content_type, maybe a bug"
@@ -278,11 +280,10 @@ impl Metadata {
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentRange`], otherwise it will panic.
+    /// [`Metakey::ContentRange`], otherwise this method returns `None`.
     pub fn content_range(&self) -> Option<BytesContentRange> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::ContentRange)
                 || self.metakey.contains(Metakey::Complete),
@@ -317,11 +318,10 @@ impl Metadata {
     ///
     /// OpenDAL parse the raw value into [`DateTime`] for convenient.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::LastModified`], otherwise it will panic.
+    /// [`Metakey::LastModified`], otherwise this method returns `None`.
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::LastModified)
                 || self.metakey.contains(Metakey::Complete),
@@ -363,11 +363,10 @@ impl Metadata {
     ///
     /// `"` is part of etag.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Etag`], otherwise it will panic.
+    /// [`Metakey::Etag`], otherwise this method returns `None`.
     pub fn etag(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::Etag) || self.metakey.contains(Metakey::Complete),
             "visiting not set metadata: etag, maybe a bug"
@@ -422,11 +421,10 @@ impl Metadata {
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentDisposition`], otherwise it will panic.
+    /// [`Metakey::ContentDisposition`], otherwise this method returns `None`.
     pub fn content_disposition(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::ContentDisposition)
                 || self.metakey.contains(Metakey::Complete),
@@ -476,11 +474,10 @@ impl Metadata {
     ///
     /// This field may come out from the version control system, like object versioning in AWS S3.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Version`], otherwise it will panic.
+    /// [`Metakey::Version`], otherwise this method returns `None`.
     pub fn version(&self) -> Option<&str> {
+        #[cfg(feature = "tests")]
         debug_assert!(
             self.metakey.contains(Metakey::Version) || self.metakey.contains(Metakey::Complete),
             "visiting not set metadata: version, maybe a bug"

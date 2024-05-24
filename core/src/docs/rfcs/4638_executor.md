@@ -1,7 +1,7 @@
 - Proposal Name: `executor`
 - Start Date: 2024-05-23
 - RFC PR: [apache/opendal#4638](https://github.com/apache/opendal/pull/4638)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#4639](https://github.com/apache/opendal/issues/4639)
 
 # Summary
 

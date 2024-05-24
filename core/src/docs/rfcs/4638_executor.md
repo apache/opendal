@@ -143,7 +143,7 @@ Supporting just one or two runtimes by adding features is much easier. Supportin
 
 Firstly, we don't want to force our users to use Tokio. We aim to support all runtimes, including async-std, smol, and others.
 
-Secondly, Opendal should be capable of running in any environment, including embedded systems. We don’t want to restrict our users to a specific runtime.
+Secondly, OpenDAL should be capable of running in any environment, including embedded systems. We don’t want to restrict our users to a specific runtime.
 
 Finally, users may have their own preferences for observability and performance in their runtime. We intend to accommodate these needs effortlessly.
 

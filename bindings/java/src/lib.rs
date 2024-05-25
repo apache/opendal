@@ -32,7 +32,7 @@ use opendal::Metadata;
 use opendal::Metakey;
 use opendal::OperatorInfo;
 
-mod blocking_operator;
+mod async_operator;
 mod convert;
 mod error;
 mod executor;

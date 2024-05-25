@@ -26,7 +26,7 @@ This can result in the following issues:
 - Task latency may increase as tasks are not executed until the task queue is full.
 - Memory usage may be high because all chunks must be held in memory until the task is completed.
 
-I propose introducing an executor in OpenDAL to enable concurrent background task execution. The executor will autonomously manage the tasks without requiring user intervention for progress.
+I propose introducing an executor abstraction in OpenDAL to enable concurrent background task execution. The executor will automatically manage the tasks in the background without requiring users to drive the progress manually.
 
 # Guide-level explanation
 

@@ -42,7 +42,7 @@ public class BlockingOperator extends NativeObject {
      * @param map    a map of properties to construct the underneath operator.
      */
     public static BlockingOperator of(String schema, Map<String, String> map) {
-        try (final Operator operator = Operator.of(schema, map)) {
+        try (final AsyncOperator operator = AsyncOperator.of(schema, map)) {
             return operator.blocking();
         }
     }
@@ -54,7 +54,7 @@ public class BlockingOperator extends NativeObject {
 
     /**
      * @return the cloned blocking operator.
-     * @see Operator#duplicate()
+     * @see AsyncOperator#duplicate()
      */
     public BlockingOperator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);

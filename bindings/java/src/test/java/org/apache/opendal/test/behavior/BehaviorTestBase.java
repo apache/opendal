@@ -24,7 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Random;
 import org.apache.opendal.BlockingOperator;
-import org.apache.opendal.Operator;
+import org.apache.opendal.AsyncOperator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -38,7 +38,7 @@ public abstract class BehaviorTestBase {
         assumeTrue(behaviorExtension.blockingOperator != null);
     }
 
-    protected Operator op() {
+    protected AsyncOperator op() {
         return behaviorExtension.operator;
     }
 

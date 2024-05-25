@@ -30,10 +30,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Operator represents an underneath OpenDAL operator that
+ * AsyncOperator represents an underneath OpenDAL operator that
  * accesses data asynchronously.
  */
-public class Operator extends NativeObject {
+public class AsyncOperator extends NativeObject {
 
     /**
      * Singleton to hold all outstanding futures.
@@ -116,7 +116,7 @@ public class Operator extends NativeObject {
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public static Operator of(String schema, Map<String, String> map) {
+    public static AsyncOperator of(String schema, Map<String, String> map) {
         return of(schema, map, null);
     }
 
@@ -131,14 +131,14 @@ public class Operator extends NativeObject {
      * @param map      a map of properties to construct the underneath operator.
      * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
      */
-    public static Operator of(String schema, Map<String, String> map, AsyncExecutor executor) {
+    public static AsyncOperator of(String schema, Map<String, String> map, AsyncExecutor executor) {
         final long executorHandle = executor != null ? executor.nativeHandle : 0;
         final long nativeHandle = constructor(executorHandle, schema, map);
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new Operator(nativeHandle, executorHandle, info);
+        return new AsyncOperator(nativeHandle, executorHandle, info);
     }
 
-    private Operator(long nativeHandle, long executorHandle, OperatorInfo info) {
+    private AsyncOperator(long nativeHandle, long executorHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
         this.executorHandle = executorHandle;
@@ -153,14 +153,14 @@ public class Operator extends NativeObject {
      *
      * @return the cloned operator.
      */
-    public Operator duplicate() {
+    public AsyncOperator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
-        return new Operator(nativeHandle, this.executorHandle, this.info);
+        return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
     }
 
-    public Operator layer(Layer layer) {
+    public AsyncOperator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
-        return new Operator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
+        return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
     public BlockingOperator blocking() {

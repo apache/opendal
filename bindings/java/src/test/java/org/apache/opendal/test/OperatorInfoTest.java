@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.opendal.BlockingOperator;
-import org.apache.opendal.Operator;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.OperatorInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -61,7 +61,7 @@ public class OperatorInfoTest {
     public void testOperatorInfo() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
-        try (final Operator op = Operator.of("memory", conf)) {
+        try (final AsyncOperator op = AsyncOperator.of("memory", conf)) {
             final OperatorInfo info = op.info;
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("memory");

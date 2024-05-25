@@ -32,7 +32,7 @@ import org.junit.jupiter.api.TestInstance;
 class AsyncCreateDirTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.createDir);
     }
 
@@ -42,12 +42,12 @@ class AsyncCreateDirTest extends BehaviorTestBase {
     @Test
     public void testCreateDir() {
         final String path = UUID.randomUUID() + "/";
-        op().createDir(path).join();
+        asyncOp().createDir(path).join();
 
-        final Metadata meta = op().stat(path).join();
+        final Metadata meta = asyncOp().stat(path).join();
         assertThat(meta.isFile()).isFalse();
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -56,12 +56,12 @@ class AsyncCreateDirTest extends BehaviorTestBase {
     @Test
     public void testCreateDirExisting() {
         final String path = UUID.randomUUID() + "/";
-        op().createDir(path).join();
-        op().createDir(path).join();
+        asyncOp().createDir(path).join();
+        asyncOp().createDir(path).join();
 
-        final Metadata meta = op().stat(path).join();
+        final Metadata meta = asyncOp().stat(path).join();
         assertThat(meta.isFile()).isFalse();
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 }

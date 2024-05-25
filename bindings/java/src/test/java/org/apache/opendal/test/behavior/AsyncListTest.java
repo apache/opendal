@@ -42,7 +42,7 @@ class AsyncListTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.list && capability.createDir);
     }
 
@@ -55,13 +55,13 @@ class AsyncListTest extends BehaviorTestBase {
         final String path = String.format("%s/%s", parent, UUID.randomUUID());
         final byte[] content = generateBytes();
 
-        op().write(path, content).join();
+        asyncOp().write(path, content).join();
 
-        final List<Entry> entries = op().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parent + "/").join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
-                Metadata meta = op().stat(path).join();
+                Metadata meta = asyncOp().stat(path).join();
                 assertTrue(meta.isFile());
                 assertThat(meta.getContentLength()).isEqualTo(content.length);
 
@@ -69,7 +69,7 @@ class AsyncListTest extends BehaviorTestBase {
             }
         }
         assertTrue(found);
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -78,23 +78,23 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testListRichDir() {
         final String parent = "test_list_rich_dir";
-        op().createDir(parent + "/").join();
+        asyncOp().createDir(parent + "/").join();
         final List<String> expected = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             expected.add(String.format("%s/file-%d", parent, i));
         }
 
         for (String path : expected) {
-            op().write(path, parent).join();
+            asyncOp().write(path, parent).join();
         }
 
-        final List<Entry> entries = op().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parent + "/").join();
         final List<String> actual =
                 entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
 
         Collections.sort(expected);
         assertThat(actual).isEqualTo(expected);
-        op().removeAll(parent + "/").join();
+        asyncOp().removeAll(parent + "/").join();
     }
 
     /**
@@ -103,12 +103,12 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testListEmptyDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
-        op().createDir(dir).join();
+        asyncOp().createDir(dir).join();
 
-        final List<Entry> entries = op().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir).join();
         assertThat(entries).isEmpty();
 
-        op().delete(dir).join();
+        asyncOp().delete(dir).join();
     }
 
     /**
@@ -118,7 +118,7 @@ class AsyncListTest extends BehaviorTestBase {
     public void testListNotExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
-        final List<Entry> entries = op().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir).join();
         assertThat(entries).isEmpty();
     }
 
@@ -128,9 +128,9 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testListSubDir() {
         final String path = String.format("%s/", UUID.randomUUID());
-        op().createDir(path).join();
+        asyncOp().createDir(path).join();
 
-        final List<Entry> entries = op().list("/").join();
+        final List<Entry> entries = asyncOp().list("/").join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -141,7 +141,7 @@ class AsyncListTest extends BehaviorTestBase {
         }
         assertTrue(found);
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -156,11 +156,11 @@ class AsyncListTest extends BehaviorTestBase {
         final String dirPath = String.format("%s/%s", dir, dirName);
         final String content = "test_list_nested_dir";
 
-        op().createDir(dir).join();
-        op().write(filePath, content).join();
-        op().createDir(dirPath).join();
+        asyncOp().createDir(dir).join();
+        asyncOp().write(filePath, content).join();
+        asyncOp().createDir(dirPath).join();
 
-        final List<Entry> entries = op().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir).join();
         assertThat(entries).hasSize(2);
 
         for (Entry entry : entries) {
@@ -176,7 +176,7 @@ class AsyncListTest extends BehaviorTestBase {
             }
         }
 
-        op().removeAll(dir).join();
+        asyncOp().removeAll(dir).join();
     }
 
     /**
@@ -190,23 +190,25 @@ class AsyncListTest extends BehaviorTestBase {
         };
         for (String path : expected) {
             if (path.endsWith("/")) {
-                op().createDir(String.format("%s/%s", parent, path)).join();
+                asyncOp().createDir(String.format("%s/%s", parent, path)).join();
             } else {
-                op().write(String.format("%s/%s", parent, path), "test_scan").join();
+                asyncOp()
+                        .write(String.format("%s/%s", parent, path), "test_scan")
+                        .join();
             }
         }
 
-        op().removeAll(parent + "/x/").join();
+        asyncOp().removeAll(parent + "/x/").join();
 
         for (String path : expected) {
             if (path.endsWith("/")) {
                 continue;
             }
             assertThatThrownBy(() ->
-                            op().stat(String.format("%s/%s", parent, path)).join())
+                            asyncOp().stat(String.format("%s/%s", parent, path)).join())
                     .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
         }
 
-        op().removeAll(parent + "/").join();
+        asyncOp().removeAll(parent + "/").join();
     }
 }

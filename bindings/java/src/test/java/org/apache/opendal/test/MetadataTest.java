@@ -27,8 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.opendal.AsyncOperator;
-import org.apache.opendal.Operator;
 import org.apache.opendal.Metadata;
+import org.apache.opendal.Operator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -36,7 +36,7 @@ import org.junit.jupiter.api.TestInstance;
 class AsyncCopyTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.copy && capability.createDir);
     }
 
@@ -48,16 +48,16 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        op().write(sourcePath, sourceContent).join();
+        asyncOp().write(sourcePath, sourceContent).join();
 
         final String targetPath = UUID.randomUUID().toString();
 
-        op().copy(sourcePath, targetPath).join();
+        asyncOp().copy(sourcePath, targetPath).join();
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(sourceContent);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(sourceContent);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -66,19 +66,19 @@ class AsyncCopyTest extends BehaviorTestBase {
     @Test
     public void testCopyFileWithNonAsciiName() {
         // Services-koofr doesn't support non-ascii name (https://github.com/apache/opendal/issues/4051)
-        assumeTrue(!Objects.equals(op().info.scheme, "koofr"), "Services-koofr doesn't support non-ascii name");
+        assumeTrue(!Objects.equals(asyncOp().info.scheme, "koofr"), "Services-koofr doesn't support non-ascii name");
 
         final String sourcePath = "🐂🍺中文.docx";
         final String targetPath = "😈🐅Français.docx";
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
-        op().copy(sourcePath, targetPath).join();
+        asyncOp().write(sourcePath, content).join();
+        asyncOp().copy(sourcePath, targetPath).join();
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(content);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(content);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -89,7 +89,7 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final String targetPath = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> op().copy(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().copy(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -101,7 +101,7 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID() + "/";
         final String targetPath = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> op().copy(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().copy(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
     }
 
@@ -113,16 +113,16 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
         final String targetPath = UUID.randomUUID() + "/";
-        op().createDir(targetPath).join();
+        asyncOp().createDir(targetPath).join();
 
-        assertThatThrownBy(() -> op().copy(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().copy(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -133,12 +133,12 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
-        assertThatThrownBy(() -> op().copy(sourcePath, sourcePath).join())
+        assertThatThrownBy(() -> asyncOp().copy(sourcePath, sourcePath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
 
-        op().delete(sourcePath).join();
+        asyncOp().delete(sourcePath).join();
     }
 
     /**
@@ -149,16 +149,16 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
         final String targetPath = String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
-        op().copy(sourcePath, targetPath).join();
+        asyncOp().copy(sourcePath, targetPath).join();
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(content);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(content);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -169,19 +169,19 @@ class AsyncCopyTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        op().write(sourcePath, sourceContent).join();
+        asyncOp().write(sourcePath, sourceContent).join();
 
         final String targetPath = UUID.randomUUID().toString();
         final byte[] targetContent = generateBytes();
         assertNotEquals(sourceContent, targetContent);
 
-        op().write(targetPath, targetContent).join();
+        asyncOp().write(targetPath, targetContent).join();
 
-        op().copy(sourcePath, targetPath).join();
+        asyncOp().copy(sourcePath, targetPath).join();
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(sourceContent);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(sourceContent);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 }

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.TestInstance;
 class AsyncRenameTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.rename && capability.createDir);
     }
 
@@ -47,19 +47,19 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
         final String targetPath = UUID.randomUUID().toString();
 
-        op().rename(sourcePath, targetPath).join();
+        asyncOp().rename(sourcePath, targetPath).join();
 
-        assertThatThrownBy(() -> op().stat(sourcePath).join())
+        assertThatThrownBy(() -> asyncOp().stat(sourcePath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(content);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(content);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -70,7 +70,7 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final String targetPath = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> op().rename(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().rename(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -82,12 +82,12 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID() + "/";
         final String targetPath = UUID.randomUUID().toString();
 
-        op().createDir(sourcePath).join();
+        asyncOp().createDir(sourcePath).join();
 
-        assertThatThrownBy(() -> op().rename(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().rename(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
 
-        op().delete(sourcePath).join();
+        asyncOp().delete(sourcePath).join();
     }
 
     /**
@@ -98,17 +98,17 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
         final String targetPath = UUID.randomUUID() + "/";
 
-        op().createDir(targetPath).join();
+        asyncOp().createDir(targetPath).join();
 
-        assertThatThrownBy(() -> op().rename(sourcePath, targetPath).join())
+        assertThatThrownBy(() -> asyncOp().rename(sourcePath, targetPath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -119,12 +119,12 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
-        assertThatThrownBy(() -> op().rename(sourcePath, sourcePath).join())
+        assertThatThrownBy(() -> asyncOp().rename(sourcePath, sourcePath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
 
-        op().delete(sourcePath).join();
+        asyncOp().delete(sourcePath).join();
     }
 
     /**
@@ -135,19 +135,19 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
-        op().write(sourcePath, content).join();
+        asyncOp().write(sourcePath, content).join();
 
         final String targetPath = String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
-        op().rename(sourcePath, targetPath).join();
+        asyncOp().rename(sourcePath, targetPath).join();
 
-        assertThatThrownBy(() -> op().stat(sourcePath).join())
+        assertThatThrownBy(() -> asyncOp().stat(sourcePath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(content);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(content);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 
     /**
@@ -158,22 +158,22 @@ class AsyncRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        op().write(sourcePath, sourceContent).join();
+        asyncOp().write(sourcePath, sourceContent).join();
 
         final String targetPath = UUID.randomUUID().toString();
         final byte[] targetContent = generateBytes();
         assertNotEquals(sourceContent, targetContent);
 
-        op().write(targetPath, targetContent).join();
+        asyncOp().write(targetPath, targetContent).join();
 
-        op().rename(sourcePath, targetPath).join();
+        asyncOp().rename(sourcePath, targetPath).join();
 
-        assertThatThrownBy(() -> op().stat(sourcePath).join())
+        assertThatThrownBy(() -> asyncOp().stat(sourcePath).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        Assertions.assertThat(op().read(targetPath).join()).isEqualTo(sourceContent);
+        Assertions.assertThat(asyncOp().read(targetPath).join()).isEqualTo(sourceContent);
 
-        op().delete(sourcePath).join();
-        op().delete(targetPath).join();
+        asyncOp().delete(sourcePath).join();
+        asyncOp().delete(targetPath).join();
     }
 }

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.TestInstance;
 class BlockingRenameTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = blockingOp().info.fullCapability;
+        final Capability capability = op().info.fullCapability;
         assumeTrue(capability.read
                 && capability.write
                 && capability.blocking
@@ -51,19 +51,19 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        blockingOp().write(sourcePath, sourceContent);
+        op().write(sourcePath, sourceContent);
 
         final String targetPath = UUID.randomUUID().toString();
 
-        blockingOp().rename(sourcePath, targetPath);
+        op().rename(sourcePath, targetPath);
 
-        assertThatThrownBy(() -> blockingOp().stat(sourcePath))
+        assertThatThrownBy(() -> op().stat(sourcePath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
-        assertThat(blockingOp().stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
+        assertThat(op().stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
 
-        blockingOp().delete(sourcePath);
-        blockingOp().delete(targetPath);
+        op().delete(sourcePath);
+        op().delete(targetPath);
     }
 
     /**
@@ -74,7 +74,7 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final String targetPath = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
+        assertThatThrownBy(() -> op().rename(sourcePath, targetPath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 
@@ -86,9 +86,9 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID() + "/";
         final String targetPath = UUID.randomUUID().toString();
 
-        blockingOp().createDir(sourcePath);
+        op().createDir(sourcePath);
 
-        assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
+        assertThatThrownBy(() -> op().rename(sourcePath, targetPath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
     }
 
@@ -100,17 +100,17 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        blockingOp().write(sourcePath, sourceContent);
+        op().write(sourcePath, sourceContent);
 
         final String targetPath = UUID.randomUUID() + "/";
 
-        blockingOp().createDir(targetPath);
+        op().createDir(targetPath);
 
-        assertThatThrownBy(() -> blockingOp().rename(sourcePath, targetPath))
+        assertThatThrownBy(() -> op().rename(sourcePath, targetPath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
-        blockingOp().delete(sourcePath);
-        blockingOp().delete(targetPath);
+        op().delete(sourcePath);
+        op().delete(targetPath);
     }
 
     /**
@@ -121,12 +121,12 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        blockingOp().write(sourcePath, sourceContent);
+        op().write(sourcePath, sourceContent);
 
-        assertThatThrownBy(() -> blockingOp().rename(sourcePath, sourcePath))
+        assertThatThrownBy(() -> op().rename(sourcePath, sourcePath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsSameFile));
 
-        blockingOp().delete(sourcePath);
+        op().delete(sourcePath);
     }
 
     /**
@@ -137,19 +137,19 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        blockingOp().write(sourcePath, sourceContent);
+        op().write(sourcePath, sourceContent);
 
         final String targetPath = String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
-        blockingOp().rename(sourcePath, targetPath);
+        op().rename(sourcePath, targetPath);
 
-        assertThatThrownBy(() -> blockingOp().stat(sourcePath))
+        assertThatThrownBy(() -> op().stat(sourcePath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
-        assertThat(blockingOp().read(targetPath)).isEqualTo(sourceContent);
+        assertThat(op().read(targetPath)).isEqualTo(sourceContent);
 
-        blockingOp().delete(sourcePath);
-        blockingOp().delete(targetPath);
+        op().delete(sourcePath);
+        op().delete(targetPath);
     }
 
     /**
@@ -160,23 +160,23 @@ class BlockingRenameTest extends BehaviorTestBase {
         final String sourcePath = UUID.randomUUID().toString();
         final byte[] sourceContent = generateBytes();
 
-        blockingOp().write(sourcePath, sourceContent);
+        op().write(sourcePath, sourceContent);
 
         final String targetPath = UUID.randomUUID().toString();
         final byte[] targetContent = generateBytes();
 
         assertNotEquals(sourceContent, targetContent);
 
-        blockingOp().write(targetPath, targetContent);
+        op().write(targetPath, targetContent);
 
-        blockingOp().rename(sourcePath, targetPath);
+        op().rename(sourcePath, targetPath);
 
-        assertThatThrownBy(() -> blockingOp().stat(sourcePath))
+        assertThatThrownBy(() -> op().stat(sourcePath))
                 .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
-        assertThat(blockingOp().read(targetPath)).isEqualTo(sourceContent);
+        assertThat(op().read(targetPath)).isEqualTo(sourceContent);
 
-        blockingOp().delete(sourcePath);
-        blockingOp().delete(targetPath);
+        op().delete(sourcePath);
+        op().delete(targetPath);
     }
 }

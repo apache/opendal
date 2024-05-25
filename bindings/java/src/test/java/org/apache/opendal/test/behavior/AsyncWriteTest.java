@@ -35,7 +35,7 @@ import org.junit.jupiter.api.TestInstance;
 public class AsyncWriteTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write);
     }
 
@@ -45,7 +45,7 @@ public class AsyncWriteTest extends BehaviorTestBase {
     @Test
     public void testReadNotExist() {
         final String path = UUID.randomUUID().toString();
-        assertThatThrownBy(() -> op().read(path).join())
+        assertThatThrownBy(() -> asyncOp().read(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -56,10 +56,10 @@ public class AsyncWriteTest extends BehaviorTestBase {
     public void testReadFull() {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        op().write(path, content).join();
-        final byte[] actualContent = op().read(path).join();
+        asyncOp().write(path, content).join();
+        final byte[] actualContent = asyncOp().read(path).join();
         assertThat(actualContent).isEqualTo(content);
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -68,7 +68,7 @@ public class AsyncWriteTest extends BehaviorTestBase {
     @Test
     public void testStatNotExist() {
         final String path = UUID.randomUUID().toString();
-        assertThatThrownBy(() -> op().stat(path).join())
+        assertThatThrownBy(() -> asyncOp().stat(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -79,11 +79,11 @@ public class AsyncWriteTest extends BehaviorTestBase {
     public void testStatFile() {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        op().write(path, content).join();
-        final Metadata meta = op().stat(path).join();
+        asyncOp().write(path, content).join();
+        final Metadata meta = asyncOp().stat(path).join();
         assertThat(meta.isFile()).isTrue();
         assertThat(meta.getContentLength()).isEqualTo(content.length);
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 }

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.TestInstance;
 class BlockingWriteTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = blockingOp().info.fullCapability;
+        final Capability capability = op().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.blocking);
     }
 
@@ -45,8 +45,7 @@ class BlockingWriteTest extends BehaviorTestBase {
     @Test
     public void testBlockingReadNotExist() {
         final String path = UUID.randomUUID().toString();
-        assertThatThrownBy(() -> blockingOp().read(path))
-                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        assertThatThrownBy(() -> op().read(path)).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 
     /**
@@ -56,10 +55,10 @@ class BlockingWriteTest extends BehaviorTestBase {
     public void testBlockingReadFull() {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        blockingOp().write(path, content);
-        final byte[] actualContent = blockingOp().read(path);
+        op().write(path, content);
+        final byte[] actualContent = op().read(path);
         assertThat(actualContent).isEqualTo(content);
-        blockingOp().delete(path);
+        op().delete(path);
     }
 
     /**
@@ -69,11 +68,11 @@ class BlockingWriteTest extends BehaviorTestBase {
     public void testBlockingStatFile() {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        blockingOp().write(path, content);
-        final Metadata meta = blockingOp().stat(path);
+        op().write(path, content);
+        final Metadata meta = op().stat(path);
         assertThat(meta.isFile()).isTrue();
         assertThat(meta.getContentLength()).isEqualTo(content.length);
 
-        blockingOp().delete(path);
+        op().delete(path);
     }
 }

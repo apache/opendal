@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.Operator;
 import org.apache.opendal.Metadata;
+import org.apache.opendal.Operator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

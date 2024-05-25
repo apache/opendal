@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.Operator;
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Operator;
 import org.junit.jupiter.api.Test;
 
 public class OperatorDuplicateTest {

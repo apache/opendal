@@ -763,7 +763,7 @@ dependencies = [
  "aws-smithy-http",
  "aws-smithy-types",
  "bytes",
- "crc32c",
+ "crc32c 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "crc32fast",
  "hex",
  "http 0.2.12",
@@ -1891,6 +1891,14 @@ name = "crc32c"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89254598aa9b9fa608de44b3ae54c810f0f06d755e24c50177f1f8f31ff50ce2"
+dependencies = [
+ "rustc_version 0.4.0",
+]
+
+[[package]]
+name = "crc32c"
+version = "0.6.5"
+source = "git+https://github.com/zowens/crc32c?rev=04eabbc#04eabbc6ef33e0afe529da729e65916c48f9d032"
 dependencies = [
  "rustc_version 0.4.0",
 ]
@@ -4769,7 +4777,7 @@ dependencies = [
  "cacache",
  "chrono",
  "compio",
- "crc32c",
+ "crc32c 0.6.5 (git+https://github.com/zowens/crc32c?rev=04eabbc)",
  "criterion",
  "dashmap",
  "dotenvy",

@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
 import org.apache.opendal.AsyncOperator;
 import org.junit.jupiter.api.Test;
 
@@ -54,12 +54,12 @@ public class OperatorDuplicateTest {
     public void testDuplicateBlockingOperator() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
-        try (final BlockingOperator op = BlockingOperator.of("memory", conf)) {
+        try (final Operator op = Operator.of("memory", conf)) {
             final String key = "key";
             final byte[] v0 = "v0".getBytes(StandardCharsets.UTF_8);
             final byte[] v1 = "v1".getBytes(StandardCharsets.UTF_8);
 
-            try (final BlockingOperator duplicatedOp = op.duplicate()) {
+            try (final Operator duplicatedOp = op.duplicate()) {
                 assertThat(duplicatedOp.info).isNotNull();
                 assertThat(duplicatedOp.info).isEqualTo(op.info);
                 duplicatedOp.write(key, v0);

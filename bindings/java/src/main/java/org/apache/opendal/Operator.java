@@ -25,10 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * BlockingOperator represents an underneath OpenDAL operator that
- * accesses data synchronously.
+ * Operator represents an underneath OpenDAL operator that accesses data synchronously.
  */
-public class BlockingOperator extends NativeObject {
+public class Operator extends NativeObject {
     public final OperatorInfo info;
 
     /**
@@ -41,13 +40,13 @@ public class BlockingOperator extends NativeObject {
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public static BlockingOperator of(String schema, Map<String, String> map) {
+    public static Operator of(String schema, Map<String, String> map) {
         try (final AsyncOperator operator = AsyncOperator.of(schema, map)) {
             return operator.blocking();
         }
     }
 
-    BlockingOperator(long nativeHandle, OperatorInfo info) {
+    Operator(long nativeHandle, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
     }
@@ -56,9 +55,9 @@ public class BlockingOperator extends NativeObject {
      * @return the cloned blocking operator.
      * @see AsyncOperator#duplicate()
      */
-    public BlockingOperator duplicate() {
+    public Operator duplicate() {
         final long nativeHandle = duplicate(this.nativeHandle);
-        return new BlockingOperator(nativeHandle, this.info);
+        return new Operator(nativeHandle, this.info);
     }
 
     public void write(String path, String content) {

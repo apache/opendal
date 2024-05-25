@@ -163,10 +163,10 @@ public class AsyncOperator extends NativeObject {
         return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
-    public BlockingOperator blocking() {
+    public Operator blocking() {
         final long nativeHandle = makeBlockingOp(this.nativeHandle);
         final OperatorInfo info = this.info;
-        return new BlockingOperator(nativeHandle, info);
+        return new Operator(nativeHandle, info);
     }
 
     public CompletableFuture<Void> write(String path, String content) {

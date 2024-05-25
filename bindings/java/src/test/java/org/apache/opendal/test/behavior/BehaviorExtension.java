@@ -29,7 +29,7 @@ import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.opendal.AsyncOperator;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
 import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -41,7 +41,7 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
     private String testName;
 
     public AsyncOperator operator;
-    public BlockingOperator blockingOperator;
+    public Operator blockingOperator;
 
     @Override
     public void beforeAll(ExtensionContext context) {

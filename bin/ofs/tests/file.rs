@@ -18,7 +18,6 @@
 mod common;
 
 use std::{
-    env,
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     thread,
@@ -40,8 +39,6 @@ fn test_file(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    thread::sleep(Duration::from_secs(1));
-
     let mut file = File::open(&path).unwrap();
     let mut buf = String::new();
     file.read_to_string(&mut buf).unwrap();
@@ -54,7 +51,9 @@ fn test_file(ctx: &mut OfsTestContext) {
 #[test_context(OfsTestContext)]
 #[test]
 fn test_file_append(ctx: &mut OfsTestContext) {
-    if env::var("OPENDAL_TEST").unwrap() == "s3" {
+    if !ctx.capability.write_can_append {
+        // wait for ofs to be ready
+        thread::sleep(Duration::from_secs(1));
         return;
     }
 
@@ -64,13 +63,9 @@ fn test_file_append(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    thread::sleep(Duration::from_secs(1));
-
     let mut file = File::options().append(true).open(&path).unwrap();
     file.write_all(b"test").unwrap();
     drop(file);
-
-    thread::sleep(Duration::from_secs(1));
 
     let mut file = File::open(&path).unwrap();
     let mut buf = String::new();
@@ -90,8 +85,6 @@ fn test_file_seek(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    thread::sleep(Duration::from_secs(1));
-
     let mut file = File::open(&path).unwrap();
     file.seek(SeekFrom::Start(TEST_TEXT.len() as u64 / 2))
         .unwrap();
@@ -99,8 +92,6 @@ fn test_file_seek(ctx: &mut OfsTestContext) {
     file.read_to_string(&mut buf).unwrap();
     assert_eq!(buf, TEST_TEXT[TEST_TEXT.len() / 2..]);
     drop(file);
-
-    thread::sleep(Duration::from_secs(1));
 
     fs::remove_file(path).unwrap();
 }
@@ -113,8 +104,6 @@ fn test_file_truncate(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT.as_bytes()).unwrap();
     drop(file);
 
-    thread::sleep(Duration::from_secs(1));
-
     let mut file = OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -123,8 +112,6 @@ fn test_file_truncate(ctx: &mut OfsTestContext) {
     file.write_all(TEST_TEXT[..TEST_TEXT.len() / 2].as_bytes())
         .unwrap();
     drop(file);
-
-    thread::sleep(Duration::from_secs(1));
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),

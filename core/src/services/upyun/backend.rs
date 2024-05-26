@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -232,8 +231,7 @@ pub struct UpyunBackend {
     core: Arc<UpyunCore>,
 }
 
-#[async_trait]
-impl Accessor for UpyunBackend {
+impl Access for UpyunBackend {
     type Reader = UpyunReader;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;

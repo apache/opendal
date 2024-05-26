@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
@@ -167,7 +166,7 @@ impl Builder for MongodbBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(
-                    Error::new(ErrorKind::InvalidInput, "connection_string is required")
+                    Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", Scheme::Mongodb),
                 )
             }
@@ -175,7 +174,7 @@ impl Builder for MongodbBuilder {
         let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
-                return Err(Error::new(ErrorKind::InvalidInput, "database is required")
+                return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", Scheme::Mongodb))
             }
         };
@@ -183,7 +182,7 @@ impl Builder for MongodbBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(
-                    Error::new(ErrorKind::InvalidInput, "collection is required")
+                    Error::new(ErrorKind::ConfigInvalid, "collection is required")
                         .with_context("service", Scheme::Mongodb),
                 )
             }
@@ -249,7 +248,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

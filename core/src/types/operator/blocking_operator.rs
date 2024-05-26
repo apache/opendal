@@ -17,6 +17,7 @@
 
 use bytes::Buf;
 use bytes::Bytes;
+use std::sync::Arc;
 
 use super::operator_functions::*;
 use crate::raw::*;
@@ -82,13 +83,13 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct BlockingOperator {
-    accessor: FusedAccessor,
+    accessor: Accessor,
 
     limit: usize,
 }
 
 impl BlockingOperator {
-    pub(super) fn inner(&self) -> &FusedAccessor {
+    pub(super) fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
@@ -96,7 +97,7 @@ impl BlockingOperator {
     ///
     /// # Note
     /// default batch limit is 1000.
-    pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
+    pub(crate) fn from_inner(accessor: Accessor) -> Self {
         let limit = accessor
             .info()
             .full_capability()
@@ -396,7 +397,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let r = BlockingReader::create(inner, &path, args)?;
+                let path = Arc::new(path);
+                let r = BlockingReader::create(inner, path, args)?;
                 let buf = r.read(range.to_range())?;
                 Ok(buf)
             },
@@ -454,7 +456,8 @@ impl BlockingOperator {
                     );
                 }
 
-                BlockingReader::create(inner.clone(), &path, args)
+                let path = Arc::new(path);
+                BlockingReader::create(inner.clone(), path, args)
             },
         ))
     }

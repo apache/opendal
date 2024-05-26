@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
@@ -178,7 +177,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(

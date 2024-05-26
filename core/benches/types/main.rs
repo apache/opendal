@@ -15,19 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use clap::Parser;
-use url::Url;
+mod buffer;
+mod utils;
 
-#[derive(Parser, Debug)]
-#[command(version, about)]
-pub struct Config {
-    /// fuse mount path
-    #[arg(env = "OFS_MOUNT_PATH", index = 1)]
-    pub mount_path: String,
+use criterion::criterion_group;
+use criterion::criterion_main;
 
-    /// location of opendal service
-    /// format: <scheme>://?<key>=<value>&<key>=<value>
-    /// example: fs://?root=/tmp
-    #[arg(env = "OFS_BACKEND", index = 2)]
-    pub backend: Url,
-}
+criterion_group!(
+    benches,
+    buffer::bench_non_contiguous_buffer,
+    buffer::bench_non_contiguous_buffer_with_extreme,
+);
+criterion_main!(benches);

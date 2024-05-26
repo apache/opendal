@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -228,8 +227,7 @@ pub struct PcloudBackend {
     core: Arc<PcloudCore>,
 }
 
-#[async_trait]
-impl Accessor for PcloudBackend {
+impl Access for PcloudBackend {
     type Reader = PcloudReader;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;

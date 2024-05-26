@@ -19,8 +19,6 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::vec::IntoIter;
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -68,10 +66,10 @@ impl ImmutableIndexLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
-    type LayeredAccessor = ImmutableIndexAccessor<A>;
+impl<A: Access> Layer<A> for ImmutableIndexLayer {
+    type LayeredAccess = ImmutableIndexAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ImmutableIndexAccessor {
             vec: self.vec.clone(),
             inner,
@@ -80,12 +78,12 @@ impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct ImmutableIndexAccessor<A: Accessor> {
+pub struct ImmutableIndexAccessor<A: Access> {
     inner: A,
     vec: Vec<String>,
 }
 
-impl<A: Accessor> ImmutableIndexAccessor<A> {
+impl<A: Access> ImmutableIndexAccessor<A> {
     fn children_flat(&self, path: &str) -> Vec<String> {
         self.vec
             .iter()
@@ -133,9 +131,7 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
+impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;

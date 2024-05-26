@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
 use etcd_client::Certificate;
@@ -267,7 +266,7 @@ pub struct Manager {
     options: ConnectOptions,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = Client;
     type Error = Error;
@@ -333,7 +332,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

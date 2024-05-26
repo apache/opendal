@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use http::header;
@@ -62,8 +61,7 @@ impl Debug for OnedriveBackend {
     }
 }
 
-#[async_trait]
-impl Accessor for OnedriveBackend {
+impl Access for OnedriveBackend {
     type Reader = OnedriveReader;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;

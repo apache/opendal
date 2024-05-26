@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
@@ -113,10 +112,10 @@ use crate::*;
 /// For real-world usage, please take a look at [`minitrace-datadog`](https://crates.io/crates/minitrace-datadog) or [`minitrace-jaeger`](https://crates.io/crates/minitrace-jaeger) .
 pub struct MinitraceLayer;
 
-impl<A: Accessor> Layer<A> for MinitraceLayer {
-    type LayeredAccessor = MinitraceAccessor<A>;
+impl<A: Access> Layer<A> for MinitraceLayer {
+    type LayeredAccess = MinitraceAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         MinitraceAccessor { inner }
     }
 }
@@ -126,9 +125,7 @@ pub struct MinitraceAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
+impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
     type Inner = A;
     type Reader = MinitraceWrapper<A::Reader>;
     type BlockingReader = MinitraceWrapper<A::BlockingReader>;
@@ -295,16 +292,16 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     #[trace(enter_on_poll = true)]
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
-        self.inner.read_at(offset, limit)
+        self.inner.read_at(offset, size)
     }
 }
 

@@ -102,9 +102,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.80"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
+checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 
 [[package]]
 name = "arc-swap"
@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.41.1"
+version = "0.41.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2010,7 +2010,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "opendal"
-version = "0.45.1"
+version = "0.46.0"
 dependencies = [
  "anyhow",
  "async-tls",

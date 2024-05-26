@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -253,8 +252,7 @@ pub struct CosBackend {
     core: Arc<CosCore>,
 }
 
-#[async_trait]
-impl Accessor for CosBackend {
+impl Access for CosBackend {
     type Reader = CosReader;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;

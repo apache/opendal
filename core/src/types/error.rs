@@ -82,28 +82,10 @@ pub enum ErrorKind {
     /// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
     /// So users could to handle this error by themselves.
     ConditionNotMatch,
-    /// The content is truncated.
+    /// The range of the content is not satisfied.
     ///
-    /// This error kind means there are more content to come but been truncated.
-    ///
-    /// For examples:
-    ///
-    /// - Users expected to read 1024 bytes, but service returned more bytes.
-    /// - Service expected to write 1024 bytes, but users write more bytes.
-    ContentTruncated,
-    /// The content is incomplete.
-    ///
-    /// This error kind means expect content length is not reached.
-    ///
-    /// For examples:
-    ///
-    /// - Users expected to read 1024 bytes, but service returned less bytes.
-    /// - Service expected to write 1024 bytes, but users write less bytes.
-    ContentIncomplete,
-    /// The input is invalid.
-    ///
-    /// For example, user try to seek to a negative position
-    InvalidInput,
+    /// OpenDAL returns this error to indicate that the range of the read request is not satisfied.
+    RangeNotSatisfied,
 }
 
 impl ErrorKind {
@@ -133,9 +115,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
-            ErrorKind::ContentTruncated => "ContentTruncated",
-            ErrorKind::ContentIncomplete => "ContentIncomplete",
-            ErrorKind::InvalidInput => "InvalidInput",
+            ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
         }
     }
 }
@@ -393,6 +373,16 @@ impl Error {
         self
     }
 
+    /// Set temporary status for error by given temporary.
+    ///
+    /// By set temporary, we indicate this error is retryable.
+    pub(crate) fn with_temporary(mut self, temporary: bool) -> Self {
+        if temporary {
+            self.status = ErrorStatus::Temporary;
+        }
+        self
+    }
+
     /// Set persistent status for error.
     ///
     /// By setting persistent, we indicate the retry should be stopped.
@@ -417,7 +407,6 @@ impl From<Error> for io::Error {
         let kind = match err.kind() {
             ErrorKind::NotFound => io::ErrorKind::NotFound,
             ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
-            ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
             _ => io::ErrorKind::Other,
         };
 

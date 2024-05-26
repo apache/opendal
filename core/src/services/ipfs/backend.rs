@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -160,8 +159,7 @@ impl Debug for IpfsBackend {
     }
 }
 
-#[async_trait]
-impl Accessor for IpfsBackend {
+impl Access for IpfsBackend {
     type Reader = IpfsReader;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;

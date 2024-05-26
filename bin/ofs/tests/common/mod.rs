@@ -15,48 +15,64 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{collections::HashMap, env, process::Command};
+use std::{collections::HashMap, env, sync::OnceLock};
 
+use opendal::{Capability, Operator};
 use tempfile::TempDir;
-use test_context::AsyncTestContext;
-use tokio::task::JoinHandle;
+use test_context::TestContext;
+use tokio::runtime::{self, Runtime};
 
-pub(crate) struct OfsTestContext {
+static INIT_LOGGER: OnceLock<()> = OnceLock::new();
+static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+pub struct OfsTestContext {
     pub mount_point: TempDir,
-    ofs_task: JoinHandle<anyhow::Result<()>>,
+    pub capability: Capability,
+    mount_handle: ofs::fuse::MountHandle,
 }
 
-impl AsyncTestContext for OfsTestContext {
-    async fn setup() -> Self {
-        let backend = backend_scheme().unwrap();
+impl TestContext for OfsTestContext {
+    fn setup() -> Self {
+        let backend = backend();
+        let capability = backend.info().full_capability();
+
+        INIT_LOGGER.get_or_init(env_logger::init);
 
         let mount_point = tempfile::tempdir().unwrap();
-
-        let ofs_task = tokio::spawn(ofs::execute(ofs::Config {
-            mount_path: mount_point.path().to_string_lossy().to_string(),
-            backend: backend.parse().unwrap(),
-        }));
+        let mount_point_str = mount_point.path().to_string_lossy().to_string();
+        let mount_handle = RUNTIME
+            .get_or_init(|| {
+                runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("build runtime")
+            })
+            .block_on(async move {
+                ofs::fuse::Fuse::new()
+                    .mount_with_unprivileged(mount_point_str, backend)
+                    .await
+            })
+            .unwrap();
 
         OfsTestContext {
             mount_point,
-            ofs_task,
+            capability,
+            mount_handle,
         }
     }
 
-    async fn teardown(self) {
-        // FIXME: ofs could not unmount
-        Command::new("fusermount3")
-            .args(["-u", self.mount_point.path().to_str().unwrap()])
-            .output()
+    fn teardown(self) {
+        RUNTIME
+            .get()
+            .expect("runtime")
+            .block_on(async move { self.mount_handle.unmount().await })
             .unwrap();
-
-        self.ofs_task.abort();
         self.mount_point.close().unwrap();
     }
 }
 
-fn backend_scheme() -> Option<String> {
-    let scheme = env::var("OPENDAL_TEST").ok()?;
+fn backend() -> Operator {
+    let scheme = env::var("OPENDAL_TEST").unwrap().parse().unwrap();
     let prefix = format!("opendal_{scheme}_");
 
     let mut cfg = env::vars()
@@ -78,11 +94,5 @@ fn backend_scheme() -> Option<String> {
         cfg.insert("root".to_string(), root);
     }
 
-    let params = cfg
-        .into_iter()
-        .map(|(k, v)| format!("{}={}", urlencoding::encode(&k), urlencoding::encode(&v)))
-        .collect::<Vec<_>>()
-        .join("&");
-
-    Some(format!("{scheme}://?{params}"))
+    Operator::via_map(scheme, cfg).unwrap()
 }

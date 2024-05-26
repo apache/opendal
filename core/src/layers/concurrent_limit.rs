@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
@@ -58,10 +57,10 @@ impl ConcurrentLimitLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ConcurrentLimitLayer {
-    type LayeredAccessor = ConcurrentLimitAccessor<A>;
+impl<A: Access> Layer<A> for ConcurrentLimitLayer {
+    type LayeredAccess = ConcurrentLimitAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ConcurrentLimitAccessor {
             inner,
             semaphore: Arc::new(Semaphore::new(self.permits)),
@@ -70,14 +69,12 @@ impl<A: Accessor> Layer<A> for ConcurrentLimitLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConcurrentLimitAccessor<A: Accessor> {
+pub struct ConcurrentLimitAccessor<A: Access> {
     inner: A,
     semaphore: Arc<Semaphore>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
+impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitWrapper<A::Reader>;
     type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;
@@ -253,14 +250,14 @@ impl<R> ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit)
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size)
     }
 }
 

@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -33,7 +32,7 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::raw::Accessor;
+use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
@@ -144,10 +143,10 @@ impl PrometheusLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for PrometheusLayer {
-    type LayeredAccessor = PrometheusAccessor<A>;
+impl<A: Access> Layer<A> for PrometheusLayer {
+    type LayeredAccess = PrometheusAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         let scheme = meta.scheme();
 
@@ -251,13 +250,13 @@ impl PrometheusMetrics {
 }
 
 #[derive(Clone)]
-pub struct PrometheusAccessor<A: Accessor> {
+pub struct PrometheusAccessor<A: Access> {
     inner: A,
     stats: Arc<PrometheusMetrics>,
     scheme: Scheme,
 }
 
-impl<A: Accessor> Debug for PrometheusAccessor<A> {
+impl<A: Access> Debug for PrometheusAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrometheusAccessor")
             .field("inner", &self.inner)
@@ -265,9 +264,7 @@ impl<A: Accessor> Debug for PrometheusAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
+impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     type Inner = A;
     type Reader = PrometheusMetricWrapper<A::Reader>;
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;
@@ -683,13 +680,13 @@ impl<R> PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::Read.into_static(),
             &self.path,
         );
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(offset, size).await {
             Ok(bytes) => {
                 self.stats
                     .bytes_total
@@ -706,14 +703,14 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::BlockingRead.into_static(),
             &self.path,
         );
         self.inner
-            .read_at(offset, limit)
+            .read_at(offset, size)
             .map(|bs| {
                 self.stats
                     .bytes_total

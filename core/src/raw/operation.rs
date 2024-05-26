@@ -22,44 +22,44 @@ use std::fmt::Formatter;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Operation {
-    /// Operation for [`crate::raw::Accessor::info`]
+    /// Operation for [`crate::raw::Access::info`]
     #[default]
     Info,
-    /// Operation for [`crate::raw::Accessor::create_dir`]
+    /// Operation for [`crate::raw::Access::create_dir`]
     CreateDir,
-    /// Operation for [`crate::raw::Accessor::read`]
+    /// Operation for [`crate::raw::Access::read`]
     Read,
-    /// Operation for [`crate::raw::Accessor::write`]
+    /// Operation for [`crate::raw::Access::write`]
     Write,
-    /// Operation for [`crate::raw::Accessor::copy`]
+    /// Operation for [`crate::raw::Access::copy`]
     Copy,
-    /// Operation for [`crate::raw::Accessor::rename`]
+    /// Operation for [`crate::raw::Access::rename`]
     Rename,
-    /// Operation for [`crate::raw::Accessor::stat`]
+    /// Operation for [`crate::raw::Access::stat`]
     Stat,
-    /// Operation for [`crate::raw::Accessor::delete`]
+    /// Operation for [`crate::raw::Access::delete`]
     Delete,
-    /// Operation for [`crate::raw::Accessor::list`]
+    /// Operation for [`crate::raw::Access::list`]
     List,
-    /// Operation for [`crate::raw::Accessor::batch`]
+    /// Operation for [`crate::raw::Access::batch`]
     Batch,
-    /// Operation for [`crate::raw::Accessor::presign`]
+    /// Operation for [`crate::raw::Access::presign`]
     Presign,
-    /// Operation for [`crate::raw::Accessor::blocking_create_dir`]
+    /// Operation for [`crate::raw::Access::blocking_create_dir`]
     BlockingCreateDir,
-    /// Operation for [`crate::raw::Accessor::blocking_read`]
+    /// Operation for [`crate::raw::Access::blocking_read`]
     BlockingRead,
-    /// Operation for [`crate::raw::Accessor::blocking_write`]
+    /// Operation for [`crate::raw::Access::blocking_write`]
     BlockingWrite,
-    /// Operation for [`crate::raw::Accessor::blocking_copy`]
+    /// Operation for [`crate::raw::Access::blocking_copy`]
     BlockingCopy,
-    /// Operation for [`crate::raw::Accessor::blocking_rename`]
+    /// Operation for [`crate::raw::Access::blocking_rename`]
     BlockingRename,
-    /// Operation for [`crate::raw::Accessor::blocking_stat`]
+    /// Operation for [`crate::raw::Access::blocking_stat`]
     BlockingStat,
-    /// Operation for [`crate::raw::Accessor::blocking_delete`]
+    /// Operation for [`crate::raw::Access::blocking_delete`]
     BlockingDelete,
-    /// Operation for [`crate::raw::Accessor::blocking_list`]
+    /// Operation for [`crate::raw::Access::blocking_list`]
     BlockingList,
 }
 

@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use atomic_lib::agents::Agent;
 use atomic_lib::client::get_authentication_headers;
 use atomic_lib::commit::sign_message;
@@ -387,7 +386,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

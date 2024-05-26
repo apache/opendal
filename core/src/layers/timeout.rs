@@ -18,8 +18,6 @@
 use std::future::Future;
 use std::time::Duration;
 
-use async_trait::async_trait;
-
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -137,10 +135,10 @@ impl TimeoutLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for TimeoutLayer {
-    type LayeredAccessor = TimeoutAccessor<A>;
+impl<A: Access> Layer<A> for TimeoutLayer {
+    type LayeredAccess = TimeoutAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TimeoutAccessor {
             inner,
 
@@ -151,14 +149,14 @@ impl<A: Accessor> Layer<A> for TimeoutLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct TimeoutAccessor<A: Accessor> {
+pub struct TimeoutAccessor<A: Access> {
     inner: A,
 
     timeout: Duration,
     io_timeout: Duration,
 }
 
-impl<A: Accessor> TimeoutAccessor<A> {
+impl<A: Access> TimeoutAccessor<A> {
     async fn timeout<F: Future<Output = Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
         tokio::time::timeout(self.timeout, fut).await.map_err(|_| {
             Error::new(ErrorKind::Unexpected, "operation timeout reached")
@@ -184,9 +182,7 @@ impl<A: Accessor> TimeoutAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for TimeoutAccessor<A> {
+impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
     type BlockingReader = A::BlockingReader;
@@ -291,8 +287,8 @@ impl<R> TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        let fut = self.inner.read_at(offset, limit);
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        let fut = self.inner.read_at(offset, size);
         Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
     }
 }
@@ -328,7 +324,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use async_trait::async_trait;
     use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
@@ -341,9 +336,7 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService;
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
@@ -399,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_operation_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_timeout(Duration::from_secs(1)));
 
@@ -418,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_io_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
@@ -433,7 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as FusedAccessor;
+        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
         let op = Operator::from_inner(acc).layer(
             TimeoutLayer::new()
                 .with_timeout(Duration::from_secs(1))
@@ -459,7 +452,7 @@ mod tests {
             .with_io_timeout(Duration::from_secs(1));
         let timeout_acc = timeout_layer.layer(acc);
 
-        let (_, mut lister) = Accessor::list(&timeout_acc, "test", OpList::default())
+        let (_, mut lister) = Access::list(&timeout_acc, "test", OpList::default())
             .await
             .unwrap();
 

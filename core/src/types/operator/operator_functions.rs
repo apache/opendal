@@ -31,18 +31,18 @@ use crate::*;
 ///
 /// The function will consume all the input to generate a result.
 pub(crate) struct OperatorFunction<T, R> {
-    inner: FusedAccessor,
+    inner: Accessor,
     path: String,
     args: T,
-    f: fn(FusedAccessor, String, T) -> Result<R>,
+    f: fn(Accessor, String, T) -> Result<R>,
 }
 
 impl<T, R> OperatorFunction<T, R> {
     pub fn new(
-        inner: FusedAccessor,
+        inner: Accessor,
         path: String,
         args: T,
-        f: fn(FusedAccessor, String, T) -> Result<R>,
+        f: fn(Accessor, String, T) -> Result<R>,
     ) -> Self {
         Self {
             inner,

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use tracing::Span;
 
@@ -114,10 +113,10 @@ use crate::*;
 /// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
 pub struct TracingLayer;
 
-impl<A: Accessor> Layer<A> for TracingLayer {
-    type LayeredAccessor = TracingAccessor<A>;
+impl<A: Access> Layer<A> for TracingLayer {
+    type LayeredAccess = TracingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TracingAccessor { inner }
     }
 }
@@ -127,9 +126,7 @@ pub struct TracingAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
+impl<A: Access> LayeredAccess for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;
     type BlockingReader = TracingWrapper<A::BlockingReader>;
@@ -269,8 +266,8 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await
     }
 }
 
@@ -279,8 +276,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit)
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size)
     }
 }
 

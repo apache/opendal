@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -148,10 +147,10 @@ impl LoggingLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for LoggingLayer {
-    type LayeredAccessor = LoggingAccessor<A>;
+impl<A: Access> Layer<A> for LoggingLayer {
+    type LayeredAccess = LoggingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         LoggingAccessor {
             inner,
@@ -201,7 +200,7 @@ impl LoggingContext {
 }
 
 #[derive(Clone, Debug)]
-pub struct LoggingAccessor<A: Accessor> {
+pub struct LoggingAccessor<A: Access> {
     inner: A,
 
     ctx: LoggingContext,
@@ -209,9 +208,7 @@ pub struct LoggingAccessor<A: Accessor> {
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
+impl<A: Access> LayeredAccess for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
@@ -981,8 +978,8 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for LoggingReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        match self.inner.read_at(offset, limit).await {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        match self.inner.read_at(offset, size).await {
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
@@ -1017,8 +1014,8 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        match self.inner.read_at(offset, limit) {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        match self.inner.read_at(offset, size) {
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);

@@ -78,22 +78,14 @@ pub type Reader = Arc<dyn ReadDyn>;
 /// an additional layer of indirection and an extra allocation. Ideally, `ReadDyn` should occur only
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
-    /// Read at the given offset with the given limit.
-    ///
-    /// # Notes
-    ///
-    /// Storage services should try to read as much as possible, only return bytes less than the
-    /// limit while reaching the end of the file.
-    fn read_at(
-        &self,
-        offset: u64,
-        limit: usize,
-    ) -> impl Future<Output = Result<Buffer>> + MaybeSend;
+    /// Read at the given offset with the given size.
+    fn read_at(&self, offset: u64, size: usize)
+        -> impl Future<Output = Result<Buffer>> + MaybeSend;
 }
 
 impl Read for () {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        let (_, _) = (offset, limit);
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        let _ = (offset, size);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -103,24 +95,44 @@ impl Read for () {
 }
 
 impl Read for Bytes {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if offset >= self.len() as u64 {
-            return Ok(Buffer::new());
-        }
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let offset = offset as usize;
-        let limit = limit.min(self.len() - offset);
-        Ok(Buffer::from(self.slice(offset..offset + limit)))
+
+        if offset >= self.len() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "offset out of range",
+            ));
+        }
+        if size > self.len() - offset {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "size out of range",
+            ));
+        }
+
+        Ok(Buffer::from(self.slice(offset..offset + size)))
     }
 }
 
 impl Read for Buffer {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if offset >= self.len() as u64 {
-            return Ok(Buffer::new());
-        }
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let offset = offset as usize;
-        let limit = limit.min(self.len() - offset);
-        Ok(self.slice(offset..offset + limit))
+
+        if offset >= self.len() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "offset out of range",
+            ));
+        }
+        if size > self.len() - offset {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "size out of range",
+            ));
+        }
+
+        Ok(self.slice(offset..offset + size))
     }
 }
 
@@ -130,12 +142,12 @@ pub trait ReadDyn: Unpin + Send + Sync {
     /// The dyn version of [`Read::read_at`].
     ///
     /// This function returns a boxed future to make it object safe.
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>>;
+    fn read_at_dyn(&self, offset: u64, size: usize) -> BoxedFuture<Result<Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_at_dyn(&self, offset: u64, limit: usize) -> BoxedFuture<Result<Buffer>> {
-        Box::pin(self.read_at(offset, limit))
+    fn read_at_dyn(&self, offset: u64, size: usize) -> BoxedFuture<Result<Buffer>> {
+        Box::pin(self.read_at(offset, size))
     }
 }
 
@@ -144,65 +156,80 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// Take care about the `deref_mut()` here. This makes sure that we are calling functions
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.deref().read_at_dyn(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.deref().read_at_dyn(offset, size).await
     }
 }
 
 impl<T: ReadDyn + ?Sized> Read for Arc<T> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.deref().read_at_dyn(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.deref().read_at_dyn(offset, size).await
     }
 }
 
-/// BlockingReader is a boxed dyn `BlockingRead`.
-pub type BlockingReader = Box<dyn BlockingRead>;
+/// BlockingReader is a arc dyn `BlockingRead`.
+pub type BlockingReader = Arc<dyn BlockingRead>;
 
 /// Read is the trait that OpenDAL returns to callers.
 pub trait BlockingRead: Send + Sync {
-    /// Read data from the reader at the given offset with the given limit.
-    ///
-    /// # Notes
-    ///
-    /// Storage services should try to read as much as possible, only return bytes less than the
-    /// limit while reaching the end of the file.
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer>;
+    /// Read data from the reader at the given offset with the given size.
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer>;
 }
 
 impl BlockingRead for () {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        let _ = (offset, limit);
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        let _ = (offset, size);
 
         unimplemented!("read is required to be implemented for oio::BlockingRead")
     }
 }
 
 impl BlockingRead for Bytes {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if offset >= self.len() as u64 {
-            return Ok(Buffer::new());
-        }
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let offset = offset as usize;
-        let limit = limit.min(self.len() - offset);
-        Ok(Buffer::from(self.slice(offset..offset + limit)))
+
+        if offset >= self.len() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "offset out of range",
+            ));
+        }
+        if size > self.len() - offset {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "size out of range",
+            ));
+        }
+
+        Ok(Buffer::from(self.slice(offset..offset + size)))
     }
 }
 
 impl BlockingRead for Buffer {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if offset >= self.len() as u64 {
-            return Ok(Buffer::new());
-        }
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let offset = offset as usize;
-        let limit = limit.min(self.len() - offset);
-        Ok(self.slice(offset..offset + limit))
+
+        if offset >= self.len() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "offset out of range",
+            ));
+        }
+        if size > self.len() - offset {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "size out of range",
+            ));
+        }
+
+        Ok(self.slice(offset..offset + size))
     }
 }
 
-/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
+/// `Arc<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
-impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        (**self).read_at(offset, limit)
+impl<T: BlockingRead + ?Sized> BlockingRead for Arc<T> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        (**self).read_at(offset, size)
     }
 }

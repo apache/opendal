@@ -19,11 +19,10 @@ use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use probe::probe_lazy;
 
-use crate::raw::Accessor;
+use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
@@ -169,19 +168,19 @@ use crate::*;
 #[derive(Default, Debug, Clone)]
 pub struct DtraceLayer {}
 
-impl<A: Accessor> Layer<A> for DtraceLayer {
-    type LayeredAccessor = DTraceAccessor<A>;
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+impl<A: Access> Layer<A> for DtraceLayer {
+    type LayeredAccess = DTraceAccessor<A>;
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         DTraceAccessor { inner }
     }
 }
 
 #[derive(Clone)]
-pub struct DTraceAccessor<A: Accessor> {
+pub struct DTraceAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> Debug for DTraceAccessor<A> {
+impl<A: Access> Debug for DTraceAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DTraceAccessor")
             .field("inner", &self.inner)
@@ -189,8 +188,7 @@ impl<A: Accessor> Debug for DTraceAccessor<A> {
     }
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for DTraceAccessor<A> {
+impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;
     type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;
@@ -342,10 +340,10 @@ impl<R> DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(offset, size).await {
             Ok(bs) => {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.remaining());
                 Ok(bs)
@@ -359,11 +357,11 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
         self.inner
-            .read_at(offset, limit)
+            .read_at(offset, size)
             .map(|bs| {
                 probe_lazy!(
                     opendal,

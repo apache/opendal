@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use await_tree::InstrumentAwait;
 
 use crate::raw::*;
@@ -53,22 +52,20 @@ impl AwaitTreeLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for AwaitTreeLayer {
-    type LayeredAccessor = AwaitTreeAccessor<A>;
+impl<A: Access> Layer<A> for AwaitTreeLayer {
+    type LayeredAccess = AwaitTreeAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccessor {
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
         AwaitTreeAccessor { inner: accessor }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AwaitTreeAccessor<A: Accessor> {
+pub struct AwaitTreeAccessor<A: Access> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
+impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;

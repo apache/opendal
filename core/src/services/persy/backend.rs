@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use async_trait::async_trait;
 use persy;
 use tokio::task;
 
@@ -160,7 +159,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

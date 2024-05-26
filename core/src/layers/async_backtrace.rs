@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-
 use crate::raw::*;
 use crate::*;
 
@@ -45,22 +43,20 @@ use crate::*;
 #[derive(Clone, Default)]
 pub struct AsyncBacktraceLayer;
 
-impl<A: Accessor> Layer<A> for AsyncBacktraceLayer {
-    type LayeredAccessor = AsyncBacktraceAccessor<A>;
+impl<A: Access> Layer<A> for AsyncBacktraceLayer {
+    type LayeredAccess = AsyncBacktraceAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccessor {
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
         AsyncBacktraceAccessor { inner: accessor }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AsyncBacktraceAccessor<A: Accessor> {
+pub struct AsyncBacktraceAccessor<A: Access> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for AsyncBacktraceAccessor<A> {
+impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;

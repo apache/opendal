@@ -22,7 +22,6 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use futures::AsyncWriteExt;
 use log::debug;
 use serde::Deserialize;
@@ -244,8 +243,7 @@ pub struct HdfsBackend {
 unsafe impl Send for HdfsBackend {}
 unsafe impl Sync for HdfsBackend {}
 
-#[async_trait]
-impl Accessor for HdfsBackend {
+impl Access for HdfsBackend {
     type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -148,10 +147,10 @@ impl BlockingLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for BlockingLayer {
-    type LayeredAccessor = BlockingAccessor<A>;
+impl<A: Access> Layer<A> for BlockingLayer {
+    type LayeredAccess = BlockingAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         BlockingAccessor {
             inner,
             handle: self.handle.clone(),
@@ -160,15 +159,13 @@ impl<A: Accessor> Layer<A> for BlockingLayer {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockingAccessor<A: Accessor> {
+pub struct BlockingAccessor<A: Access> {
     inner: A,
 
     handle: Handle,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
+impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = BlockingWrapper<A::Reader>;
@@ -285,8 +282,8 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.handle.block_on(self.inner.read_at(offset, limit))
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.handle.block_on(self.inner.read_at(offset, size))
     }
 }
 

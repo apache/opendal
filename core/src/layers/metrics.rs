@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Instant;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -113,10 +112,10 @@ static LABEL_ERROR: &str = "error";
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;
 
-impl<A: Accessor> Layer<A> for MetricsLayer {
-    type LayeredAccessor = MetricsAccessor<A>;
+impl<A: Access> Layer<A> for MetricsLayer {
+    type LayeredAccess = MetricsAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
 
         MetricsAccessor {
@@ -389,12 +388,12 @@ impl MetricsHandler {
 }
 
 #[derive(Clone)]
-pub struct MetricsAccessor<A: Accessor> {
+pub struct MetricsAccessor<A: Access> {
     inner: A,
     handle: Arc<MetricsHandler>,
 }
 
-impl<A: Accessor> Debug for MetricsAccessor<A> {
+impl<A: Access> Debug for MetricsAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsAccessor")
             .field("inner", &self.inner)
@@ -402,9 +401,7 @@ impl<A: Accessor> Debug for MetricsAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
+impl<A: Access> LayeredAccess for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricWrapper<A::Reader>;
     type BlockingReader = MetricWrapper<A::BlockingReader>;
@@ -750,10 +747,10 @@ impl<R> MetricWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MetricWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let start = Instant::now();
 
-        match self.inner.read_at(offset, limit).await {
+        match self.inner.read_at(offset, size).await {
             Ok(bs) => {
                 self.bytes_counter.increment(bs.remaining() as u64);
                 self.requests_duration_seconds
@@ -769,11 +766,11 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         let start = Instant::now();
 
         self.inner
-            .read_at(offset, limit)
+            .read_at(offset, size)
             .map(|bs| {
                 self.bytes_counter.increment(bs.remaining() as u64);
                 self.requests_duration_seconds

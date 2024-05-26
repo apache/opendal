@@ -78,6 +78,9 @@ pub use futures_util::MaybeSend;
 mod enum_utils;
 pub use enum_utils::*;
 
+mod atomic_util;
+pub use atomic_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;

@@ -20,7 +20,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use chrono::DateTime;
 use log::debug;
 
@@ -167,8 +166,7 @@ pub struct FsBackend {
     core: Arc<FsCore>,
 }
 
-#[async_trait]
-impl Accessor for FsBackend {
+impl Access for FsBackend {
     type Reader = FsReader;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;

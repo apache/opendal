@@ -74,7 +74,8 @@ impl oio::PageList for WebhdfsLister {
                     if directory_listing.remaining_entries == 0 {
                         ctx.done = true;
                     } else if !file_statuses.is_empty() {
-                        ctx.token = file_statuses.last().unwrap().path_suffix.clone();
+                        ctx.token
+                            .clone_from(&file_statuses.last().unwrap().path_suffix);
                     }
 
                     file_statuses

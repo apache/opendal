@@ -18,7 +18,7 @@
 use super::core::CompioThread;
 use crate::raw::*;
 use crate::*;
-use async_trait::async_trait;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -63,8 +63,7 @@ pub struct CompfsBackend {
     rt: CompioThread,
 }
 
-#[async_trait]
-impl Accessor for CompfsBackend {
+impl Access for CompfsBackend {
     type Reader = ();
     type Writer = ();
     type Lister = ();

@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
 
-use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
 use log::debug;
@@ -246,7 +245,7 @@ pub struct Manager {
     known_hosts_strategy: KnownHosts,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = Sftp;
     type Error = Error;
@@ -342,8 +341,7 @@ impl SftpBackend {
     }
 }
 
-#[async_trait]
-impl Accessor for SftpBackend {
+impl Access for SftpBackend {
     type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
@@ -398,7 +396,7 @@ impl Accessor for SftpBackend {
             fs.set_cwd(&current);
         }
 
-        return Ok(RpCreateDir::default());
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

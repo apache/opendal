@@ -11,7 +11,6 @@ This service can be used to:
 - [x] copy
 - [x] rename
 - [x] list
-- [ ] ~~scan~~
 - [ ] ~~presign~~
 - [x] blocking
 

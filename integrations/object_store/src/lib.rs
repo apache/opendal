@@ -31,10 +31,12 @@ use object_store::GetOptions;
 use object_store::GetResult;
 use object_store::GetResultPayload;
 use object_store::ListResult;
-use object_store::MultipartId;
+use object_store::MultipartUpload;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
+use object_store::PutMultipartOpts;
 use object_store::PutOptions;
+use object_store::PutPayload;
 use object_store::PutResult;
 use object_store::Result;
 use opendal::Entry;
@@ -43,7 +45,6 @@ use opendal::Metakey;
 use opendal::Operator;
 use send_wrapper::IntoSendFuture;
 use send_wrapper::IntoSendStream;
-use tokio::io::AsyncWrite;
 
 #[derive(Debug)]
 pub struct OpendalStore {
@@ -65,7 +66,8 @@ impl std::fmt::Display for OpendalStore {
 
 #[async_trait]
 impl ObjectStore for OpendalStore {
-    async fn put(&self, location: &Path, bytes: Bytes) -> Result<PutResult> {
+    async fn put(&self, location: &Path, bytes: PutPayload) -> Result<PutResult> {
+        let bytes: Bytes = bytes.into();
         self.inner
             .write(location.as_ref(), bytes)
             .into_send()
@@ -80,7 +82,7 @@ impl ObjectStore for OpendalStore {
     async fn put_opts(
         &self,
         _location: &Path,
-        _bytes: Bytes,
+        _bytes: PutPayload,
         _opts: PutOptions,
     ) -> Result<PutResult> {
         Err(object_store::Error::NotSupported {
@@ -91,10 +93,7 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn put_multipart(
-        &self,
-        _location: &Path,
-    ) -> Result<(MultipartId, Box<dyn AsyncWrite + Unpin + Send>)> {
+    async fn put_multipart(&self, _location: &Path) -> Result<Box<dyn MultipartUpload>> {
         Err(object_store::Error::NotSupported {
             source: Box::new(opendal::Error::new(
                 opendal::ErrorKind::Unsupported,
@@ -103,20 +102,15 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn abort_multipart(&self, _location: &Path, _multipart_id: &MultipartId) -> Result<()> {
+    async fn put_multipart_opts(
+        &self,
+        _location: &Path,
+        _opts: PutMultipartOpts,
+    ) -> Result<Box<dyn MultipartUpload>> {
         Err(object_store::Error::NotSupported {
             source: Box::new(opendal::Error::new(
                 opendal::ErrorKind::Unsupported,
-                "abort_multipart is not implemented so far",
-            )),
-        })
-    }
-
-    async fn get_opts(&self, _location: &Path, _options: GetOptions) -> Result<GetResult> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "get_opts is not implemented so far",
+                "put_multipart_opts is not implemented so far",
             )),
         })
     }
@@ -145,6 +139,11 @@ impl ObjectStore for OpendalStore {
 
         let stream = r
             .into_bytes_stream(0..meta.size as u64)
+            .await
+            .map_err(|err| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            })?
             .into_send()
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",
@@ -153,8 +152,18 @@ impl ObjectStore for OpendalStore {
 
         Ok(GetResult {
             payload: GetResultPayload::Stream(Box::pin(stream)),
-            range: (0..meta.size),
+            range: 0..meta.size,
             meta,
+            attributes: Default::default(),
+        })
+    }
+
+    async fn get_opts(&self, _location: &Path, _options: GetOptions) -> Result<GetResult> {
+        Err(object_store::Error::NotSupported {
+            source: Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unsupported,
+                "get_opts is not implemented so far",
+            )),
         })
     }
 
@@ -348,12 +357,22 @@ fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::E
 }
 
 fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
+    let version = match meta.metakey().contains(Metakey::Version) {
+        true => meta.version().map(|x| x.to_string()),
+        false => None,
+    };
+
+    let e_tag = match meta.metakey().contains(Metakey::Etag) {
+        true => meta.etag().map(|x| x.to_string()),
+        false => None,
+    };
+
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
-        e_tag: meta.etag().map(|x| x.to_string()),
-        version: meta.version().map(|x| x.to_string()),
+        e_tag,
+        version,
     }
 }
 
@@ -405,11 +424,11 @@ mod tests {
 
         let path: Path = "data/test.txt".into();
         let bytes = Bytes::from_static(b"hello, world!");
-        object_store.put(&path, bytes).await.unwrap();
+        object_store.put(&path, bytes.into()).await.unwrap();
 
         let path: Path = "data/nested/test.txt".into();
         let bytes = Bytes::from_static(b"hello, world! I am nested.");
-        object_store.put(&path, bytes).await.unwrap();
+        object_store.put(&path, bytes.into()).await.unwrap();
 
         object_store
     }
@@ -423,7 +442,7 @@ mod tests {
         let path: Path = "data/test.txt".into();
 
         let bytes = Bytes::from_static(b"hello, world!");
-        object_store.put(&path, bytes.clone()).await.unwrap();
+        object_store.put(&path, bytes.clone().into()).await.unwrap();
 
         let meta = object_store.head(&path).await.unwrap();
 

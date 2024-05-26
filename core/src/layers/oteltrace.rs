@@ -17,7 +17,6 @@
 
 use std::future::Future;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
@@ -50,10 +49,10 @@ use crate::*;
 /// ```
 pub struct OtelTraceLayer;
 
-impl<A: Accessor> Layer<A> for OtelTraceLayer {
-    type LayeredAccessor = OtelTraceAccessor<A>;
+impl<A: Access> Layer<A> for OtelTraceLayer {
+    type LayeredAccess = OtelTraceAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         OtelTraceAccessor { inner }
     }
 }
@@ -63,9 +62,7 @@ pub struct OtelTraceAccessor<A> {
     inner: A,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
+impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     type Inner = A;
     type Reader = OtelTraceWrapper<A::Reader>;
     type BlockingReader = OtelTraceWrapper<A::BlockingReader>;
@@ -275,14 +272,14 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit)
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size)
     }
 }
 

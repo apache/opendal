@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
@@ -220,7 +219,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

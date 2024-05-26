@@ -18,9 +18,8 @@
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::num::NonZeroU32;
-use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -33,22 +32,26 @@ use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
-use opendal::Entry;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::Operator;
+use opendal::Writer;
 use sharded_slab::Slab;
+use tokio::sync::Mutex;
 
 const TTL: Duration = Duration::from_secs(1); // 1 second
 
-#[derive(Debug, Clone)]
 struct OpenedFile {
     path: OsString,
     is_read: bool,
-    is_write: bool,
-    is_append: bool,
-    offset: u64,
+    inner_writer: Option<Arc<Mutex<InnerWriter>>>,
+}
+
+struct InnerWriter {
+    writer: Writer,
+    written: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -71,14 +74,14 @@ impl FileKey {
     }
 }
 
-pub(super) struct Fuse {
+pub(super) struct FuseAdapter {
     op: Operator,
     gid: u32,
     uid: u32,
-    opened_files: Slab<RwLock<OpenedFile>>,
+    opened_files: Slab<OpenedFile>,
 }
 
-impl Fuse {
+impl FuseAdapter {
     pub fn new(op: Operator, uid: u32, gid: u32) -> Self {
         Self {
             op,
@@ -88,11 +91,19 @@ impl Fuse {
         }
     }
 
-    fn check_flags(&self, flags: u32) -> Result<(bool, bool)> {
+    fn check_flags(&self, flags: u32) -> Result<(bool, bool, bool)> {
+        let is_trunc = flags & libc::O_TRUNC as u32 != 0 || flags & libc::O_CREAT as u32 != 0;
+        let is_append = flags & libc::O_APPEND as u32 != 0;
+
         let mode = flags & libc::O_ACCMODE as u32;
         let is_read = mode == libc::O_RDONLY as u32 || mode == libc::O_RDWR as u32;
-        let is_write = mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32;
+        let is_write = mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32 || is_append;
         if !is_read && !is_write {
+            Err(Errno::from(libc::EINVAL))?;
+        }
+        // OpenDAL only supports truncate write and append write,
+        // so O_TRUNC or O_APPEND needs to be specified explicitly
+        if (is_write && !is_trunc && !is_append) || is_trunc && !is_write {
             Err(Errno::from(libc::EINVAL))?;
         }
 
@@ -100,27 +111,33 @@ impl Fuse {
         if is_read && !capability.read {
             Err(Errno::from(libc::EACCES))?;
         }
-        if is_write && !capability.write {
+        if is_trunc && !capability.write {
+            Err(Errno::from(libc::EACCES))?;
+        }
+        if is_append && !capability.write_can_append {
             Err(Errno::from(libc::EACCES))?;
         }
 
-        log::trace!("check_flags: is_read={}, is_write={}", is_read, is_write);
-        Ok((is_read, is_write))
+        log::trace!(
+            "check_flags: is_read={}, is_write={}, is_trunc={}, is_append={}",
+            is_read,
+            is_write,
+            is_trunc,
+            is_append
+        );
+        Ok((is_read, is_trunc, is_append))
     }
 
     // Get opened file and check given path
-    fn get_opened_file(&self, key: FileKey, path: Option<&OsStr>) -> Result<OpenedFile> {
-        let file = match self
+    fn get_opened_file(
+        &self,
+        key: FileKey,
+        path: Option<&OsStr>,
+    ) -> Result<sharded_slab::Entry<OpenedFile>> {
+        let file = self
             .opened_files
             .get(key.0)
-            .as_ref()
-            .ok_or(Errno::from(libc::ENOENT))?
-            .deref()
-            .read()
-        {
-            Ok(file) => file.clone(),
-            Err(_) => Err(Errno::from(libc::EBADF))?,
-        };
+            .ok_or(Errno::from(libc::ENOENT))?;
 
         if matches!(path, Some(path) if path != file.path) {
             log::trace!(
@@ -133,40 +150,9 @@ impl Fuse {
 
         Ok(file)
     }
-
-    // Set opened file offset
-    fn set_opened_file_offset(
-        &self,
-        key: FileKey,
-        path: Option<&OsStr>,
-        offset: u64,
-    ) -> Result<()> {
-        let binding = self.opened_files.get(key.0);
-        let mut file = match binding
-            .as_ref()
-            .ok_or(Errno::from(libc::ENOENT))?
-            .deref()
-            .write()
-        {
-            Ok(file) => file,
-            Err(_) => Err(Errno::from(libc::EBADF))?,
-        };
-        if matches!(path, Some(path) if path != file.path) {
-            log::trace!(
-                "set_opened_file: path not match: path={:?}, file={:?}",
-                path,
-                file.path
-            );
-            Err(Errno::from(libc::EBADF))?;
-        }
-
-        file.offset = offset;
-
-        Ok(())
-    }
 }
 
-impl PathFilesystem for Fuse {
+impl PathFilesystem for FuseAdapter {
     type DirEntryStream<'a> = BoxStream<'a, Result<DirectoryEntry>>;
     type DirEntryPlusStream<'a> = BoxStream<'a, Result<DirectoryEntryPlus>>;
 
@@ -208,8 +194,6 @@ impl PathFilesystem for Fuse {
         let fh_path = fh.and_then(|fh| {
             self.opened_files
                 .get(FileKey::try_from(fh).ok()?.0)
-                .as_ref()
-                .and_then(|f| f.read().ok())
                 .map(|f| f.path.clone())
         });
 
@@ -307,9 +291,8 @@ impl PathFilesystem for Fuse {
             .await
             .map_err(opendal_error2errno)?;
 
-        let metadata = Metadata::new(EntryMode::DIR);
         let now = SystemTime::now();
-        let attr = metadata2file_attr(&metadata, now, self.uid, self.gid);
+        let attr = dummy_file_attr(FileType::Directory, now, self.uid, self.gid);
 
         Ok(ReplyEntry { ttl: TTL, attr })
     }
@@ -401,7 +384,7 @@ impl PathFilesystem for Fuse {
             flags
         );
 
-        let (is_read, is_write) = self.check_flags(flags)?;
+        let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
 
         let path = PathBuf::from(parent).join(name);
         self.op
@@ -409,18 +392,28 @@ impl PathFilesystem for Fuse {
             .await
             .map_err(opendal_error2errno)?;
 
-        let metadata = Metadata::new(EntryMode::FILE);
-        let attr = metadata2file_attr(&metadata, SystemTime::now(), self.uid, self.gid);
+        let inner_writer = if is_trunc || is_append {
+            let writer = self
+                .op
+                .writer_with(&path.to_string_lossy())
+                .append(is_append)
+                .await
+                .map_err(opendal_error2errno)?;
+            Some(Arc::new(Mutex::new(InnerWriter { writer, written: 0 })))
+        } else {
+            None
+        };
+
+        let now = SystemTime::now();
+        let attr = dummy_file_attr(FileType::RegularFile, now, self.uid, self.gid);
 
         let key = self
             .opened_files
-            .insert(RwLock::new(OpenedFile {
+            .insert(OpenedFile {
                 path: path.into(),
                 is_read,
-                is_write,
-                is_append: flags & libc::O_APPEND as u32 != 0,
-                offset: 0,
-            }))
+                inner_writer,
+            })
             .ok_or(Errno::from(libc::EBUSY))?;
 
         Ok(ReplyCreated {
@@ -453,8 +446,18 @@ impl PathFilesystem for Fuse {
         let file = self
             .opened_files
             .take(FileKey::try_from(fh)?.0)
-            .map(|f| f.read().unwrap().clone())
             .ok_or(Errno::from(libc::EBADF))?;
+
+        if let Some(inner_writer) = file.inner_writer {
+            inner_writer
+                .lock_owned()
+                .await
+                .writer
+                .close()
+                .await
+                .map_err(opendal_error2errno)?;
+        }
+
         if matches!(path, Some(ref p) if p != &file.path) {
             Err(Errno::from(libc::EBADF))?;
         }
@@ -465,17 +468,42 @@ impl PathFilesystem for Fuse {
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
         log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
 
-        let (is_read, is_write) = self.check_flags(flags)?;
+        let (is_read, is_trunc, is_append) = self.check_flags(flags)?;
+        if flags & libc::O_CREAT as u32 != 0 {
+            self.op
+                .write(&path.to_string_lossy(), Bytes::new())
+                .await
+                .map_err(opendal_error2errno)?;
+        }
+
+        let inner_writer = if is_trunc || is_append {
+            let writer = self
+                .op
+                .writer_with(&path.to_string_lossy())
+                .append(is_append)
+                .await
+                .map_err(opendal_error2errno)?;
+            let written = if is_append {
+                self.op
+                    .stat(&path.to_string_lossy())
+                    .await
+                    .map_err(opendal_error2errno)?
+                    .content_length()
+            } else {
+                0
+            };
+            Some(Arc::new(Mutex::new(InnerWriter { writer, written })))
+        } else {
+            None
+        };
 
         let key = self
             .opened_files
-            .insert(RwLock::new(OpenedFile {
+            .insert(OpenedFile {
                 path: path.into(),
                 is_read,
-                is_write,
-                is_append: flags & libc::O_APPEND as u32 != 0,
-                offset: 0,
-            }))
+                inner_writer,
+            })
             .ok_or(Errno::from(libc::EBUSY))?;
 
         Ok(ReplyOpen {
@@ -500,20 +528,20 @@ impl PathFilesystem for Fuse {
             size
         );
 
-        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
-
-        if !file.is_read {
-            Err(Errno::from(libc::EACCES))?;
-        }
+        let file_path = {
+            let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
+            if !file.is_read {
+                Err(Errno::from(libc::EACCES))?;
+            }
+            file.path.to_string_lossy().to_string()
+        };
 
         let data = self
             .op
-            .read_with(&file.path.to_string_lossy())
-            .range(offset..offset + size as u64)
+            .read_with(&file_path)
+            .range(offset..)
             .await
             .map_err(opendal_error2errno)?;
-
-        self.set_opened_file_offset(FileKey::try_from(fh)?, path, offset + data.len() as u64)?;
 
         Ok(ReplyData {
             data: data.to_bytes(),
@@ -539,25 +567,26 @@ impl PathFilesystem for Fuse {
             flags
         );
 
-        if offset != 0 {
+        let Some(inner_writer) = ({
+            self.get_opened_file(FileKey::try_from(fh)?, path)?
+                .inner_writer
+                .clone()
+        }) else {
+            Err(Errno::from(libc::EACCES))?
+        };
+
+        let mut inner = inner_writer.lock().await;
+        // OpenDAL doesn't support random write
+        if offset != inner.written {
             Err(Errno::from(libc::EINVAL))?;
         }
 
-        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
-        if !file.is_write {
-            Err(Errno::from(libc::EACCES))?;
-        }
-
-        self.op
-            .write_with(
-                &file.path.clone().to_string_lossy(),
-                Bytes::copy_from_slice(data),
-            )
-            .append(file.is_append)
+        inner
+            .writer
+            .write_from(data)
             .await
             .map_err(opendal_error2errno)?;
-
-        self.set_opened_file_offset(FileKey::try_from(fh)?, path, offset + data.len() as u64)?;
+        inner.written += data.len() as u64;
 
         Ok(ReplyWrite {
             written: data.len() as _,
@@ -612,7 +641,6 @@ impl PathFilesystem for Fuse {
     async fn access(&self, _req: Request, path: &OsStr, mask: u32) -> Result<()> {
         log::debug!("access(path={:?}, mask=0x{:x})", path, mask);
 
-        self.check_flags(mask)?;
         self.op
             .stat(&path.to_string_lossy())
             .await
@@ -636,39 +664,36 @@ impl PathFilesystem for Fuse {
             offset
         );
 
-        let make_entry = |op: Operator, i: usize, entry: opendal::Result<Entry>, uid, gid, now| async move {
-            let e = entry.map_err(opendal_error2errno)?;
-            let metadata = op
-                .stat(e.name())
-                .await
-                .unwrap_or_else(|_| e.metadata().clone());
-            let attr = metadata2file_attr(&metadata, now, uid, gid);
-            Result::Ok(DirectoryEntryPlus {
-                kind: entry_mode2file_type(metadata.mode()),
-                name: e.name().trim_matches('/').into(),
-                offset: (i + 3) as i64,
-                attr,
-                entry_ttl: TTL,
-                attr_ttl: TTL,
-            })
-        };
-
         let now = SystemTime::now();
         let mut current_dir = PathBuf::from(parent);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
-        let op = self.op.clone();
         let uid = self.uid;
         let gid = self.gid;
+
         let children = self
             .op
-            .lister(&current_dir.to_string_lossy())
+            .lister_with(&current_dir.to_string_lossy())
+            .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
             .enumerate()
-            .then(move |(i, entry)| make_entry(op.clone(), i, entry, uid, gid, now));
+            .map(move |(i, entry)| {
+                entry
+                    .map(|e| {
+                        let metadata = e.metadata();
+                        DirectoryEntryPlus {
+                            kind: entry_mode2file_type(metadata.mode()),
+                            name: e.name().trim_matches('/').into(),
+                            offset: (i + 3) as i64,
+                            attr: metadata2file_attr(metadata, now, uid, gid),
+                            entry_ttl: TTL,
+                            attr_ttl: TTL,
+                        }
+                    })
+                    .map_err(opendal_error2errno)
+            });
 
-        let relative_path_metadata = Metadata::new(EntryMode::DIR);
-        let relative_path_attr = metadata2file_attr(&relative_path_metadata, now, uid, gid);
+        let relative_path_attr = dummy_file_attr(FileType::Directory, now, uid, gid);
         let relative_paths = stream::iter([
             Result::Ok(DirectoryEntryPlus {
                 kind: FileType::Directory,
@@ -692,6 +717,7 @@ impl PathFilesystem for Fuse {
             entries: relative_paths.chain(children).skip(offset as usize).boxed(),
         })
     }
+
     async fn rename2(
         &self,
         req: Request,
@@ -710,54 +736,6 @@ impl PathFilesystem for Fuse {
         );
         self.rename(req, origin_parent, origin_name, parent, name)
             .await
-    }
-
-    async fn lseek(
-        &self,
-        _req: Request,
-        path: Option<&OsStr>,
-        fh: u64,
-        offset: u64,
-        whence: u32,
-    ) -> Result<ReplyLSeek> {
-        log::debug!(
-            "lseek(path={:?}, fh={}, offset={}, whence={})",
-            path,
-            fh,
-            offset,
-            whence
-        );
-
-        let whence = whence as i32;
-
-        let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
-
-        if !file.is_read && !file.is_write {
-            Err(Errno::from(libc::EACCES))?;
-        }
-
-        let offset = if whence == libc::SEEK_SET {
-            offset
-        } else if whence == libc::SEEK_CUR {
-            file.offset + offset
-        } else if whence == libc::SEEK_END {
-            let metadata = self
-                .op
-                .stat(&path.unwrap().to_string_lossy())
-                .await
-                .map_err(opendal_error2errno)?;
-            let content_size = metadata.content_length();
-
-            if content_size >= offset as _ {
-                content_size as u64 - offset
-            } else {
-                0
-            }
-        } else {
-            return Err(libc::ENOSYS.into());
-        };
-
-        Ok(ReplyLSeek { offset })
     }
 
     async fn copy_file_range(
@@ -809,10 +787,19 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
         size: metadata.content_length(),
-        blocks: 0,
-        atime,
         mtime: last_modified,
         ctime: last_modified,
+        ..dummy_file_attr(kind, atime, uid, gid)
+    }
+}
+
+const fn dummy_file_attr(kind: FileType, now: SystemTime, uid: u32, gid: u32) -> FileAttr {
+    FileAttr {
+        size: 0,
+        blocks: 0,
+        atime: now,
+        mtime: now,
+        ctime: now,
         kind,
         perm: fuse3::perm_from_mode_and_kind(kind, 0o775),
         nlink: 0,
@@ -832,8 +819,8 @@ fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
         ErrorKind::PermissionDenied => Errno::from(libc::EACCES),
         ErrorKind::AlreadyExists => Errno::from(libc::EEXIST),
         ErrorKind::NotADirectory => Errno::from(libc::ENOTDIR),
-        ErrorKind::ContentTruncated => Errno::from(libc::EAGAIN),
-        ErrorKind::ContentIncomplete => Errno::from(libc::EIO),
+        ErrorKind::RangeNotSatisfied => Errno::from(libc::EINVAL),
+        ErrorKind::RateLimited => Errno::from(libc::EBUSY),
         _ => Errno::from(libc::ENOENT),
     }
 }

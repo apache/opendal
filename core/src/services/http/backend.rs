@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
@@ -222,9 +221,7 @@ impl Debug for HttpBackend {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl Accessor for HttpBackend {
+impl Access for HttpBackend {
     type Reader = HttpReader;
     type Writer = ();
     type Lister = ();

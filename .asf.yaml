@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# NOTE: All configurations could be found here: https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+# All configurations could be found here: https://github.com/apache/infrastructure-asfyaml/
+
 github:
   description: "Apache OpenDAL: access data freely."
   homepage: https://opendal.apache.org
@@ -43,6 +44,10 @@ notifications:
   issues: commits@opendal.apache.org
   pullrequests: commits@opendal.apache.org
   discussions: commits@opendal.apache.org
+
+staging:
+  profile: ~
+  autostage: site/*
 
 publish:
   whoami: gh-pages

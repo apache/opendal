@@ -18,7 +18,7 @@
 [package]
 description = "Use OpenDAL as a backend to access data in various service with WebDAV protocol"
 name = "dav-server-opendalfs"
-version = "0.0.1"
+version = "0.0.2"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -35,7 +35,7 @@ dav-server = { version = "0.5.8" }
 dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16" }
-opendal = { version = "0.45.1", path = "../../core", features = [
+opendal = { version = "0.46.0", path = "../../core", features = [
   "services-fs",
 ] }
 quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::raw::oio::ListOperation;
@@ -38,30 +37,28 @@ use crate::*;
 /// - `path`: The path of this operation
 pub struct ErrorContextLayer;
 
-impl<A: Accessor> Layer<A> for ErrorContextLayer {
-    type LayeredAccessor = ErrorContextAccessor<A>;
+impl<A: Access> Layer<A> for ErrorContextLayer {
+    type LayeredAccess = ErrorContextAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         ErrorContextAccessor { meta, inner }
     }
 }
 
 /// Provide error context wrapper for backend.
-pub struct ErrorContextAccessor<A: Accessor> {
+pub struct ErrorContextAccessor<A: Access> {
     meta: AccessorInfo,
     inner: A,
 }
 
-impl<A: Accessor> Debug for ErrorContextAccessor<A> {
+impl<A: Access> Debug for ErrorContextAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
+impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = ErrorContextWrapper<A::Reader>;
     type BlockingReader = ErrorContextWrapper<A::BlockingReader>;
@@ -342,25 +339,25 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).await.map_err(|err| {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await.map_err(|err| {
             err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("offset", offset.to_string())
-                .with_context("limit", limit.to_string())
+                .with_context("size", size.to_string())
         })
     }
 }
 
 impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, limit).map_err(|err| {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("offset", offset.to_string())
-                .with_context("limit", limit.to_string())
+                .with_context("size", size.to_string())
         })
     }
 }

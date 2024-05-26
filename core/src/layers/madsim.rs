@@ -34,7 +34,6 @@ use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 #[cfg(madsim)]
 use madsim::net::Endpoint;
@@ -121,10 +120,10 @@ impl MadsimLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for MadsimLayer {
-    type LayeredAccessor = MadsimAccessor;
+impl<A: Access> Layer<A> for MadsimLayer {
+    type LayeredAccess = MadsimAccessor;
 
-    fn layer(&self, _: A) -> Self::LayeredAccessor {
+    fn layer(&self, _: A) -> Self::LayeredAccess {
         #[cfg(madsim)]
         {
             MadsimAccessor { addr: self.addr }
@@ -142,9 +141,7 @@ pub struct MadsimAccessor {
     addr: SocketAddr,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl LayeredAccessor for MadsimAccessor {
+impl LayeredAccess for MadsimAccessor {
     type Inner = ();
     type Reader = MadsimReader;
     type BlockingReader = ();
@@ -264,9 +261,9 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> crate::Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> crate::Result<Buffer> {
         if let Some(ref data) = self.data {
-            let size = min(limit, data.len());
+            let size = min(size, data.len());
             Ok(data.clone().split_to(size).into())
         } else {
             Ok(Buffer::new())

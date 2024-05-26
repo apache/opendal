@@ -250,21 +250,23 @@ impl S3Core {
 
         req
     }
-
+    pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
+        match self.checksum_algorithm {
+            None => None,
+            Some(ChecksumAlgorithm::Crc32c) => {
+                let mut crc = 0u32;
+                body.clone()
+                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
+                Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
+            }
+        }
+    }
     pub fn insert_checksum_header(
         &self,
         mut req: http::request::Builder,
-        body: &Buffer,
+        checksum: &str,
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
-            let checksum = match checksum_algorithm {
-                ChecksumAlgorithm::Crc32c => {
-                    let mut crc = 0u32;
-                    body.clone()
-                        .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
-                    BASE64_STANDARD.encode(crc.to_be_bytes())
-                }
-            };
             req = req.header(checksum_algorithm.to_header_name(), checksum);
         }
         req
@@ -441,8 +443,11 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set Checksum header.
-        req = self.insert_checksum_header(req, &body);
+        // Calculate Checksum.
+        if let Some(checksum) = self.calculate_checksum(&body) {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -626,6 +631,7 @@ impl S3Core {
         part_number: usize,
         size: u64,
         body: Buffer,
+        checksum: Option<String>,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -644,8 +650,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set Checksum header.
-        req = self.insert_checksum_header(req, &body);
+        if let Some(checksum) = checksum {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -792,6 +800,8 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
     pub etag: String,
+    #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
+    pub checksum_crc32c: Option<String>,
 }
 
 /// Request of DeleteObjects.
@@ -921,14 +931,17 @@ mod tests {
                 CompleteMultipartUploadRequestPart {
                     part_number: 1,
                     etag: "\"a54357aff0632cce46d942af68356b38\"".to_string(),
+                    ..Default::default()
                 },
                 CompleteMultipartUploadRequestPart {
                     part_number: 2,
                     etag: "\"0c78aef83f66abc1fa1e8477f296d394\"".to_string(),
+                    ..Default::default()
                 },
                 CompleteMultipartUploadRequestPart {
                     part_number: 3,
                     etag: "\"acbd18db4cc2f85cedef654fccc4a4d8\"".to_string(),
+                    ..Default::default()
                 },
             ],
         };

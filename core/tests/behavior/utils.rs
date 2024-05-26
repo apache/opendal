@@ -109,6 +109,12 @@ pub struct Fixture {
     pub paths: Mutex<Vec<String>>,
 }
 
+impl Default for Fixture {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Fixture {
     /// Create a new fixture
     pub const fn new() -> Self {

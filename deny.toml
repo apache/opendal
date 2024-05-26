@@ -16,6 +16,7 @@
 # under the License.
 
 [licenses]
+version = 2
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -25,7 +26,6 @@ allow = [
   "ISC",
   "CC0-1.0",
 ]
-copyleft = "deny"
 exceptions = [
   { allow = [
     "OpenSSL",
@@ -34,7 +34,6 @@ exceptions = [
     "Unicode-DFS-2016",
   ], name = "unicode-ident" },
 ]
-unlicensed = "deny"
 
 [[licenses.clarify]]
 name = "ring"

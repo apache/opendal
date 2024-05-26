@@ -23,7 +23,6 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
@@ -1019,9 +1018,7 @@ pub struct S3Backend {
     core: Arc<S3Core>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl Accessor for S3Backend {
+impl Access for S3Backend {
     type Reader = S3Reader;
     type Writer = S3Writers;
     type Lister = oio::PageLister<S3Lister>;

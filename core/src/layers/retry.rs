@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -204,10 +203,10 @@ impl RetryLayer {
     }
 }
 
-impl<A: Accessor, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
-    type LayeredAccessor = RetryAccessor<A, I>;
+impl<A: Access, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
+    type LayeredAccess = RetryAccessor<A, I>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         RetryAccessor {
             inner,
             builder: self.builder.clone(),
@@ -255,13 +254,13 @@ impl RetryInterceptor for DefaultRetryInterceptor {
     }
 }
 
-pub struct RetryAccessor<A: Accessor, I: RetryInterceptor> {
+pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
     inner: A,
     builder: ExponentialBuilder,
     notify: Arc<I>,
 }
 
-impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
+impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
@@ -269,9 +268,7 @@ impl<A: Accessor, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
+impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Inner = A;
     type Reader = RetryWrapper<A::Reader, I>;
     type BlockingReader = RetryWrapper<A::BlockingReader, I>;
@@ -659,13 +656,13 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         {
             || {
                 self.inner
                     .as_ref()
                     .expect("inner must be valid")
-                    .read_at(offset, limit)
+                    .read_at(offset, size)
             }
         }
         .retry(&self.builder)
@@ -686,8 +683,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        { || self.inner.as_ref().unwrap().read_at(offset, limit) }
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        { || self.inner.as_ref().unwrap().read_at(offset, size) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -901,7 +898,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
-    use async_trait::async_trait;
     use bytes::Bytes;
     use futures::TryStreamExt;
 
@@ -932,9 +928,7 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
@@ -946,6 +940,7 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
+                stat: true,
                 list: true,
                 list_with_recursive: true,
                 batch: true,
@@ -953,6 +948,12 @@ mod tests {
             });
 
             am
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(
+                Metadata::new(EntryMode::FILE).with_content_length(13),
+            ))
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {

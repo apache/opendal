@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -178,8 +177,7 @@ pub struct YandexDiskBackend {
     core: Arc<YandexDiskCore>,
 }
 
-#[async_trait]
-impl Accessor for YandexDiskBackend {
+impl Access for YandexDiskBackend {
     type Reader = YandexDiskReader;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;

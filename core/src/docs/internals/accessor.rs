@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implementation details of [`Accessor`].
+//! The internal implementation details of [`Access`].
 //!
-//! [`Accessor`] is the core trait of OpenDAL's raw API. We operate
-//! underlying storage services via APIs provided by [`Accessor`].
+//! [`Access`] is the core trait of OpenDAL's raw API. We operate
+//! underlying storage services via APIs provided by [`Access`].
 //!
 //! # Introduction
 //!
-//! [`Accessor`] can be split in the following parts:
+//! [`Access`] can be split in the following parts:
 //!
 //! ```ignore
 //! // Attributes
@@ -40,11 +40,11 @@
 //! }
 //! ```
 //!
-//! Let's go deep into [`Accessor`] line by line.
+//! Let's go deep into [`Access`] line by line.
 //!
 //! ## Async Trait
 //!
-//! At the first line of [`Accessor`], we will read:
+//! At the first line of [`Access`], we will read:
 //!
 //! ```ignore
 //! #[async_trait]
@@ -73,13 +73,13 @@
 //!
 //! ## Trait Bound
 //!
-//! Then we will read the declare of [`Accessor`] trait:
+//! Then we will read the declare of [`Access`] trait:
 //!
 //! ```ignore
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {}
 //! ```
 //!
-//! There are many trait boundings here. For now, [`Accessor`] requires the following bound:
+//! There are many trait boundings here. For now, [`Access`] requires the following bound:
 //!
 //! - [`Send`]: Allow user to send between threads without extra wrapper.
 //! - [`Sync`]: Allow user to sync between threads without extra lock.
@@ -94,15 +94,15 @@
 //!
 //! ## Associated Type
 //!
-//! The first block of [`Accessor`] trait is our associated types. We
+//! The first block of [`Access`] trait is our associated types. We
 //! require implementers to specify the type to be returned, thus avoiding
 //! the additional overhead of dynamic dispatch.
 //!
-//! [`Accessor`] has four associated type so far:
+//! [`Access`] has four associated type so far:
 //!
 //! - `Reader`: reader returned by `read` operation.
 //! - `BlockingReader`: reader returned by `blocking_read` operation.
-//! - `Lister`: lister returned by `scan` or `list` operation.
+//! - `Lister`: lister returned by `list` operation.
 //! - `BlockingLister`: lister returned by `blocking_scan` or `blocking_list` operation.
 //!
 //! Implementer of `Accessor` should take care the following things:
@@ -112,17 +112,17 @@
 //!
 //! ## API Style
 //!
-//! Every API of [`Accessor`] follows the same style:
+//! Every API of [`Access`] follows the same style:
 //!
 //! - All APIs have a unique [`Operation`] and [`Capability`]
 //! - All APIs are orthogonal and do not overlap with each other
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
+//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
 //!
 //! ```ignore
-//! impl Accessor for MyBackend {
+//! impl Access for MyBackend {
 //!     fn metadata(&self) -> AccessorInfo {
 //!         let mut am = AccessorInfo::default();
 //!         am.set_capability(
@@ -137,7 +137,7 @@
 //! }
 //! ```
 //!
-//! Now that you have mastered [`Accessor`], let's go and implement our own backend!
+//! Now that you have mastered [`Access`], let's go and implement our own backend!
 //!
 //! # Tutorial
 //!
@@ -184,7 +184,6 @@
 //! /// - [x] read
 //! /// - [ ] write
 //! /// - [ ] list
-//! /// - [ ] scan
 //! /// - [ ] presign
 //! /// - [ ] blocking
 //! ///
@@ -272,7 +271,7 @@
 //! ## Backend
 //!
 //! I'm sure you can see it already: `DuckBuilder` will build a
-//! `DuckBackend` that implements [`Accessor`]. The backend is what we used
+//! `DuckBackend` that implements [`Access`]. The backend is what we used
 //! to communicate with the super-powered ducks!
 //!
 //! Let's keep adding more code under `backend.rs`:
@@ -285,7 +284,7 @@
 //! }
 //!
 //! #[async_trait]
-//! impl Accessor for DuckBackend {
+//! impl Access for DuckBackend {
 //!     type Reader = DuckReader;
 //!     type BlockingReader = ();
 //!     type Writer = ();
@@ -312,16 +311,16 @@
 //! }
 //! ```
 //!
-//! Congratulations, we have implemented an [`Accessor`] that can talk to
+//! Congratulations, we have implemented an [`Access`] that can talk to
 //! Super Power Ducks!
 //!
 //! What!? There are no Super Power Ducks? So sad, but never mind, we have
 //! really powerful storage services [here](https://github.com/apache/opendal/issues/5). Welcome to pick one to implement. I promise you won't
 //! have to `gagaga!()` this time.
 //!
-//! [`Accessor`]: crate::raw::Accessor
+//! [`Access`]: crate::raw::Access
 //! [`Operation`]: crate::raw::Operation
 //! [`Capability`]: crate::Capability
-//! [`AccessorInfo`]: crate::raw::AccessorInfo
+//! [`AccessorInfo`]: crate::raw::AccessInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder

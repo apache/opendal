@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use async_trait::async_trait;
 use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
@@ -77,10 +76,10 @@ impl ChaosLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ChaosLayer {
-    type LayeredAccessor = ChaosAccessor<A>;
+impl<A: Access> Layer<A> for ChaosLayer {
+    type LayeredAccess = ChaosAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
             rng: StdRng::from_entropy(),
@@ -97,9 +96,7 @@ pub struct ChaosAccessor<A> {
     error_ratio: f64,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
+impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;
     type BlockingReader = ChaosReader<A::BlockingReader>;
@@ -174,9 +171,9 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read_at(offset, limit).await
+            self.inner.read_at(offset, size).await
         } else {
             Err(Self::unexpected_eof())
         }
@@ -184,9 +181,9 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read_at(offset, limit)
+            self.inner.read_at(offset, size)
         } else {
             Err(Self::unexpected_eof())
         }

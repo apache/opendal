@@ -116,7 +116,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 - [ ] Push the release git tag
 - [ ] Publish artifacts to SVN RELEASE branch
-- [ ] Change OpenDAL Website download link
 - [ ] Release Maven artifacts
 - [ ] Send the announcement
 
@@ -149,7 +148,7 @@ Please note that this version is the exact version of the release, not the relea
 
 Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html). 
 
-Running `python3 ./scripts/dependencies.py generate` to update the dependencies list of every package.
+Running `python3 ./scripts/dependencies.py generate` to update the dependency list of every package.
 
 ### Push release candidate tag
 
@@ -201,19 +200,19 @@ For example:
 
 ```shell
 dist
-├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz
-├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz.asc
-├── apache-opendal-bindings-c-0.44.2+core.0.45.0-src.tar.gz.sha512
+├── apache-opendal-bindings-c-0.44.2-src.tar.gz
+├── apache-opendal-bindings-c-0.44.2-src.tar.gz.asc
+├── apache-opendal-bindings-c-0.44.2-src.tar.gz.sha512
 ...
 ├── apache-opendal-core-0.45.0-src.tar.gz
 ├── apache-opendal-core-0.45.0-src.tar.gz.asc
 ├── apache-opendal-core-0.45.0-src.tar.gz.sha512
-├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz
-├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz.asc
-├── apache-opendal-integrations-dav-server-0.0.0+core.0.45.0-src.tar.gz.sha512
-├── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz
-├── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz.asc
-└── apache-opendal-integrations-object_store-0.42.0+core.0.45.0-src.tar.gz.sha512
+├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz
+├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz.asc
+├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz.sha512
+├── apache-opendal-integrations-object_store-0.42.0-src.tar.gz
+├── apache-opendal-integrations-object_store-0.42.0-src.tar.gz.asc
+└── apache-opendal-integrations-object_store-0.42.0-src.tar.gz.sha512
 
 1 directory, 60 files
 ```
@@ -321,6 +320,10 @@ Pypi testing repo:
 
 https://test.pypi.org/project/opendal/
 
+Website staged:
+
+https://opendal-v${release_version | replace('.', '-')}.staged.apache.org/
+
 Please download, verify, and test.
 
 The VOTE will be open for at least 72 hours and until the necessary
@@ -361,11 +364,11 @@ The vote should be open for **at least 72 hours** except the following cases:
 2. The wild user effected bug fixes
 3. Any other emergency cases
 
-The Release manager should claim the emergency cases in the vote email if he want to vote it rapidly.
+The Release manager should claim the emergency cases in the vote email if he wants to vote it rapidly.
 
 > Tips: The 72 hours is the minimum time for voting, so we can ensure that community members from various time zones can participate in the verification process.
 
-After at least 3 `+1` binding vote ([from OpenDAL Podling PMC member](https://opendal.apache.org/community/#committers)) and no veto, claim the vote result:
+After at least 3 `+1` binding vote ([from OpenDAL PMC member](https://people.apache.org/phonebook.html?project=opendal)) and more +1 bindings than -1 bindings, claim the vote result:
 
 Title:
 
@@ -425,14 +428,6 @@ git push origin ${opendal_version}
 svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_version} https://dist.apache.org/repos/dist/release/opendal/${opendal_version} -m "Release ${opendal_version}"
 ```
 
-### Change OpenDAL Website download link
-
-Change the [download](https://github.com/apache/opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
-
-Update the latest release link and add the new release link to the version list.
-
-Take [Add 0.39.0 release link to download.md](https://github.com/apache/opendal/pull/2882) as an example.
-
 ### Release Maven artifacts
 
 1. Open https://repository.apache.org/#stagingRepositories.
@@ -454,9 +449,11 @@ We need to check the language binding artifacts in the language package repo to 
 - Java: <https://repository.apache.org/#nexus-search;quick~opendal>
 - Node.js: <https://www.npmjs.com/package/opendal>
 
-For Java binding, if we can not find the latest version of artifacts in the repo, we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo. 
+For Java binding, if we cannot find the latest version of artifacts in the repo,
+we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo. 
 
-For non-Java bindings, if we can not find the latest version of artifacts in the repo, we need to check the GitHub action status.
+For non-Java bindings, if we cannot find the latest version of artifacts in the repo,
+we need to check the GitHub action status.
 
 ### Create a GitHub Release
 
@@ -471,7 +468,7 @@ For non-Java bindings, if we can not find the latest version of artifacts in the
 
 Send the release announcement to `dev@opendal.apache.org` and CC `announce@apache.org`.
 
-> Tips: Please following the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announcement mailing list.
+> Tips: Please follow the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announcement mailing list.
 
 Instead of adding breaking changes, let's include the new features as "notable changes" in the announcement.
 

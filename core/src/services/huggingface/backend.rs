@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
@@ -243,8 +242,7 @@ pub struct HuggingfaceBackend {
     core: Arc<HuggingfaceCore>,
 }
 
-#[async_trait]
-impl Accessor for HuggingfaceBackend {
+impl Access for HuggingfaceBackend {
     type Reader = HuggingfaceReader;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;

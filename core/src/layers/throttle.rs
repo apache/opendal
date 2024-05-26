@@ -19,7 +19,6 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::thread;
 
-use async_trait::async_trait;
 use governor::clock::Clock;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
@@ -84,10 +83,10 @@ impl ThrottleLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ThrottleLayer {
-    type LayeredAccessor = ThrottleAccessor<A>;
+impl<A: Access> Layer<A> for ThrottleLayer {
+    type LayeredAccess = ThrottleAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccessor {
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
         let rate_limiter = Arc::new(RateLimiter::direct(
             Quota::per_second(self.bandwidth).allow_burst(self.burst),
         ));
@@ -104,14 +103,12 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
 type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;
 
 #[derive(Debug, Clone)]
-pub struct ThrottleAccessor<A: Accessor> {
+pub struct ThrottleAccessor<A: Access> {
     inner: A,
     rate_limiter: SharedRateLimiter,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
+impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
     type BlockingReader = ThrottleWrapper<A::BlockingReader>;
@@ -182,16 +179,14 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read_at(offset, limit).await
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size).await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        // TODO: How can we handle buffer reads with a limiter?
-        self.inner.read_at(offset, limit)
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        self.inner.read_at(offset, size)
     }
 }
 

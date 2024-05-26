@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Buf;
 use http::Request;
 use http::StatusCode;
@@ -267,8 +266,7 @@ pub struct B2Backend {
     core: Arc<B2Core>,
 }
 
-#[async_trait]
-impl Accessor for B2Backend {
+impl Access for B2Backend {
     type Reader = B2Reader;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;

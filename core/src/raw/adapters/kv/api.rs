@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, future::ready};
 
-use async_trait::async_trait;
+use futures::Future;
 
 use crate::raw::*;
 use crate::Capability;
@@ -27,7 +27,6 @@ use crate::*;
 /// KvAdapter is the adapter to underlying kv services.
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
-#[async_trait]
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Return the metadata of this key value accessor.
     fn metadata(&self) -> Metadata;
@@ -35,7 +34,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
-    async fn get(&self, path: &str) -> Result<Option<Buffer>>;
+    fn get(&self, path: &str) -> impl Future<Output = Result<Option<Buffer>>> + MaybeSend;
 
     /// The blocking version of get.
     fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
@@ -49,7 +48,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Set a key into service.
-    async fn set(&self, path: &str, value: Buffer) -> Result<()>;
+    fn set(&self, path: &str, value: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// The blocking version of set.
     fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
@@ -65,7 +64,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
-    async fn delete(&self, path: &str) -> Result<()>;
+    fn delete(&self, path: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Delete a key from service in blocking way.
     ///
@@ -81,14 +80,14 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Scan a key prefix to get all keys that start with this key.
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
         let _ = path;
 
-        Err(Error::new(
+        ready(Err(Error::new(
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_operation("kv::Adapter::scan"))
+        .with_operation("kv::Adapter::scan")))
     }
 
     /// Scan a key prefix to get all keys that start with this key
@@ -104,15 +103,15 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Append a key into service
-    async fn append(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn append(&self, path: &str, value: &[u8]) -> impl Future<Output = Result<()>> + MaybeSend {
         let _ = path;
         let _ = value;
 
-        Err(Error::new(
+        ready(Err(Error::new(
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_operation("kv::Adapter::append"))
+        .with_operation("kv::Adapter::append")))
     }
 
     /// Append a key into service

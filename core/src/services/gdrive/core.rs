@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes;
 use bytes::Buf;
 use bytes::Bytes;
@@ -314,7 +313,7 @@ impl GdriveSigner {
                     let resp_body = resp.into_body();
                     let token: GdriveTokenResponse = serde_json::from_reader(resp_body.reader())
                         .map_err(new_json_deserialize_error)?;
-                    self.access_token = token.access_token.clone();
+                    self.access_token.clone_from(&token.access_token);
                     self.expires_in = Utc::now()
                         + chrono::TimeDelta::try_seconds(token.expires_in)
                             .expect("expires_in must be valid seconds")
@@ -345,8 +344,6 @@ impl GdrivePathQuery {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PathQuery for GdrivePathQuery {
     async fn root(&self) -> Result<String> {
         Ok("root".to_string())

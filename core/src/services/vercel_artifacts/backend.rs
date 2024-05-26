@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use http::header;
 use http::Request;
 use http::Response;
@@ -44,8 +43,7 @@ impl Debug for VercelArtifactsBackend {
     }
 }
 
-#[async_trait]
-impl Accessor for VercelArtifactsBackend {
+impl Access for VercelArtifactsBackend {
     type Reader = VercelArtifactsReader;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();

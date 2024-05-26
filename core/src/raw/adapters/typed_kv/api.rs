@@ -15,19 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
+use std::future::Future;
 use std::mem::size_of;
+use std::{fmt::Debug, future::ready};
 
-use async_trait::async_trait;
 use chrono::Utc;
 
-use crate::Buffer;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
+use crate::{raw::MaybeSend, Buffer};
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -42,38 +42,37 @@ use crate::Scheme;
 ///
 /// Ideally, we should use `typed_kv::Adapter` instead of `kv::Adapter` for
 /// in-memory rust libs like moka and dashmap.
-#[async_trait]
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get the scheme and name of current adapter.
     fn info(&self) -> Info;
 
     /// Get a value from adapter.
-    async fn get(&self, path: &str) -> Result<Option<Value>>;
+    fn get(&self, path: &str) -> impl Future<Output = Result<Option<Value>>> + MaybeSend;
 
     /// Get a value from adapter.
     fn blocking_get(&self, path: &str) -> Result<Option<Value>>;
 
     /// Set a value into adapter.
-    async fn set(&self, path: &str, value: Value) -> Result<()>;
+    fn set(&self, path: &str, value: Value) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Set a value into adapter.
     fn blocking_set(&self, path: &str, value: Value) -> Result<()>;
 
     /// Delete a value from adapter.
-    async fn delete(&self, path: &str) -> Result<()>;
+    fn delete(&self, path: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Delete a value from adapter.
     fn blocking_delete(&self, path: &str) -> Result<()>;
 
     /// Scan a key prefix to get all keys that start with this key.
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
         let _ = path;
 
-        Err(Error::new(
+        ready(Err(Error::new(
             ErrorKind::Unsupported,
             "typed_kv adapter doesn't support this operation",
         )
-        .with_operation("typed_kv::Adapter::scan"))
+        .with_operation("typed_kv::Adapter::scan")))
     }
 
     /// Scan a key prefix to get all keys that start with this key

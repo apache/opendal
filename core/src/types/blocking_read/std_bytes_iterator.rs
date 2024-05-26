@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io;
+use std::ops::Range;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -30,7 +31,7 @@ use crate::raw::*;
 pub struct StdBytesIterator {
     inner: oio::BlockingReader,
     offset: u64,
-    size: u64,
+    end: u64,
     cap: usize,
 
     cur: u64,
@@ -39,11 +40,11 @@ pub struct StdBytesIterator {
 impl StdBytesIterator {
     /// NOTE: don't allow users to create StdIterator directly.
     #[inline]
-    pub(crate) fn new(r: oio::BlockingReader, range: std::ops::Range<u64>) -> Self {
+    pub(crate) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
         StdBytesIterator {
             inner: r,
             offset: range.start,
-            size: range.end - range.start,
+            end: range.end,
             // TODO: should use services preferred io size.
             cap: 4 * 1024 * 1024,
             cur: 0,
@@ -61,12 +62,12 @@ impl Iterator for StdBytesIterator {
     type Item = io::Result<Bytes>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur >= self.size {
+        if self.offset + self.cur >= self.end {
             return None;
         }
 
         let next_offset = self.offset + self.cur;
-        let next_size = (self.size - self.cur).min(self.cap as u64) as usize;
+        let next_size = (self.end - self.offset - self.cur).min(self.cap as u64) as usize;
         match self.inner.read_at(next_offset, next_size) {
             Ok(buf) if !buf.has_remaining() => None,
             Ok(mut buf) => {

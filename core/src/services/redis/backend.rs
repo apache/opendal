@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use http::Uri;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
@@ -374,7 +373,6 @@ impl Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

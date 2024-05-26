@@ -8,7 +8,6 @@
 - [ ] copy
 - [ ] rename
 - [ ] list
-- [ ] scan
 - [ ] presign
 - [ ] blocking
 

@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
 use crate::raw::TwoWays;
@@ -107,10 +105,10 @@ use crate::*;
 /// operation is not supported, an error will be returned directly.
 pub struct CompleteLayer;
 
-impl<A: Accessor> Layer<A> for CompleteLayer {
-    type LayeredAccessor = CompleteAccessor<A>;
+impl<A: Access> Layer<A> for CompleteLayer {
+    type LayeredAccess = CompleteAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         CompleteAccessor {
             meta: inner.info(),
             inner: Arc::new(inner),
@@ -119,18 +117,18 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
 }
 
 /// Provide complete wrapper for backend.
-pub struct CompleteAccessor<A: Accessor> {
+pub struct CompleteAccessor<A: Access> {
     meta: AccessorInfo,
     inner: Arc<A>,
 }
 
-impl<A: Accessor> Debug for CompleteAccessor<A> {
+impl<A: Access> Debug for CompleteAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> CompleteAccessor<A> {
+impl<A: Access> CompleteAccessor<A> {
     fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
         let scheme = self.meta.scheme();
         let op = op.into();
@@ -369,9 +367,7 @@ impl<A: Accessor> CompleteAccessor<A> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<A: Accessor> LayeredAccessor for CompleteAccessor<A> {
+impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type BlockingReader = CompleteReader<A::BlockingReader>;
@@ -591,22 +587,40 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if limit == 0 {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, limit).await
+        let buf = self.0.read_at(offset, size).await?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
-        if limit == 0 {
+    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
             return Ok(Buffer::new());
         }
 
-        self.0.read_at(offset, limit)
+        let buf = self.0.read_at(offset, size)?;
+        if buf.len() != size {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "service didn't return the expected size",
+            )
+            .with_context("expect", size.to_string())
+            .with_context("actual", buf.len().to_string()));
+        }
+        Ok(buf)
     }
 }
 
@@ -694,7 +708,6 @@ where
 mod tests {
     use std::time::Duration;
 
-    use async_trait::async_trait;
     use http::HeaderMap;
     use http::Method as HttpMethod;
 
@@ -705,9 +718,7 @@ mod tests {
         capability: Capability,
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-    impl Accessor for MockService {
+    impl Access for MockService {
         type Reader = oio::Reader;
         type Writer = oio::Writer;
         type Lister = oio::Lister;

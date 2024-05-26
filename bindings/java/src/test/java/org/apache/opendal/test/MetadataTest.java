@@ -26,7 +26,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.Operator;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ public class MetadataTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
-        try (final Operator op = Operator.of("fs", conf)) {
+        try (final AsyncOperator op = AsyncOperator.of("fs", conf)) {
             final String dir = UUID.randomUUID() + "/";
             op.createDir(dir).join();
             final Metadata dirMetadata = op.stat(dir).join();
@@ -72,7 +72,7 @@ public class MetadataTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
-        try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
+        try (final Operator op = Operator.of("fs", conf)) {
             final String dir = UUID.randomUUID() + "/";
             op.createDir(dir);
             final Metadata dirMetadata = op.stat(dir);

@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Metadata;
+import org.apache.opendal.Operator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -42,7 +42,7 @@ public class OperatorUtf8DecodeTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
-        try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
+        try (final Operator op = Operator.of("fs", conf)) {
             final String path = "❌😱中文.test";
             final byte[] content = "❌😱中文".getBytes();
             op.write(path, content);

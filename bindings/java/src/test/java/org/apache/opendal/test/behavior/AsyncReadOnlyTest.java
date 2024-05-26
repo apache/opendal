@@ -45,7 +45,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && !capability.write);
     }
 
@@ -54,11 +54,11 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyStatFileAndDir() {
-        final Metadata fileMeta = op().stat(NORMAL_FILE_NAME).join();
+        final Metadata fileMeta = asyncOp().stat(NORMAL_FILE_NAME).join();
         assertTrue(fileMeta.isFile());
         assertEquals(FILE_LENGTH, fileMeta.getContentLength());
 
-        final Metadata dirMeta = op().stat(NORMAL_DIR_NAME).join();
+        final Metadata dirMeta = asyncOp().stat(NORMAL_DIR_NAME).join();
         assertTrue(dirMeta.isDir());
     }
 
@@ -67,11 +67,11 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyStatSpecialChars() {
-        final Metadata fileMeta = op().stat(SPECIAL_FILE_NAME).join();
+        final Metadata fileMeta = asyncOp().stat(SPECIAL_FILE_NAME).join();
         assertTrue(fileMeta.isFile());
         assertEquals(FILE_LENGTH, fileMeta.getContentLength());
 
-        final Metadata dirMeta = op().stat(SPECIAL_DIR_NAME).join();
+        final Metadata dirMeta = asyncOp().stat(SPECIAL_DIR_NAME).join();
         assertTrue(dirMeta.isDir());
     }
 
@@ -80,7 +80,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyStatNotCleanedPath() {
-        final Metadata fileMeta = op().stat("//" + NORMAL_FILE_NAME).join();
+        final Metadata fileMeta = asyncOp().stat("//" + NORMAL_FILE_NAME).join();
         assertTrue(fileMeta.isFile());
         assertEquals(FILE_LENGTH, fileMeta.getContentLength());
     }
@@ -92,7 +92,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
     public void testReadOnlyStatNotExist() {
         final String path = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> op().stat(path).join())
+        assertThatThrownBy(() -> asyncOp().stat(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -101,10 +101,10 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyStatRoot() {
-        final Metadata meta1 = op().stat("").join();
+        final Metadata meta1 = asyncOp().stat("").join();
         assertTrue(meta1.isDir());
 
-        final Metadata meta2 = op().stat("/").join();
+        final Metadata meta2 = asyncOp().stat("/").join();
         assertTrue(meta2.isDir());
     }
 
@@ -113,7 +113,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyReadFull() throws NoSuchAlgorithmException {
-        final byte[] content = op().read(NORMAL_FILE_NAME).join();
+        final byte[] content = asyncOp().read(NORMAL_FILE_NAME).join();
         assertEquals(FILE_LENGTH, content.length);
 
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
@@ -124,7 +124,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testReadOnlyReadFullWithSpecialChars() throws NoSuchAlgorithmException {
-        final byte[] content = op().read(SPECIAL_FILE_NAME).join();
+        final byte[] content = asyncOp().read(SPECIAL_FILE_NAME).join();
         assertEquals(FILE_LENGTH, content.length);
 
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
@@ -137,7 +137,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
     public void testReadOnlyReadNotExist() {
         final String path = UUID.randomUUID().toString();
 
-        assertThatThrownBy(() -> op().read(path).join())
+        assertThatThrownBy(() -> asyncOp().read(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
@@ -148,7 +148,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
     public void testReadOnlyReadWithDirPath() {
         final String path = UUID.randomUUID().toString() + "/";
 
-        assertThatThrownBy(() -> op().read(path).join())
+        assertThatThrownBy(() -> asyncOp().read(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
     }
 }

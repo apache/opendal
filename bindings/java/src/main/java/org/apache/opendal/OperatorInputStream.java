@@ -39,7 +39,7 @@ public class OperatorInputStream extends InputStream {
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
-    public OperatorInputStream(BlockingOperator operator, String path) {
+    public OperatorInputStream(Operator operator, String path) {
         final long op = operator.nativeHandle;
         this.reader = new Reader(constructReader(op, path));
     }

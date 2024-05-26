@@ -47,7 +47,7 @@ public class AsyncPresignTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.list && capability.write && capability.presign);
     }
 
@@ -60,7 +60,7 @@ public class AsyncPresignTest extends BehaviorTestBase {
         final byte[] content = generateBytes();
 
         final PresignedRequest signedReq =
-                op().presignWrite(path, Duration.ofSeconds(3600)).join();
+                asyncOp().presignWrite(path, Duration.ofSeconds(3600)).join();
 
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
             final ClassicRequestBuilder builder =
@@ -69,10 +69,10 @@ public class AsyncPresignTest extends BehaviorTestBase {
             httpclient.execute(builder.build(), rsp -> rsp);
         }
 
-        final Metadata meta = op().stat(path).join();
+        final Metadata meta = asyncOp().stat(path).join();
         assertEquals(content.length, meta.getContentLength());
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -82,10 +82,10 @@ public class AsyncPresignTest extends BehaviorTestBase {
     public void testPresignStat() throws IOException {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        op().write(path, content).join();
+        asyncOp().write(path, content).join();
 
         final PresignedRequest signedReq =
-                op().presignStat(path, Duration.ofSeconds(3600)).join();
+                asyncOp().presignStat(path, Duration.ofSeconds(3600)).join();
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
             final ClassicRequestBuilder builder = createRequestBuilder(signedReq);
 
@@ -96,7 +96,7 @@ public class AsyncPresignTest extends BehaviorTestBase {
                     response.getFirstHeader(HttpHeaders.CONTENT_LENGTH).getValue());
         }
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -106,10 +106,10 @@ public class AsyncPresignTest extends BehaviorTestBase {
     public void testPresignRead() throws IOException, NoSuchAlgorithmException {
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
-        op().write(path, content).join();
+        asyncOp().write(path, content).join();
 
         final PresignedRequest signedReq =
-                op().presignRead(path, Duration.ofSeconds(3600)).join();
+                asyncOp().presignRead(path, Duration.ofSeconds(3600)).join();
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
             final ClassicRequestBuilder builder = createRequestBuilder(signedReq);
 
@@ -122,7 +122,7 @@ public class AsyncPresignTest extends BehaviorTestBase {
             assertArrayEquals(digest.digest(content), digest.digest(responseContent));
         }
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     private ClassicRequestBuilder createRequestBuilder(final PresignedRequest signedReq) {

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Random;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -34,16 +34,16 @@ public abstract class BehaviorTestBase {
 
     @BeforeAll
     public static void assume() {
+        assumeTrue(behaviorExtension.asyncOperator != null);
         assumeTrue(behaviorExtension.operator != null);
-        assumeTrue(behaviorExtension.blockingOperator != null);
+    }
+
+    protected AsyncOperator asyncOp() {
+        return behaviorExtension.asyncOperator;
     }
 
     protected Operator op() {
         return behaviorExtension.operator;
-    }
-
-    protected BlockingOperator blockingOp() {
-        return behaviorExtension.blockingOperator;
     }
 
     /**
@@ -62,14 +62,13 @@ public abstract class BehaviorTestBase {
      *
      * @param input input bytes
      * @return SHA256 digest string
-     * @throws NoSuchAlgorithmException
      */
     public static String sha256Digest(final byte[] input) throws NoSuchAlgorithmException {
         final MessageDigest digest = MessageDigest.getInstance("SHA-256");
         final byte[] hash = digest.digest(input);
         final StringBuilder hexString = new StringBuilder();
-        for (int i = 0; i < hash.length; i++) {
-            final String hex = Integer.toHexString(0xff & hash[i]);
+        for (byte b : hash) {
+            final String hex = Integer.toHexString(0xff & b);
             if (hex.length() == 1) hexString.append('0');
             hexString.append(hex);
         }

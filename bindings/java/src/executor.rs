@@ -29,7 +29,7 @@ use crate::Result;
 
 static mut RUNTIME: OnceCell<Executor> = OnceCell::new();
 thread_local! {
-    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
+    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = const { RefCell::new(None) };
 }
 
 /// # Safety

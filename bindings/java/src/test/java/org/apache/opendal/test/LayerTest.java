@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Layer;
-import org.apache.opendal.Operator;
 import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +34,8 @@ public class LayerTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
         final Layer retryLayer = RetryLayer.builder().build();
-        @Cleanup final Operator op = Operator.of("memory", conf);
-        @Cleanup final Operator layeredOp = op.layer(retryLayer);
+        @Cleanup final AsyncOperator op = AsyncOperator.of("memory", conf);
+        @Cleanup final AsyncOperator layeredOp = op.layer(retryLayer);
         assertThat(layeredOp.info).isNotNull();
     }
 }

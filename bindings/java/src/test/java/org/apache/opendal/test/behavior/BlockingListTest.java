@@ -38,7 +38,7 @@ import org.junit.jupiter.api.TestInstance;
 public class BlockingListTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = blockingOp().info.fullCapability;
+        final Capability capability = op().info.fullCapability;
         assumeTrue(capability.read
                 && capability.write
                 && capability.copy
@@ -53,13 +53,13 @@ public class BlockingListTest extends BehaviorTestBase {
         final String path = String.format("%s/%s", parent, UUID.randomUUID());
         final byte[] content = generateBytes();
 
-        blockingOp().write(path, content);
+        op().write(path, content);
 
-        final List<Entry> list = blockingOp().list(parent + "/");
+        final List<Entry> list = op().list(parent + "/");
         boolean found = false;
         for (Entry entry : list) {
             if (entry.getPath().equals(path)) {
-                Metadata meta = blockingOp().stat(path);
+                Metadata meta = op().stat(path);
                 assertTrue(meta.isFile());
                 assertThat(meta.getContentLength()).isEqualTo(content.length);
 
@@ -68,14 +68,14 @@ public class BlockingListTest extends BehaviorTestBase {
         }
         assertTrue(found);
 
-        blockingOp().delete(path);
+        op().delete(path);
     }
 
     @Test
     public void testBlockingListNonExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
-        final List<Entry> list = blockingOp().list(dir);
+        final List<Entry> list = op().list(dir);
         assertTrue(list.isEmpty());
     }
 
@@ -90,22 +90,22 @@ public class BlockingListTest extends BehaviorTestBase {
         };
         for (String path : expected) {
             if (path.endsWith("/")) {
-                blockingOp().createDir(String.format("%s/%s", parent, path));
+                op().createDir(String.format("%s/%s", parent, path));
             } else {
-                blockingOp().write(String.format("%s/%s", parent, path), "test_scan");
+                op().write(String.format("%s/%s", parent, path), "test_scan");
             }
         }
 
-        blockingOp().removeAll(parent + "/x/");
+        op().removeAll(parent + "/x/");
 
         for (String path : expected) {
             if (path.endsWith("/")) {
                 continue;
             }
-            assertThatThrownBy(() -> blockingOp().stat(String.format("%s/%s", parent, path)))
+            assertThatThrownBy(() -> op().stat(String.format("%s/%s", parent, path)))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
         }
 
-        blockingOp().removeAll(parent + "/");
+        op().removeAll(parent + "/");
     }
 }

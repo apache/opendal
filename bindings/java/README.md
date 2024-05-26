@@ -11,18 +11,19 @@
 ```java
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
 
 public class Main {
-    public static void main(String[] args) {
-        final Map<String, String> conf = new HashMap<>();
-        conf.put("root", "/tmp");
+  public static void main(String[] args) {
+    final Map<String, String> conf = new HashMap<>();
+    conf.put("root", "/tmp");
 
-        try (Operator op = Operator.of("fs", conf)) {
-            op.write("/path/to/data","Hello world").join();
-            System.out.println(new String(op.read("/path/to/data").join()));
-        }
+    try (AsyncOperator op = AsyncOperator.of("fs", conf)) {
+      op.write("/path/to/data", "Hello world").join();
+      System.out.println(new String(op.read("/path/to/data").join()));
     }
+  }
 }
 ```
 

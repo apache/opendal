@@ -33,10 +33,16 @@ impl HdfsNativeReader {
 
 impl oio::Read for HdfsNativeReader {
     async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        let mut r = Self { f: self.f.clone() };
         // Perform the read operation using read_range
-        let bytes = self
+        // let bytes = self
+        //     .f
+        //     .read_range(offset as usize, limit)
+        //     .await
+        //     .map_err(parse_hdfs_error)?;
+        let bytes = r
             .f
-            .read_range(offset as usize, limit)
+            .read(limit)
             .await
             .map_err(parse_hdfs_error)?;
 

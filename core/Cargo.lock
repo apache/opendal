@@ -1888,9 +1888,9 @@ checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
 
 [[package]]
 name = "crc32c"
-version = "0.6.5"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89254598aa9b9fa608de44b3ae54c810f0f06d755e24c50177f1f8f31ff50ce2"
+checksum = "716b38bb6e49e9071060ab2c5e26195b70274f83fdf6cbc44542d63bb2f45c7d"
 dependencies = [
  "rustc_version 0.4.0",
 ]

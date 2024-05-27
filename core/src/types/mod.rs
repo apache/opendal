@@ -44,6 +44,9 @@ mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
 
+mod execute;
+pub use execute::*;
+
 mod operator;
 pub use operator::operator_functions;
 pub use operator::operator_futures;

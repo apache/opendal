@@ -12,11 +12,18 @@ Add executor in opendal to allow running tasks concurrently in background.
 OpenDAL offers top-tier support for concurrent execution, allowing tasks to run simultaneously in the background. Users can easily enable concurrent file read/write operations with just one line of code:
 
 ```diff
- let w = op
+ let mut w = op
      .writer_with(path)
      .chunk(8 * 1024 * 1024) // 8 MiB per chunk
 +    .concurrent(16) // 16 concurrent tasks
      .await?;
+     
+ w.write(bs).await?;
+ w.write(bs).await?; // The submited tasks only be executed while user calling `write`.
+ ...
+ sleep(Duration::from_secs(10)).await; // The submited tasks make no progress during `sleep`.
+ ...
+ w.close().await?;
 ```
 
 However, the execution of those tasks relies on users continuously calling `write`. They cannot run tasks concurrently in the background. (I explained the technical details in the `Rationale and alternatives` section.)

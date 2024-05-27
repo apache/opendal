@@ -19,6 +19,7 @@ use super::*;
 use crate::raw::MaybeSend;
 use crate::*;
 use futures::FutureExt;
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::sync::Arc;
 
@@ -29,11 +30,17 @@ use std::sync::Arc;
 ///
 /// Executor will run futures in background and return a [`Task`] as handle to the future. Users
 /// can call `task.await` to wait for the future to complete or drop the `Task` to cancel it.
+#[derive(Clone)]
 pub struct Executor {
     executor: Arc<dyn Execute>,
 }
 
-#[cfg(feature = "executors-tokio")]
+impl Debug for Executor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Executor")
+    }
+}
+
 impl Default for Executor {
     fn default() -> Self {
         Self::new()
@@ -43,10 +50,17 @@ impl Default for Executor {
 impl Executor {
     /// Create a default executor.
     ///
-    /// The default executor is enabled by feature flags.
-    #[cfg(feature = "executors-tokio")]
+    /// The default executor is enabled by feature flags. If no feature flags enabled, the default
+    /// executor will always return error if users try to perform concurrent tasks.
     pub fn new() -> Self {
-        Self::with(executors::TokioExecutor::default())
+        #[cfg(feature = "executors-tokio")]
+        {
+            Self::with(executors::TokioExecutor::default())
+        }
+        #[cfg(not(feature = "executors-tokio"))]
+        {
+            Self::with(())
+        }
     }
 
     /// Create a new executor with given execute impl.

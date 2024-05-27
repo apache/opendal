@@ -306,6 +306,7 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    executor: Option<Executor>,
 }
 
 impl OpRead {
@@ -379,6 +380,31 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+
+    /// Set the executor of the option
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Merge given executor into option.
+    ///
+    /// If executor has already been set, this will do nothing.
+    /// Otherwise, this will set the given executor.
+    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
+        if self.executor.is_some() {
+            return self;
+        }
+        if let Some(exec) = executor {
+            return self.with_executor(exec);
+        }
+        self
+    }
+
+    /// Get executor from option
+    pub fn executor(&self) -> Option<&Executor> {
+        self.executor.as_ref()
     }
 }
 
@@ -550,10 +576,10 @@ pub struct OpWrite {
     append: bool,
     chunk: Option<usize>,
     concurrent: usize,
-
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
+    executor: Option<Executor>,
 }
 
 impl OpWrite {
@@ -645,6 +671,31 @@ impl OpWrite {
     /// Set the maximum concurrent write task amount.
     pub fn with_concurrent(mut self, concurrent: usize) -> Self {
         self.concurrent = concurrent;
+        self
+    }
+
+    /// Get the executor from option
+    pub fn executor(&self) -> Option<&Executor> {
+        self.executor.as_ref()
+    }
+
+    /// Set the executor of the option
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Merge given executor into option.
+    ///
+    /// If executor has already been set, this will do nothing.
+    /// Otherwise, this will set the given executor.
+    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
+        if self.executor.is_some() {
+            return self;
+        }
+        if let Some(exec) = executor {
+            return self.with_executor(exec);
+        }
         self
     }
 }

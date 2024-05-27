@@ -19,9 +19,9 @@ OpenDAL offers top-tier support for concurrent execution, allowing tasks to run 
      .await?;
      
  w.write(bs).await?;
- w.write(bs).await?; // The submited tasks only be executed while user calling `write`.
+ w.write(bs).await?; // The submitted tasks only be executed while user calling `write`.
  ...
- sleep(Duration::from_secs(10)).await; // The submited tasks make no progress during `sleep`.
+ sleep(Duration::from_secs(10)).await; // The submitted tasks make no progress during `sleep`.
  ...
  w.close().await?;
 ```

@@ -88,12 +88,8 @@ impl VhostUserFsThread {
         vrings: &[VringMutex],
     ) -> VhostUserBackendResult<()> {
         let mut vring_state = match device_event {
-            HIPRIO_QUEUE_EVENT => {
-                vrings[0].get_mut()
-            }
-            REQ_QUEUE_EVENT => {
-                vrings[1].get_mut()
-            }
+            HIPRIO_QUEUE_EVENT => vrings[0].get_mut(),
+            REQ_QUEUE_EVENT => vrings[1].get_mut(),
             _ => return Err(Error::HandleEventUnknownEvent.into()),
         };
         if self.event_idx {

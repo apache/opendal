@@ -88,13 +88,13 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
                 .ok_or_else(|| {
                     io::Error::new(io::ErrorKind::InvalidData, Error::DescriptorChainOverflow)
                 })?;
-        let mut reamin = bytes_consumed;
+        let mut remain = bytes_consumed;
         while let Some(vs) = self.buffers.pop_front() {
-            if reamin < vs.len() {
-                self.buffers.push_front(vs.offset(reamin).unwrap());
+            if remain < vs.len() {
+                self.buffers.push_front(vs.offset(remain).unwrap());
                 break;
             }
-            reamin -= vs.len();
+            remain -= vs.len();
         }
         self.bytes_consumed = total_bytes_consumed;
         Ok(bytes_consumed)
@@ -145,9 +145,8 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
 
     pub fn read_obj<T: ByteValued>(&mut self) -> io::Result<T> {
         let mut obj = MaybeUninit::<T>::uninit();
-        let buf = unsafe {
-            std::slice::from_raw_parts_mut(obj.as_mut_ptr() as *mut u8, size_of::<T>())
-        };
+        let buf =
+            unsafe { std::slice::from_raw_parts_mut(obj.as_mut_ptr() as *mut u8, size_of::<T>()) };
         self.read_exact(buf)?;
         Ok(unsafe { obj.assume_init() })
     }

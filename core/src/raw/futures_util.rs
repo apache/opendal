@@ -68,8 +68,8 @@ unsafe impl<T> MaybeSend for T {}
 pub struct ConcurrentTasks<I, O> {
     /// The executor to execute the tasks.
     ///
-    /// If it's `None`, the task will be executed in the current thread.
-    executor: Option<Executor>,
+    /// If user doesn't provide an executor, the tasks will be executed with the default executor.
+    executor: Executor,
     /// The factory to create the task.
     ///
     /// Caller of ConcurrentTasks must provides a factory to create the task for executing.
@@ -100,7 +100,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
     ) -> Self {
         Self {
-            executor,
+            executor: executor.unwrap_or_default(),
             factory,
 
             tasks: VecDeque::with_capacity(concurrent),
@@ -111,7 +111,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Return true if the tasks are running concurrently.
     #[inline]
     fn is_concurrent(&self) -> bool {
-        self.tasks.capacity() > 1 && self.executor.is_some()
+        self.tasks.capacity() > 1
     }
 
     /// Clear all tasks and results.
@@ -141,10 +141,6 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             };
         }
 
-        let Some(exec) = &self.executor else {
-            panic!("executor must be set for concurrent tasks")
-        };
-
         loop {
             // Try poll once to see if there is any ready task.
             if let Some(mut task) = self.tasks.pop_front() {
@@ -152,7 +148,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     match o {
                         Ok(o) => self.results.push_back(o),
                         Err(err) => {
-                            self.tasks.push_front(exec.execute((self.factory)(i)));
+                            self.tasks
+                                .push_front(self.executor.execute((self.factory)(i)));
                             return Err(err);
                         }
                     }
@@ -164,7 +161,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
             // Try to push new task if there are available space.
             if self.tasks.len() < self.tasks.capacity() {
-                self.tasks.push_back(exec.execute((self.factory)(input)));
+                self.tasks
+                    .push_back(self.executor.execute((self.factory)(input)));
                 return Ok(());
             }
 
@@ -180,7 +178,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     continue;
                 }
                 Err(err) => {
-                    self.tasks.push_front(exec.execute((self.factory)(i)));
+                    self.tasks
+                        .push_front(self.executor.execute((self.factory)(i)));
                     return Err(err);
                 }
             }
@@ -193,16 +192,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             return Some(Ok(result));
         }
 
-        let Some(exec) = &self.executor else {
-            panic!("executor must be set for concurrent tasks")
-        };
-
         if let Some(task) = self.tasks.pop_front() {
             let (i, o) = task.await;
             match o {
                 Ok(o) => return Some(Ok(o)),
                 Err(err) => {
-                    self.tasks.push_front(exec.execute((self.factory)(i)));
+                    self.tasks
+                        .push_front(self.executor.execute((self.factory)(i)));
                     return Some(Err(err));
                 }
             }

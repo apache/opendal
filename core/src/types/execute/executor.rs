@@ -17,7 +17,6 @@
 
 use super::*;
 use crate::raw::MaybeSend;
-use crate::*;
 use futures::FutureExt;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
@@ -72,13 +71,13 @@ impl Executor {
 
     /// Run given future in background immediately.
     #[allow(unused)]
-    pub(crate) fn execute<F>(&self, f: F) -> Result<Task<F::Output>>
+    pub(crate) fn execute<F>(&self, f: F) -> Task<F::Output>
     where
         F: Future + MaybeSend + 'static,
         F::Output: MaybeSend + 'static,
     {
         let (fut, handle) = f.remote_handle();
-        self.executor.execute(Box::pin(fut))?;
-        Ok(Task::new(handle))
+        self.executor.execute(Box::pin(fut));
+        Task::new(handle)
     }
 }

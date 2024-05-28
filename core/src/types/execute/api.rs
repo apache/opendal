@@ -16,7 +16,6 @@
 // under the License.
 
 use crate::raw::BoxedStaticFuture;
-use crate::*;
 use futures::future::RemoteHandle;
 use futures::FutureExt;
 use std::future::Future;
@@ -30,16 +29,12 @@ pub trait Execute: Send + Sync + 'static {
     /// # Behavior
     ///
     /// - Implementor must manage the executing futures and keep making progress.
-    /// - Implementor must return `Error::Unexpected` if failed to execute new task.
-    fn execute(&self, f: BoxedStaticFuture<()>) -> Result<()>;
+    fn execute(&self, f: BoxedStaticFuture<()>);
 }
 
 impl Execute for () {
-    fn execute(&self, _: BoxedStaticFuture<()>) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "no executor has been set",
-        ))
+    fn execute(&self, _: BoxedStaticFuture<()>) {
+        panic!("concurrent tasks executed with no executor has been enabled")
     }
 }
 
@@ -59,7 +54,6 @@ pub struct Task<T> {
 impl<T: 'static> Task<T> {
     /// Create a new task.
     #[inline]
-    #[allow(unused)]
     pub fn new(handle: RemoteHandle<T>) -> Self {
         Self { handle }
     }

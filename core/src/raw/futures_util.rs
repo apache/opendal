@@ -21,9 +21,10 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use crate::*;
 use futures::stream::FuturesOrdered;
-use futures::FutureExt;
 use futures::StreamExt;
+use futures::{poll, FutureExt};
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
 ///
@@ -57,6 +58,159 @@ pub unsafe trait MaybeSend {}
 unsafe impl<T: Send> MaybeSend for T {}
 #[cfg(target_arch = "wasm32")]
 unsafe impl<T> MaybeSend for T {}
+
+/// ConcurrentTasks is used to execute tasks concurrently.
+///
+/// ConcurrentTasks has two generic types:
+///
+/// - `I` represents the input type of the task.
+/// - `O` represents the output type of the task.
+pub struct ConcurrentTasks<I, O> {
+    /// The executor to execute the tasks.
+    ///
+    /// If it's `None`, the task will be executed in the current thread.
+    executor: Option<Executor>,
+    /// The factory to create the task.
+    ///
+    /// Caller of ConcurrentTasks must provides a factory to create the task for executing.
+    ///
+    /// The factory must accept an input and return a future that resolves to a tuple of input and
+    /// output result. If the given result is error, the error will be returned to users and the
+    /// task will be retried.
+    factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
+
+    /// `tasks` holds the ongoing tasks.
+    ///
+    /// Please keep in mind that all tasks are running in the background by `Executor`. We only need
+    /// to poll the tasks to see if they are ready.
+    ///
+    /// Dropping task without `await` it will cancel the task.
+    tasks: VecDeque<Task<(I, Result<O>)>>,
+    /// `results` stores the successful results.
+    results: VecDeque<O>,
+}
+
+impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
+    /// Create a new concurrent tasks with given executor, concurrent and factory.
+    ///
+    /// The factory is a function pointer that shouldn't capture any context.
+    pub fn new(
+        executor: Option<Executor>,
+        concurrent: usize,
+        factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
+    ) -> Self {
+        Self {
+            executor,
+            factory,
+
+            tasks: VecDeque::with_capacity(concurrent),
+            results: VecDeque::with_capacity(concurrent),
+        }
+    }
+
+    /// Return true if the tasks are running concurrently.
+    #[inline]
+    fn is_concurrent(&self) -> bool {
+        self.tasks.capacity() > 1 && self.executor.is_some()
+    }
+
+    /// Clear all tasks and results.
+    ///
+    /// All ongoing tasks will be canceled.
+    pub fn clear(&mut self) {
+        self.tasks.clear();
+        self.results.clear();
+    }
+
+    /// Execute the task with given input.
+    ///
+    /// - Execute the task in the current thread if is not concurrent.
+    /// - Execute the task in the background if there are available slots.
+    /// - Await the first task in the queue if there is no available slots.
+    pub async fn execute(&mut self, input: I) -> Result<()> {
+        // Short path for non-concurrent case.
+        if !self.is_concurrent() {
+            let (_, o) = (self.factory)(input).await;
+            return match o {
+                Ok(o) => {
+                    self.results.push_back(o);
+                    Ok(())
+                }
+                // We don't need to rebuild the future if it's not concurrent.
+                Err(err) => Err(err),
+            };
+        }
+
+        let Some(exec) = &self.executor else {
+            panic!("executor must be set for concurrent tasks")
+        };
+
+        loop {
+            // Try poll once to see if there is any ready task.
+            if let Some(mut task) = self.tasks.pop_front() {
+                if let Poll::Ready((i, o)) = poll!(&mut task) {
+                    match o {
+                        Ok(o) => self.results.push_back(o),
+                        Err(err) => {
+                            self.tasks.push_front(exec.execute((self.factory)(i)));
+                            return Err(err);
+                        }
+                    }
+                } else {
+                    // task is not ready, push it back.
+                    self.tasks.push_front(task)
+                }
+            }
+
+            // Try to push new task if there are available space.
+            if self.tasks.len() < self.tasks.capacity() {
+                self.tasks.push_back(exec.execute((self.factory)(input)));
+                return Ok(());
+            }
+
+            // Wait for the next task to be ready.
+            let task = self
+                .tasks
+                .pop_front()
+                .expect("tasks must have at least one task");
+            let (i, o) = task.await;
+            match o {
+                Ok(o) => {
+                    self.results.push_back(o);
+                    continue;
+                }
+                Err(err) => {
+                    self.tasks.push_front(exec.execute((self.factory)(i)));
+                    return Err(err);
+                }
+            }
+        }
+    }
+
+    /// Fetch the successful result from the result queue.
+    pub async fn next(&mut self) -> Option<Result<O>> {
+        if let Some(result) = self.results.pop_front() {
+            return Some(Ok(result));
+        }
+
+        let Some(exec) = &self.executor else {
+            panic!("executor must be set for concurrent tasks")
+        };
+
+        if let Some(task) = self.tasks.pop_front() {
+            let (i, o) = task.await;
+            match o {
+                Ok(o) => return Some(Ok(o)),
+                Err(err) => {
+                    self.tasks.push_front(exec.execute((self.factory)(i)));
+                    return Some(Err(err));
+                }
+            }
+        }
+
+        None
+    }
+}
 
 /// CONCURRENT_LARGE_THRESHOLD is the threshold to determine whether to use
 /// [`FuturesOrdered`] or not.

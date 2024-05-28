@@ -16,6 +16,7 @@
 // under the License.
 
 mod buffer;
+mod concurrent_tasks;
 mod utils;
 
 use criterion::criterion_group;
@@ -25,5 +26,6 @@ criterion_group!(
     benches,
     buffer::bench_non_contiguous_buffer,
     buffer::bench_non_contiguous_buffer_with_extreme,
+    concurrent_tasks::bench_concurrent_tasks,
 );
 criterion_main!(benches);

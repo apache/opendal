@@ -336,7 +336,11 @@ impl Access for CosBackend {
         let w = if args.append() {
             CosWriters::Two(oio::AppendWriter::new(writer))
         } else {
-            CosWriters::One(oio::MultipartWriter::new(writer, args.concurrent()))
+            CosWriters::One(oio::MultipartWriter::new(
+                writer,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))

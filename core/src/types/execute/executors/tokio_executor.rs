@@ -24,9 +24,8 @@ pub struct TokioExecutor {}
 
 impl Execute for TokioExecutor {
     /// Tokio's JoinHandle has it's own `abort` support, so dropping handle won't cancel the task.
-    fn execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
         let _handle = tokio::task::spawn(f);
-        Ok(())
     }
 }
 
@@ -46,12 +45,10 @@ mod tests {
         let finished = Arc::new(AtomicBool::new(false));
 
         let finished_clone = finished.clone();
-        let _task = executor
-            .execute(async move {
-                sleep(Duration::from_secs(1)).await;
-                finished_clone.store(true, Ordering::Relaxed);
-            })
-            .unwrap();
+        let _task = executor.execute(async move {
+            sleep(Duration::from_secs(1)).await;
+            finished_clone.store(true, Ordering::Relaxed);
+        });
 
         sleep(Duration::from_secs(2)).await;
         // Task must has been finished even without await task.

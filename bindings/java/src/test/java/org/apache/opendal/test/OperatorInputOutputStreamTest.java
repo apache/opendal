@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorOutputStream;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ public class OperatorInputOutputStreamTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
-        try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
+        try (final Operator op = Operator.of("fs", conf)) {
             final String path = "OperatorInputOutputStreamTest.txt";
             final long multi = 1024 * 1024;
 

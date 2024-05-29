@@ -466,7 +466,11 @@ impl Access for OssBackend {
         let w = if args.append() {
             OssWriters::Two(oio::AppendWriter::new(writer))
         } else {
-            OssWriters::One(oio::MultipartWriter::new(writer, args.concurrent()))
+            OssWriters::One(oio::MultipartWriter::new(
+                writer,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))

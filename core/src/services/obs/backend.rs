@@ -333,7 +333,11 @@ impl Access for ObsBackend {
         let w = if args.append() {
             ObsWriters::Two(oio::AppendWriter::new(writer))
         } else {
-            ObsWriters::One(oio::MultipartWriter::new(writer, args.concurrent()))
+            ObsWriters::One(oio::MultipartWriter::new(
+                writer,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))

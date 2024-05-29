@@ -67,6 +67,8 @@ pub struct Operator {
 
     // limit is usually the maximum size of data that operator will handle in one operation
     limit: usize,
+    /// The default executor that used to run futures in background.
+    default_executor: Option<Executor>,
 }
 
 /// # Operator basic API.
@@ -81,7 +83,11 @@ impl Operator {
             .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
-        Self { accessor, limit }
+        Self {
+            accessor,
+            limit,
+            default_executor: None,
+        }
     }
 
     pub(super) fn into_inner(self) -> Accessor {
@@ -100,6 +106,18 @@ impl Operator {
     pub fn with_limit(&self, limit: usize) -> Self {
         let mut op = self.clone();
         op.limit = limit;
+        op
+    }
+
+    /// Get the default executor.
+    pub fn default_executor(&self) -> Option<Executor> {
+        self.default_executor.clone()
+    }
+
+    /// Specify the default executor.
+    pub fn with_default_executor(&self, executor: Executor) -> Self {
+        let mut op = self.clone();
+        op.default_executor = Some(executor);
         op
     }
 
@@ -537,7 +555,10 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), OpReader::default()),
+            (
+                OpRead::default().merge_executor(self.default_executor.clone()),
+                OpReader::default(),
+            ),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -647,7 +668,10 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), OpReader::default()),
+            (
+                OpRead::default().merge_executor(self.default_executor.clone()),
+                OpReader::default(),
+            ),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -1052,7 +1076,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpWrite::default(),
+            OpWrite::default().merge_executor(self.default_executor.clone()),
             |inner, path, args| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -1196,7 +1220,10 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpWrite::default(), bs),
+            (
+                OpWrite::default().merge_executor(self.default_executor.clone()),
+                bs,
+            ),
             |inner, path, (args, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(

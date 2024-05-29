@@ -461,10 +461,12 @@ impl Access for AliyunDriveBackend {
         let parent_path = get_parent(path);
         let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
 
+        let executor = args.executor().cloned();
+
         let writer =
             AliyunDriveWriter::new(self.core.clone(), &parent_file_id, get_basename(path), args);
 
-        let w = oio::MultipartWriter::new(writer, 1);
+        let w = oio::MultipartWriter::new(writer, executor, 1);
 
         Ok((RpWrite::default(), w))
     }

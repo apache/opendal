@@ -42,7 +42,7 @@ public class OperatorOutputStream extends OutputStream {
 
     private int offset = 0;
 
-    public OperatorOutputStream(BlockingOperator operator, String path) {
+    public OperatorOutputStream(Operator operator, String path) {
         final long op = operator.nativeHandle;
         this.writer = new Writer(constructWriter(op, path));
     }

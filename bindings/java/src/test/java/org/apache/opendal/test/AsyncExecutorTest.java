@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncExecutor;
-import org.apache.opendal.Operator;
+import org.apache.opendal.AsyncOperator;
 import org.junit.jupiter.api.Test;
 
 public class AsyncExecutorTest {
@@ -35,7 +35,7 @@ public class AsyncExecutorTest {
         conf.put("root", "/opendal/");
         final int cores = Runtime.getRuntime().availableProcessors();
         @Cleanup final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
-        @Cleanup final Operator op = Operator.of("memory", conf, executor);
+        @Cleanup final AsyncOperator op = AsyncOperator.of("memory", conf, executor);
         assertThat(op.info).isNotNull();
 
         final String key = "key";

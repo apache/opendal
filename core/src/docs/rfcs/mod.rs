@@ -232,3 +232,7 @@ pub mod rfc_3911_deleter_api {}
 /// Range Based Read API
 #[doc = include_str!("4382_range_based_read.md")]
 pub mod rfc_4382_range_based_read {}
+
+/// Executor API
+#[doc = include_str!("4638_executor.md")]
+pub mod rfc_4638_executor {}

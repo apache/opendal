@@ -45,7 +45,7 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = blockingOp().info.fullCapability;
+        final Capability capability = op().info.fullCapability;
         assumeTrue(capability.read && !capability.write && capability.blocking);
     }
 
@@ -54,11 +54,11 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testBlockingReadOnlyStatFileAndDir() {
-        final Metadata fileMeta = blockingOp().stat(NORMAL_FILE_NAME);
+        final Metadata fileMeta = op().stat(NORMAL_FILE_NAME);
         assertTrue(fileMeta.isFile());
         assertEquals(FILE_LENGTH, fileMeta.getContentLength());
 
-        final Metadata dirMeta = blockingOp().stat(NORMAL_DIR_NAME);
+        final Metadata dirMeta = op().stat(NORMAL_DIR_NAME);
         assertTrue(dirMeta.isDir());
     }
 
@@ -67,11 +67,11 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testBlockingReadOnlyStatSpecialChars() {
-        final Metadata fileMeta = blockingOp().stat(SPECIAL_FILE_NAME);
+        final Metadata fileMeta = op().stat(SPECIAL_FILE_NAME);
         assertTrue(fileMeta.isFile());
         assertEquals(FILE_LENGTH, fileMeta.getContentLength());
 
-        final Metadata dirMeta = blockingOp().stat(SPECIAL_DIR_NAME);
+        final Metadata dirMeta = op().stat(SPECIAL_DIR_NAME);
         assertTrue(dirMeta.isDir());
     }
 
@@ -81,8 +81,7 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
     @Test
     public void testBlockingReadOnlyStatNotExist() {
         final String path = UUID.randomUUID().toString();
-        assertThatThrownBy(() -> blockingOp().stat(path))
-                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        assertThatThrownBy(() -> op().stat(path)).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 
     /**
@@ -90,7 +89,7 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
      */
     @Test
     public void testBlockingReadonlyReadFull() throws NoSuchAlgorithmException {
-        final byte[] content = blockingOp().read(NORMAL_FILE_NAME);
+        final byte[] content = op().read(NORMAL_FILE_NAME);
         assertEquals(FILE_LENGTH, content.length);
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
     }
@@ -101,7 +100,6 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
     @Test
     public void testBlockingReadOnlyReadNotExist() {
         final String path = UUID.randomUUID().toString();
-        assertThatThrownBy(() -> blockingOp().read(path))
-                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        assertThatThrownBy(() -> op().read(path)).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 }

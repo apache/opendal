@@ -360,9 +360,10 @@ impl Access for B2Backend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
+        let executor = args.executor().cloned();
         let writer = B2Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartWriter::new(writer, concurrent);
+        let w = oio::MultipartWriter::new(writer, executor, concurrent);
 
         Ok((RpWrite::default(), w))
     }

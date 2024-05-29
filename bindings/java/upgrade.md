@@ -1,3 +1,9 @@
+# Upgrade to v0.46
+
+## Breaking change
+
+[PR-4641](https://github.com/apache/opendal/pull/4641/) renames async `Operator` to `AsyncOperator` and `BlockingOperator` to `Operator`.
+
 # Upgrade to v0.44
 
 ## Breaking change

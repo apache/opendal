@@ -32,7 +32,7 @@ import org.junit.jupiter.api.TestInstance;
 public class AsyncAppendTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.writeCanAppend);
     }
 
@@ -42,15 +42,15 @@ public class AsyncAppendTest extends BehaviorTestBase {
         final byte[] contentOne = generateBytes();
         final byte[] contentTwo = generateBytes();
 
-        op().append(path, contentOne).join();
-        op().append(path, contentTwo).join();
+        asyncOp().append(path, contentOne).join();
+        asyncOp().append(path, contentTwo).join();
 
-        final byte[] actualContent = op().read(path).join();
+        final byte[] actualContent = asyncOp().read(path).join();
         assertThat(actualContent.length).isEqualTo(contentOne.length + contentTwo.length);
         assertThat(Arrays.copyOfRange(actualContent, 0, contentOne.length)).isEqualTo(contentOne);
         assertThat(Arrays.copyOfRange(actualContent, contentOne.length, actualContent.length))
                 .isEqualTo(contentTwo);
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 }

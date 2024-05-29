@@ -15,8 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-pub mod fuse;
+use opendal::Operator;
+use wincs::SyncFilter;
 
-#[cfg(target_os = "windows")]
-pub mod cloudfilter;
+pub(super) struct FilterImpl {
+    _op: Operator,
+}
+
+impl SyncFilter for FilterImpl {
+    // TODO
+}
+
+impl FilterImpl {
+    pub fn new(op: Operator) -> Self {
+        Self { _op: op }
+    }
+}

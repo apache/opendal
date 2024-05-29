@@ -35,11 +35,8 @@ bytes = "1.5.0"
 chrono = "0.4.34"
 clap = { version = "4.5.1", features = ["derive", "env"] }
 env_logger = "0.11.2"
-fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
 futures-util = "0.3.30"
-libc = "0.2.154"
 log = "0.4.21"
-nix = { version = "0.28.0", features = ["user"] }
 opendal = { version = "0.46.0", path = "../../core" }
 sharded-slab = "0.1.7"
 tokio = { version = "1.37.0", features = [
@@ -50,6 +47,16 @@ tokio = { version = "1.37.0", features = [
   "signal",
 ] }
 url = "2.5.0"
+tap = "1.0.1"
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
+libc = "0.2.154"
+nix = { version = "0.28.0", features = ["user"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wincs = { git = "https://github.com/ok-nick/wincs" }
+widestring = "1.1.0"
 
 [features]
 default = ["services-fs", "services-s3"]

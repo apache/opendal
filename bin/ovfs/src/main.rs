@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod server;
+mod error;
 mod virtiofs;
 mod virtiofs_utils;
-
-#[macro_use]
-extern crate log;
 
 fn main() {
     unimplemented!()

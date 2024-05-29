@@ -29,6 +29,8 @@ use vm_memory::{ByteValued, GuestMemoryAtomic, GuestMemoryMmap, Le32};
 use vmm_sys_util::epoll::EventSet;
 use vmm_sys_util::eventfd::EventFd;
 
+use crate::error::*;
+
 const QUEUE_SIZE: usize = 32768;
 const REQUEST_QUEUES: u32 = 1;
 const NUM_QUEUES: usize = REQUEST_QUEUES as usize + 1;
@@ -36,61 +38,35 @@ const HIPRIO_QUEUE_EVENT: u16 = 0;
 const REQ_QUEUE_EVENT: u16 = 1;
 const MAX_TAG_LEN: usize = 36;
 
-#[derive(Debug)]
-enum Error {
-    HandleEventNotEpollIn,
-    HandleEventUnknownEvent,
-    CreateKillEventFd(io::Error),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl std::convert::From<Error> for io::Error {
-    fn from(e: Error) -> Self {
-        io::Error::new(io::ErrorKind::Other, e)
-    }
-}
-
-type Result<T> = std::result::Result<T, Error>;
-
-type VhostUserBackendResult<T> = std::result::Result<T, std::io::Error>;
-
-impl std::error::Error for Error {}
-
 struct VhostUserFsThread {
     mem: Option<GuestMemoryAtomic<GuestMemoryMmap>>,
-    kill_evt: EventFd,
     vu_req: Option<Backend>,
     event_idx: bool,
+    kill_event_fd: EventFd,
 }
 
 impl VhostUserFsThread {
-    fn new() -> Result<Self> {
+    fn new() -> Result<VhostUserFsThread> {
+        let event_fd = EventFd::new(libc::EFD_NONBLOCK).map_err(|err| {
+            new_unexpected_error("failed to create kill eventfd", Some(err.into()))
+        })?;
         Ok(VhostUserFsThread {
             mem: None,
-            kill_evt: EventFd::new(libc::EFD_NONBLOCK).map_err(Error::CreateKillEventFd)?,
             vu_req: None,
             event_idx: false,
+            kill_event_fd: event_fd,
         })
     }
 
-    fn process_queue_serial(&self, vring_state: &mut VringState) -> Result<bool> {
+    fn process_queue_serial(&self, _vring_state: &mut VringState) -> Result<bool> {
         unimplemented!()
     }
 
-    fn handle_event_serial(
-        &self,
-        device_event: u16,
-        vrings: &[VringMutex],
-    ) -> VhostUserBackendResult<()> {
+    fn handle_event_serial(&self, device_event: u16, vrings: &[VringMutex]) -> Result<()> {
         let mut vring_state = match device_event {
             HIPRIO_QUEUE_EVENT => vrings[0].get_mut(),
             REQ_QUEUE_EVENT => vrings[1].get_mut(),
-            _ => return Err(Error::HandleEventUnknownEvent.into()),
+            _ => return Err(new_unexpected_error("failed to handle unknown event", None)),
         };
         if self.event_idx {
             loop {
@@ -184,7 +160,7 @@ impl VhostUserBackend for VhostUserFsBackend {
         self.thread.write().unwrap().event_idx = enabled;
     }
 
-    fn update_memory(&self, mem: GuestMemoryAtomic<GuestMemoryMmap>) -> VhostUserBackendResult<()> {
+    fn update_memory(&self, mem: GuestMemoryAtomic<GuestMemoryMmap>) -> io::Result<()> {
         self.thread.write().unwrap().mem = Some(mem);
         Ok(())
     }
@@ -193,18 +169,27 @@ impl VhostUserBackend for VhostUserFsBackend {
         &self,
         device_event: u16,
         evset: EventSet,
-        vrings: &[VringMutex],
+        vrings: &[Self::Vring],
         _thread_id: usize,
-    ) -> VhostUserBackendResult<()> {
+    ) -> io::Result<()> {
         if evset != EventSet::IN {
-            return Err(Error::HandleEventNotEpollIn.into());
+            return Err(new_unexpected_error("failed to handle handle event other than input event", None).into());
         }
         let thread = self.thread.read().unwrap();
-        thread.handle_event_serial(device_event, vrings)
+        thread
+            .handle_event_serial(device_event, vrings)
+            .map_err(|err| err.into())
     }
 
     fn exit_event(&self, _thread_index: usize) -> Option<EventFd> {
-        Some(self.thread.read().unwrap().kill_evt.try_clone().unwrap())
+        Some(
+            self.thread
+                .read()
+                .unwrap()
+                .kill_event_fd
+                .try_clone()
+                .unwrap(),
+        )
     }
 
     fn set_backend_req_fd(&self, vu_req: Backend) {

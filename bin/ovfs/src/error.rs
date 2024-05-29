@@ -20,6 +20,7 @@ use std::io;
 use anyhow::Error as AnyError;
 use snafu::prelude::Snafu;
 
+/// Error is a error struct returned by all ovfs functions.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
@@ -64,6 +65,7 @@ impl From<Error> for io::Error {
     }
 }
 
+/// Result is a result wrapper in ovfs.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn new_vhost_user_fs_error(message: &str, source: Option<AnyError>) -> Error {

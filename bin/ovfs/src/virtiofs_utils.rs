@@ -68,7 +68,7 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
             self.bytes_consumed
                 .checked_add(bytes_consumed)
                 .ok_or(new_vhost_user_fs_error(
-                    "the combined lengh of all the buffers in DescriptorChain would overflow",
+                    "the combined length of all the buffers in DescriptorChain would overflow",
                     None,
                 ))?;
         let mut remain = bytes_consumed;
@@ -106,7 +106,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
                 len = len
                     .checked_add(desc.len() as usize)
                     .ok_or(new_vhost_user_fs_error(
-                        "the combined lengh of all the buffers in DescriptorChain would overflow",
+                        "the combined length of all the buffers in DescriptorChain would overflow",
                         None,
                     ))?;
                 let region = mem.find_region(desc.addr()).ok_or(new_vhost_user_fs_error(
@@ -184,7 +184,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
                 len = len
                     .checked_add(desc.len() as usize)
                     .ok_or(new_vhost_user_fs_error(
-                        "the combined lengh of all the buffers in DescriptorChain would overflow",
+                        "the combined length of all the buffers in DescriptorChain would overflow",
                         None,
                     ))?;
                 let region = mem.find_region(desc.addr()).ok_or(new_vhost_user_fs_error(

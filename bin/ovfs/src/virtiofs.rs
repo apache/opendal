@@ -40,7 +40,7 @@ const MAX_TAG_LEN: usize = 36;
 /// The maximum queue size supported.
 const QUEUE_SIZE: usize = 32768;
 /// The number of request queues supported.
-/// The vitrofs spec allows for mutiple request queues, but we'll only support one.
+/// The vitrofs spec allows for multiple request queues, but we'll only support one.
 const REQUEST_QUEUES: u32 = 1;
 /// In addition to the request queues there is one high priority queue.
 const NUM_QUEUES: usize = REQUEST_QUEUES as usize + 1;
@@ -169,7 +169,10 @@ impl VhostUserBackend for VhostUserFsBackend {
 
     /// Get virtio device configuration.
     fn get_config(&self, offset: u32, size: u32) -> Vec<u8> {
-        let tag = self.tag.as_ref().expect("Did not expect read of config if tag is not set.");
+        let tag = self
+            .tag
+            .as_ref()
+            .expect("Did not expect read of config if tag is not set.");
         let mut fixed_len_tag = [0; MAX_TAG_LEN];
         fixed_len_tag[0..tag.len()].copy_from_slice(tag.as_bytes());
         let config = VirtioFsConfig {

@@ -40,7 +40,7 @@ impl GhacReader {
 }
 
 impl oio::Read for GhacReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(size as u64));
 
         let req = self.core.ghac_get_location(&self.location, range).await?;

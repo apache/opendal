@@ -45,7 +45,7 @@ impl AliyunDriveReader {
 }
 
 impl oio::Read for AliyunDriveReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         // AliyunDrive responds with status OK even if the range is not statisfiable.
         // and then the whole file will be read.
         let limit = if offset >= self.size {

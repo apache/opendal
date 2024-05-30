@@ -40,7 +40,7 @@ impl FtpReader {
 }
 
 impl oio::Read for FtpReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         if offset != 0 {

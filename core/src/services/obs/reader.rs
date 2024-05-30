@@ -42,7 +42,7 @@ impl ObsReader {
 }
 
 impl oio::Read for ObsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let range = BytesRange::new(offset, Some(size as u64));
 
         let resp = self

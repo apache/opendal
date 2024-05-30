@@ -171,9 +171,9 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read_at(offset, size).await
+            self.inner.read().await
         } else {
             Err(Self::unexpected_eof())
         }

@@ -656,7 +656,7 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         {
             || {
                 self.inner

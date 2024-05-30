@@ -61,7 +61,7 @@ impl FsReader {
 }
 
 impl oio::Read for FsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let handle = self.try_clone()?;
 
         match tokio::runtime::Handle::try_current() {

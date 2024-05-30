@@ -34,7 +34,7 @@ impl HdfsReader {
 }
 
 impl oio::Read for HdfsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let r = Self { f: self.f.clone() };
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => runtime

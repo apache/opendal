@@ -52,10 +52,10 @@ pub enum TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         match self {
-            TwoWays::One(v) => v.read_at(offset, size).await,
-            TwoWays::Two(v) => v.read_at(offset, size).await,
+            TwoWays::One(v) => v.read().await,
+            TwoWays::Two(v) => v.read().await,
         }
     }
 }
@@ -105,11 +105,11 @@ pub enum ThreeWays<ONE, TWO, THREE> {
 }
 
 impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         match self {
-            ThreeWays::One(v) => v.read_at(offset, size).await,
-            ThreeWays::Two(v) => v.read_at(offset, size).await,
-            ThreeWays::Three(v) => v.read_at(offset, size).await,
+            ThreeWays::One(v) => v.read().await,
+            ThreeWays::Two(v) => v.read().await,
+            ThreeWays::Three(v) => v.read().await,
         }
     }
 }
@@ -175,12 +175,12 @@ where
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         match self {
-            FourWays::One(v) => v.read_at(offset, size).await,
-            FourWays::Two(v) => v.read_at(offset, size).await,
-            FourWays::Three(v) => v.read_at(offset, size).await,
-            FourWays::Four(v) => v.read_at(offset, size).await,
+            FourWays::One(v) => v.read().await,
+            FourWays::Two(v) => v.read().await,
+            FourWays::Three(v) => v.read().await,
+            FourWays::Four(v) => v.read().await,
         }
     }
 }

@@ -41,12 +41,11 @@ const MAX_TAG_LEN: usize = 36;
 const QUEUE_SIZE: usize = 32768;
 /// The number of request queues supported.
 /// The vitrofs spec allows for multiple request queues, but we'll only support one.
-const REQUEST_QUEUES: u32 = 1;
-/// In addition to the request queues there is one high priority queue.
-const NUM_QUEUES: usize = REQUEST_QUEUES as usize + 1;
+const REQUEST_QUEUES: usize = 1;
+/// In addition to request queues there is one high priority queue.
+const NUM_QUEUES: usize = REQUEST_QUEUES + 1;
 
-/// VhostUserFsThread will be serialized and used as
-/// the return value of get_config function in the VhostUserBackend trait.
+/// VhostUserFsThread represents the actual worker process used to handle file system requests from VMs.
 struct VhostUserFsThread {
     mem: Option<GuestMemoryAtomic<GuestMemoryMmap>>,
     vu_req: Option<Backend>,
@@ -54,7 +53,6 @@ struct VhostUserFsThread {
     kill_event_fd: EventFd,
 }
 
-#[allow(dead_code)]
 impl VhostUserFsThread {
     fn new() -> Result<VhostUserFsThread> {
         let event_fd = EventFd::new(libc::EFD_NONBLOCK).map_err(|err| {
@@ -172,12 +170,12 @@ impl VhostUserBackend for VhostUserFsBackend {
         let tag = self
             .tag
             .as_ref()
-            .expect("Did not expect read of config if tag is not set.");
+            .expect("did not expect read of config if tag is not set.");
         let mut fixed_len_tag = [0; MAX_TAG_LEN];
         fixed_len_tag[0..tag.len()].copy_from_slice(tag.as_bytes());
         let config = VirtioFsConfig {
             tag: fixed_len_tag,
-            num_request_queues: Le32::from(REQUEST_QUEUES),
+            num_request_queues: Le32::from(REQUEST_QUEUES as u32),
         };
         let mut result: Vec<_> = config
             .as_slice()

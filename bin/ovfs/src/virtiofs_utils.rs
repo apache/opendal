@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
+use std::cmp::min;
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::mem::{size_of, MaybeUninit};
@@ -149,7 +149,7 @@ impl<'a, B: BitmapSlice> io::Read for Reader<'a, B> {
                 let mut rem = buf;
                 let mut total = 0;
                 for vs in bufs {
-                    let copy_len = cmp::min(rem.len(), vs.len());
+                    let copy_len = min(rem.len(), vs.len());
                     unsafe {
                         copy_nonoverlapping(vs.ptr_guard().as_ptr(), rem.as_mut_ptr(), copy_len);
                     }
@@ -223,7 +223,7 @@ impl<'a, B: BitmapSlice> Write for Writer<'a, B> {
                 let mut rem = buf;
                 let mut total = 0;
                 for vs in bufs {
-                    let copy_len = cmp::min(rem.len(), vs.len());
+                    let copy_len = min(rem.len(), vs.len());
                     unsafe {
                         copy_nonoverlapping(rem.as_ptr(), vs.ptr_guard_mut().as_ptr(), copy_len);
                     }

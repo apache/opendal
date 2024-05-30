@@ -140,6 +140,8 @@ impl HttpClient {
 
         let bs: Vec<Bytes> = resp
             .bytes_stream()
+            // DEBUG: try don't reuse bytes from hyper, keep it's internal buffer size low.
+            .map_ok(|v| Bytes::copy_from_slice(&v))
             .try_filter(|v| future::ready(!v.is_empty()))
             .try_collect()
             .await

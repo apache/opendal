@@ -82,16 +82,18 @@ pub trait Read: Unpin + Send + Sync {
     /// Read at the given offset with the given size.
     fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend;
 
-    async fn read_all(&mut self) -> Result<Buffer> {
-        let mut bufs = vec![];
-        loop {
-            match self.read().await {
-                Ok(buf) if buf.is_empty() => break,
-                Ok(buf) => bufs.push(buf),
-                Err(err) => return Err(err),
+    fn read_all(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
+        async {
+            let mut bufs = vec![];
+            loop {
+                match self.read().await {
+                    Ok(buf) if buf.is_empty() => break,
+                    Ok(buf) => bufs.push(buf),
+                    Err(err) => return Err(err),
+                }
             }
+            Ok(bufs.into_iter().flatten().collect())
         }
-        Ok(bufs.into_iter().flatten().collect())
     }
 }
 
@@ -123,11 +125,17 @@ pub trait ReadDyn: Unpin + Send + Sync {
     ///
     /// This function returns a boxed future to make it object safe.
     fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
+
+    fn read_all_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
     fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>> {
         Box::pin(self.read())
+    }
+
+    fn read_all_dyn(&mut self) -> BoxedFuture<Result<Buffer>> {
+        Box::pin(self.read_all())
     }
 }
 
@@ -138,6 +146,10 @@ impl<T: Read + ?Sized> ReadDyn for T {
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
     async fn read(&mut self) -> Result<Buffer> {
         self.deref_mut().read_dyn().await
+    }
+
+    async fn read_all(&mut self) -> Result<Buffer> {
+        self.deref_mut().read_all_dyn().await
     }
 }
 

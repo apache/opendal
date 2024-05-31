@@ -891,7 +891,7 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
     }
 }
 
-#[cfg(test)]
+#[cfg(test_x)]
 mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;

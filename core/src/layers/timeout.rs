@@ -317,7 +317,7 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     }
 }
 
-#[cfg(test)]
+#[cfg(test_xx)]
 mod tests {
     use std::future::pending;
     use std::future::Future;

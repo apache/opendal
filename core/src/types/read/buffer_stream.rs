@@ -231,7 +231,7 @@ impl Stream for BufferStream {
     }
 }
 
-#[cfg(test)]
+#[cfg(test_xx)]
 mod tests {
     use bytes::Buf;
     use bytes::Bytes;

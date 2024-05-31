@@ -27,8 +27,8 @@ use futures::stream::Buffered;
 use futures::stream::FusedStream;
 use futures::stream::Iter;
 use futures::stream::{self};
-use futures::Stream;
 use futures::StreamExt;
+use futures::{ready, Stream};
 
 use crate::raw::*;
 use crate::*;
@@ -218,13 +218,13 @@ impl Stream for BufferStream {
                 }
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
-                    match fut.poll(cx) {
-                        Poll::Ready((reader, buf)) => {
-                            this.state = State::Idle(Some(reader));
-                            return Poll::Ready(Some(buf));
-                        }
-                        Poll::Pending => return Poll::Pending,
-                    }
+                    let (reader, buf) = ready!(fut.poll(cx));
+                    this.state = State::Idle(Some(reader));
+                    return match buf {
+                        Ok(buf) if buf.is_empty() => Poll::Ready(None),
+                        Ok(buf) => Poll::Ready(Some(Ok(buf))),
+                        Err(err) => Poll::Ready(Some(Err(err))),
+                    };
                 }
             }
         }

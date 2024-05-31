@@ -122,6 +122,17 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         self.results.clear();
     }
 
+    /// Check if there are remaining space to push new tasks.
+    #[inline]
+    pub fn has_remaining(&self) -> bool {
+        self.tasks.len() < self.tasks.capacity()
+    }
+
+    #[inline]
+    pub fn has_result(&self) -> bool {
+        !self.results.is_empty()
+    }
+
     /// Execute the task with given input.
     ///
     /// - Execute the task in the current thread if is not concurrent.

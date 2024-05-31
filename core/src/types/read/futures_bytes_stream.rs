@@ -18,6 +18,7 @@
 use std::io;
 use std::ops::Range;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -46,8 +47,14 @@ unsafe impl Sync for FuturesBytesStream {}
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
     #[inline]
-    pub(crate) fn new(r: oio::Reader, options: OpReader, range: Range<u64>) -> Self {
-        let stream = BufferStream::new(r, options, range);
+    pub(crate) fn new(
+        acc: Accessor,
+        path: Arc<String>,
+        args: OpRead,
+        options: OpReader,
+        range: Range<u64>,
+    ) -> Self {
+        let stream = BufferStream::new(acc, path, args, options, range);
 
         FuturesBytesStream {
             stream,

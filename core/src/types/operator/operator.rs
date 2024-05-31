@@ -570,7 +570,7 @@ impl Operator {
                 }
 
                 let path = Arc::new(path);
-                let range = options.range();
+                let range = args.range();
                 let r = Reader::create(inner, path, args, options).await?;
                 let buf = r.read(range.to_range()).await?;
                 Ok(buf)

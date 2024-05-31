@@ -15,12 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::S3Builder as S3;
-pub use backend::S3Config;
+use crate::raw::oio::Read;
+use crate::*;
+use futures::Stream;
+use futures::StreamExt;
 
-mod core;
-mod error;
-mod lister;
-// mod reader;
-mod writer;
+pub fn from_stream<S>(stream: S) -> FromStream<S>
+where
+    S: Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static,
+{
+    FromStream(stream)
+}
+
+pub struct FromStream<S>(S);
+
+impl<S> Read for FromStream<S>
+where
+    S: Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static,
+{
+    async fn read(&mut self) -> Result<Buffer> {
+        match self.0.next().await {
+            Some(Ok(buf)) => Ok(buf),
+            Some(Err(err)) => Err(err),
+            None => Ok(Buffer::new()),
+        }
+    }
+}

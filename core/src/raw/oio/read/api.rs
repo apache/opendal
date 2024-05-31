@@ -18,11 +18,11 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::Future;
+use futures::{Future, Stream, StreamExt};
 
 use crate::raw::*;
 use crate::*;
@@ -80,12 +80,23 @@ pub type Reader = Box<dyn ReadDyn>;
 /// once, at the outermost level of our API.
 pub trait Read: Unpin + Send + Sync {
     /// Read at the given offset with the given size.
-    fn read(&mut self)
-        -> impl Future<Output = Result<Buffer>> + MaybeSend;
+    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend;
+
+    async fn read_all(&mut self) -> Result<Buffer> {
+        let mut bufs = vec![];
+        loop {
+            match self.read().await {
+                Ok(buf) if buf.is_empty() => break,
+                Ok(buf) => bufs.push(buf),
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(bufs.into_iter().flatten().collect())
+    }
 }
 
 impl Read for () {
-    async fn read(&self) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support read",
@@ -126,13 +137,7 @@ impl<T: Read + ?Sized> ReadDyn for T {
 /// upon `&mut T` instead of `&mut Box<T>`. The later could result in infinite recursion.
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
     async fn read(&mut self) -> Result<Buffer> {
-        self.deref().read_dyn().await
-    }
-}
-
-impl<T: ReadDyn + ?Sized> Read for Arc<T> {
-    async fn read(&mut self) -> Result<Buffer> {
-        self.deref().read_dyn().await
+        self.deref_mut().read_dyn().await
     }
 }
 

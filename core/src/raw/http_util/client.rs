@@ -24,12 +24,14 @@ use std::str::FromStr;
 
 use bytes::Buf;
 use bytes::Bytes;
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use http::Request;
 use http::Response;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
+use crate::raw::oio;
+use crate::raw::oio::from_stream;
 use crate::*;
 
 /// HttpClient that used across opendal.
@@ -159,6 +161,91 @@ impl HttpClient {
 
         let resp = hr.body(buffer).expect("response must build succeed");
 
+        Ok(resp)
+    }
+
+    /// Fetch a request in async way.
+    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<oio::Reader>> {
+        // Uri stores all string alike data in `Bytes` which means
+        // the clone here is cheap.
+        let uri = req.uri().clone();
+        let is_head = req.method() == http::Method::HEAD;
+
+        let (parts, body) = req.into_parts();
+
+        let mut req_builder = self
+            .client
+            .request(
+                parts.method,
+                reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
+            )
+            .headers(parts.headers);
+
+        // Client under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            req_builder = req_builder.version(parts.version);
+        }
+
+        // Don't set body if body is empty.
+        if !body.is_empty() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
+            }
+        }
+
+        let mut resp = req_builder.send().await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "send http request")
+                .with_operation("http_util::Client::send")
+                .with_context("url", uri.to_string())
+                .with_temporary(is_temporary_error(&err))
+                .set_source(err)
+        })?;
+
+        // Get content length from header so that we can check it.
+        //
+        // - If the request method is HEAD, we will ignore content length.
+        // - If response contains content_encoding, we should omit it's content length.
+        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
+            None
+        } else {
+            parse_content_length(resp.headers())?
+        };
+
+        let mut hr = Response::builder()
+            .status(resp.status())
+            // Insert uri into response extension so that we can fetch
+            // it later.
+            .extension(uri.clone());
+
+        // Response builder under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            hr = hr.version(resp.version());
+        }
+
+        // Swap headers directly instead of copy the entire map.
+        mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
+
+        let bs: oio::Reader = Box::new(from_stream(
+            resp.bytes_stream()
+                .try_filter(|v| future::ready(!v.is_empty()))
+                .map_ok(|v| Buffer::from(v))
+                .map_err(move |err| {
+                    Error::new(ErrorKind::Unexpected, "read data from http response")
+                        .with_operation("http_util::Client::send")
+                        .with_context("url", uri.to_string())
+                        .with_temporary(is_temporary_error(&err))
+                        .set_source(err)
+                }),
+        ));
+
+        let resp = hr.body(bs).expect("response must build succeed");
         Ok(resp)
     }
 }

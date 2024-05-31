@@ -22,3 +22,7 @@ pub use api::Read;
 pub use api::ReadDyn;
 pub use api::ReadOperation;
 pub use api::Reader;
+
+mod from_stream;
+pub use from_stream::from_stream;
+pub use from_stream::FromStream;

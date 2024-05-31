@@ -19,6 +19,7 @@ use std::io;
 use std::io::SeekFrom;
 use std::ops::Range;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -41,7 +42,9 @@ use crate::*;
 ///
 /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
 pub struct FuturesAsyncReader {
-    r: oio::Reader,
+    acc: Accessor,
+    path: Arc<String>,
+    args: OpRead,
     options: OpReader,
 
     stream: BufferStream,
@@ -61,12 +64,26 @@ impl FuturesAsyncReader {
     ///
     /// Extend this API to accept `impl RangeBounds`.
     #[inline]
-    pub(super) fn new(r: oio::Reader, options: OpReader, range: Range<u64>) -> Self {
+    pub(super) fn new(
+        acc: Accessor,
+        path: Arc<String>,
+        args: OpRead,
+        options: OpReader,
+        range: Range<u64>,
+    ) -> Self {
         let (start, end) = (range.start, range.end);
-        let stream = BufferStream::new(r.clone(), options.clone(), range);
+        let stream = BufferStream::new(
+            acc.clone(),
+            path.clone(),
+            args.clone(),
+            options.clone(),
+            range,
+        );
 
         FuturesAsyncReader {
-            r,
+            acc,
+            path,
+            args,
             options,
             stream,
             buf: Buffer::new(),
@@ -159,7 +176,9 @@ impl AsyncSeek for FuturesAsyncReader {
         } else {
             self.buf = Buffer::new();
             self.stream = BufferStream::new(
-                self.r.clone(),
+                self.acc.clone(),
+                self.path.clone(),
+                self.args.clone(),
                 self.options.clone(),
                 new_pos + self.start..self.end,
             );
@@ -191,7 +210,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_futures_async_read() {
-        let r: oio::Reader = Arc::new(Buffer::from(vec![
+        let r: oio::Reader = Box::new(Buffer::from(vec![
             Bytes::from("Hello"),
             Bytes::from("World"),
         ]));

@@ -656,29 +656,28 @@ impl<R, I> RetryWrapper<R, I> {
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
+    /// FIXME: we should bring retry back.
     async fn read(&mut self) -> Result<Buffer> {
-        {
-            || {
-                self.inner
-                    .as_ref()
-                    .expect("inner must be valid")
-                    .read_at(offset, size)
-            }
-        }
-        .retry(&self.builder)
-        .when(|e| e.is_temporary())
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", ReadOperation::Read.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .await
-        .map_err(|e| e.set_persistent())
+        self.inner
+            .as_mut()
+            .expect("inner must be valid")
+            .read()
+            .await
+        //     { || self.inner.as_ref().expect("inner must be valid").read() }
+        //         .retry(&self.builder)
+        //         .when(|e| e.is_temporary())
+        //         .notify(|err, dur| {
+        //             self.notify.intercept(
+        //                 err,
+        //                 dur,
+        //                 &[
+        //                     ("operation", ReadOperation::Read.into_static()),
+        //                     ("path", &self.path),
+        //                 ],
+        //             )
+        //         })
+        //         .await
+        //         .map_err(|e| e.set_persistent())
     }
 }
 

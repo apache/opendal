@@ -42,8 +42,7 @@ use crate::*;
 pub struct Reader {
     acc: Accessor,
     path: Arc<String>,
-
-    inner: oio::Reader,
+    args: OpRead,
     options: OpReader,
 
     /// Total size of the reader.
@@ -64,12 +63,10 @@ impl Reader {
         args: OpRead,
         options: OpReader,
     ) -> Result<Self> {
-        let (_, r) = acc.read(&path, args).await?;
-
         Ok(Reader {
             acc,
             path,
-            inner: r,
+            args,
             options,
             size: Arc::new(AtomicContentLength::new()),
         })
@@ -201,7 +198,13 @@ impl Reader {
     /// Let's keep it inside for now.
     async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
         let range = self.parse_range(range).await?;
-        Ok(BufferStream::new(self.inner, self.options, range))
+        Ok(BufferStream::new(
+            self.acc,
+            self.path,
+            self.args,
+            self.options,
+            range,
+        ))
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -267,7 +270,13 @@ impl Reader {
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesAsyncReader> {
         let range = self.parse_range(range).await?;
-        Ok(FuturesAsyncReader::new(self.inner, self.options, range))
+        Ok(FuturesAsyncReader::new(
+            self.acc,
+            self.path,
+            self.args,
+            self.options,
+            range,
+        ))
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
@@ -322,7 +331,13 @@ impl Reader {
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesBytesStream> {
         let range = self.parse_range(range).await?;
-        Ok(FuturesBytesStream::new(self.inner, self.options, range))
+        Ok(FuturesBytesStream::new(
+            self.acc,
+            self.path,
+            self.args,
+            self.options,
+            range,
+        ))
     }
 }
 
@@ -344,7 +359,7 @@ mod tests {
         let v = Reader {
             acc: Arc::new(TypeEraseLayer.layer(())),
             path: Arc::new("hello".to_string()),
-            inner: Arc::new(Buffer::new()),
+            args: OpRead::new(),
             options: OpReader::new(),
             size: Arc::new(AtomicContentLength::new()),
         };

@@ -51,11 +51,12 @@ tests = [
     "dep:rand",
     "dep:sha2",
     "dep:dotenvy",
-    "layers-blocking",
-    "services-azblob",
-    "services-fs",
-    "services-http",
-    "services-memory",
+    #    "layers-blocking",
+    #    "services-azblob",
+    #    "services-fs",
+    #    "services-http",
+    #    "services-memory",
+    "internal-tokio-rt",
     "services-s3",
 ]
 

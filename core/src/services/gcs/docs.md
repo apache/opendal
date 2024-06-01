@@ -34,14 +34,16 @@ OpenDAL supports the following authentication options:
 2. Provide a JSON key file at explicit path with `credential_path`
 3. Provide a JSON key file at implicit path
     - `GcsBackend` will attempt to load Service Account key from [ADC well-known places](https://cloud.google.com/docs/authentication/application-default-credentials).
-4. When running inside GCP, fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
+4. Fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
+    - Only works when running inside Google Cloud.
     - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
-5. A custom TokenLoader` via `GcsBuilder.customed_token_loader()`
+5. A custom `TokenLoader` via `GcsBuilder.customed_token_loader()`
 
 Notes:
 
+- When a Service Account key is provided, it will be used to create access tokens (VM metadata will not be used).
+- Explicit Service Account key, in json or path, always take precedence over ADC-defined key paths.
 - Due to [limitation in GCS](https://cloud.google.com/storage/docs/authentication/signatures#signing-process), a private key is required to create Pre-signed URL. Currently, OpenDAL only supports Service Account key.
-- Explicitly provided Service Account key, in json or path, always take precedence than ADC key paths.
 
 ## Example
 

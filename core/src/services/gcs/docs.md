@@ -40,8 +40,8 @@ OpenDAL supports the following authentication options:
 
 Notes:
 
-1. When multiple options are available, the effective priority can be tricky. To minimize surprises, it is advised to only provide 1.
-2. Due to [limitation in GCS](https://cloud.google.com/storage/docs/authentication/signatures#signing-process), a private key is required to create Pre-signed URL. Currently, OpenDAL only supports Service Account key.
+- Due to [limitation in GCS](https://cloud.google.com/storage/docs/authentication/signatures#signing-process), a private key is required to create Pre-signed URL. Currently, OpenDAL only supports Service Account key.
+- Explicitly provided Service Account key, in json or path, always take precedence than ADC key paths.
 
 ## Example
 

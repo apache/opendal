@@ -1416,14 +1416,7 @@ impl Operator {
             Err(e) => return Err(e),
         };
 
-        let obs = match self.lister_with(path).recursive(true).await {
-            Ok(obs) => obs,
-            Err(e) if e.kind() == ErrorKind::NotFound => {
-                // If lister still returns NotFound, we can confirm there are no objects under the prefix in any backend.
-                return Ok(());
-            }
-            Err(e) => return Err(e),
-        };
+        let obs = self.lister_with(path).recursive(true).await?;
 
         if self.info().full_capability().batch {
             let mut obs = obs.try_chunks(self.limit());

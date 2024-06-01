@@ -90,7 +90,6 @@ fn test_blocking_remove_all_with_objects(
         .recursive(true)
         .call()
         .expect("list must succeed")
-        .into_iter()
         .next()
         .is_some();
 

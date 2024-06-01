@@ -30,7 +30,6 @@ use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
 use crate::raw::*;
-use crate::services::ipmfs::reader::IpmfsReader;
 use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
@@ -62,7 +61,7 @@ impl IpmfsBackend {
 }
 
 impl Access for IpmfsBackend {
-    type Reader = IpmfsReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type BlockingReader = ();
@@ -133,10 +132,20 @@ impl Access for IpmfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            IpmfsReader::new(self.clone(), path, args),
-        ))
+        let resp = self.ipmfs_read(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -179,7 +188,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -196,7 +205,7 @@ impl IpmfsBackend {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {

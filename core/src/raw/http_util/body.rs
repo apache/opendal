@@ -22,6 +22,10 @@ use futures::{Stream, StreamExt};
 use crate::raw::*;
 use crate::*;
 
+/// HttpBody is the streaming body that opendal's HttpClient returned.
+///
+/// It implements the `oio::Read` trait, service implementors can return it as
+/// `Access::Read`.
 pub struct HttpBody {
     stream: Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
     size: Option<u64>,
@@ -29,6 +33,7 @@ pub struct HttpBody {
 }
 
 impl HttpBody {
+    /// Create a new `HttpBody` with given stream and optional size.
     pub fn new<S>(stream: S, size: Option<u64>) -> Self
     where
         S: Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static,
@@ -40,6 +45,7 @@ impl HttpBody {
         }
     }
 
+    /// Check if the consumed data is equal to the expected content length.
     #[inline]
     fn check(&self) -> Result<()> {
         let Some(expect) = self.size else {

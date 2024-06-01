@@ -18,11 +18,11 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::{Future, Stream, StreamExt};
+use futures::Future;
 
 use crate::raw::*;
 use crate::*;

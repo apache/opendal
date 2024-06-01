@@ -28,7 +28,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_blocking_delete_file,
             test_blocking_remove_one_file
-        ))
+        ));
+        if cap.list_with_recursive {
+            tests.extend(blocking_trials!(op, test_blocking_remove_all_basic));
+            if !cap.create_dir {
+                tests.extend(blocking_trials!(
+                    op,
+                    test_blocking_remove_all_with_prefix_exists
+                ));
+            }
+        }
     }
 }
 
@@ -61,4 +70,45 @@ pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
     assert!(!op.is_exist(&path)?);
 
     Ok(())
+}
+
+fn test_blocking_remove_all_with_objects(
+    op: BlockingOperator,
+    parent: String,
+    paths: impl IntoIterator<Item = &'static str>,
+) -> Result<()> {
+    for path in paths {
+        let path = format!("{parent}/{path}");
+        let (content, _) = gen_bytes(op.info().full_capability());
+        op.write(&path, content).expect("write must succeed");
+    }
+
+    op.remove_all(&parent)?;
+
+    let found = op
+        .lister_with(&format!("{parent}/"))
+        .recursive(true)
+        .call()
+        .expect("list must succeed")
+        .into_iter()
+        .next()
+        .is_some();
+
+    assert!(!found, "all objects should be removed");
+
+    Ok(())
+}
+
+/// Remove all under a prefix
+pub fn test_blocking_remove_all_basic(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+    test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"])
+}
+
+/// Remove all under a prefix, while the prefix itself is also an object
+pub fn test_blocking_remove_all_with_prefix_exists(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().full_capability());
+    op.write(&parent, content).expect("write must succeed");
+    test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"])
 }

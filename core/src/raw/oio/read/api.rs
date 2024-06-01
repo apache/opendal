@@ -82,6 +82,7 @@ pub trait Read: Unpin + Send + Sync {
     /// Read at the given offset with the given size.
     fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend;
 
+    /// Read all data from the reader.
     fn read_all(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
         async {
             let mut bufs = vec![];
@@ -126,6 +127,7 @@ pub trait ReadDyn: Unpin + Send + Sync {
     /// This function returns a boxed future to make it object safe.
     fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
 
+    /// The dyn version of [`Read::read_all`]
     fn read_all_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
 }
 

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -23,16 +22,20 @@ use std::task::Context;
 use std::task::Poll;
 
 use crate::raw::oio::Read;
-use futures::stream::Buffered;
-use futures::stream::FusedStream;
-use futures::stream::Iter;
-use futures::stream::{self};
-use futures::StreamExt;
 use futures::{ready, Stream};
 
 use crate::raw::*;
 use crate::*;
 
+/// ReaderGenerator is used to generate new readers.
+///
+/// If chunk is None, ReaderGenerator will only return one reader.
+/// Otherwise, ReaderGenerator will return multiple readers, each with size
+/// of chunk.
+///
+/// It's design that we didn't implement the generator as a stream, because
+/// we don't expose the generator to the user. Instead, we use the async method
+/// directly to keep it simple and easy to understand.
 struct ReaderGenerator {
     acc: Accessor,
     path: Arc<String>,
@@ -44,8 +47,9 @@ struct ReaderGenerator {
 }
 
 impl ReaderGenerator {
+    /// Create a new ReaderGenerator.
     #[inline]
-    pub(crate) fn new(
+    fn new(
         acc: Accessor,
         path: Arc<String>,
         args: OpRead,
@@ -62,6 +66,7 @@ impl ReaderGenerator {
         }
     }
 
+    /// Generate next reader.
     async fn next(&mut self) -> Result<Option<oio::Reader>> {
         if self.offset >= self.end {
             return Ok(None);
@@ -84,21 +89,19 @@ impl ReaderGenerator {
     }
 }
 
-pub struct WholeReader {
+/// StreamingReader will stream the content of the file without reading into
+/// memory first.
+///
+/// StreamingReader is good for small memory footprint and optimized for latency.
+pub struct StreamingReader {
     generator: ReaderGenerator,
     reader: Option<oio::Reader>,
 }
 
-impl WholeReader {
-    pub fn new(
-        acc: Accessor,
-        path: Arc<String>,
-        args: OpRead,
-        options: OpReader,
-        range: Range<u64>,
-    ) -> Self {
-        let generator = ReaderGenerator::new(acc, path, args, options, range);
-
+impl StreamingReader {
+    /// Create a new streaming reader.
+    #[inline]
+    fn new(generator: ReaderGenerator) -> Self {
         Self {
             generator,
             reader: None,
@@ -106,7 +109,7 @@ impl WholeReader {
     }
 }
 
-impl oio::Read for WholeReader {
+impl oio::Read for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
@@ -128,22 +131,20 @@ impl oio::Read for WholeReader {
     }
 }
 
+/// ChunkedReader will read the file in chunks.
+///
+/// ChunkedReader is good for concurrent read and optimized for throughput.
 pub struct ChunkedReader {
     generator: ReaderGenerator,
     tasks: ConcurrentTasks<oio::Reader, Buffer>,
 }
 
 impl ChunkedReader {
-    pub fn new(
-        acc: Accessor,
-        path: Arc<String>,
-        args: OpRead,
-        options: OpReader,
-        range: Range<u64>,
-    ) -> Self {
+    /// Create a new chunked reader.
+    fn new(generator: ReaderGenerator) -> Self {
         let tasks = ConcurrentTasks::new(
-            args.executor().cloned(),
-            options.concurrent(),
+            generator.args.executor().cloned(),
+            generator.options.concurrent(),
             |mut r: oio::Reader| {
                 Box::pin(async {
                     match r.read_all().await {
@@ -153,8 +154,6 @@ impl ChunkedReader {
                 })
             },
         );
-        let generator = ReaderGenerator::new(acc, path, args, options, range);
-
         Self { generator, tasks }
     }
 }
@@ -173,16 +172,26 @@ impl oio::Read for ChunkedReader {
     }
 }
 
+/// BufferStream is a stream of buffers.
+///
+/// # Notes
+///
+/// The underlying reader is either a StreamingReader or a ChunkedReader.
+///
+/// - If chunk is None, BufferStream will use StreamingReader to iterate
+/// data in streaming way.
+/// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
 pub struct BufferStream {
     state: State,
 }
 
 enum State {
-    Idle(Option<TwoWays<WholeReader, ChunkedReader>>),
-    Reading(BoxedStaticFuture<(TwoWays<WholeReader, ChunkedReader>, Result<Buffer>)>),
+    Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
+    Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
 }
 
 impl BufferStream {
+    /// Create a new buffer stream.
     pub fn new(
         acc: Accessor,
         path: Arc<String>,
@@ -190,10 +199,11 @@ impl BufferStream {
         options: OpReader,
         range: Range<u64>,
     ) -> Self {
-        let reader = if options.chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(acc, path, args, options, range))
+        let generator = ReaderGenerator::new(acc, path, args, options, range);
+        let reader = if generator.options.chunk().is_some() {
+            TwoWays::Two(ChunkedReader::new(generator))
         } else {
-            TwoWays::One(WholeReader::new(acc, path, args, options, range))
+            TwoWays::One(StreamingReader::new(generator))
         };
         Self {
             state: State::Idle(Some(reader)),
@@ -205,7 +215,7 @@ impl Stream for BufferStream {
     type Item = Result<Buffer>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.get_mut();
+        let this = self.get_mut();
         loop {
             match &mut this.state {
                 State::Idle(reader) => {

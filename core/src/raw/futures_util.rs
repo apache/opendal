@@ -128,6 +128,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         self.tasks.len() < self.tasks.capacity()
     }
 
+    /// Chunk if there are remaining results to fetch.
     #[inline]
     pub fn has_result(&self) -> bool {
         !self.results.is_empty()

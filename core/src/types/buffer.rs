@@ -19,7 +19,6 @@ use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::io::IoSlice;
 use std::mem;
 use std::ops::Bound;
@@ -33,9 +32,8 @@ use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
 use bytes::BytesMut;
-use futures::{Stream, TryStreamExt};
+use futures::Stream;
 
-use crate::raw::MaybeSend;
 use crate::*;
 
 /// Buffer is a wrapper of contiguous `Bytes` and non-contiguous `[Bytes]`.

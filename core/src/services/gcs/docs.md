@@ -18,12 +18,30 @@ This service can be used to:
 - `root`: Set the work directory for backend
 - `bucket`: Set the container name for backend
 - `endpoint`: Customizable endpoint setting
-- `credential`: Credentials string for GCS service OAuth2 authentication
-- `credential_path`: Local path to credentials file for GCS service OAuth2 authentication
+- `credential`: Service Account or External Account JSON, in base64
+- `credential_path`: local path to Service Account or External Account JSON file
+- `service_account`: name of Service Account
 - `predefined_acl`: Predefined ACL for GCS
 - `default_storage_class`: Default storage class for GCS
 
-Refer to public API docs for more information.
+Refer to public API docs for more information. For authentication related options, read on.
+
+## Options to authenticate to GCS
+
+OpenDAL supports the following authentication options:
+
+1. Provide a base64-ed JSON key string with `credential`
+2. Provide a JSON key file at explicit path with `credential_path`
+3. Provide a JSON key file at implicit path
+    - `GcsBackend` will attempt to load Service Account key from [ADC well-known places](https://cloud.google.com/docs/authentication/application-default-credentials).
+4. When running inside GCP, fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
+    - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
+5. A custom TokenLoader` via `GcsBuilder.customed_token_loader()`
+
+Notes:
+
+1. When multiple options are available, the effective priority can be tricky. To minimize surprises, it is advised to only provide 1.
+2. Due to [limitation in GCS](https://cloud.google.com/storage/docs/authentication/signatures#signing-process), a private key is required to create Pre-signed URL. Currently, OpenDAL only supports Service Account key.
 
 ## Example
 
@@ -44,8 +62,8 @@ async fn main() -> Result<()> {
     // set the working directory root for GCS
     // all operations will happen within it
     builder.root("/path/to/dir");
-    // set the credentials string of service account
-    builder.credential("service account credential");
+    // set the credentials for GCS OAUTH2 authentication
+    builder.credential("service account JSON in base64");
     // set the predefined ACL for GCS
     builder.predefined_acl("publicRead");
     // set the default storage class for GCS

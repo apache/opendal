@@ -39,7 +39,7 @@ fn test_blocking_remove_all_with_objects(
         .lister_with(&format!("{parent}/"))
         .recursive(true)
         .call()
-        .expect("list must succed")
+        .expect("list must succeed")
         .into_iter()
         .next()
         .is_some();

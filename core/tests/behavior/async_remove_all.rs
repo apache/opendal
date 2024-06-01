@@ -40,7 +40,7 @@ async fn test_blocking_remove_all_with_objects(
         .lister_with(&format!("{parent}/"))
         .recursive(true)
         .await
-        .expect("list must succed")
+        .expect("list must succeed")
         .try_next()
         .await
         .expect("list must succeed")

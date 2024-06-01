@@ -21,14 +21,18 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use chrono::Utc;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use super::core::*;
+use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
-use super::reader::AliyunDriveReader;
 use super::writer::{AliyunDriveWriter, AliyunDriveWriters};
 use crate::raw::*;
 use crate::*;
@@ -260,7 +264,7 @@ pub struct AliyunDriveBackend {
 }
 
 impl Access for AliyunDriveBackend {
-    type Reader = AliyunDriveReader;
+    type Reader = HttpBody;
     type Writer = AliyunDriveWriters;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type BlockingReader = ();
@@ -412,16 +416,24 @@ impl Access for AliyunDriveBackend {
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
-        let Some(size) = file.size else {
-            return Err(Error::new(ErrorKind::Unexpected, "cannot get file size"));
-        };
-
         let download_url = self.core.get_download_url(&file.file_id).await?;
+        let req = Request::get(&download_url)
+            .header(header::RANGE, args.range().to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        Ok((
-            RpRead::default(),
-            AliyunDriveReader::new(self.core.clone(), &download_url, size, args),
-        ))
+        let resp = self.core.client.fetch(req).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {

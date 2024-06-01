@@ -46,7 +46,6 @@ use super::error::parse_s3_error_code;
 use super::lister::S3Lister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -1108,7 +1107,7 @@ impl Access for S3Backend {
             }
             _ => {
                 let (part, mut body) = resp.into_parts();
-                let buf = body.read_all().await?;
+                let buf = body.to_buffer().await?;
                 Err(parse_error(Response::from_parts(part, buf)).await?)
             }
         }

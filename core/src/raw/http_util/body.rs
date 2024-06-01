@@ -18,6 +18,7 @@
 use std::cmp::Ordering;
 
 use futures::{Stream, StreamExt};
+use oio::Read;
 
 use crate::raw::*;
 use crate::*;
@@ -66,6 +67,11 @@ impl HttpBody {
             )
             .set_temporary()),
         }
+    }
+
+    /// Read all data from the stream.
+    pub async fn to_buffer(&mut self) -> Result<Buffer> {
+        self.read_all().await
     }
 }
 

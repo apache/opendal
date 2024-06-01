@@ -217,12 +217,12 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = self.azblob_get_blob_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn azblob_put_blob_request(

@@ -20,12 +20,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
+use http::StatusCode;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use super::core::*;
 use crate::raw::*;
-use crate::services::icloud::reader::IcloudReader;
 use crate::*;
 
 /// Config for icloud services support.
@@ -265,7 +266,7 @@ pub struct IcloudBackend {
 }
 
 impl Access for IcloudBackend {
-    type Reader = IcloudReader;
+    type Reader = HttpBody;
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
@@ -310,9 +311,16 @@ impl Access for IcloudBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            IcloudReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.read(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 }

@@ -373,7 +373,7 @@ impl IcloudCore {
         zone: &str,
         range: BytesRange,
         args: OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut signer = self.signer.lock().await;
 
         let uri = format!(
@@ -413,7 +413,7 @@ impl IcloudCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = signer.client.send(req).await?;
+        let resp = signer.client.fetch(req).await?;
 
         Ok(resp)
     }
@@ -423,7 +423,7 @@ impl IcloudCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 

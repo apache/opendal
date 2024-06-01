@@ -21,6 +21,9 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::header;
+use http::Request;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -31,7 +34,6 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
-use crate::services::yandex_disk::reader::YandexDiskReader;
 use crate::*;
 
 /// Config for backblaze YandexDisk services support.
@@ -178,7 +180,7 @@ pub struct YandexDiskBackend {
 }
 
 impl Access for YandexDiskBackend {
-    type Reader = YandexDiskReader;
+    type Reader = HttpBody;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type BlockingReader = ();
@@ -245,10 +247,24 @@ impl Access for YandexDiskBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            YandexDiskReader::new(self.core.clone(), path, args),
-        ))
+        // TODO: move this out of reader.
+        let download_url = self.core.get_download_url(path).await?;
+
+        let req = Request::get(download_url)
+            .header(header::RANGE, args.range().to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let resp = self.core.client.fetch(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

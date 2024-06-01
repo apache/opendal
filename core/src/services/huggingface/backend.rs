@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -30,7 +31,6 @@ use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
-use crate::services::huggingface::reader::HuggingfaceReader;
 use crate::*;
 
 /// Configuration for Huggingface service support.
@@ -243,7 +243,7 @@ pub struct HuggingfaceBackend {
 }
 
 impl Access for HuggingfaceBackend {
-    type Reader = HuggingfaceReader;
+    type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
     type BlockingReader = ();
@@ -310,10 +310,20 @@ impl Access for HuggingfaceBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            HuggingfaceReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.hf_resolve(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

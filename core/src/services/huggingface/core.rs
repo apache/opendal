@@ -124,7 +124,7 @@ impl HuggingfaceCore {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -157,7 +157,7 @@ impl HuggingfaceCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 }
 

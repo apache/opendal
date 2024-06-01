@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -32,7 +33,6 @@ use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
-use crate::services::github::reader::GithubReader;
 use crate::*;
 
 /// Config for backblaze Github services support.
@@ -217,7 +217,7 @@ pub struct GithubBackend {
 }
 
 impl Access for GithubBackend {
-    type Reader = GithubReader;
+    type Reader = HttpBody;
 
     type Writer = GithubWriters;
 
@@ -296,10 +296,20 @@ impl Access for GithubBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            GithubReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.get(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

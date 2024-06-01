@@ -1019,7 +1019,7 @@ pub struct S3Backend {
 }
 
 impl Access for S3Backend {
-    type Reader = oio::Reader;
+    type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = oio::PageLister<S3Lister>;
     type BlockingReader = ();

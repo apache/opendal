@@ -25,6 +25,9 @@
 mod client;
 pub use client::HttpClient;
 
+mod body;
+pub use body::HttpBody;
+
 mod header;
 pub use header::build_header_value;
 pub use header::format_authorization_by_basic;

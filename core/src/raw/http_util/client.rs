@@ -147,7 +147,7 @@ impl HttpClient {
         let bs = HttpBody::new(
             resp.bytes_stream()
                 .try_filter(|v| future::ready(!v.is_empty()))
-                .map_ok(|v| Buffer::from(v))
+                .map_ok(Buffer::from)
                 .map_err(move |err| {
                     Error::new(ErrorKind::Unexpected, "read data from http response")
                         .with_operation("http_util::Client::send")

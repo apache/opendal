@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
     // set the working directory root for GCS
     // all operations will happen within it
     builder.root("/path/to/dir");
-    // set the credentials for GCS OAUTH2 authentication
+    // set the credentials with service account
     builder.credential("service account JSON in base64");
     // set the predefined ACL for GCS
     builder.predefined_acl("publicRead");

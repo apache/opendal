@@ -37,7 +37,6 @@ use serde::Serialize;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
-use crate::services::ghac::reader::GhacReader;
 use crate::*;
 
 /// The base url for cache url.
@@ -227,7 +226,7 @@ pub struct GhacBackend {
 }
 
 impl Access for GhacBackend {
-    type Reader = GhacReader;
+    type Reader = HttpBody;
     type Writer = GhacWriter;
     type Lister = ();
     type BlockingReader = ();
@@ -310,10 +309,20 @@ impl Access for GhacBackend {
             return Err(parse_error(resp).await?);
         };
 
-        Ok((
-            RpRead::default(),
-            GhacReader::new(self.clone(), &location, args),
-        ))
+        let req = self.ghac_get_location(&location, args.range()).await?;
+        let resp = self.client.fetch(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

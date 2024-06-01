@@ -135,7 +135,7 @@ impl WebdavCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -151,7 +151,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn webdav_put(

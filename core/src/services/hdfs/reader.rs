@@ -52,7 +52,7 @@ impl oio::Read for HdfsReader {
 }
 
 impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         let mut bs = Vec::with_capacity(size);
 
         let buf = bs.spare_capacity_mut();

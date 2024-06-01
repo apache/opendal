@@ -766,11 +766,11 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         let start = Instant::now();
 
         self.inner
-            .read_at(offset, size)
+            .read()
             .map(|bs| {
                 self.bytes_counter.increment(bs.remaining() as u64);
                 self.requests_duration_seconds

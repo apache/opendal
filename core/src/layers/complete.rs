@@ -594,12 +594,12 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         if size == 0 {
             return Ok(Buffer::new());
         }
 
-        let buf = self.0.read_at(offset, size)?;
+        let buf = self.0.read()?;
         if buf.len() != size {
             return Err(Error::new(
                 ErrorKind::RangeNotSatisfied,

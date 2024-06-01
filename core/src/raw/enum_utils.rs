@@ -61,10 +61,10 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
 }
 
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, size),
-            Self::Two(v) => v.read_at(offset, size),
+            Self::One(v) => v.read(),
+            Self::Two(v) => v.read(),
         }
     }
 }
@@ -117,11 +117,11 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
 impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
     for ThreeWays<ONE, TWO, THREE>
 {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, size),
-            Self::Two(v) => v.read_at(offset, size),
-            Self::Three(v) => v.read_at(offset, size),
+            Self::One(v) => v.read(),
+            Self::Two(v) => v.read(),
+            Self::Three(v) => v.read(),
         }
     }
 }
@@ -192,12 +192,12 @@ where
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         match self {
-            Self::One(v) => v.read_at(offset, size),
-            Self::Two(v) => v.read_at(offset, size),
-            Self::Three(v) => v.read_at(offset, size),
-            Self::Four(v) => v.read_at(offset, size),
+            Self::One(v) => v.read(),
+            Self::Two(v) => v.read(),
+            Self::Three(v) => v.read(),
+            Self::Four(v) => v.read(),
         }
     }
 }

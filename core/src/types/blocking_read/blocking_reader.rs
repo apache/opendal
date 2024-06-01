@@ -106,7 +106,7 @@ impl BlockingReader {
         loop {
             // TODO: use service preferred io size instead.
             let size = (end - offset) as usize;
-            let bs = self.inner.read_at(offset, size)?;
+            let bs = self.inner.read()?;
             let n = bs.remaining();
             bufs.push(bs);
             if n < size {
@@ -138,7 +138,7 @@ impl BlockingReader {
         loop {
             // TODO: use service preferred io size instead.
             let size = (end - offset) as usize;
-            let bs = self.inner.read_at(offset, size)?;
+            let bs = self.inner.read()?;
             let n = bs.remaining();
             buf.put(bs);
             read += n as u64;

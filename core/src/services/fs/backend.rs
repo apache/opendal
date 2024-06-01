@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -167,10 +168,10 @@ pub struct FsBackend {
 }
 
 impl Access for FsBackend {
-    type Reader = FsReader;
+    type Reader = FsReader<tokio::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
-    type BlockingReader = FsReader;
+    type BlockingReader = FsReader<std::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
@@ -244,16 +245,28 @@ impl Access for FsBackend {
     /// - open file first, and than use `seek`. (100ns)
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
-        let f = tokio::fs::OpenOptions::new()
+        let mut f = tokio::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .await
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(self.core.clone(), f.into_std().await);
+        if args.range().offset() != 0 {
+            use tokio::io::AsyncSeekExt;
+
+            f.seek(SeekFrom::Start(args.range().offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
+
+        let r = FsReader::new(
+            self.core.clone(),
+            f,
+            args.range().size().unwrap_or(u64::MAX) as _,
+        );
         Ok((RpRead::new(), r))
     }
 
@@ -407,15 +420,26 @@ impl Access for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
-        let f = std::fs::OpenOptions::new()
+        let mut f = std::fs::OpenOptions::new()
             .read(true)
             .open(p)
             .map_err(new_std_io_error)?;
 
-        let r = FsReader::new(self.core.clone(), f);
+        if args.range().offset() != 0 {
+            use std::io::Seek;
+
+            f.seek(SeekFrom::Start(args.range().offset()))
+                .map_err(new_std_io_error)?;
+        }
+
+        let r = FsReader::new(
+            self.core.clone(),
+            f,
+            args.range().size().unwrap_or(u64::MAX) as _,
+        );
         Ok((RpRead::new(), r))
     }
 

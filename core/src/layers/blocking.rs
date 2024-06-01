@@ -282,8 +282,8 @@ impl<I> BlockingWrapper<I> {
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.handle.block_on(self.inner.read_at(offset, size))
+    fn read(&mut self) -> Result<Buffer> {
+        self.handle.block_on(self.inner.read())
     }
 }
 

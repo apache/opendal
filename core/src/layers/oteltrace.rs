@@ -278,8 +278,8 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, size)
+    fn read(&mut self) -> Result<Buffer> {
+        self.inner.read()
     }
 }
 

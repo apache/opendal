@@ -317,7 +317,7 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     }
 }
 
-#[cfg(test_xx)]
+#[cfg(test)]
 mod tests {
     use std::future::pending;
     use std::future::Future;
@@ -376,7 +376,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read_at(&self, _: u64, _: usize) -> impl Future<Output = Result<Buffer>> {
+        fn read(&mut self) -> impl Future<Output = Result<Buffer>> {
             pending()
         }
     }

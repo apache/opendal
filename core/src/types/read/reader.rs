@@ -313,30 +313,34 @@ impl Reader {
     }
 }
 
-#[cfg(test_xx)]
+#[cfg(test)]
 mod tests {
-    use crate::layers::TypeEraseLayer;
+    use bytes::Bytes;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
-    use std::sync::Arc;
+    use std::collections::HashMap;
 
     use super::*;
     use crate::raw::MaybeSend;
     use crate::services;
     use crate::Operator;
 
-    #[test]
-    fn test_trait() {
-        let v = Reader {
-            acc: Arc::new(TypeEraseLayer.layer(())),
-            path: Arc::new("hello".to_string()),
-            args: OpRead::new(),
-            options: OpReader::new(),
-            size: Arc::new(AtomicContentLength::new()),
-        };
+    #[tokio::test]
+    async fn test_trait() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
 
-        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+        let acc = op.into_inner();
+        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
+
+        Ok(())
     }
 
     fn gen_random_bytes() -> Vec<u8> {
@@ -356,8 +360,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reader_read() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+    async fn test_reader_read() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -369,11 +373,12 @@ mod tests {
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reader_read_with_chunk() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+    async fn test_reader_read_with_chunk() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -385,11 +390,12 @@ mod tests {
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reader_read_with_concurrent() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+    async fn test_reader_read_with_concurrent() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -406,11 +412,12 @@ mod tests {
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reader_read_into() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+    async fn test_reader_read_into() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -426,10 +433,11 @@ mod tests {
             .expect("read to end must succeed");
 
         assert_eq!(buf, content);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_merge_ranges() {
+    async fn test_merge_ranges() -> Result<()> {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let path = "test_file";
 
@@ -443,10 +451,11 @@ mod tests {
         let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
         let merged = reader.merge_ranges(ranges.clone());
         assert_eq!(merged, vec![0..30, 40..60]);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_fetch() {
+    async fn test_fetch() -> Result<()> {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let path = "test_file";
 
@@ -478,5 +487,6 @@ mod tests {
                 content[range.start as usize..range.end as usize]
             );
         }
+        Ok(())
     }
 }

@@ -76,6 +76,7 @@ impl oio::Read for StreamingReader {
 pub struct ChunkedReader {
     generator: ReadGenerator,
     tasks: ConcurrentTasks<oio::Reader, Buffer>,
+    done: bool,
 }
 
 impl ChunkedReader {
@@ -94,15 +95,22 @@ impl ChunkedReader {
             },
         );
         let generator = ReadGenerator::new(ctx, range);
-        Self { generator, tasks }
+        Self {
+            generator,
+            tasks,
+            done: false,
+        }
     }
 }
 
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
-        while self.tasks.has_remaining() {
+        while self.tasks.has_remaining() && !self.done {
             if let Some(r) = self.generator.next_reader().await? {
                 self.tasks.execute(r).await?;
+            } else {
+                self.done = true;
+                break;
             }
             if self.tasks.has_result() {
                 break;

@@ -27,7 +27,6 @@ use futures::FutureExt;
 use log::warn;
 
 use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;

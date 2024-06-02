@@ -17,7 +17,6 @@
 
 use bytes::Buf;
 use bytes::Bytes;
-use std::sync::Arc;
 
 use super::operator_functions::*;
 use crate::raw::*;

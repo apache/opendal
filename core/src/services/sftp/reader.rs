@@ -16,15 +16,11 @@
 // under the License.
 
 use bb8::PooledConnection;
-use std::io::SeekFrom;
-use std::mem;
 
-use bytes::{Buf, BytesMut};
+use bytes::BytesMut;
 use openssh_sftp_client::file::File;
-use tokio::io::AsyncSeekExt;
 
 use super::backend::Manager;
-use super::backend::SftpBackend;
 use super::error::parse_sftp_error;
 use crate::raw::*;
 use crate::*;

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream;
@@ -570,7 +569,7 @@ impl Operator {
                 }
 
                 let range = args.range();
-                let context = ReadContext::new(inner, path, args, OpReader::default());
+                let context = ReadContext::new(inner, path, args, options);
                 let r = Reader::new(context);
                 let buf = r.read(range.to_range()).await?;
                 Ok(buf)
@@ -682,7 +681,7 @@ impl Operator {
                     );
                 }
 
-                let context = ReadContext::new(inner, path, args, OpReader::default());
+                let context = ReadContext::new(inner, path, args, options);
                 Ok(Reader::new(context))
             },
         )

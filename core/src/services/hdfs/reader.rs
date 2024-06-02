@@ -65,7 +65,7 @@ impl oio::Read for HdfsReader<AsyncFile> {
 
         let n = self
             .f
-            .read(&mut read_buf.initialize_unfilled())
+            .read(read_buf.initialize_unfilled())
             .await
             .map_err(new_std_io_error)?;
         read_buf.advance(n);
@@ -99,7 +99,7 @@ impl oio::BlockingRead for HdfsReader<File> {
 
         let n = self
             .f
-            .read(&mut read_buf.initialize_unfilled())
+            .read(read_buf.initialize_unfilled())
             .map_err(new_std_io_error)?;
         read_buf.advance(n);
         self.read += n;

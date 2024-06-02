@@ -69,7 +69,7 @@ impl BlockingReader {
                     let size = self
                         .ctx
                         .accessor()
-                        .blocking_stat(&self.ctx.path(), OpStat::new())?
+                        .blocking_stat(self.ctx.path(), OpStat::new())?
                         .into_metadata()
                         .content_length();
                     self.size.store(size);

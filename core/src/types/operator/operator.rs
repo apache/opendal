@@ -1397,20 +1397,23 @@ impl Operator {
     /// # }
     /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
-        let meta = match self.stat(path).await {
+        match self.stat(path).await {
             // If object exists.
-            Ok(metadata) => metadata,
+            Ok(metadata) => {
+                // If the object is a file, we can delete it.
+                if metadata.mode() != EntryMode::DIR {
+                    self.delete(path).await?;
+                    // There may still be objects prefixed with the path in some backend, so we can't return here.
+                }
+            }
 
-            // If object not found, return success.
-            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            // If dir not found, it may be a prefix in object store like S3,
+            // and we still need to delete objects under the prefix.
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
 
             // Pass on any other error.
             Err(e) => return Err(e),
         };
-
-        if meta.mode() != EntryMode::DIR {
-            return self.delete(path).await;
-        }
 
         let obs = self.lister_with(path).recursive(true).await?;
 

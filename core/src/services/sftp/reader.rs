@@ -15,68 +15,90 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bb8::PooledConnection;
 use std::io::SeekFrom;
+use std::mem;
 
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
+use openssh_sftp_client::file::File;
 use tokio::io::AsyncSeekExt;
 
+use super::backend::Manager;
 use super::backend::SftpBackend;
 use super::error::parse_sftp_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct SftpReader {
-    inner: SftpBackend,
-    root: String,
-    path: String,
+    /// Keep the connection alive while data stream is alive.
+    _conn: PooledConnection<'static, Manager>,
+
+    file: File,
+    chunk: usize,
+    size: usize,
+    read: usize,
+    buf: BytesMut,
 }
 
 impl SftpReader {
-    pub fn new(inner: SftpBackend, root: String, path: String) -> Self {
-        Self { inner, root, path }
+    pub fn new(conn: PooledConnection<'static, Manager>, file: File, size: usize) -> Self {
+        Self {
+            _conn: conn,
+            file,
+            size,
+            chunk: 2 * 1024 * 1024,
+            read: 0,
+            buf: BytesMut::new(),
+        }
     }
 }
 
 impl oio::Read for SftpReader {
     async fn read(&mut self) -> Result<Buffer> {
-        let client = self.inner.connect().await?;
+        // let client = self.inner.connect().await?;
+        //
+        // let mut fs = client.fs();
+        // fs.set_cwd(&self.root);
+        //
+        // let path = fs
+        //     .canonicalize(&self.path)
+        //     .await
+        //     .map_err(parse_sftp_error)?;
+        //
+        // let mut f = client
+        //     .open(path.as_path())
+        //     .await
+        //     .map_err(parse_sftp_error)?;
 
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
+        // f.seek(SeekFrom::Start(offset))
+        //     .await
+        //     .map_err(new_std_io_error)?;
 
-        let path = fs
-            .canonicalize(&self.path)
-            .await
-            .map_err(parse_sftp_error)?;
+        // let mut size = size;
+        // if size == 0 {
+        //     return Ok(Buffer::new());
+        // }
 
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        f.seek(SeekFrom::Start(offset))
-            .await
-            .map_err(new_std_io_error)?;
-
-        let mut size = size;
-        if size == 0 {
+        if self.read >= self.size {
             return Ok(Buffer::new());
         }
 
-        let mut buf = BytesMut::with_capacity(size);
-        while size > 0 {
-            let len = buf.len();
-            if let Some(bytes) = f
-                .read(size as u32, buf.split_off(len))
-                .await
-                .map_err(parse_sftp_error)?
-            {
-                size -= bytes.len();
-                buf.unsplit(bytes);
-            } else {
-                break;
-            }
-        }
-        Ok(Buffer::from(buf.freeze()))
+        let size = (self.size - self.read).min(self.chunk);
+        self.buf.reserve(size);
+
+        let Some(bytes) = self
+            .file
+            .read(size as u32, self.buf.split_off(size))
+            .await
+            .map_err(parse_sftp_error)?
+        else {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "sftp read file reaching EoF",
+            ));
+        };
+
+        self.read += bytes.len();
+        Ok(Buffer::from(bytes.freeze()))
     }
 }

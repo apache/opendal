@@ -18,20 +18,28 @@
 use hdfs_native::file::FileReader;
 
 use crate::raw::*;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 
 pub struct HdfsNativeReader {
-    _f: FileReader,
+    f: FileReader,
 }
 
 impl HdfsNativeReader {
     pub fn new(f: FileReader) -> Self {
-        HdfsNativeReader { _f: f }
+        HdfsNativeReader { f }
     }
 }
 
 impl oio::Read for HdfsNativeReader {
-    async fn read_at(&self, _offset: u64, _limit: usize) -> Result<Buffer> {
-        todo!()
+    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+        // Perform the read operation using read_range
+        let bytes = self
+            .f
+            .read_range(offset as usize, limit)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(Buffer::from(bytes))
     }
 }

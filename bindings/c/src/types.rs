@@ -58,10 +58,10 @@ impl opendal_bytes {
 }
 
 #[allow(clippy::from_over_into)]
-impl Into<bytes::Bytes> for opendal_bytes {
-    fn into(self) -> bytes::Bytes {
+impl Into<Buffer> for opendal_bytes {
+    fn into(self) -> Buffer {
         let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
-        bytes::Bytes::copy_from_slice(slice)
+        Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }
 }
 

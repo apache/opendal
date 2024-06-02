@@ -595,19 +595,7 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
     fn read(&mut self) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
         let buf = self.0.read()?;
-        if buf.len() != size {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "service didn't return the expected size",
-            )
-            .with_context("expect", size.to_string())
-            .with_context("actual", buf.len().to_string()));
-        }
         Ok(buf)
     }
 }

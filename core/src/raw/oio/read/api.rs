@@ -156,7 +156,7 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
 }
 
 /// BlockingReader is a arc dyn `BlockingRead`.
-pub type BlockingReader = Arc<dyn BlockingRead>;
+pub type BlockingReader = Box<dyn BlockingRead>;
 
 /// Read is the trait that OpenDAL returns to callers.
 pub trait BlockingRead: Send + Sync {

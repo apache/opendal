@@ -397,8 +397,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let path = Arc::new(path);
-                let r = BlockingReader::create(inner, path, args)?;
+                let context = ReadContext::new(inner, path, args, OpReader::default());
+                let r = BlockingReader::new(context);
                 let buf = r.read(range.to_range())?;
                 Ok(buf)
             },
@@ -456,8 +456,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let path = Arc::new(path);
-                BlockingReader::create(inner.clone(), path, args)
+                let context = ReadContext::new(inner, path, args, OpReader::default());
+                Ok(BlockingReader::new(context))
             },
         ))
     }

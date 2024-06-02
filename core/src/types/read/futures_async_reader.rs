@@ -42,10 +42,7 @@ use crate::*;
 ///
 /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
 pub struct FuturesAsyncReader {
-    acc: Accessor,
-    path: Arc<String>,
-    args: OpRead,
-    options: OpReader,
+    ctx: Arc<ReadContext>,
 
     stream: BufferStream,
     buf: Buffer,
@@ -64,27 +61,12 @@ impl FuturesAsyncReader {
     ///
     /// Extend this API to accept `impl RangeBounds`.
     #[inline]
-    pub(super) fn new(
-        acc: Accessor,
-        path: Arc<String>,
-        args: OpRead,
-        options: OpReader,
-        range: Range<u64>,
-    ) -> Self {
+    pub(super) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
         let (start, end) = (range.start, range.end);
-        let stream = BufferStream::new(
-            acc.clone(),
-            path.clone(),
-            args.clone(),
-            options.clone(),
-            range,
-        );
+        let stream = BufferStream::new(ctx.clone(), range);
 
         FuturesAsyncReader {
-            acc,
-            path,
-            args,
-            options,
+            ctx,
             stream,
             buf: Buffer::new(),
             start,
@@ -175,13 +157,7 @@ impl AsyncSeek for FuturesAsyncReader {
             self.buf.advance(cnt as _);
         } else {
             self.buf = Buffer::new();
-            self.stream = BufferStream::new(
-                self.acc.clone(),
-                self.path.clone(),
-                self.args.clone(),
-                self.options.clone(),
-                new_pos + self.start..self.end,
-            );
+            self.stream = BufferStream::new(self.ctx.clone(), new_pos + self.start..self.end);
         }
 
         self.pos = new_pos;

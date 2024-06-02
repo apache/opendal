@@ -17,11 +17,13 @@
 
 use std::io;
 use std::ops::Range;
+use std::sync::Arc;
 
-use bytes::Buf;
+use crate::{Buffer, BufferIterator};
 use bytes::Bytes;
 
 use crate::raw::*;
+use crate::*;
 
 /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].
 ///
@@ -29,32 +31,20 @@ use crate::raw::*;
 ///
 /// StdIterator also implements [`Send`] and [`Sync`].
 pub struct StdBytesIterator {
-    inner: oio::BlockingReader,
-    offset: u64,
-    end: u64,
-    cap: usize,
-
-    cur: u64,
+    iter: BufferIterator,
+    buf: Buffer,
 }
 
 impl StdBytesIterator {
     /// NOTE: don't allow users to create StdIterator directly.
     #[inline]
-    pub(crate) fn new(r: oio::BlockingReader, range: Range<u64>) -> Self {
-        StdBytesIterator {
-            inner: r,
-            offset: range.start,
-            end: range.end,
-            // TODO: should use services preferred io size.
-            cap: 4 * 1024 * 1024,
-            cur: 0,
-        }
-    }
+    pub(crate) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
+        let iter = BufferIterator::new(ctx, range);
 
-    /// Set the capacity of this reader to control the IO size.
-    pub fn with_capacity(mut self, cap: usize) -> Self {
-        self.cap = cap;
-        self
+        StdBytesIterator {
+            iter,
+            buf: Buffer::new(),
+        }
     }
 }
 
@@ -62,19 +52,17 @@ impl Iterator for StdBytesIterator {
     type Item = io::Result<Bytes>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.offset + self.cur >= self.end {
-            return None;
-        }
-
-        let next_offset = self.offset + self.cur;
-        let next_size = (self.end - self.offset - self.cur).min(self.cap as u64) as usize;
-        match self.inner.read_at(next_offset, next_size) {
-            Ok(buf) if !buf.has_remaining() => None,
-            Ok(mut buf) => {
-                self.cur += buf.remaining() as u64;
-                Some(Ok(buf.copy_to_bytes(buf.remaining())))
+        loop {
+            // Consume current buffer
+            if let Some(bs) = Iterator::next(&mut self.buf) {
+                return Some(Ok(bs));
             }
-            Err(err) => Some(Err(format_std_io_error(err))),
+
+            self.buf = match self.iter.next() {
+                Some(Ok(buf)) => buf,
+                Some(Err(err)) => return Some(Err(format_std_io_error(err))),
+                None => return None,
+            };
         }
     }
 }

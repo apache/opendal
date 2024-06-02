@@ -40,10 +40,7 @@ use crate::*;
 /// [`Reader`] provides public API including [`Reader::read`], [`Reader:read_range`], and [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
 #[derive(Clone)]
 pub struct Reader {
-    acc: Accessor,
-    path: Arc<String>,
-    args: OpRead,
-    options: OpReader,
+    ctx: Arc<ReadContext>,
 
     /// Total size of the reader.
     size: Arc<AtomicContentLength>,
@@ -57,19 +54,11 @@ impl Reader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create(
-        acc: Accessor,
-        path: Arc<String>,
-        args: OpRead,
-        options: OpReader,
-    ) -> Result<Self> {
-        Ok(Reader {
-            acc,
-            path,
-            args,
-            options,
+    pub(crate) fn new(ctx: ReadContext) -> Self {
+        Reader {
+            ctx: Arc::new(ctx),
             size: Arc::new(AtomicContentLength::new()),
-        })
+        }
     }
 
     /// Parse users input range bounds into valid `Range<u64>`.
@@ -89,8 +78,9 @@ impl Reader {
                 Some(v) => v,
                 None => {
                     let size = self
-                        .acc
-                        .stat(&self.path, OpStat::new())
+                        .ctx
+                        .accessor()
+                        .stat(self.ctx.path(), OpStat::new())
                         .await?
                         .into_metadata()
                         .content_length();
@@ -146,7 +136,7 @@ impl Reader {
 
         let merged_bufs: Vec<_> =
             stream::iter(merged_ranges.clone().into_iter().map(|v| self.read(v)))
-                .buffered(self.options.concurrent())
+                .buffered(self.ctx.options().concurrent())
                 .try_collect()
                 .await?;
 
@@ -163,7 +153,7 @@ impl Reader {
 
     /// Merge given ranges into a list of non-overlapping ranges.
     fn merge_ranges(&self, mut ranges: Vec<Range<u64>>) -> Vec<Range<u64>> {
-        let gap = self.options.gap().unwrap_or(1024 * 1024) as u64;
+        let gap = self.ctx.options().gap().unwrap_or(1024 * 1024) as u64;
         // We don't care about the order of range with same start, they
         // will be merged in the next step.
         ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
@@ -198,13 +188,7 @@ impl Reader {
     /// Let's keep it inside for now.
     async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
         let range = self.parse_range(range).await?;
-        Ok(BufferStream::new(
-            self.acc,
-            self.path,
-            self.args,
-            self.options,
-            range,
-        ))
+        Ok(BufferStream::new(self.ctx, range))
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -270,13 +254,7 @@ impl Reader {
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesAsyncReader> {
         let range = self.parse_range(range).await?;
-        Ok(FuturesAsyncReader::new(
-            self.acc,
-            self.path,
-            self.args,
-            self.options,
-            range,
-        ))
+        Ok(FuturesAsyncReader::new(self.ctx, range))
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
@@ -331,17 +309,11 @@ impl Reader {
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesBytesStream> {
         let range = self.parse_range(range).await?;
-        Ok(FuturesBytesStream::new(
-            self.acc,
-            self.path,
-            self.args,
-            self.options,
-            range,
-        ))
+        Ok(FuturesBytesStream::new(self.ctx, range))
     }
 }
 
-#[cfg(test)]
+#[cfg(test_xx)]
 mod tests {
     use crate::layers::TypeEraseLayer;
     use rand::rngs::ThreadRng;

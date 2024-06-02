@@ -19,6 +19,9 @@
 mod blocking_reader;
 pub use blocking_reader::BlockingReader;
 
+mod buffer_iterator;
+pub use buffer_iterator::BufferIterator;
+
 mod std_bytes_iterator;
 pub use std_bytes_iterator::StdBytesIterator;
 mod std_reader;

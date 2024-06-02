@@ -47,14 +47,8 @@ unsafe impl Sync for FuturesBytesStream {}
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
     #[inline]
-    pub(crate) fn new(
-        acc: Accessor,
-        path: Arc<String>,
-        args: OpRead,
-        options: OpReader,
-        range: Range<u64>,
-    ) -> Self {
-        let stream = BufferStream::new(acc, path, args, options, range);
+    pub(crate) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
+        let stream = BufferStream::new(ctx, range);
 
         FuturesBytesStream {
             stream,

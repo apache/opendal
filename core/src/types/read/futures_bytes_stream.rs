@@ -78,8 +78,9 @@ impl Stream for FuturesBytesStream {
     }
 }
 
-#[cfg(test_x)]
+#[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use bytes::Bytes;
@@ -89,37 +90,70 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_trait() {
-        let v = FuturesBytesStream::new(Arc::new(Buffer::new()), OpReader::new(), 4..8);
+    fn test_trait() -> Result<()> {
+        let acc = Operator::via_map(Scheme::Memory, HashMap::default())?.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+        let v = FuturesBytesStream::new(ctx, 4..8);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_futures_bytes_stream() {
-        let r: oio::Reader = Arc::new(Buffer::from(vec![
-            Bytes::from("Hello"),
-            Bytes::from("World"),
-        ]));
+    async fn test_futures_bytes_stream() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
 
-        let s = FuturesBytesStream::new(r, OpReader::new(), 4..8);
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+
+        let s = FuturesBytesStream::new(ctx, 4..8);
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
         assert_eq!(&bufs[0], "o".as_bytes());
         assert_eq!(&bufs[1], "Wor".as_bytes());
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_futures_bytes_stream_with_concurrent() {
-        let r: oio::Reader = Arc::new(Buffer::from(vec![
-            Bytes::from("Hello"),
-            Bytes::from("World"),
-        ]));
+    async fn test_futures_bytes_stream_with_concurrent() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
 
-        let s = FuturesBytesStream::new(r, OpReader::new().with_concurrent(3).with_chunk(1), 4..8);
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new().with_concurrent(3).with_chunk(1),
+        ));
+
+        let s = FuturesBytesStream::new(ctx, 4..8);
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
         assert_eq!(&bufs[0], "o".as_bytes());
         assert_eq!(&bufs[1], "W".as_bytes());
         assert_eq!(&bufs[2], "o".as_bytes());
         assert_eq!(&bufs[3], "r".as_bytes());
+
+        Ok(())
     }
 }

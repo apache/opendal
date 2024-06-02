@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
+use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -308,12 +309,20 @@ impl Access for HdfsBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         let client = self.client.clone();
-        let f = client
+        let mut f = client
             .open_file()
             .read(true)
             .async_open(&p)
             .await
             .map_err(new_std_io_error)?;
+
+        if args.range().offset() != 0 {
+            use futures::AsyncSeekExt;
+
+            f.seek(SeekFrom::Start(args.range().offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
 
         Ok((
             RpRead::new(),
@@ -500,12 +509,19 @@ impl Access for HdfsBackend {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self
+        let mut f = self
             .client
             .open_file()
             .read(true)
             .open(&p)
             .map_err(new_std_io_error)?;
+
+        if args.range().offset() != 0 {
+            use std::io::Seek;
+
+            f.seek(SeekFrom::Start(args.range().offset()))
+                .map_err(new_std_io_error)?;
+        }
 
         Ok((
             RpRead::new(),

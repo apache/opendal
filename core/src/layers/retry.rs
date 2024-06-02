@@ -877,7 +877,7 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
     }
 }
 
-#[cfg(test_x)]
+#[cfg(test)]
 mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -1019,7 +1019,7 @@ mod tests {
     }
 
     impl oio::Read for MockReader {
-        async fn read_at(&self, _: u64, _: usize) -> Result<Buffer> {
+        async fn read(&mut self) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -1080,27 +1080,28 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_retry_read() {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let builder = MockBuilder::default();
-        let op = Operator::new(builder.clone())
-            .unwrap()
-            .layer(RetryLayer::new())
-            .finish();
-
-        let r = op.reader("retryable_error").await.unwrap();
-        let mut content = Vec::new();
-        let size = r
-            .read_into(&mut content, ..)
-            .await
-            .expect("read must succeed");
-        assert_eq!(size, 13);
-        assert_eq!(content, "Hello, World!".as_bytes());
-        // The error is retryable, we should request it 3 times.
-        assert_eq!(*builder.attempt.lock().unwrap(), 3);
-    }
+    // TODO: we need to bring this test back after retry on reader is supported.
+    // #[tokio::test]
+    // async fn test_retry_read() {
+    //     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    //
+    //     let builder = MockBuilder::default();
+    //     let op = Operator::new(builder.clone())
+    //         .unwrap()
+    //         .layer(RetryLayer::new())
+    //         .finish();
+    //
+    //     let r = op.reader("retryable_error").await.unwrap();
+    //     let mut content = Vec::new();
+    //     let size = r
+    //         .read_into(&mut content, ..)
+    //         .await
+    //         .expect("read must succeed");
+    //     assert_eq!(size, 13);
+    //     assert_eq!(content, "Hello, World!".as_bytes());
+    //     // The error is retryable, we should request it 3 times.
+    //     assert_eq!(*builder.attempt.lock().unwrap(), 3);
+    // }
 
     #[tokio::test]
     async fn test_retry_list() {

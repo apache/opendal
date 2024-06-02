@@ -262,7 +262,7 @@ pub struct MadsimReader {
 
 impl oio::Read for MadsimReader {
     async fn read(&mut self) -> crate::Result<Buffer> {
-        if let Some(ref data) = self.data {
+        if let Some(data) = self.data.take() {
             Ok(Buffer::from(data))
         } else {
             Ok(Buffer::new())

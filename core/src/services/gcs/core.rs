@@ -204,11 +204,11 @@ impl GcsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn gcs_insert_object_request(

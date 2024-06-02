@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -35,7 +36,6 @@ use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
-use crate::services::koofr::reader::KoofrReader;
 use crate::*;
 
 /// Config for backblaze Koofr services support.
@@ -235,7 +235,7 @@ pub struct KoofrBackend {
 }
 
 impl Access for KoofrBackend {
-    type Reader = KoofrReader;
+    type Reader = HttpBody;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type BlockingReader = ();
@@ -310,10 +310,19 @@ impl Access for KoofrBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            KoofrReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.get(path, args.range()).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

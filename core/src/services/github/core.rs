@@ -128,7 +128,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -148,7 +148,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {

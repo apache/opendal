@@ -19,4 +19,3 @@ mod backend;
 pub use backend::IcloudBuilder as Icloud;
 
 mod core;
-mod reader;

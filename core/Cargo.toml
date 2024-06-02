@@ -56,6 +56,7 @@ tests = [
     "services-fs",
     "services-http",
     "services-memory",
+    "internal-tokio-rt",
     "services-s3",
 ]
 

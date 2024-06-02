@@ -28,7 +28,6 @@ use serde::Deserialize;
 use super::core::DbfsCore;
 use super::error::parse_error;
 use super::lister::DbfsLister;
-use super::reader::DbfsReader;
 use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::*;
@@ -166,7 +165,7 @@ pub struct DbfsBackend {
 }
 
 impl Access for DbfsBackend {
-    type Reader = DbfsReader;
+    type Reader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;
     type BlockingReader = ();
@@ -179,8 +178,6 @@ impl Access for DbfsBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-
-                read: true,
 
                 write: true,
                 create_dir: true,
@@ -238,12 +235,6 @@ impl Access for DbfsBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = DbfsReader::new(self.core.clone(), path.to_string());
-
-        Ok((RpRead::new(), op))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

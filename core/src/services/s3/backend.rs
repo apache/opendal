@@ -26,7 +26,7 @@ use std::sync::Arc;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
-use http::StatusCode;
+use http::{Response, StatusCode};
 use log::debug;
 use log::warn;
 use md5::Digest;
@@ -44,7 +44,6 @@ use super::core::*;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::lister::S3Lister;
-use super::reader::S3Reader;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::*;
@@ -1019,7 +1018,7 @@ pub struct S3Backend {
 }
 
 impl Access for S3Backend {
-    type Reader = S3Reader;
+    type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = oio::PageLister<S3Lister>;
     type BlockingReader = ();
@@ -1099,10 +1098,19 @@ impl Access for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            S3Reader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.s3_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

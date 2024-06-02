@@ -22,4 +22,3 @@ pub use backend::HuggingfaceConfig;
 mod core;
 mod error;
 mod lister;
-mod reader;

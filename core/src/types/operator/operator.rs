@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream;
@@ -73,7 +72,7 @@ pub struct Operator {
 
 /// # Operator basic API.
 impl Operator {
-    pub(super) fn inner(&self) -> &Accessor {
+    pub(crate) fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
@@ -90,7 +89,7 @@ impl Operator {
         }
     }
 
-    pub(super) fn into_inner(self) -> Accessor {
+    pub(crate) fn into_inner(self) -> Accessor {
         self.accessor
     }
 
@@ -569,9 +568,9 @@ impl Operator {
                     );
                 }
 
-                let path = Arc::new(path);
-                let range = options.range();
-                let r = Reader::create(inner, path, args, options).await?;
+                let range = args.range();
+                let context = ReadContext::new(inner, path, args, options);
+                let r = Reader::new(context);
                 let buf = r.read(range.to_range()).await?;
                 Ok(buf)
             },
@@ -682,8 +681,8 @@ impl Operator {
                     );
                 }
 
-                let path = Arc::new(path);
-                Reader::create(inner.clone(), path, args, options).await
+                let context = ReadContext::new(inner, path, args, options);
+                Ok(Reader::new(context))
             },
         )
     }

@@ -22,6 +22,7 @@ use bytes::Buf;
 use bytes::Bytes;
 use chrono::Utc;
 use http::Request;
+use http::Response;
 use http::StatusCode;
 use serde_json::json;
 
@@ -29,7 +30,6 @@ use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::error::parse_error;
 use super::lister::GdriveLister;
-use super::reader::GdriveReader;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::*;
@@ -40,7 +40,7 @@ pub struct GdriveBackend {
 }
 
 impl Access for GdriveBackend {
-    type Reader = GdriveReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
     type BlockingReader = ();
@@ -107,10 +107,17 @@ impl Access for GdriveBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            GdriveReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.gdrive_get(path, args.range()).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

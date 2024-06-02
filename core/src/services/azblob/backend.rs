@@ -24,6 +24,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use http::header::CONTENT_TYPE;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;
@@ -38,7 +39,6 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
-use crate::services::azblob::reader::AzblobReader;
 use crate::services::azblob::writer::AzblobWriters;
 use crate::*;
 
@@ -542,7 +542,7 @@ pub struct AzblobBackend {
 }
 
 impl Access for AzblobBackend {
-    type Reader = AzblobReader;
+    type Reader = HttpBody;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type BlockingReader = ();
@@ -605,10 +605,17 @@ impl Access for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            AzblobReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.azblob_get_blob(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

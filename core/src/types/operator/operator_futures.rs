@@ -224,7 +224,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 
     /// Set the range header for this operation.
     pub fn range(self, range: impl RangeBounds<u64>) -> Self {
-        self.map(|(args, op_reader)| (args, op_reader.with_range(range.into())))
+        self.map(|(args, op_reader)| (args.with_range(range.into()), op_reader))
     }
 
     /// Set the concurrent read task amount.

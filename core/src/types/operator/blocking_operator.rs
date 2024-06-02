@@ -16,8 +16,6 @@
 // under the License.
 
 use bytes::Buf;
-use bytes::Bytes;
-use std::sync::Arc;
 
 use super::operator_functions::*;
 use crate::raw::*;
@@ -397,8 +395,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let path = Arc::new(path);
-                let r = BlockingReader::create(inner, path, args)?;
+                let context = ReadContext::new(inner, path, args, OpReader::default());
+                let r = BlockingReader::new(context);
                 let buf = r.read(range.to_range())?;
                 Ok(buf)
             },
@@ -456,8 +454,8 @@ impl BlockingOperator {
                     );
                 }
 
-                let path = Arc::new(path);
-                BlockingReader::create(inner.clone(), path, args)
+                let context = ReadContext::new(inner, path, args, OpReader::default());
+                Ok(BlockingReader::new(context))
             },
         ))
     }
@@ -482,7 +480,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+    pub fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<()> {
         self.write_with(path, bs).call()
     }
 
@@ -623,7 +621,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FunctionWrite {
+    pub fn write_with(&self, path: &str, bs: impl Into<Buffer>) -> FunctionWrite {
         let path = normalize_path(path);
 
         let bs = bs.into();
@@ -644,7 +642,7 @@ impl BlockingOperator {
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
                 while !bs.is_empty() {
-                    let n = w.write(bs.clone().into())?;
+                    let n = w.write(bs.clone())?;
                     bs.advance(n);
                 }
                 w.close()?;

@@ -22,6 +22,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -34,7 +35,6 @@ use super::error::parse_error;
 use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;
-use crate::services::oss::reader::OssReader;
 use crate::services::oss::writer::OssWriters;
 use crate::*;
 
@@ -375,7 +375,7 @@ pub struct OssBackend {
 }
 
 impl Access for OssBackend {
-    type Reader = OssReader;
+    type Reader = HttpBody;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;
     type BlockingReader = ();
@@ -454,10 +454,20 @@ impl Access for OssBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            OssReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.oss_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

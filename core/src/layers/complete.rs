@@ -587,39 +587,15 @@ pub type CompleteLister<A, P> =
 pub struct CompleteReader<R>(R);
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let buf = self.0.read_at(offset, size).await?;
-        if buf.len() != size {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "service didn't return the expected size",
-            )
-            .with_context("expect", size.to_string())
-            .with_context("actual", buf.len().to_string()));
-        }
+    async fn read(&mut self) -> Result<Buffer> {
+        let buf = self.0.read().await?;
         Ok(buf)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let buf = self.0.read_at(offset, size)?;
-        if buf.len() != size {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "service didn't return the expected size",
-            )
-            .with_context("expect", size.to_string())
-            .with_context("actual", buf.len().to_string()));
-        }
+    fn read(&mut self) -> Result<Buffer> {
+        let buf = self.0.read()?;
         Ok(buf)
     }
 }
@@ -742,7 +718,7 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Arc::new(bytes::Bytes::new())))
+            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

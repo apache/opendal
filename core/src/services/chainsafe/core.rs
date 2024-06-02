@@ -58,7 +58,11 @@ impl ChainsafeCore {
 }
 
 impl ChainsafeCore {
-    pub async fn download_object(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -81,7 +85,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn object_info(&self, path: &str) -> Result<Response<Buffer>> {

@@ -20,4 +20,3 @@ pub use backend::IpfsBuilder as Ipfs;
 
 mod error;
 mod ipld;
-mod reader;

@@ -21,5 +21,4 @@ pub use backend::WebhdfsBuilder as Webhdfs;
 mod error;
 mod lister;
 mod message;
-mod reader;
 mod writer;

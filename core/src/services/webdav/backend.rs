@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -30,7 +31,6 @@ use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
-use crate::services::webdav::reader::WebdavReader;
 use crate::*;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
@@ -236,7 +236,7 @@ impl Debug for WebdavBackend {
 }
 
 impl Access for WebdavBackend {
-    type Reader = WebdavReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type BlockingReader = ();
@@ -282,10 +282,20 @@ impl Access for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            WebdavReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.webdav_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

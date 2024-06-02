@@ -107,7 +107,7 @@ impl PcloudCore {
         }
     }
 
-    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let req = Request::get(url);
 
         // set body
@@ -116,7 +116,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {

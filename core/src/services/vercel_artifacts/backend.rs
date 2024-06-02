@@ -25,7 +25,6 @@ use http::StatusCode;
 use super::error::parse_error;
 use super::writer::VercelArtifactsWriter;
 use crate::raw::*;
-use crate::services::vercel_artifacts::reader::VercelArtifactsReader;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
@@ -44,7 +43,7 @@ impl Debug for VercelArtifactsBackend {
 }
 
 impl Access for VercelArtifactsBackend {
-    type Reader = VercelArtifactsReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type BlockingReader = ();
@@ -83,10 +82,18 @@ impl Access for VercelArtifactsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            VercelArtifactsReader::new(self.clone(), path, args),
-        ))
+        let resp = self.vercel_artifacts_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -107,7 +114,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -124,7 +131,7 @@ impl VercelArtifactsBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn vercel_artifacts_put(

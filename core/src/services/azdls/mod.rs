@@ -21,5 +21,4 @@ pub use backend::AzdlsBuilder as Azdls;
 mod core;
 mod error;
 mod lister;
-mod reader;
 mod writer;

@@ -30,7 +30,6 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::http::reader::HttpReader;
 use crate::*;
 
 /// Config for Http service support.
@@ -222,7 +221,7 @@ impl Debug for HttpBackend {
 }
 
 impl Access for HttpBackend {
-    type Reader = HttpReader;
+    type Reader = HttpBody;
     type Writer = ();
     type Lister = ();
     type BlockingReader = ();
@@ -271,7 +270,20 @@ impl Access for HttpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), HttpReader::new(self.clone(), path, args)))
+        let resp = self.http_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 }
 
@@ -281,7 +293,7 @@ impl HttpBackend {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -306,7 +318,7 @@ impl HttpBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {

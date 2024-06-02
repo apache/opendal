@@ -104,7 +104,7 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -122,7 +122,7 @@ impl UpyunCore {
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {

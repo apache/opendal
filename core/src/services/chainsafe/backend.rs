@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -30,7 +31,6 @@ use super::core::ChainsafeCore;
 use super::core::ObjectInfoResponse;
 use super::error::parse_error;
 use super::lister::ChainsafeLister;
-use super::reader::ChainsafeReader;
 use super::writer::ChainsafeWriter;
 use super::writer::ChainsafeWriters;
 use crate::raw::*;
@@ -203,7 +203,7 @@ pub struct ChainsafeBackend {
 }
 
 impl Access for ChainsafeBackend {
-    type Reader = ChainsafeReader;
+    type Reader = HttpBody;
     type Writer = ChainsafeWriters;
     type Lister = oio::PageLister<ChainsafeLister>;
     type BlockingReader = ();
@@ -264,10 +264,17 @@ impl Access for ChainsafeBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            ChainsafeReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.download_object(path, args.range()).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

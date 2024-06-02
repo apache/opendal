@@ -15,73 +15,100 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+use bytes::BytesMut;
 
-use hdrs::File;
+use futures::AsyncReadExt;
+use hdrs::{AsyncFile, File};
+use std::io::Read;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
 
-pub struct HdfsReader {
-    f: Arc<File>,
+pub struct HdfsReader<F> {
+    f: F,
+    read: usize,
+    size: usize,
+    buf_size: usize,
+    buf: BytesMut,
 }
 
-impl HdfsReader {
-    pub fn new(f: File) -> Self {
-        Self { f: Arc::new(f) }
-    }
-}
-
-impl oio::Read for HdfsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        let r = Self { f: self.f.clone() };
-        match tokio::runtime::Handle::try_current() {
-            Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&r, offset, size))
-                .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
-                })?,
-            Err(_) => Err(Error::new(
-                ErrorKind::Unexpected,
-                "no tokio runtime found, failed to run io task",
-            )),
+impl<F> HdfsReader<F> {
+    pub fn new(f: F, size: usize) -> Self {
+        Self {
+            f,
+            read: 0,
+            size,
+            // Use 2 MiB as default value.
+            buf_size: 2 * 1024 * 1024,
+            buf: BytesMut::new(),
         }
     }
 }
 
-impl oio::BlockingRead for HdfsReader {
-    fn read_at(&self, mut offset: u64, size: usize) -> Result<Buffer> {
-        let mut bs = Vec::with_capacity(size);
+impl oio::Read for HdfsReader<AsyncFile> {
+    async fn read(&mut self) -> Result<Buffer> {
+        if self.read >= self.size {
+            return Ok(Buffer::new());
+        }
 
-        let buf = bs.spare_capacity_mut();
+        let size = (self.size - self.read).min(self.buf_size);
+        self.buf.reserve(size);
+
+        let buf = &mut self.buf.spare_capacity_mut()[..size];
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
-        // SAFETY: Read at most `size` bytes into `read_buf`.
+        // SAFETY: Read at most `limit` bytes into `read_buf`.
         unsafe {
             read_buf.assume_init(size);
         }
 
-        loop {
-            // If the buffer is full, we are done.
-            if read_buf.initialize_unfilled().is_empty() {
-                break;
-            }
-            let n = self
-                .f
-                .read_at(read_buf.initialize_unfilled(), offset)
-                .map_err(new_std_io_error)?;
-            if n == 0 {
-                break;
-            }
-            read_buf.advance(n);
-            offset += n as u64;
-        }
+        let n = self
+            .f
+            .read(read_buf.initialize_unfilled())
+            .await
+            .map_err(new_std_io_error)?;
+        read_buf.advance(n);
+        self.read += n;
 
         // Safety: We make sure that bs contains `n` more bytes.
         let filled = read_buf.filled().len();
-        unsafe { bs.set_len(filled) }
-        Ok(Buffer::from(bs))
+        unsafe { self.buf.set_len(filled) }
+
+        let frozen = self.buf.split().freeze();
+        Ok(Buffer::from(frozen))
+    }
+}
+
+impl oio::BlockingRead for HdfsReader<File> {
+    fn read(&mut self) -> Result<Buffer> {
+        if self.read >= self.size {
+            return Ok(Buffer::new());
+        }
+
+        let size = (self.size - self.read).min(self.buf_size);
+        self.buf.reserve(size);
+
+        let buf = &mut self.buf.spare_capacity_mut()[..size];
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
+
+        // SAFETY: Read at most `limit` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(size);
+        }
+
+        let n = self
+            .f
+            .read(read_buf.initialize_unfilled())
+            .map_err(new_std_io_error)?;
+        read_buf.advance(n);
+        self.read += n;
+
+        // Safety: We make sure that bs contains `n` more bytes.
+        let filled = read_buf.filled().len();
+        unsafe { self.buf.set_len(filled) }
+
+        let frozen = self.buf.split().freeze();
+        Ok(Buffer::from(frozen))
     }
 }

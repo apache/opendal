@@ -21,5 +21,4 @@ pub use backend::OssBuilder as Oss;
 mod core;
 mod error;
 mod lister;
-mod reader;
 mod writer;

@@ -17,7 +17,6 @@
 
 use bb8::PooledConnection;
 use bytes::Buf;
-use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
@@ -26,14 +25,11 @@ use crate::raw::*;
 use crate::services::ftp::err::parse_error;
 use crate::*;
 
-trait DataStream: AsyncRead + AsyncWrite {}
-impl<T> DataStream for T where T: AsyncRead + AsyncWrite {}
-
 pub struct FtpWriter {
     target_path: String,
     tmp_path: Option<String>,
     ftp_stream: PooledConnection<'static, Manager>,
-    data_stream: Option<Box<dyn DataStream + Sync + Send + Unpin + 'static>>,
+    data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
 }
 
 /// # TODO

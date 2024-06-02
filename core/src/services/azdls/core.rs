@@ -97,7 +97,7 @@ impl AzdlsCore {
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -116,7 +116,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`

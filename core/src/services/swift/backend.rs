@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 
@@ -28,7 +29,6 @@ use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;
-use crate::services::swift::reader::SwiftReader;
 use crate::*;
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
@@ -189,7 +189,7 @@ pub struct SwiftBackend {
 }
 
 impl Access for SwiftBackend {
-    type Reader = SwiftReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type BlockingReader = ();
@@ -232,10 +232,18 @@ impl Access for SwiftBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            SwiftReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.swift_read(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

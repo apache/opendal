@@ -72,16 +72,16 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     #[cfg(feature = "layers-chaos")]
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };
 
-    let op = op
+    let mut op = op
         .layer(layers::LoggingLayer::default().with_backtrace_output(true))
         .layer(layers::TimeoutLayer::new())
         .layer(layers::RetryLayer::new().with_max_times(4));
 
     // Enable blocking layer if needed.
-    // if !op.info().full_capability().blocking {
-    //     let _guard = TEST_RUNTIME.enter();
-    //     op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
-    // }
+    if !op.info().full_capability().blocking {
+        let _guard = TEST_RUNTIME.enter();
+        op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
 
     Ok(Some(op))
 }

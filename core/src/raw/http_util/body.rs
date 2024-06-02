@@ -28,16 +28,43 @@ use crate::*;
 /// It implements the `oio::Read` trait, service implementors can return it as
 /// `Access::Read`.
 pub struct HttpBody {
+    #[cfg(not(target_arch = "wasm32"))]
     stream: Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
+    #[cfg(target_arch = "wasm32")]
+    stream: Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
     size: Option<u64>,
     consumed: u64,
 }
 
+/// # Safety
+///
+/// HttpBody is send on non wasm32 targets.
+unsafe impl Send for HttpBody {}
+
+/// # Safety
+///
+/// HttpBody is sync on non wasm32 targets.
+unsafe impl Sync for HttpBody {}
+
 impl HttpBody {
     /// Create a new `HttpBody` with given stream and optional size.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new<S>(stream: S, size: Option<u64>) -> Self
     where
         S: Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static,
+    {
+        HttpBody {
+            stream: Box::new(stream),
+            size,
+            consumed: 0,
+        }
+    }
+
+    /// Create a new `HttpBody` with given stream and optional size.
+    #[cfg(target_arch = "wasm32")]
+    pub fn new<S>(stream: S, size: Option<u64>) -> Self
+    where
+        S: Stream<Item = Result<Buffer>> + Unpin + 'static,
     {
         HttpBody {
             stream: Box::new(stream),

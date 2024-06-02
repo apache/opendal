@@ -78,7 +78,7 @@ impl Stream for FuturesBytesStream {
     }
 }
 
-#[cfg(test_xx)]
+#[cfg(test_x)]
 mod tests {
     use std::sync::Arc;
 

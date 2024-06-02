@@ -72,7 +72,7 @@ pub struct Operator {
 
 /// # Operator basic API.
 impl Operator {
-    pub(super) fn inner(&self) -> &Accessor {
+    pub(crate) fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
@@ -89,7 +89,7 @@ impl Operator {
         }
     }
 
-    pub(super) fn into_inner(self) -> Accessor {
+    pub(crate) fn into_inner(self) -> Accessor {
         self.accessor
     }
 

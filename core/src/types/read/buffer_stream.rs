@@ -174,40 +174,51 @@ impl Stream for BufferStream {
     }
 }
 
-#[cfg(test_xx)]
+#[cfg(test)]
 mod tests {
     use bytes::Buf;
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use super::*;
 
     #[test]
-    fn test_trait() {
-        let v = BufferStream::new(Box::new(Buffer::new()), OpReader::new(), 4..8);
+    fn test_trait() -> Result<()> {
+        let acc = Operator::via_map(Scheme::Memory, HashMap::default())?.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+        let v = BufferStream::new(ctx, 4..8);
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
-    }
 
-    #[test]
-    fn test_future_iterator() {
-        let r: oio::Reader = Box::new(Buffer::new());
-
-        let it = FutureIterator::new(r.clone(), Some(1), 1..3);
-        let futs: Vec<_> = it.collect();
-        assert_eq!(futs.len(), 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_buffer_stream() {
-        let r: oio::Reader = Box::new(Buffer::from(vec![
-            Bytes::from("Hello"),
-            Bytes::from("World"),
-        ]));
+    async fn test_buffer_stream() -> Result<()> {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
 
-        let s = BufferStream::new(r, OpReader::new(), 4..8);
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+
+        let s = BufferStream::new(ctx, 4..8);
         let bufs: Vec<_> = s.try_collect().await.unwrap();
         assert_eq!(bufs.len(), 1);
         assert_eq!(bufs[0].chunk(), "o".as_bytes());
@@ -215,5 +226,7 @@ mod tests {
         let buf: Buffer = bufs.into_iter().flatten().collect();
         assert_eq!(buf.len(), 4);
         assert_eq!(&buf.to_vec(), "oWor".as_bytes());
+
+        Ok(())
     }
 }

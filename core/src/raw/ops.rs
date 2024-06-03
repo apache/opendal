@@ -327,6 +327,11 @@ impl OpRead {
         self.range
     }
 
+    /// Returns a mutable range to allow updating.
+    pub(crate) fn range_mut(&mut self) -> &mut BytesRange {
+        &mut self.range
+    }
+
     /// Sets the content-disposition header that should be send back by the remote read operation.
     pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());

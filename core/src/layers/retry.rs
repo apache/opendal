@@ -26,8 +26,6 @@ use backon::Retryable;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -75,7 +73,7 @@ use crate::*;
 /// struct MyRetryInterceptor;
 ///
 /// impl RetryInterceptor for MyRetryInterceptor {
-///     fn intercept(&self, err: &Error, dur: Duration, ctx: &[(&str, &str)]) {
+///     fn intercept(&self, err: &Error, dur: Duration) {
 ///         // do something
 ///     }
 /// }
@@ -143,7 +141,7 @@ impl RetryLayer {
     /// struct MyRetryInterceptor;
     ///
     /// impl RetryInterceptor for MyRetryInterceptor {
-    ///     fn intercept(&self, err: &Error, dur: Duration, ctx: &[(&str, &str)]) {
+    ///     fn intercept(&self, err: &Error, dur: Duration) {
     ///         // do something
     ///     }
     /// }
@@ -207,7 +205,7 @@ impl<A: Access, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         RetryAccessor {
-            inner,
+            inner: Arc::new(inner),
             builder: self.builder.clone(),
             notify: self.notify.clone(),
         }
@@ -226,35 +224,28 @@ pub trait RetryInterceptor: Send + Sync + 'static {
     ///
     /// - err: The error that caused the current retry.
     /// - dur: The duration that will sleep before next retry.
-    /// - ctx: The context (`name`, `value`) of current operation, like `operation` and `path`.
     ///
     /// # Notes
     ///
     /// The intercept must be quick and non-blocking. No heavy IO is
     /// allowed. Otherwise the retry will be blocked.
-    fn intercept(&self, err: &Error, dur: Duration, ctx: &[(&str, &str)]);
+    fn intercept(&self, err: &Error, dur: Duration);
 }
 
 /// The DefaultRetryInterceptor will log the retry error in warning level.
 pub struct DefaultRetryInterceptor;
 
 impl RetryInterceptor for DefaultRetryInterceptor {
-    fn intercept(&self, err: &Error, dur: Duration, ctx: &[(&str, &str)]) {
-        let context = ctx
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect::<Vec<_>>()
-            .join(" ");
-
+    fn intercept(&self, err: &Error, dur: Duration) {
         warn!(
-            target: "opendal::service",
-            "{} -> retry after {}s: error={}",
-            context, dur.as_secs_f64(), err)
+            target: "opendal::layers::retry",
+            "will retry after {}s because: {}",
+            dur.as_secs_f64(), err)
     }
 }
 
 pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
-    inner: A,
+    inner: Arc<A>,
     builder: ExponentialBuilder,
     notify: Arc<I>,
 }
@@ -269,8 +260,8 @@ impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
 
 impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Inner = A;
-    type Reader = RetryWrapper<A::Reader, I>;
-    type BlockingReader = RetryWrapper<A::BlockingReader, I>;
+    type Reader = RetryWrapper<RetryReader<A, A::Reader>, I>;
+    type BlockingReader = RetryWrapper<RetryReader<A, A::BlockingReader>, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter, I>;
     type Lister = RetryWrapper<A::Lister, I>;
@@ -284,65 +275,36 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur: Duration| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::CreateDir.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur: Duration| self.notify.intercept(err, dur))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        { || self.inner.read(path, args.clone()) }
+        let (rp, reader) = { || self.inner.read(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[("operation", Operation::Read.into_static()), ("path", path)],
-                )
-            })
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
-                    )
-                })
-                .map_err(|e| e.set_persistent())
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .await
+            .map_err(|e| e.set_persistent())?;
+
+        let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
+        let retry_wrapper =
+            RetryWrapper::new(retry_reader, self.notify.clone(), self.builder.clone());
+
+        Ok((rp, retry_wrapper))
     }
 
-    /// Return `Interrupted` Error even after retry.
-    ///
-    /// Allowing users to retry the write request from upper logic.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         { || self.inner.write(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::Write.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
+                        RetryWrapper::new(r, self.notify.clone(), self.builder.clone()),
                     )
                 })
                 .map_err(|e| e.set_persistent())
@@ -354,13 +316,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.stat(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[("operation", Operation::Stat.into_static()), ("path", path)],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }
@@ -369,16 +325,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.delete(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::Delete.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }
@@ -387,17 +334,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.copy(from, to, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::Copy.into_static()),
-                        ("from", from),
-                        ("to", to),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }
@@ -406,17 +343,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.rename(from, to, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::Rename.into_static()),
-                        ("from", from),
-                        ("to", to),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }
@@ -425,17 +352,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[("operation", Operation::List.into_static()), ("path", path)],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .map(|v| {
                 v.map(|(l, p)| {
-                    let lister =
-                        RetryWrapper::new(p, self.notify.clone(), path, self.builder.clone());
+                    let lister = RetryWrapper::new(p, self.notify.clone(), self.builder.clone());
                     (l, lister)
                 })
                 .map_err(|e| e.set_persistent())
@@ -457,16 +377,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         }
         .retry(&self.builder)
         .when(|e: &Error| e.is_temporary())
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", Operation::Batch.into_static()),
-                    ("count", &args.operation().len().to_string()),
-                ],
-            )
-        })
+        .notify(|err, dur| self.notify.intercept(err, dur))
         .await
         .map_err(|e| e.set_persistent())
     }
@@ -475,63 +386,36 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingCreateDir.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map_err(|e| e.set_persistent())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        { || self.inner.blocking_read(path, args.clone()) }
+        let (rp, reader) = { || self.inner.blocking_read(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingRead.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
-            .map(|(rp, r)| {
-                (
-                    rp,
-                    RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
-                )
-            })
-            .map_err(|e| e.set_persistent())
+            .map_err(|e| e.set_persistent())?;
+
+        let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
+        let retry_wrapper =
+            RetryWrapper::new(retry_reader, self.notify.clone(), self.builder.clone());
+
+        Ok((rp, retry_wrapper))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         { || self.inner.blocking_write(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingWrite.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map(|(rp, r)| {
                 (
                     rp,
-                    RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
+                    RetryWrapper::new(r, self.notify.clone(), self.builder.clone()),
                 )
             })
             .map_err(|e| e.set_persistent())
@@ -541,16 +425,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_stat(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingStat.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map_err(|e| e.set_persistent())
     }
@@ -559,16 +434,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_delete(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingDelete.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map_err(|e| e.set_persistent())
     }
@@ -577,17 +443,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_copy(from, to, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingCopy.into_static()),
-                        ("from", from),
-                        ("to", to),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map_err(|e| e.set_persistent())
     }
@@ -596,17 +452,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_rename(from, to, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingRename.into_static()),
-                        ("from", from),
-                        ("to", to),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map_err(|e| e.set_persistent())
     }
@@ -615,22 +461,73 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::BlockingList.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
+            .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
             .map(|(rp, p)| {
-                let p = RetryWrapper::new(p, self.notify.clone(), path, self.builder.clone());
+                let p = RetryWrapper::new(p, self.notify.clone(), self.builder.clone());
                 (rp, p)
             })
             .map_err(|e| e.set_persistent())
+    }
+}
+
+pub struct RetryReader<A, R> {
+    inner: Arc<A>,
+    reader: Option<R>,
+
+    path: String,
+    args: OpRead,
+}
+
+impl<A, R> RetryReader<A, R> {
+    fn new(inner: Arc<A>, path: String, args: OpRead, r: R) -> Self {
+        Self {
+            inner,
+            reader: Some(r),
+
+            path,
+            args,
+        }
+    }
+}
+
+impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
+    async fn read(&mut self) -> Result<Buffer> {
+        loop {
+            match self.reader.take() {
+                None => {
+                    let (_, r) = self.inner.read(&self.path, self.args.clone()).await?;
+                    self.reader = Some(r);
+                    continue;
+                }
+                Some(mut reader) => {
+                    let buf = reader.read().await?;
+                    self.reader = Some(reader);
+                    self.args.range_mut().advance(buf.len() as u64);
+                    return Ok(buf);
+                }
+            }
+        }
+    }
+}
+
+impl<A: Access> oio::BlockingRead for RetryReader<A, A::BlockingReader> {
+    fn read(&mut self) -> Result<Buffer> {
+        loop {
+            match self.reader.take() {
+                None => {
+                    let (_, r) = self.inner.blocking_read(&self.path, self.args.clone())?;
+                    self.reader = Some(r);
+                    continue;
+                }
+                Some(mut reader) => {
+                    let buf = reader.read()?;
+                    self.reader = Some(reader);
+                    self.args.range_mut().advance(buf.len() as u64);
+                    return Ok(buf);
+                }
+            }
+        }
     }
 }
 
@@ -638,52 +535,64 @@ pub struct RetryWrapper<R, I> {
     inner: Option<R>,
     notify: Arc<I>,
 
-    path: String,
     builder: ExponentialBuilder,
 }
 
 impl<R, I> RetryWrapper<R, I> {
-    fn new(inner: R, notify: Arc<I>, path: &str, backoff: ExponentialBuilder) -> Self {
+    fn new(inner: R, notify: Arc<I>, backoff: ExponentialBuilder) -> Self {
         Self {
             inner: Some(inner),
             notify,
-
-            path: path.to_string(),
             builder: backoff,
         }
     }
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
-    /// FIXME: we should bring retry back.
     async fn read(&mut self) -> Result<Buffer> {
-        self.inner
-            .as_mut()
-            .expect("inner must be valid")
-            .read()
-            .await
-        //     { || self.inner.as_ref().expect("inner must be valid").read() }
-        //         .retry(&self.builder)
-        //         .when(|e| e.is_temporary())
-        //         .notify(|err, dur| {
-        //             self.notify.intercept(
-        //                 err,
-        //                 dur,
-        //                 &[
-        //                     ("operation", ReadOperation::Read.into_static()),
-        //                     ("path", &self.path),
-        //                 ],
-        //             )
-        //         })
-        //         .await
-        //         .map_err(|e| e.set_persistent())
+        use backon::RetryableWithContext;
+
+        let inner = self.inner.take().expect("inner must be valid");
+
+        let (inner, res) = {
+            |mut r: R| async move {
+                let res = r.read().await;
+
+                (r, res)
+            }
+        }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| self.notify.intercept(err, dur))
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
     }
 }
 
 impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapper<R, I> {
-    /// FIXME: we should bring retry back.
     fn read(&mut self) -> Result<Buffer> {
-        self.inner.as_mut().expect("inner must be valid").read()
+        use backon::BlockingRetryableWithContext;
+
+        let inner = self.inner.take().expect("inner must be valid");
+
+        let (inner, res) = {
+            |mut r: R| {
+                let res = r.read();
+
+                (r, res)
+            }
+        }
+        .retry(&self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| self.notify.intercept(err, dur))
+        .call();
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -703,21 +612,11 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(&self.builder)
         .when(|e| e.is_temporary())
         .context((inner, bs))
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", WriteOperation::Write.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        res
+        res.map_err(|err| err.set_persistent())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -735,21 +634,11 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(&self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", WriteOperation::Abort.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        res
+        res.map_err(|err| err.set_persistent())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -767,21 +656,11 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(&self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", WriteOperation::Close.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        res
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -791,14 +670,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", WriteOperation::BlockingWrite.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
+                self.notify.intercept(err, dur);
             })
             .call()
             .map_err(|e| e.set_persistent())
@@ -809,14 +681,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", WriteOperation::BlockingClose.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
+                self.notify.intercept(err, dur);
             })
             .call()
             .map_err(|e| e.set_persistent())
@@ -839,21 +704,11 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
         .retry(&self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| {
-            self.notify.intercept(
-                err,
-                dur,
-                &[
-                    ("operation", ListOperation::Next.into_static()),
-                    ("path", &self.path),
-                ],
-            )
-        })
-        .map(|(r, res)| (r, res.map_err(|err| err.set_persistent())))
+        .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        res
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -863,14 +718,7 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", ListOperation::BlockingNext.into_static()),
-                        ("path", &self.path),
-                    ],
-                );
+                self.notify.intercept(err, dur);
             })
             .call()
             .map_err(|e| e.set_persistent())
@@ -883,8 +731,10 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
+    use crate::layers::LoggingLayer;
     use bytes::Bytes;
     use futures::TryStreamExt;
+    use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
 
@@ -941,10 +791,12 @@ mod tests {
             ))
         }
 
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
                 RpRead::new(),
                 MockReader {
+                    buf: Bytes::from("Hello, World!").into(),
+                    range: args.range(),
                     attempt: self.attempt.clone(),
                 },
             ))
@@ -1015,6 +867,8 @@ mod tests {
 
     #[derive(Debug, Clone, Default)]
     struct MockReader {
+        buf: Buffer,
+        range: BytesRange,
         attempt: Arc<Mutex<usize>>,
     }
 
@@ -1032,7 +886,14 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from reader")
                         .set_temporary(),
                 ),
-                3 => Ok(Bytes::copy_from_slice("Hello, World!".as_bytes()).into()),
+                // Should read out all data.
+                3 => Ok(self.buf.slice(self.range.to_range_as_usize())),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                // Should be empty.
+                5 => Ok(self.buf.slice(self.range.to_range_as_usize())),
                 _ => unreachable!(),
             }
         }
@@ -1080,28 +941,31 @@ mod tests {
         }
     }
 
-    // TODO: we need to bring this test back after retry on reader is supported.
-    // #[tokio::test]
-    // async fn test_retry_read() {
-    //     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-    //
-    //     let builder = MockBuilder::default();
-    //     let op = Operator::new(builder.clone())
-    //         .unwrap()
-    //         .layer(RetryLayer::new())
-    //         .finish();
-    //
-    //     let r = op.reader("retryable_error").await.unwrap();
-    //     let mut content = Vec::new();
-    //     let size = r
-    //         .read_into(&mut content, ..)
-    //         .await
-    //         .expect("read must succeed");
-    //     assert_eq!(size, 13);
-    //     assert_eq!(content, "Hello, World!".as_bytes());
-    //     // The error is retryable, we should request it 3 times.
-    //     assert_eq!(*builder.attempt.lock().unwrap(), 3);
-    // }
+    #[tokio::test]
+    async fn test_retry_read() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(LevelFilter::TRACE)
+            .with_test_writer()
+            .try_init();
+
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())
+            .unwrap()
+            .layer(LoggingLayer::default())
+            .layer(RetryLayer::new())
+            .finish();
+
+        let r = op.reader("retryable_error").await.unwrap();
+        let mut content = Vec::new();
+        let size = r
+            .read_into(&mut content, ..)
+            .await
+            .expect("read must succeed");
+        assert_eq!(size, 13);
+        assert_eq!(content, "Hello, World!".as_bytes());
+        // The error is retryable, we should request it 3 times.
+        assert_eq!(*builder.attempt.lock().unwrap(), 5);
+    }
 
     #[tokio::test]
     async fn test_retry_list() {

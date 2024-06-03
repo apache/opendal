@@ -160,8 +160,11 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     match o {
                         Ok(o) => self.results.push_back(o),
                         Err(err) => {
-                            self.tasks
-                                .push_front(self.executor.execute((self.factory)(i)));
+                            // Retry this task if the error is temporary
+                            if err.is_temporary() {
+                                self.tasks
+                                    .push_front(self.executor.execute((self.factory)(i)));
+                            }
                             return Err(err);
                         }
                     }
@@ -190,8 +193,11 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     continue;
                 }
                 Err(err) => {
-                    self.tasks
-                        .push_front(self.executor.execute((self.factory)(i)));
+                    // Retry this task if the error is temporary
+                    if err.is_temporary() {
+                        self.tasks
+                            .push_front(self.executor.execute((self.factory)(i)));
+                    }
                     return Err(err);
                 }
             }
@@ -206,14 +212,17 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
         if let Some(task) = self.tasks.pop_front() {
             let (i, o) = task.await;
-            match o {
-                Ok(o) => return Some(Ok(o)),
+            return match o {
+                Ok(o) => Some(Ok(o)),
                 Err(err) => {
-                    self.tasks
-                        .push_front(self.executor.execute((self.factory)(i)));
-                    return Some(Err(err));
+                    // Retry this task if the error is temporary
+                    if err.is_temporary() {
+                        self.tasks
+                            .push_front(self.executor.execute((self.factory)(i)));
+                    }
+                    Some(Err(err))
                 }
-            }
+            };
         }
 
         None

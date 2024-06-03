@@ -70,6 +70,6 @@ impl TestContext for OfsTestContext {
             .get()
             .expect("runtime")
             .block_on(async move { self.mount_handle.unmount().await });
-        let _ = self.mount_point.close().unwrap();
+        let _ = self.mount_point.close();
     }
 }

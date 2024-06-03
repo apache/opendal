@@ -44,7 +44,7 @@ runs:
             run: cargo test --features ${{ inputs.feature }} --no-default-features -- --nocapture
             env:
               OPENDAL_TEST: ${{ inputs.service }}
-              // Remove me after we find out what happened
+              # Remove me after we find out what happened
               RUST_TEST_THREADS: 1
         EOF
     - name: Run

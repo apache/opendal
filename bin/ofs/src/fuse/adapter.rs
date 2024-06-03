@@ -387,15 +387,12 @@ impl PathFilesystem for FuseAdapter {
         let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
 
         let path = PathBuf::from(parent).join(name);
-        self.op
-            .write(&path.to_string_lossy(), Bytes::new())
-            .await
-            .map_err(opendal_error2errno)?;
 
         let inner_writer = if is_trunc || is_append {
             let writer = self
                 .op
                 .writer_with(&path.to_string_lossy())
+                .chunk(4 * 1024 * 1024)
                 .append(is_append)
                 .await
                 .map_err(opendal_error2errno)?;
@@ -425,6 +422,42 @@ impl PathFilesystem for FuseAdapter {
         })
     }
 
+    /// In design, flush could be called multiple times for a single open. But there is the only
+    /// place that we can handle the write operations.
+    ///
+    /// So we only support the use case that flush only be called once.
+    async fn flush(
+        &self,
+        _req: Request,
+        path: Option<&OsStr>,
+        fh: u64,
+        lock_owner: u64,
+    ) -> Result<()> {
+        log::debug!(
+            "flush(path={:?}, fh={}, lock_owner={})",
+            path,
+            fh,
+            lock_owner,
+        );
+
+        let file = self
+            .opened_files
+            .take(FileKey::try_from(fh)?.0)
+            .ok_or(Errno::from(libc::EBADF))?;
+
+        if let Some(inner_writer) = file.inner_writer {
+            let mut lock = inner_writer.lock().await;
+            let res = lock.writer.close().await.map_err(opendal_error2errno);
+            return res;
+        }
+
+        if matches!(path, Some(ref p) if p != &file.path) {
+            Err(Errno::from(libc::EBADF))?;
+        }
+
+        Ok(())
+    }
+
     async fn release(
         &self,
         _req: Request,
@@ -443,25 +476,8 @@ impl PathFilesystem for FuseAdapter {
             flush
         );
 
-        let file = self
-            .opened_files
-            .take(FileKey::try_from(fh)?.0)
-            .ok_or(Errno::from(libc::EBADF))?;
-
-        if let Some(inner_writer) = file.inner_writer {
-            inner_writer
-                .lock_owned()
-                .await
-                .writer
-                .close()
-                .await
-                .map_err(opendal_error2errno)?;
-        }
-
-        if matches!(path, Some(ref p) if p != &file.path) {
-            Err(Errno::from(libc::EBADF))?;
-        }
-
+        // Just take and forget it.
+        let _ = self.opened_files.take(FileKey::try_from(fh)?.0);
         Ok(())
     }
 

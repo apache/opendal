@@ -64,12 +64,12 @@ impl TestContext for OfsTestContext {
         }
     }
 
+    // We don't care if the unmount fails, so we ignore the result.
     fn teardown(self) {
-        RUNTIME
+        let _ = RUNTIME
             .get()
             .expect("runtime")
-            .block_on(async move { self.mount_handle.unmount().await })
-            .unwrap();
-        self.mount_point.close().unwrap();
+            .block_on(async move { self.mount_handle.unmount().await });
+        let _ = self.mount_point.close().unwrap();
     }
 }

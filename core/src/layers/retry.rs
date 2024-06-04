@@ -546,13 +546,23 @@ impl<R, I> RetryWrapper<R, I> {
             builder: backoff,
         }
     }
+
+    /// We can't make sure inner is valid in cases like panic, so we need to return an error instead.
+    fn take_inner(&mut self) -> Result<R> {
+        self.inner.take().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "retry wrapper inner must be valid but not, maybe panic happened",
+            )
+        })
+    }
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         use backon::RetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -576,7 +586,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
     fn read(&mut self) -> Result<Buffer> {
         use backon::BlockingRetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut r: R| {
@@ -600,7 +610,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
         use backon::RetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let ((inner, _), res) = {
             |(mut r, bs): (R, Buffer)| async move {
@@ -622,7 +632,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     async fn abort(&mut self) -> Result<()> {
         use backon::RetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -644,7 +654,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     async fn close(&mut self) -> Result<()> {
         use backon::RetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -692,7 +702,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         use backon::RetryableWithContext;
 
-        let inner = self.inner.take().expect("inner must be valid");
+        let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut p: P| async move {

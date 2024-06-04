@@ -326,7 +326,9 @@ mod tests {
 
             // We will have 10% percent rate for write part to fail.
             if thread_rng().gen_bool(1.0 / 10.0) {
-                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
             }
 
             {

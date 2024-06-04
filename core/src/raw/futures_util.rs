@@ -88,6 +88,12 @@ pub struct ConcurrentTasks<I, O> {
     tasks: VecDeque<Task<(I, Result<O>)>>,
     /// `results` stores the successful results.
     results: VecDeque<O>,
+
+    /// hitting the last unrecoverable error.
+    ///
+    /// If concurrent tasks hit an unrecoverable error, it will stop executing new tasks and return
+    /// an unrecoverable error to users.
+    errored: bool,
 }
 
 impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
@@ -105,6 +111,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
             tasks: VecDeque::with_capacity(concurrent),
             results: VecDeque::with_capacity(concurrent),
+            errored: false,
         }
     }
 
@@ -140,6 +147,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// - Execute the task in the background if there are available slots.
     /// - Await the first task in the queue if there is no available slots.
     pub async fn execute(&mut self, input: I) -> Result<()> {
+        if self.errored {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "concurrent tasks met an unrecoverable error",
+            ));
+        }
+
         // Short path for non-concurrent case.
         if !self.is_concurrent() {
             let (_, o) = (self.factory)(input).await;
@@ -164,6 +178,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                             if err.is_temporary() {
                                 self.tasks
                                     .push_front(self.executor.execute((self.factory)(i)));
+                            } else {
+                                self.clear();
+                                self.errored = true;
                             }
                             return Err(err);
                         }
@@ -197,6 +214,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     if err.is_temporary() {
                         self.tasks
                             .push_front(self.executor.execute((self.factory)(i)));
+                    } else {
+                        self.clear();
+                        self.errored = true;
                     }
                     return Err(err);
                 }
@@ -206,6 +226,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
     /// Fetch the successful result from the result queue.
     pub async fn next(&mut self) -> Option<Result<O>> {
+        if self.errored {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "concurrent tasks met an unrecoverable error",
+            )));
+        }
+
         if let Some(result) = self.results.pop_front() {
             return Some(Ok(result));
         }
@@ -219,6 +246,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     if err.is_temporary() {
                         self.tasks
                             .push_front(self.executor.execute((self.factory)(i)));
+                    } else {
+                        self.clear();
+                        self.errored = true;
                     }
                     Some(Err(err))
                 }

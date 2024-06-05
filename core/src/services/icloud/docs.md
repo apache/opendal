@@ -26,7 +26,7 @@ This service can be used to:
 - `ds_web_auth_token`: set the ds_web_auth_token for icloud drive api
   Get web trust the session.
 - `is_china_mainland`: set the is_china_mainland for icloud drive api
-  China region must true to use "https://www.icloud.com.cn"
+  China region must true to use <https://www.icloud.com.cn>
   Otherwise Apple server will return 302.
   More information you can get [apple.com](https://support.apple.com/en-us/111754)
 

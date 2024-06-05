@@ -39,7 +39,7 @@ pub struct SqliteConfig {
     ///
     /// ## Url
     ///
-    /// This format resembles the url format of the sqlite client. The format is: file://[path]?flag
+    /// This format resembles the url format of the sqlite client. The format is: `file://[path]?flag`
     ///
     /// - `file://data.db`
     ///
@@ -98,7 +98,7 @@ impl SqliteBuilder {
     ///
     /// ## Url
     ///
-    /// This format resembles the url format of the sqlite client. The format is: file://[path]?flag
+    /// This format resembles the url format of the sqlite client. The format is: `file://[path]?flag`
     ///
     /// - `file://data.db`
     ///

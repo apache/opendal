@@ -37,16 +37,50 @@ use crate::*;
 /// support write multiple chunks will return [`ErrorKind::Unsupported`] error when calling `write`
 /// at the second time.
 ///
-/// ```no_build
-/// let mut w = op.writer("path/to/file").await?;
-/// w.write(bs).await?;
-/// w.write(bs).await?;
-/// w.close().await?
+/// ```
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?;
+///     w.write(vec![1;1024]).await?;
+///     w.write(vec![2;1024]).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
 /// ```
 ///
-/// Our writer also provides [`Writer::sink`] and [`Writer::copy`] support.
+/// ### Write like `Sink`
 ///
-/// Besides, our writer implements [`AsyncWrite`] and [`tokio::io::AsyncWrite`].
+/// ```
+/// use futures::SinkExt;
+/// use opendal::Operator;
+/// use anyhow::Result;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?.into_bytes_sink();
+///     w.send(vec![1;1024].into()).await?;
+///     w.send(vec![2;1024].into()).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ### Write like `AsyncWrite`
+///
+/// ```
+/// use futures::AsyncWriteExt;
+/// use opendal::Operator;
+/// use anyhow::Result;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?.into_futures_async_write();
+///     w.write(&vec![1;1024]).await?;
+///     w.write(&vec![2;1024]).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
+/// ```
 ///
 /// ### Write with append enabled
 ///

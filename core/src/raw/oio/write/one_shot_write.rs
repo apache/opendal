@@ -20,7 +20,7 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// OneShotWrite is used to implement [`Write`] based on one shot operation.
+/// OneShotWrite is used to implement [`oio::Write`] based on one shot operation.
 /// By implementing OneShotWrite, services don't need to care about the details.
 ///
 /// For example, S3 `PUT Object` and fs `write_all`.
@@ -33,7 +33,7 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     fn write_once(&self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
-/// OneShotWrite is used to implement [`Write`] based on one shot.
+/// OneShotWrite is used to implement [`oio::Write`] based on one shot.
 pub struct OneShotWriter<W: OneShotWrite> {
     inner: W,
     buffer: Option<Buffer>,

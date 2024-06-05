@@ -27,7 +27,7 @@ use futures::StreamExt;
 use crate::raw::*;
 use crate::*;
 
-/// RangeWrite is used to implement [`Write`] based on range write.
+/// RangeWrite is used to implement [`oio::Write`] based on range write.
 ///
 /// # Services
 ///
@@ -130,7 +130,7 @@ impl WriteRangeFuture {
     }
 }
 
-/// RangeWriter will implements [`Write`] based on range write.
+/// RangeWriter will implements [`oio::Write`] based on range write.
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<Arc<String>>,
     next_offset: u64,

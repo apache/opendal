@@ -143,9 +143,9 @@ impl BlockingOperator {
     ///
     /// # Notes
     ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
-    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
-    /// so that we can avoid extra requests.
+    /// For fetch metadata of entries returned by [`BlockingLister`], it's better to
+    /// use [`BlockingOperator::list_with`] and [`BlockingOperator::lister_with`] with `metakey`
+    /// query like `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra requests.
     ///
     /// # Behavior
     ///
@@ -200,8 +200,9 @@ impl BlockingOperator {
     ///
     /// # Notes
     ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
-    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use
+    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
+    /// `Metakey::ContentLength | Metakey::LastModified`
     /// so that we can avoid extra requests.
     ///
     /// # Behavior

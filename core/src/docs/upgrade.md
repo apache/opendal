@@ -205,7 +205,7 @@ There is no public API and raw API changes.
 
 ### RFC-2578 Merge Append Into Write
 
-[RFC-2578](crate::docs::rfcs::rfc_2578_merge_append_into_write) merges `append` into `write` and removes `append` API.
+[RFC-2578](crate::docs::rfcs::rfc_2758_merge_append_into_write) merges `append` into `write` and removes `append` API.
 
 - For writing a file at once, please use `op.write()` for convenience.
 - For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
@@ -291,7 +291,7 @@ OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, ple
 
 ### RFC-3017 Remove Write Copy From
 
-[RFC-3017](opendal::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
+[RFC-3017](crate::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
 
 # Upgrade to v0.39
 

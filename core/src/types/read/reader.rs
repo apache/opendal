@@ -35,9 +35,53 @@ use crate::*;
 /// [`Reader`] provides multiple ways to read data from given reader. Please note that it's
 /// undefined behavior to use `Reader` in different ways.
 ///
+/// `Reader` implements `Clone` so you can clone it and store in place where ever you want.
+///
 /// ## Direct
 ///
-/// [`Reader`] provides public API including [`Reader::read`], [`Reader:read_range`], and [`Reader::read_to_end`]. You can use those APIs directly without extra copy.
+/// [`Reader`] provides public API including [`Reader::read`]. You can use those APIs directly without extra copy.
+///
+/// ```
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let r = op.reader("path/to/file").await?;
+///     let bs = r.read(0..1024).await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Read like `Stream`
+///
+/// ```
+/// use opendal::Operator;
+/// use anyhow::Result;
+/// use futures::TryStreamExt;
+/// use bytes::Bytes;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let s = op.reader("path/to/file").await?.into_bytes_stream(1024..2048).await?;
+///     let bs: Vec<Bytes> = s.try_collect().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Read like `AsyncRead` and `AsyncBufRead`
+///
+/// ```
+/// use opendal::Operator;
+/// use anyhow::Result;
+/// use futures::AsyncReadExt;
+/// use bytes::Bytes;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut r = op.reader("path/to/file").await?.into_futures_async_read(1024..2048).await?;
+///     let mut bs = vec![];
+///     let n = r.read_to_end(&mut bs).await?;
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone)]
 pub struct Reader {
     ctx: Arc<ReadContext>,
@@ -95,7 +139,7 @@ impl Reader {
 
     /// Read give range from reader into [`Buffer`].
     ///
-    /// This operation is zero-copy, which means it keeps the [`Bytes`] returned by underlying
+    /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
     pub async fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
         let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;

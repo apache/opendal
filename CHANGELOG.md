@@ -342,14 +342,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 * refactor: Merge compose_{read,write} into enum_utils by @Xuanwo in https://github.com/apache/opendal/pull/3871
-* refactor(services/ftp): Impl parse_error instead of From<Error> by @bokket in https://github.com/apache/opendal/pull/3891
+* refactor(services/ftp): Impl parse_error instead of `From<Error>` by @bokket in https://github.com/apache/opendal/pull/3891
 * docs: very minor English wording fix in error message by @gabrielgrant in https://github.com/apache/opendal/pull/3900
-* refactor(services/rocksdb): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3903
+* refactor(services/rocksdb): Impl parse_error instead of `From<Error>` by @suyanhanx in https://github.com/apache/opendal/pull/3903
 * refactor: Re-organize the layout of tests by @Xuanwo in https://github.com/apache/opendal/pull/3904
-* refactor(services/etcd): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3910
-* refactor(services/sftp): Impl parse_error instead of From<Error> by @G-XD in https://github.com/apache/opendal/pull/3914
+* refactor(services/etcd): Impl parse_error instead of `From<Error>` by @suyanhanx in https://github.com/apache/opendal/pull/3910
+* refactor(services/sftp): Impl parse_error instead of `From<Error>` by @G-XD in https://github.com/apache/opendal/pull/3914
 * refactor!: Bump MSRV to 1.75 by @Xuanwo in https://github.com/apache/opendal/pull/3851
-* refactor(services/redis): Impl parse_error instead of From<Error> by @suyanhanx in https://github.com/apache/opendal/pull/3938
+* refactor(services/redis): Impl parse_error instead of `From<Error>` by @suyanhanx in https://github.com/apache/opendal/pull/3938
 * refactor!: Revert the bump of MSRV to 1.75 by @Xuanwo in https://github.com/apache/opendal/pull/3952
 * refactor(services/onedrive): Add OnedriveConfig to implement ConfigDeserializer by @Borber in https://github.com/apache/opendal/pull/3954
 * refactor(service/dropbox): Add DropboxConfig by @howiieyu in https://github.com/apache/opendal/pull/3961

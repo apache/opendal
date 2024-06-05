@@ -321,6 +321,6 @@
 //! [`Access`]: crate::raw::Access
 //! [`Operation`]: crate::raw::Operation
 //! [`Capability`]: crate::Capability
-//! [`AccessorInfo`]: crate::raw::AccessInfo
+//! [`AccessorInfo`]: crate::raw::AccessorInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder

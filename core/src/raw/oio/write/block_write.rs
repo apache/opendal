@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
-use futures::Future;
-use futures::FutureExt;
-use futures::StreamExt;
+use futures::{select, Future};
+use futures::{FutureExt, TryFutureExt};
 use uuid::Uuid;
 
 use crate::raw::*;
@@ -89,63 +85,69 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
-/// WriteBlockResult is the result returned by [`WriteBlockFuture`].
-///
-/// The error part will carries input `(block_id, bytes, err)` so caller can retry them.
-type WriteBlockResult = Result<Uuid, (Uuid, Buffer, Error)>;
-
-struct WriteBlockFuture(BoxedStaticFuture<WriteBlockResult>);
-
-/// # Safety
-///
-/// wasm32 is a special target that we only have one event-loop for this WriteBlockFuture.
-unsafe impl Send for WriteBlockFuture {}
-
-/// # Safety
-///
-/// We will only take `&mut Self` reference for WriteBlockFuture.
-unsafe impl Sync for WriteBlockFuture {}
-
-impl Future for WriteBlockFuture {
-    type Output = WriteBlockResult;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.get_mut().0.poll_unpin(cx)
-    }
-}
-
-impl WriteBlockFuture {
-    pub fn new<W: BlockWrite>(w: Arc<W>, block_id: Uuid, bytes: Buffer) -> Self {
-        let fut = async move {
-            w.write_block(block_id, bytes.len() as u64, bytes.clone())
-                .await
-                // Return bytes while we got an error to allow retry.
-                .map_err(|err| (block_id, bytes, err))
-                // Return the successful block id.
-                .map(|_| block_id)
-        };
-
-        WriteBlockFuture(Box::pin(fut))
-    }
+struct WriteInput<W: BlockWrite> {
+    w: Arc<W>,
+    executor: Executor,
+    block_id: Uuid,
+    bytes: Buffer,
 }
 
 /// BlockWriter will implements [`Write`] based on block
 /// uploads.
 pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,
+    executor: Executor,
 
+    started: bool,
     block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
-    futures: ConcurrentFutures<WriteBlockFuture>,
+    tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
 }
 
 impl<W: BlockWrite> BlockWriter<W> {
     /// Create a new BlockWriter.
-    pub fn new(inner: W, concurrent: usize) -> Self {
+    pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
+        let executor = executor.unwrap_or_default();
+
         Self {
             w: Arc::new(inner),
+            executor: executor.clone(),
+            started: false,
             block_ids: Vec::new(),
             cache: None,
-            futures: ConcurrentFutures::new(1.max(concurrent)),
+
+            tasks: ConcurrentTasks::new(executor, concurrent, |input| {
+                Box::pin(async move {
+                    let fut = input
+                        .w
+                        .write_block(
+                            input.block_id,
+                            input.bytes.len() as u64,
+                            input.bytes.clone(),
+                        )
+                        .map_ok(|_| input.block_id);
+                    match input.executor.timeout() {
+                        None => {
+                            let result = fut.await;
+                            (input, result)
+                        }
+                        Some(timeout) => {
+                            let result = select! {
+                                result = fut.fuse() => {
+                                    result
+                                }
+                                _ = timeout.fuse() => {
+                                      Err(Error::new(
+                                            ErrorKind::Unexpected, "write block timeout")
+                                                .with_context("block_id", input.block_id.to_string())
+                                                .set_temporary())
+                                }
+                            };
+                            (input, result)
+                        }
+                    }
+                })
+            }),
         }
     }
 
@@ -162,83 +164,57 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        loop {
-            if self.futures.has_remaining() {
-                // Fill cache with the first write.
-                if self.cache.is_none() {
-                    let size = self.fill_cache(bs);
-                    return Ok(size);
-                }
-
-                let cache = self.cache.take().expect("pending write must exist");
-                self.futures.push_back(WriteBlockFuture::new(
-                    self.w.clone(),
-                    Uuid::new_v4(),
-                    cache,
-                ));
-
-                let size = self.fill_cache(bs);
-                return Ok(size);
-            } else if let Some(res) = self.futures.next().await {
-                match res {
-                    Ok(block_id) => {
-                        self.block_ids.push(block_id);
-                        continue;
-                    }
-                    Err((block_id, bytes, err)) => {
-                        self.futures.push_front(WriteBlockFuture::new(
-                            self.w.clone(),
-                            block_id,
-                            bytes,
-                        ));
-                        return Err(err);
-                    }
-                }
-            }
+        if !self.started && self.cache.is_none() {
+            let size = self.fill_cache(bs);
+            return Ok(size);
         }
+
+        // The block upload process has been started.
+        self.started = true;
+
+        let bytes = self.cache.clone().expect("pending write must exist");
+        self.tasks
+            .execute(WriteInput {
+                w: self.w.clone(),
+                executor: self.executor.clone(),
+                block_id: Uuid::new_v4(),
+                bytes,
+            })
+            .await?;
+        self.cache = None;
+        let size = self.fill_cache(bs);
+        Ok(size)
     }
 
     async fn close(&mut self) -> Result<()> {
-        // No write block has been sent.
-        if self.futures.is_empty() && self.block_ids.is_empty() {
+        if !self.started {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
                 None => (0, Buffer::new()),
             };
+
             self.w.write_once(size as u64, body).await?;
-            // Cleanup cache after write succeed.
             self.cache = None;
             return Ok(());
         }
 
-        loop {
-            if self.futures.has_remaining() {
-                // Push into the queue and continue.
-                // It's safe to take the cache here since we will re-push task for it failed.
-                if let Some(cache) = self.cache.take() {
-                    self.futures.push_back(WriteBlockFuture::new(
-                        self.w.clone(),
-                        Uuid::new_v4(),
-                        cache,
-                    ));
-                }
-            }
+        if let Some(cache) = self.cache.clone() {
+            self.tasks
+                .execute(WriteInput {
+                    w: self.w.clone(),
+                    executor: self.executor.clone(),
+                    block_id: Uuid::new_v4(),
+                    bytes: cache,
+                })
+                .await?;
+            self.cache = None;
+        }
 
-            let Some(result) = self.futures.next().await else {
+        loop {
+            let Some(result) = self.tasks.next().await.transpose()? else {
                 break;
             };
-
-            match result {
-                Ok(block_id) => {
-                    self.block_ids.push(block_id);
-                    continue;
-                }
-                Err((block_id, bytes, err)) => {
-                    self.futures
-                        .push_front(WriteBlockFuture::new(self.w.clone(), block_id, bytes));
-                    return Err(err);
-                }
-            }
+            self.block_ids.push(result)
         }
 
         let block_ids = self.block_ids.clone();
@@ -246,7 +222,14 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.w.abort_block(self.block_ids.clone()).await
+        if !self.started {
+            return Ok(());
+        }
+
+        self.tasks.clear();
+        self.cache = None;
+        self.w.abort_block(self.block_ids.clone()).await?;
+        Ok(())
     }
 }
 
@@ -254,11 +237,13 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
+    use std::time::Duration;
 
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
+    use tokio::time::sleep;
 
     use super::*;
     use crate::raw::oio::Write;
@@ -287,9 +272,14 @@ mod tests {
         }
 
         async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
-            // We will have 50% percent rate for write part to fail.
-            if thread_rng().gen_bool(5.0 / 10.0) {
-                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+            // Add an async sleep here to enforce some pending.
+            sleep(Duration::from_millis(50)).await;
+
+            // We will have 10% percent rate for write part to fail.
+            if thread_rng().gen_bool(1.0 / 10.0) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
             }
 
             let mut this = self.lock().unwrap();
@@ -319,7 +309,7 @@ mod tests {
     async fn test_block_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = BlockWriter::new(TestWrite::new(), 8);
+        let mut w = BlockWriter::new(TestWrite::new(), Some(Executor::new()), 8);
         let mut total_size = 0u64;
         let mut expected_content = Vec::new();
 

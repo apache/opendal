@@ -284,8 +284,8 @@ where
         };
 
         self.tasks.clear();
-        self.w.abort_part(&upload_id).await?;
         self.cache = None;
+        self.w.abort_part(&upload_id).await?;
         Ok(())
     }
 }

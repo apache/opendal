@@ -25,9 +25,11 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use futures::{AsyncReadExt, AsyncSeekExt};
+use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
 use pyo3::buffer::PyBuffer;
-use pyo3::exceptions::{PyIOError, PyValueError};
+use pyo3::exceptions::PyIOError;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::sync::Mutex;

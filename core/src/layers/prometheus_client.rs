@@ -29,7 +29,8 @@ use prometheus_client::metrics::histogram;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
-use crate::raw::oio::{ReadOperation, WriteOperation};
+use crate::raw::oio::ReadOperation;
+use crate::raw::oio::WriteOperation;
 use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
@@ -86,7 +87,7 @@ pub struct PrometheusClientLayer {
 impl PrometheusClientLayer {
     /// Create PrometheusClientLayer while registering itself to this registry. Please keep in caution
     /// that do NOT call this method multiple times with a same registry. If you want initialize multiple
-    /// [`PrometheusClientLayer`] with a single registry, you should use [`clone`] instead.
+    /// [`PrometheusClientLayer`] with a single registry, you should use [`Arc::clone`] instead.
     pub fn new(registry: &mut Registry) -> Self {
         let metrics = PrometheusClientMetrics::register(registry);
         Self { metrics }

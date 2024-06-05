@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::{JByteArray, JClass, JString};
+use jni::objects::JByteArray;
+use jni::objects::JClass;
+use jni::objects::JString;
 use jni::sys::jlong;
 use jni::JNIEnv;
-
-use opendal::{BlockingOperator, BlockingWriter};
+use opendal::BlockingOperator;
+use opendal::BlockingWriter;
 
 use crate::convert::jstring_to_string;
 

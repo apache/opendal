@@ -17,7 +17,8 @@
 
 use std::cmp::Ordering;
 
-use futures::{Stream, StreamExt};
+use futures::Stream;
+use futures::StreamExt;
 use oio::Read;
 
 use crate::raw::*;

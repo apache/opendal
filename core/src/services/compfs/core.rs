@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::buf::IoBuf;
-use compio::runtime::RuntimeBuilder;
-use futures::channel::mpsc::SendError;
-use futures::channel::{mpsc, oneshot};
-use futures::future::LocalBoxFuture;
-use futures::{SinkExt, StreamExt};
 use std::future::Future;
 use std::thread::JoinHandle;
+
+use compio::buf::IoBuf;
+use compio::runtime::RuntimeBuilder;
+use futures::channel::mpsc;
+use futures::channel::mpsc::SendError;
+use futures::channel::oneshot;
+use futures::future::LocalBoxFuture;
+use futures::SinkExt;
+use futures::StreamExt;
 
 use crate::Buffer;
 
@@ -167,9 +170,12 @@ unsafe impl IoBuf for Buffer {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Buf;
+    use bytes::Bytes;
+    use rand::thread_rng;
+    use rand::Rng;
+
     use super::*;
-    use bytes::{Buf, Bytes};
-    use rand::{thread_rng, Rng};
 
     fn setup_buffer() -> (Buffer, usize, Bytes) {
         let mut rng = thread_rng();

@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as core;
 use std::io::Read;
+
+use ::opendal as core;
 
 use super::*;
 

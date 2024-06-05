@@ -88,7 +88,7 @@ pub enum Scheme {
     Http,
     /// [huggingface][crate::services::Huggingface]: Huggingface services.
     Huggingface,
-    /// [alluxio][created::services::Alluxio]: Alluxio services.
+    /// [alluxio][crate::services::Alluxio]: Alluxio services.
     Alluxio,
 
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
@@ -147,19 +147,19 @@ pub enum Scheme {
     Webhdfs,
     /// [redb][crate::services::Redb]: Redb Services
     Redb,
-    /// [tikv][crate::services::tikv]: Tikv Services
+    /// [tikv][crate::services::Tikv]: Tikv Services
     Tikv,
-    /// [azfile][crate::services::azfile]: Azfile Services
+    /// [azfile][crate::services::Azfile]: Azfile Services
     Azfile,
-    /// [mongodb](crate::services::mongodb): MongoDB Services
+    /// [mongodb](crate::services::Mongodb): MongoDB Services
     Mongodb,
-    /// [gridfs](crate::services::gridfs): MongoDB Gridfs Services
+    /// [gridfs](crate::services::Gridfs): MongoDB Gridfs Services
     Gridfs,
     /// [Github Contents][crate::services::Github]: Github contents support.
     Github,
-    /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
+    /// [Native HDFS](crate::services::HdfsNative): Hdfs Native service, using rust hdfs-native client for hdfs
     HdfsNative,
-    /// [surrealdb](crate::services::surrealdb): Surrealdb Services
+    /// [surrealdb](crate::services::Surrealdb): Surrealdb Services
     Surrealdb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///

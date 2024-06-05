@@ -21,7 +21,7 @@ This service can be used to:
 - `cert_path`: Set the cert path to the tikv connection
 - `key_path`: Set the key path to the tikv connection
 
-You can refer to [`TiKVBuilder`]'s docs for more information
+You can refer to [`TikvBuilder`]'s docs for more information
 
 ## Example
 

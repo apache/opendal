@@ -31,12 +31,15 @@ impl Execute for TokioExecutor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::Executor;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
     use std::sync::Arc;
     use std::time::Duration;
+
     use tokio::time::sleep;
+
+    use super::*;
+    use crate::Executor;
 
     #[tokio::test]
     async fn test_tokio_executor() {

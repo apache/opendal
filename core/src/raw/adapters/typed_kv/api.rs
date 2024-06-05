@@ -15,19 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::future::ready;
 use std::future::Future;
 use std::mem::size_of;
-use std::{fmt::Debug, future::ready};
 
 use chrono::Utc;
 
+use crate::raw::MaybeSend;
+use crate::Buffer;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
-use crate::{raw::MaybeSend, Buffer};
 
 /// Adapter is the typed adapter to underlying kv services.
 ///

@@ -25,7 +25,6 @@ use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use jni::JNIEnv;
-
 use opendal::BlockingOperator;
 
 use crate::convert::jstring_to_string;

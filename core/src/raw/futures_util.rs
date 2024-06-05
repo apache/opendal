@@ -21,10 +21,12 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::*;
+use futures::poll;
 use futures::stream::FuturesOrdered;
+use futures::FutureExt;
 use futures::StreamExt;
-use futures::{poll, FutureExt};
+
+use crate::*;
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
 ///

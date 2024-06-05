@@ -24,7 +24,7 @@ use uuid::Uuid;
 use crate::raw::*;
 use crate::*;
 
-/// BlockWrite is used to implement [`Write`] based on block
+/// BlockWrite is used to implement [`oio::Write`] based on block
 /// uploads. By implementing BlockWrite, services don't need to
 /// care about the details of uploading blocks.
 ///
@@ -63,8 +63,7 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     /// - All the data has been written to the buffer and we can perform the upload at once.
     fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
-    /// write_block will write a block of the data and returns the result
-    /// [`Block`].
+    /// write_block will write a block of the data.
     ///
     /// BlockWriter will call this API and stores the result in
     /// order.
@@ -92,7 +91,7 @@ struct WriteInput<W: BlockWrite> {
     bytes: Buffer,
 }
 
-/// BlockWriter will implements [`Write`] based on block
+/// BlockWriter will implements [`oio::Write`] based on block
 /// uploads.
 pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,

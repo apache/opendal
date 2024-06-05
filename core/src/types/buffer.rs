@@ -108,7 +108,6 @@ use crate::*;
 ///     buf.to_bytes()
 /// }
 /// ```
-///
 #[derive(Clone)]
 pub struct Buffer(Inner);
 

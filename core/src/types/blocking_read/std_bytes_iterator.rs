@@ -19,10 +19,11 @@ use std::io;
 use std::ops::Range;
 use std::sync::Arc;
 
-use crate::{Buffer, BufferIterator};
 use bytes::Bytes;
 
 use crate::raw::*;
+use crate::Buffer;
+use crate::BufferIterator;
 use crate::*;
 
 /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].

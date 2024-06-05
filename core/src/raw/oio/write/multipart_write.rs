@@ -17,13 +17,14 @@
 
 use std::sync::Arc;
 
+use futures::select;
+use futures::Future;
 use futures::FutureExt;
-use futures::{select, Future};
 
 use crate::raw::*;
 use crate::*;
 
-/// MultipartWrite is used to implement [`Write`] based on multipart
+/// MultipartWrite is used to implement [`oio::Write`] based on multipart
 /// uploads. By implementing MultipartWrite, services don't need to
 /// care about the details of uploading parts.
 ///
@@ -123,7 +124,7 @@ struct WriteInput<W: MultipartWrite> {
     bytes: Buffer,
 }
 
-/// MultipartWriter will implements [`Write`] based on multipart
+/// MultipartWriter will implements [`oio::Write`] based on multipart
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
     w: Arc<W>,

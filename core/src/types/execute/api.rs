@@ -23,13 +23,44 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 /// Execute trait is used to execute task in background.
+///
+/// # Notes about Timeout Implementation
+///
+/// Implementing a correct and elegant timeout mechanism is challenging for us.
+///
+/// The `Execute` trait must be object safe, allowing us to use `Arc<dyn Execute>`. Consequently,
+/// we cannot introduce a generic type parameter to `Execute`. We utilize [`RemoteHandle`] to
+/// implement the [`Execute::execute`] method. [`RemoteHandle`] operates by transmitting
+/// `Future::Output` through a channel, enabling the spawning of [`BoxedStaticFuture<()>`].
+///
+/// However, for timeouts, we need to spawn a future that resolves after a specified duration.
+/// Simply wrapping the future within another timeout future is not feasible because if the timeout
+/// is reached and the original future has not completed, it will be dropped—causing any held `Task`
+/// to panic.
+///
+/// As an alternative solution, we developed a `timeout` API. Users of the `Executor` should invoke
+/// this API when they require a timeout and combine it with their own futures using
+/// [`futures::select`].
+///
+/// This approach may seem inelegant but it allows us flexibility without being tied specifically
+/// to the Tokio runtime.
+///
+/// PLEASE raising an issue if you have a better solution.
 pub trait Execute: Send + Sync + 'static {
     /// Execute async task in background.
     ///
     /// # Behavior
     ///
-    /// - Implementor must manage the executing futures and keep making progress.
+    /// - Implementor MUST manage the executing futures and keep making progress.
+    /// - Implementor MUST NOT drop futures until it's resolved.
     fn execute(&self, f: BoxedStaticFuture<()>);
+
+    /// Return a future that will be resolved after the given timeout.
+    ///
+    /// Default implementation returns None.
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        None
+    }
 }
 
 impl Execute for () {

@@ -16,7 +16,7 @@
 // under the License.
 
 use super::*;
-use crate::raw::MaybeSend;
+use crate::raw::{BoxedStaticFuture, MaybeSend};
 use futures::FutureExt;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
@@ -69,8 +69,17 @@ impl Executor {
         }
     }
 
+    /// Return the inner executor.
+    pub(crate) fn into_inner(self) -> Arc<dyn Execute> {
+        self.executor
+    }
+
+    /// Return a future that will be resolved after the given timeout.
+    pub(crate) fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.executor.timeout()
+    }
+
     /// Run given future in background immediately.
-    #[allow(unused)]
     pub(crate) fn execute<F>(&self, f: F) -> Task<F::Output>
     where
         F: Future + MaybeSend + 'static,

@@ -101,12 +101,12 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     ///
     /// The factory is a function pointer that shouldn't capture any context.
     pub fn new(
-        executor: Option<Executor>,
+        executor: Executor,
         concurrent: usize,
         factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
     ) -> Self {
         Self {
-            executor: executor.unwrap_or_default(),
+            executor,
             factory,
 
             tasks: VecDeque::with_capacity(concurrent),

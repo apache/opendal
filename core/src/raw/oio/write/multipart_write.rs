@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use futures::Future;
+use futures::FutureExt;
+use futures::{select, Future};
 
 use crate::raw::*;
 use crate::*;
@@ -116,6 +117,7 @@ pub struct MultipartPart {
 
 struct WriteInput<W: MultipartWrite> {
     w: Arc<W>,
+    executor: Executor,
     upload_id: Arc<String>,
     part_number: usize,
     bytes: Buffer,
@@ -125,6 +127,7 @@ struct WriteInput<W: MultipartWrite> {
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
     w: Arc<W>,
+    executor: Executor,
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
@@ -142,8 +145,10 @@ impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
     pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
         let w = Arc::new(inner);
+        let executor = executor.unwrap_or_default();
         Self {
             w,
+            executor: executor.clone(),
             upload_id: None,
             parts: Vec::new(),
             cache: None,
@@ -152,16 +157,36 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             tasks: ConcurrentTasks::new(executor, concurrent, |input| {
                 Box::pin({
                     async move {
-                        let result = input
-                            .w
-                            .write_part(
-                                &input.upload_id,
-                                input.part_number,
-                                input.bytes.len() as u64,
-                                input.bytes.clone(),
-                            )
-                            .await;
-                        (input, result)
+                        match input.executor.timeout() {
+                            None => {
+                                let result = input
+                                    .w
+                                    .write_part(
+                                        &input.upload_id,
+                                        input.part_number,
+                                        input.bytes.len() as u64,
+                                        input.bytes.clone(),
+                                    )
+                                    .await;
+                                (input, result)
+                            }
+                            Some(timeout) => {
+                                let fut = input.w.write_part(
+                                    &input.upload_id,
+                                    input.part_number,
+                                    input.bytes.len() as u64,
+                                    input.bytes.clone(),
+                                );
+                                select! {
+                                    result = fut.fuse() => {
+                                        (input, result)
+                                    }
+                                    _ = timeout.fuse() => {
+                                        (input, Err(Error::new(ErrorKind::Unexpected, "write part timeout").set_temporary()))
+                                    }
+                                }
+                            }
+                        }
                     }
                 })
             }),
@@ -203,6 +228,7 @@ where
         self.tasks
             .execute(WriteInput {
                 w: self.w.clone(),
+                executor: self.executor.clone(),
                 upload_id: upload_id.clone(),
                 part_number,
                 bytes,
@@ -235,6 +261,7 @@ where
             self.tasks
                 .execute(WriteInput {
                     w: self.w.clone(),
+                    executor: self.executor.clone(),
                     upload_id: upload_id.clone(),
                     part_number,
                     bytes: cache,

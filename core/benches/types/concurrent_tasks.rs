@@ -30,7 +30,7 @@ pub fn bench_concurrent_tasks(c: &mut Criterion) {
         group.bench_with_input(concurrent.to_string(), &concurrent, |b, concurrent| {
             b.to_async(&*TOKIO).iter_batched(
                 || {
-                    ConcurrentTasks::new(Some(Executor::new()), *concurrent, |()| {
+                    ConcurrentTasks::new(Executor::new(), *concurrent, |()| {
                         Box::pin(async {
                             black_box(());
                             ((), Ok(()))

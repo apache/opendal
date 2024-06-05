@@ -81,9 +81,13 @@ pub struct ChunkedReader {
 
 impl ChunkedReader {
     /// Create a new chunked reader.
+    ///
+    /// # Notes
+    ///
+    /// We don't need to handle `Executor::timeout` since we are outside of the layer.
     fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
         let tasks = ConcurrentTasks::new(
-            ctx.args().executor().cloned(),
+            ctx.args().executor().cloned().unwrap_or_default(),
             ctx.options().concurrent(),
             |mut r: oio::Reader| {
                 Box::pin(async {

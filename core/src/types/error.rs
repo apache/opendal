@@ -334,8 +334,8 @@ impl Error {
     }
 
     /// Add more context in error.
-    pub fn with_context(mut self, key: &'static str, value: impl Into<String>) -> Self {
-        self.context.push((key, value.into()));
+    pub fn with_context(mut self, key: &'static str, value: impl ToString) -> Self {
+        self.context.push((key, value.to_string()));
         self
     }
 

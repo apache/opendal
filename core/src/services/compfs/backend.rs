@@ -60,18 +60,80 @@ impl Builder for CompfsBuilder {
 
 #[derive(Debug)]
 pub struct CompfsBackend {
-    rt: CompioThread,
+    core: Arc<CompfsCore>,
 }
 
 impl Access for CompfsBackend {
-    type Reader = ();
-    type Writer = ();
-    type Lister = ();
+    type Reader = CompfsReader;
+    type Writer = CompfsWriter;
+    type Lister = Option<CompfsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
         todo!()
+    }
+
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+
+        let file = self
+            .core
+            .exec(|| async move { compio::fs::OpenOptions::new().read(true).open(&path).await })
+            .await?;
+
+        let r = CompfsReader::new(self.core.clone(), file);
+        Ok((RpRead::new(), r))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+        let append = args.append();
+        let mut file = self
+            .core
+            .exec(move || async move {
+                compio::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(!append)
+                    .open(path)
+                    .await
+            })
+            .await
+            .map(Cursor::new)?;
+
+        if append {
+            let f = file.clone();
+            let metadata = self
+                .core
+                .exec(|| async move { f.get_ref().metadata().await })
+                .await?;
+            file.set_position(metadata.len());
+        }
+
+        let w = CompfsWriter::new(self.core.clone(), file);
+        Ok((RpWrite::new(), w))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+        let read_dir = match self
+            .core
+            .exec_blocking(move || std::fs::read_dir(&path))
+            .await?
+        {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == std::io::ErrorKind::NotFound {
+                    Ok((RpList::default(), None))
+                } else {
+                    Err(new_std_io_error(e))
+                };
+            }
+        };
+
+        let lister = CompfsLister::new(self.core.clone(), read_dir);
+        Ok((RpList::default(), Some(lister)))
     }
 }

@@ -157,34 +157,31 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             tasks: ConcurrentTasks::new(executor, concurrent, |input| {
                 Box::pin({
                     async move {
+                        let fut = input.w.write_part(
+                            &input.upload_id,
+                            input.part_number,
+                            input.bytes.len() as u64,
+                            input.bytes.clone(),
+                        );
                         match input.executor.timeout() {
                             None => {
-                                let result = input
-                                    .w
-                                    .write_part(
-                                        &input.upload_id,
-                                        input.part_number,
-                                        input.bytes.len() as u64,
-                                        input.bytes.clone(),
-                                    )
-                                    .await;
+                                let result = fut.await;
                                 (input, result)
                             }
                             Some(timeout) => {
-                                let fut = input.w.write_part(
-                                    &input.upload_id,
-                                    input.part_number,
-                                    input.bytes.len() as u64,
-                                    input.bytes.clone(),
-                                );
-                                select! {
+                                let result = select! {
                                     result = fut.fuse() => {
-                                        (input, result)
+                                        result
                                     }
                                     _ = timeout.fuse() => {
-                                        (input, Err(Error::new(ErrorKind::Unexpected, "write part timeout").set_temporary()))
+                                        Err(Error::new(
+                                            ErrorKind::Unexpected, "write part timeout")
+                                                .with_context("upload_id", input.upload_id.to_string())
+                                                .with_context("part_number", input.part_number.to_string())
+                                                .set_temporary())
                                     }
-                                }
+                                };
+                                (input, result)
                             }
                         }
                     }

@@ -21,7 +21,8 @@ use opendal::raw::tests;
 use opendal::Capability;
 use tempfile::TempDir;
 use test_context::TestContext;
-use tokio::runtime::{self, Runtime};
+use tokio::runtime::Runtime;
+use tokio::runtime::{self};
 
 static INIT_LOGGER: OnceLock<()> = OnceLock::new();
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();

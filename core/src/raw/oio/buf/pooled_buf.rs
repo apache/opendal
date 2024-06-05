@@ -17,7 +17,8 @@
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::fmt::{self, Formatter};
+use std::fmt::Formatter;
+use std::fmt::{self};
 use std::sync::Mutex;
 
 use bytes::BytesMut;

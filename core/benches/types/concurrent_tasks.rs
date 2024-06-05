@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use criterion::{black_box, BatchSize, Criterion};
+use criterion::black_box;
+use criterion::BatchSize;
+use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;

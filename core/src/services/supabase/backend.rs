@@ -18,7 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::{Response, StatusCode};
+use http::Response;
+use http::StatusCode;
 use log::debug;
 
 use super::core::*;

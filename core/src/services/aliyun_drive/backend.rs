@@ -33,7 +33,8 @@ use super::core::*;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
-use super::writer::{AliyunDriveWriter, AliyunDriveWriters};
+use super::writer::AliyunDriveWriter;
+use super::writer::AliyunDriveWriters;
 use crate::raw::*;
 use crate::*;
 

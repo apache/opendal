@@ -17,13 +17,14 @@
 
 mod adapter;
 
+use std::io;
+use std::path::Path;
+
 use adapter::FuseAdapter;
-
+use fuse3::path::Session;
 pub use fuse3::raw::MountHandle;
-
-use fuse3::{path::Session, MountOptions};
+use fuse3::MountOptions;
 use opendal::Operator;
-use std::{io, path::Path};
 
 /// Ofs fuse filesystem mounter.
 #[derive(Debug, Clone)]

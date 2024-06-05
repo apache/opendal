@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Range;
+use std::sync::Arc;
+
 use crate::raw::*;
 use crate::Buffer;
 use crate::*;
-use std::ops::Range;
-use std::sync::Arc;
 
 struct IteratingReader {
     generator: ReadGenerator,

@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::*;
-use crate::raw::{BoxedStaticFuture, MaybeSend};
-use futures::FutureExt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::sync::Arc;
+
+use futures::FutureExt;
+
+use super::*;
+use crate::raw::BoxedStaticFuture;
+use crate::raw::MaybeSend;
 
 /// Executor that runs futures in background.
 ///

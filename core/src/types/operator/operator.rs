@@ -646,7 +646,10 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").chunk(4 * 1024 * 1024).await?;
+    /// let r = op
+    ///     .reader_with("path/to/file")
+    ///     .chunk(4 * 1024 * 1024)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```

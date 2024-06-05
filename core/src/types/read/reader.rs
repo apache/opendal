@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Bound;
+use std::ops::Range;
 use std::ops::RangeBounds;
-use std::ops::{Bound, Range};
 use std::sync::Arc;
 
 use bytes::BufMut;
@@ -55,13 +56,17 @@ use crate::*;
 /// ## Read like `Stream`
 ///
 /// ```
-/// use opendal::Operator;
 /// use anyhow::Result;
-/// use futures::TryStreamExt;
 /// use bytes::Bytes;
+/// use futures::TryStreamExt;
+/// use opendal::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
-///     let s = op.reader("path/to/file").await?.into_bytes_stream(1024..2048).await?;
+///     let s = op
+///         .reader("path/to/file")
+///         .await?
+///         .into_bytes_stream(1024..2048)
+///         .await?;
 ///     let bs: Vec<Bytes> = s.try_collect().await?;
 ///     Ok(())
 /// }
@@ -70,13 +75,17 @@ use crate::*;
 /// ## Read like `AsyncRead` and `AsyncBufRead`
 ///
 /// ```
-/// use opendal::Operator;
 /// use anyhow::Result;
-/// use futures::AsyncReadExt;
 /// use bytes::Bytes;
+/// use futures::AsyncReadExt;
+/// use opendal::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
-///     let mut r = op.reader("path/to/file").await?.into_futures_async_read(1024..2048).await?;
+///     let mut r = op
+///         .reader("path/to/file")
+///         .await?
+///         .into_futures_async_read(1024..2048)
+///         .await?;
 ///     let mut bs = vec![];
 ///     let n = r.read_to_end(&mut bs).await?;
 ///     Ok(())
@@ -316,7 +325,11 @@ impl Reader {
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut s = op.reader("hello.txt").await?.into_bytes_stream(1024..2048).await?;;
+    ///     let mut s = op
+    ///         .reader("hello.txt")
+    ///         .await?
+    ///         .into_bytes_stream(1024..2048)
+    ///         .await?;
     ///     let bs: Vec<Bytes> = s.try_collect().await?;
     ///
     ///     Ok(())
@@ -341,7 +354,8 @@ impl Reader {
     ///         .concurrent(8)
     ///         .chunk(256)
     ///         .await?
-    ///         .into_bytes_stream(1024..2048).await?;
+    ///         .into_bytes_stream(1024..2048)
+    ///         .await?;
     ///     let bs: Vec<Bytes> = s.try_collect().await?;
     ///
     ///     Ok(())
@@ -359,11 +373,12 @@ impl Reader {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bytes::Bytes;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
-    use std::collections::HashMap;
 
     use super::*;
     use crate::raw::MaybeSend;

@@ -20,16 +20,19 @@ use std::sync::Arc;
 use base64::engine::general_purpose;
 use base64::Engine;
 use bytes::Buf;
-
-use md5::{Digest, Md5};
+use md5::Digest;
+use md5::Md5;
 use sha1::Sha1;
 use tokio::sync::RwLock;
 
+use super::core::AliyunDriveCore;
+use super::core::RapidUpload;
+use super::core::UploadUrlResponse;
 use crate::raw::*;
-use crate::services::aliyun_drive::core::{CheckNameMode, CreateResponse, CreateType};
+use crate::services::aliyun_drive::core::CheckNameMode;
+use crate::services::aliyun_drive::core::CreateResponse;
+use crate::services::aliyun_drive::core::CreateType;
 use crate::*;
-
-use super::core::{AliyunDriveCore, RapidUpload, UploadUrlResponse};
 
 pub type AliyunDriveWriters = oio::MultipartWriter<AliyunDriveWriter>;
 

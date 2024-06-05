@@ -741,12 +741,12 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
-    use crate::layers::LoggingLayer;
     use bytes::Bytes;
     use futures::TryStreamExt;
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
+    use crate::layers::LoggingLayer;
 
     #[derive(Default, Clone)]
     struct MockBuilder {

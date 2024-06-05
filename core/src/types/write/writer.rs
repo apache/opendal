@@ -43,8 +43,8 @@ use crate::*;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?;
-///     w.write(vec![1;1024]).await?;
-///     w.write(vec![2;1024]).await?;
+///     w.write(vec![1; 1024]).await?;
+///     w.write(vec![2; 1024]).await?;
 ///     w.close().await?;
 ///     Ok(())
 /// }
@@ -53,14 +53,14 @@ use crate::*;
 /// ### Write like `Sink`
 ///
 /// ```
+/// use anyhow::Result;
 /// use futures::SinkExt;
 /// use opendal::Operator;
-/// use anyhow::Result;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?.into_bytes_sink();
-///     w.send(vec![1;1024].into()).await?;
-///     w.send(vec![2;1024].into()).await?;
+///     w.send(vec![1; 1024].into()).await?;
+///     w.send(vec![2; 1024].into()).await?;
 ///     w.close().await?;
 ///     Ok(())
 /// }
@@ -69,14 +69,14 @@ use crate::*;
 /// ### Write like `AsyncWrite`
 ///
 /// ```
+/// use anyhow::Result;
 /// use futures::AsyncWriteExt;
 /// use opendal::Operator;
-/// use anyhow::Result;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?.into_futures_async_write();
-///     w.write(&vec![1;1024]).await?;
-///     w.write(&vec![2;1024]).await?;
+///     w.write(&vec![1; 1024]).await?;
+///     w.write(&vec![2; 1024]).await?;
 ///     w.close().await?;
 ///     Ok(())
 /// }
@@ -126,18 +126,17 @@ impl Writer {
     /// ## Examples
     ///
     /// ```
+    /// use bytes::Bytes;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?;
+    ///     let mut w = op.writer("hello.txt").await?;
     ///     // Buffer can be created from continues bytes.
     ///     w.write("hello, world").await?;
     ///     // Buffer can also be created from non-continues bytes.
-    ///     w.write(vec![Bytes::from("hello,"), Bytes::from("world!")]).await?;
+    ///     w.write(vec![Bytes::from("hello,"), Bytes::from("world!")])
+    ///         .await?;
     ///
     ///     // Make sure file has been written completely.
     ///     w.close().await?;
@@ -213,10 +212,7 @@ impl Writer {
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?
-    ///         .into_futures_async_write();
+    ///     let mut w = op.writer("hello.txt").await?.into_futures_async_write();
     ///     let bs = "Hello, World!".as_bytes();
     ///     w.write_all(bs).await?;
     ///     w.close().await?;
@@ -236,7 +232,9 @@ impl Writer {
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
-    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .writer_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
     ///         .await?
     ///         .into_futures_async_write();
     ///     let bs = "Hello, World!".as_bytes();
@@ -264,16 +262,13 @@ impl Writer {
     /// ```
     /// use std::io;
     ///
+    /// use bytes::Bytes;
     /// use futures::SinkExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?
-    ///         .into_bytes_sink();
+    ///     let mut w = op.writer("hello.txt").await?.into_bytes_sink();
     ///     let bs = "Hello, World!".as_bytes();
     ///     w.send(Bytes::from(bs)).await?;
     ///     w.close().await?;
@@ -287,14 +282,16 @@ impl Writer {
     /// ```
     /// use std::io;
     ///
+    /// use bytes::Bytes;
     /// use futures::SinkExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
-    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .writer_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
     ///         .await?
     ///         .into_bytes_sink();
     ///     let bs = "Hello, World!".as_bytes();

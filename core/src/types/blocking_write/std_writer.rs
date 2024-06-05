@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Write;
+
 use crate::raw::oio::BlockingWrite;
 use crate::raw::*;
 use crate::*;
-use std::io::Write;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
 ///

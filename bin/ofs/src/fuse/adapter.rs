@@ -24,14 +24,12 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
-
 use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
 use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
-
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;

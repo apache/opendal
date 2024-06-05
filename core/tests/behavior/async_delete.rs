@@ -16,7 +16,8 @@
 // under the License.
 
 use anyhow::Result;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
+use futures::TryStreamExt;
 use log::warn;
 
 use crate::*;

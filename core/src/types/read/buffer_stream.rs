@@ -21,9 +21,10 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::oio::Read;
-use futures::{ready, Stream};
+use futures::ready;
+use futures::Stream;
 
+use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -188,12 +189,13 @@ impl Stream for BufferStream {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use bytes::Buf;
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     use super::*;
 

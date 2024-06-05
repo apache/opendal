@@ -451,6 +451,7 @@ mod tests {
     use futures::future::BoxFuture;
     use futures::Stream;
     use rand::Rng;
+    use tokio::time::sleep;
 
     use super::*;
 
@@ -505,5 +506,48 @@ mod tests {
 
             assert_eq!(expected, result, "concurrent futures failed: {}", name);
         }
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_tasks() {
+        let executor = Executor::new();
+
+        let mut tasks = ConcurrentTasks::new(executor, 16, |(i, dur)| {
+            Box::pin(async move {
+                sleep(dur).await;
+
+                // 5% rate to fail.
+                if rand::thread_rng().gen_range(0..100) > 90 {
+                    return (
+                        (i, dur),
+                        Err(Error::new(ErrorKind::Unexpected, "I'm lucky").set_temporary()),
+                    );
+                }
+                ((i, dur), Ok(i))
+            })
+        });
+
+        let mut ans = vec![];
+
+        for i in 0..10240 {
+            // Sleep up to 10ms
+            let dur = Duration::from_millis(rand::thread_rng().gen_range(0..10));
+            loop {
+                let res = tasks.execute((i, dur)).await;
+                if res.is_ok() {
+                    break;
+                }
+            }
+        }
+
+        loop {
+            match tasks.next().await.transpose() {
+                Ok(Some(i)) => ans.push(i),
+                Ok(None) => break,
+                Err(_) => continue,
+            }
+        }
+
+        assert_eq!(ans, (0..10240).collect::<Vec<_>>())
     }
 }

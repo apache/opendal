@@ -213,7 +213,7 @@ where
             let Some(result) = self.tasks.next().await.transpose()? else {
                 break;
             };
-            self.block_ids.push(result)
+            self.block_ids.push(result);
         }
 
         let block_ids = self.block_ids.clone();

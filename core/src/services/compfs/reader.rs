@@ -26,25 +26,27 @@ use crate::*;
 #[derive(Debug)]
 pub struct CompfsReader {
     core: Arc<CompfsCore>,
-    f: compio::fs::File,
+    file: compio::fs::File,
+    range: BytesRange,
 }
 
 impl CompfsReader {
-    pub fn new(core: Arc<CompfsCore>, f: compio::fs::File) -> Self {
-        Self { core, f }
+    pub fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
+        Self { core, file, range }
     }
 }
 
 impl oio::Read for CompfsReader {
-    async fn read_at(&self, offset: u64, limit: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         let mut bs = self.core.buf_pool.get();
-        bs.reserve(limit);
-        let f = self.f.clone();
+
+        let len = self.range.size().expect("range size is always Some");
+        bs.reserve(len as _);
+        let f = self.file.clone();
         let mut bs = self
             .core
             .exec(move || async move {
-                let (_, bs) = buf_try!(@try f.read_at(bs, offset).await);
-
+                let (_, bs) = buf_try!(@try f.read_at(bs, len).await);
                 Ok(bs)
             })
             .await?;

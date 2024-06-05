@@ -97,7 +97,7 @@ impl Access for CompfsBackend {
         am
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = self.core.root.join(path.trim_end_matches('/'));
 
         let file = self
@@ -105,7 +105,7 @@ impl Access for CompfsBackend {
             .exec(|| async move { compio::fs::OpenOptions::new().read(true).open(&path).await })
             .await?;
 
-        let r = CompfsReader::new(self.core.clone(), file);
+        let r = CompfsReader::new(self.core.clone(), file, op.range());
         Ok((RpRead::new(), r))
     }
 

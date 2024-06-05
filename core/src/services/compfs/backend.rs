@@ -72,7 +72,30 @@ impl Access for CompfsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
-        todo!()
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::Compfs)
+            .set_root(&self.core.root.to_string_lossy())
+            .set_native_capability(Capability {
+                stat: true,
+
+                read: true,
+
+                write: true,
+                write_can_empty: true,
+                write_can_multi: true,
+                create_dir: true,
+                delete: true,
+
+                list: true,
+
+                copy: true,
+                rename: true,
+                blocking: true,
+
+                ..Default::default()
+            });
+
+        am
     }
 
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -90,7 +113,7 @@ impl Access for CompfsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let path = self.core.root.join(path.trim_end_matches('/'));
         let append = args.append();
-        let mut file = self
+        let file = self
             .core
             .exec(move || async move {
                 compio::fs::OpenOptions::new()
@@ -102,15 +125,6 @@ impl Access for CompfsBackend {
             })
             .await
             .map(Cursor::new)?;
-
-        if append {
-            let f = file.clone();
-            let metadata = self
-                .core
-                .exec(|| async move { f.get_ref().metadata().await })
-                .await?;
-            file.set_position(metadata.len());
-        }
 
         let w = CompfsWriter::new(self.core.clone(), file);
         Ok((RpWrite::new(), w))

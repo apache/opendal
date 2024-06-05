@@ -623,7 +623,11 @@ impl Access for AzblobBackend {
         let w = if args.append() {
             AzblobWriters::Two(oio::AppendWriter::new(w))
         } else {
-            AzblobWriters::One(oio::BlockWriter::new(w, args.concurrent()))
+            AzblobWriters::One(oio::BlockWriter::new(
+                w,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))

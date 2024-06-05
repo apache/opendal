@@ -43,7 +43,7 @@ fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio
     let path = entry.path();
     let rel_path = normalize_path(
         &path
-            .strip_prefix(&root)
+            .strip_prefix(root)
             .expect("cannot fail because the prefix is iterated")
             .to_string_lossy()
             .replace('\\', "/"),

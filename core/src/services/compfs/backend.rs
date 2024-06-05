@@ -133,7 +133,7 @@ impl Access for CompfsBackend {
         let path = self.core.root.join(path.trim_end_matches('/'));
         let read_dir = match self
             .core
-            .exec_blocking(move || std::fs::read_dir(&path))
+            .exec_blocking(move || std::fs::read_dir(path))
             .await?
         {
             Ok(rd) => rd,

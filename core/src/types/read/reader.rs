@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Range;
 use std::ops::RangeBounds;
-use std::ops::{Bound, Range};
 use std::sync::Arc;
 
 use bytes::BufMut;
@@ -65,31 +65,22 @@ impl Reader {
     ///
     /// To avoid duplicated stat call, we will cache the size of the reader.
     async fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
-            Bound::Excluded(v) => v + 1,
-            Bound::Unbounded => 0,
+        let (start, end) = expand_range!(range);
+        let start = start.unwrap_or(0);
+        let end = match end.or_else(|| self.size.load()) {
+            Some(v) => v,
+            None => {
+                let size = self
+                    .ctx
+                    .accessor()
+                    .stat(self.ctx.path(), OpStat::new())
+                    .await?
+                    .into_metadata()
+                    .content_length();
+                self.size.store(size);
+                size
+            }
         };
-
-        let end = match range.end_bound() {
-            Bound::Included(v) => v + 1,
-            Bound::Excluded(v) => *v,
-            Bound::Unbounded => match self.size.load() {
-                Some(v) => v,
-                None => {
-                    let size = self
-                        .ctx
-                        .accessor()
-                        .stat(self.ctx.path(), OpStat::new())
-                        .await?
-                        .into_metadata()
-                        .content_length();
-                    self.size.store(size);
-                    size
-                }
-            },
-        };
-
         Ok(start..end)
     }
 

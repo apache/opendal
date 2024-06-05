@@ -141,6 +141,24 @@ pub mod layers;
 pub mod raw;
 pub mod services;
 
+/// Expand [std::ops::RangeBounds] into (start, end) tuple.
+#[macro_export]
+macro_rules! expand_range {
+    ($range:ident) => {{
+        let start = match $range.start_bound() {
+            std::ops::Bound::Included(n) => Some(n.clone()),
+            std::ops::Bound::Excluded(n) => Some(n.checked_add(1).expect("out of range")),
+            std::ops::Bound::Unbounded => None,
+        };
+        let end = match $range.end_bound() {
+            std::ops::Bound::Included(n) => Some(n.checked_add(1).expect("out of range")),
+            std::ops::Bound::Excluded(n) => Some(n.clone()),
+            std::ops::Bound::Unbounded => None,
+        };
+        (start, end)
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;

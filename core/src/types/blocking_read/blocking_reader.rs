@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
@@ -54,30 +53,21 @@ impl BlockingReader {
     ///
     /// To avoid duplicated stat call, we will cache the size of the reader.
     fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
-            Bound::Excluded(v) => v + 1,
-            Bound::Unbounded => 0,
+        let (start, end) = expand_range!(range);
+        let start = start.unwrap_or(0);
+        let end = match end.or_else(|| self.size.load()) {
+            Some(v) => v,
+            None => {
+                let size = self
+                    .ctx
+                    .accessor()
+                    .blocking_stat(self.ctx.path(), OpStat::new())?
+                    .into_metadata()
+                    .content_length();
+                self.size.store(size);
+                size
+            }
         };
-
-        let end = match range.end_bound() {
-            Bound::Included(v) => v + 1,
-            Bound::Excluded(v) => *v,
-            Bound::Unbounded => match self.size.load() {
-                Some(v) => v,
-                None => {
-                    let size = self
-                        .ctx
-                        .accessor()
-                        .blocking_stat(self.ctx.path(), OpStat::new())?
-                        .into_metadata()
-                        .content_length();
-                    self.size.store(size);
-                    size
-                }
-            },
-        };
-
         Ok(start..end)
     }
 

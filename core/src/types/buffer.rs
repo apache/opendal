@@ -21,7 +21,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::IoSlice;
 use std::mem;
-use std::ops::Bound;
+
 use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -244,16 +244,9 @@ impl Buffer {
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Self {
         let len = self.len();
 
-        let begin = match range.start_bound() {
-            Bound::Included(&n) => n,
-            Bound::Excluded(&n) => n.checked_add(1).expect("out of range"),
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound() {
-            Bound::Included(&n) => n.checked_add(1).expect("out of range"),
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => len,
+        let (begin, end) = {
+            let (begin, end) = expand_range!(range);
+            (begin.unwrap_or(0), end.unwrap_or(len))
         };
 
         assert!(

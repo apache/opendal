@@ -183,17 +183,9 @@ where
     T: RangeBounds<u64>,
 {
     fn from(range: T) -> Self {
-        let offset = match range.start_bound().cloned() {
-            Bound::Included(n) => n,
-            Bound::Excluded(n) => n + 1,
-            Bound::Unbounded => 0,
-        };
-        let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset),
-            Bound::Excluded(n) => Some(n - offset),
-            Bound::Unbounded => None,
-        };
-
+        let (offset, size) = expand_range!(range);
+        let offset = offset.unwrap_or(0);
+        let size = size.map(|size| size - offset);
         BytesRange(offset, size)
     }
 }

@@ -78,7 +78,7 @@ impl BytesRange {
     /// Panic if input `n` is larger than the size of the range.
     pub fn advance(&mut self, n: u64) {
         self.offset += n;
-        self.size = self.size - n;
+        self.size -= n;
     }
 
     /// Check if this range is full of this content.

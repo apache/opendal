@@ -84,8 +84,8 @@ impl BytesRange {
     /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.
-    pub fn is_full(&self) -> bool {
-        self.offset == 0 && self.size == 0
+    pub const fn is_full(&self) -> bool {
+        false
     }
 
     /// Convert bytes range into Range header.

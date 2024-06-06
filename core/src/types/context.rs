@@ -115,7 +115,7 @@ impl ReadGenerator {
             .ctx
             .args
             .clone()
-            .with_range(BytesRange::new(offset, Some(size as u64)));
+            .with_range(BytesRange::new(offset, size as u64));
         let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         Ok(Some(r))
     }
@@ -138,7 +138,7 @@ impl ReadGenerator {
             .ctx
             .args
             .clone()
-            .with_range(BytesRange::new(offset, Some(size as u64)));
+            .with_range(BytesRange::new(offset, size as u64));
         let (_, r) = self.ctx.acc.blocking_read(&self.ctx.path, args)?;
         Ok(Some(r))
     }

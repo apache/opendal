@@ -591,12 +591,12 @@ pub type CompleteLister<A, P> =
 
 pub struct CompleteReader<R> {
     inner: R,
-    size: Option<u64>,
+    size: u64,
     read: u64,
 }
 
 impl<R> CompleteReader<R> {
-    pub fn new(inner: R, size: Option<u64>) -> Self {
+    pub fn new(inner: R, size: u64) -> Self {
         Self {
             inner,
             size,
@@ -605,9 +605,7 @@ impl<R> CompleteReader<R> {
     }
 
     pub fn check(&self) -> Result<()> {
-        let Some(size) = self.size else {
-            return Ok(());
-        };
+        let size = self.size;
 
         match self.read.cmp(&size) {
             Ordering::Equal => Ok(()),

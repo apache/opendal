@@ -432,7 +432,7 @@ impl Access for SftpBackend {
 
         Ok((
             RpRead::default(),
-            SftpReader::new(client, f, args.range().size().unwrap_or(u64::MAX) as _),
+            SftpReader::new(client, f, args.range().size() as _),
         ))
     }
 

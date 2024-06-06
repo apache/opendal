@@ -40,10 +40,7 @@ impl FtpReader {
         path: String,
         args: OpRead,
     ) -> Result<Self> {
-        let (offset, size) = (
-            args.range().offset(),
-            args.range().size().unwrap_or(u64::MAX),
-        );
+        let (offset, size) = (args.range().offset(), args.range().size());
         if offset != 0 {
             ftp_stream
                 .resume_transfer(offset as usize)

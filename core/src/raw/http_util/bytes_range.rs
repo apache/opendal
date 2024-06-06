@@ -39,12 +39,12 @@ use crate::*;
 ///
 /// We don't support tailing read like `Range: bytes=-<range-end>`
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
-pub struct BytesRange(
+pub struct BytesRange {
     /// Offset of the range.
-    u64,
+    offset: u64,
     /// Size of the range.
-    Option<u64>,
-);
+    size: u64,
+}
 
 impl BytesRange {
     /// Create a new `BytesRange`
@@ -57,18 +57,18 @@ impl BytesRange {
     ///
     /// - offset=None => `bytes=-<size>`, read `<size>` bytes from end.
     /// - offset=Some(0) => `bytes=0-<size>`, read `<size>` bytes from start.
-    pub fn new(offset: u64, size: Option<u64>) -> Self {
-        BytesRange(offset, size)
+    pub fn new(offset: u64, size: u64) -> Self {
+        BytesRange { offset, size }
     }
 
     /// Get offset of BytesRange.
     pub fn offset(&self) -> u64 {
-        self.0
+        self.offset
     }
 
     /// Get size of BytesRange.
-    pub fn size(&self) -> Option<u64> {
-        self.1
+    pub fn size(&self) -> u64 {
+        self.size
     }
 
     /// Advance the range by `n` bytes.
@@ -77,15 +77,15 @@ impl BytesRange {
     ///
     /// Panic if input `n` is larger than the size of the range.
     pub fn advance(&mut self, n: u64) {
-        self.0 += n;
-        self.1 = self.1.map(|size| size - n);
+        self.offset += n;
+        self.size = self.size - n;
     }
 
     /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.
     pub fn is_full(&self) -> bool {
-        self.0 == 0 && self.1.is_none()
+        self.offset == 0 && self.size == 0
     }
 
     /// Convert bytes range into Range header.
@@ -96,32 +96,23 @@ impl BytesRange {
     /// Convert bytes range into rust range.
     pub fn to_range(&self) -> impl RangeBounds<u64> {
         (
-            Bound::Included(self.0),
-            match self.1 {
-                Some(size) => Bound::Excluded(self.0 + size),
-                None => Bound::Unbounded,
-            },
+            Bound::Included(self.offset),
+            Bound::Excluded(self.offset + self.size),
         )
     }
 
     /// Convert bytes range into rust range with usize.
     pub(crate) fn to_range_as_usize(self) -> impl RangeBounds<usize> {
         (
-            Bound::Included(self.0 as usize),
-            match self.1 {
-                Some(size) => Bound::Excluded((self.0 + size) as usize),
-                None => Bound::Unbounded,
-            },
+            Bound::Included(self.offset as usize),
+            Bound::Excluded((self.offset + self.size) as usize),
         )
     }
 }
 
 impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.1 {
-            None => write!(f, "{}-", self.0),
-            Some(size) => write!(f, "{}-{}", self.0, self.0 + size - 1),
-        }
+        write!(f, "{}-{}", self.offset, self.offset + self.offset - 1)
     }
 }
 
@@ -157,10 +148,12 @@ impl FromStr for BytesRange {
 
         if v[1].is_empty() {
             // <range-start>-
-            Ok(BytesRange::new(
-                v[0].parse().map_err(parse_int_error)?,
-                None,
-            ))
+            Err(Error::new(
+                ErrorKind::Unexpected,
+                "end range with tailing is not supported",
+            )
+            .with_operation("BytesRange::from_str")
+            .with_context("value", value))
         } else if v[0].is_empty() {
             // -<suffix-length>
             Err(Error::new(
@@ -173,7 +166,7 @@ impl FromStr for BytesRange {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
-            Ok(BytesRange::new(start, Some(end - start + 1)))
+            Ok(BytesRange::new(start, end - start + 1))
         }
     }
 }
@@ -188,13 +181,14 @@ where
             Bound::Excluded(n) => n + 1,
             Bound::Unbounded => 0,
         };
+
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset),
-            Bound::Excluded(n) => Some(n - offset),
-            Bound::Unbounded => None,
+            Bound::Included(n) => n - offset + 1,
+            Bound::Excluded(n) => n - offset,
+            Bound::Unbounded => panic!("end of range must be specified"),
         };
 
-        BytesRange(offset, size)
+        BytesRange { offset, size }
     }
 }
 
@@ -204,54 +198,40 @@ mod tests {
 
     #[test]
     fn test_bytes_range_to_string() {
-        let h = BytesRange::new(0, Some(1024));
+        let h = BytesRange::new(0, 1024);
         assert_eq!(h.to_string(), "0-1023");
 
-        let h = BytesRange::new(1024, None);
-        assert_eq!(h.to_string(), "1024-");
-
-        let h = BytesRange::new(1024, Some(1024));
+        let h = BytesRange::new(1024, 1024);
         assert_eq!(h.to_string(), "1024-2047");
     }
 
     #[test]
     fn test_bytes_range_to_header() {
-        let h = BytesRange::new(0, Some(1024));
+        let h = BytesRange::new(0, 1024);
         assert_eq!(h.to_header(), "bytes=0-1023");
 
-        let h = BytesRange::new(1024, None);
-        assert_eq!(h.to_header(), "bytes=1024-");
-
-        let h = BytesRange::new(1024, Some(1024));
+        let h = BytesRange::new(1024, 1024);
         assert_eq!(h.to_header(), "bytes=1024-2047");
     }
 
     #[test]
     fn test_bytes_range_from_range_bounds() {
-        assert_eq!(BytesRange::new(0, None), BytesRange::from(..));
-        assert_eq!(BytesRange::new(10, None), BytesRange::from(10..));
-        assert_eq!(BytesRange::new(0, Some(11)), BytesRange::from(..=10));
-        assert_eq!(BytesRange::new(0, Some(10)), BytesRange::from(..10));
-        assert_eq!(BytesRange::new(10, Some(10)), BytesRange::from(10..20));
-        assert_eq!(BytesRange::new(10, Some(11)), BytesRange::from(10..=20));
+        assert_eq!(BytesRange::new(0, 11), BytesRange::from(..=10));
+        assert_eq!(BytesRange::new(0, 10), BytesRange::from(..10));
+        assert_eq!(BytesRange::new(10, 10), BytesRange::from(10..20));
+        assert_eq!(BytesRange::new(10, 11), BytesRange::from(10..=20));
     }
 
     #[test]
     fn test_bytes_range_from_str() -> Result<()> {
         let cases = vec![
-            ("range-start", "bytes=123-", BytesRange::new(123, None)),
-            ("range", "bytes=123-124", BytesRange::new(123, Some(2))),
-            ("one byte", "bytes=0-0", BytesRange::new(0, Some(1))),
-            (
-                "lower case header",
-                "bytes=0-0",
-                BytesRange::new(0, Some(1)),
-            ),
+            ("range", "bytes=123-124", BytesRange::new(123, 2)),
+            ("one byte", "bytes=0-0", BytesRange::new(0, 1)),
+            ("lower case header", "bytes=0-0", BytesRange::new(0, 1)),
         ];
 
         for (name, input, expected) in cases {
             let actual = input.parse()?;
-
             assert_eq!(expected, actual, "{name}")
         }
 

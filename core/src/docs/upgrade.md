@@ -1,3 +1,24 @@
+# Upgrade to v0.47
+
+## Public API
+
+### BytesRange now always has a size
+
+Since 0.47, the signature of `BytesRange` changed from:
+
+```rust
+pub struct BytesRange(u64, Option<u64>);
+```
+
+to:
+
+````rust
+pub struct BytesRange {
+    offset: u64,
+    size: u64,
+}
+````
+
 # Upgrade to v0.46
 
 ## Public API

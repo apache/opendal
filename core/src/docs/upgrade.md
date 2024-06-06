@@ -1,6 +1,6 @@
 # Upgrade to v0.47
 
-## Public API
+## Raw API
 
 ### BytesRange now always has a size
 

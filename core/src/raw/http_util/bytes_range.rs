@@ -48,15 +48,6 @@ pub struct BytesRange {
 
 impl BytesRange {
     /// Create a new `BytesRange`
-    ///
-    /// It better to use `BytesRange::from(1024..2048)` to construct.
-    ///
-    /// # Note
-    ///
-    /// The behavior for `None` and `Some(0)` is different.
-    ///
-    /// - offset=None => `bytes=-<size>`, read `<size>` bytes from end.
-    /// - offset=Some(0) => `bytes=0-<size>`, read `<size>` bytes from start.
     pub fn new(offset: u64, size: u64) -> Self {
         BytesRange { offset, size }
     }

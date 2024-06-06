@@ -12,7 +12,7 @@ first you need to add the following dependencies to your `Cargo.toml`:
 [dependencies]
 object_store = "0.9.0"
 object_store_opendal = "0.43.1"
-opendal = { version = "0.46.0", features = ["services-s3"] }
+opendal = { version = "0.47.0", features = ["services-s3"] }
 ```
 
 > the current version we support is object store 0.9

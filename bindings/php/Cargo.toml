@@ -32,7 +32,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ext-php-rs = "0.11.2"
-opendal = { version = "0.46.0", path = "../../core", features = [
+opendal = { version = "0.47.0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",

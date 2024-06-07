@@ -4,8 +4,8 @@ use bytes::Bytes;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use object_store_opendal::OpendalStore;
-use opendal::{Builder, Operator};
 use opendal::services::S3;
+use opendal::{Builder, Operator};
 
 #[tokio::main]
 async fn main() {

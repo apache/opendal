@@ -439,16 +439,24 @@ impl Builder for AzblobBuilder {
             })?
         };
 
-        let config_loader = AzureStorageConfig {
-            account_name: self
-                .config
-                .account_name
-                .clone()
-                .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
-            account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token.clone(),
-            ..Default::default()
-        };
+        let mut config_loader = AzureStorageConfig::default().from_env();
+
+        if let Some(v) = self
+            .config
+            .account_name
+            .clone()
+            .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str()))
+        {
+            config_loader.account_name = Some(v);
+        }
+
+        if let Some(v) = self.config.account_key.clone() {
+            config_loader.account_key = Some(v);
+        }
+
+        if let Some(v) = self.config.sas_token.clone() {
+            config_loader.sas_token = Some(v);
+        }
 
         let encryption_key =
             match &self.config.encryption_key {

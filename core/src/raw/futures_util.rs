@@ -171,15 +171,20 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
         loop {
             // Try poll once to see if there is any ready task.
-            if let Some(mut task) = self.tasks.pop_front() {
-                if let Poll::Ready((i, o)) = poll!(&mut task) {
+            if let Some(task) = self.tasks.front_mut() {
+                if let Poll::Ready((i, o)) = poll!(task) {
                     match o {
-                        Ok(o) => self.results.push_back(o),
+                        Ok(o) => {
+                            let _ = self.tasks.pop_front();
+                            self.results.push_back(o)
+                        }
                         Err(err) => {
                             // Retry this task if the error is temporary
                             if err.is_temporary() {
                                 self.tasks
-                                    .push_front(self.executor.execute((self.factory)(i)));
+                                    .front_mut()
+                                    .expect("tasks must have at least one task")
+                                    .replace(self.executor.execute((self.factory)(i)));
                             } else {
                                 self.clear();
                                 self.errored = true;
@@ -187,9 +192,6 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                             return Err(err);
                         }
                     }
-                } else {
-                    // task is not ready, push it back.
-                    self.tasks.push_front(task)
                 }
             }
 
@@ -203,11 +205,12 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             // Wait for the next task to be ready.
             let task = self
                 .tasks
-                .pop_front()
+                .front_mut()
                 .expect("tasks must have at least one task");
             let (i, o) = task.await;
             match o {
                 Ok(o) => {
+                    let _ = self.tasks.pop_front();
                     self.results.push_back(o);
                     continue;
                 }
@@ -215,7 +218,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
                         self.tasks
-                            .push_front(self.executor.execute((self.factory)(i)));
+                            .front_mut()
+                            .expect("tasks must have at least one task")
+                            .replace(self.executor.execute((self.factory)(i)));
                     } else {
                         self.clear();
                         self.errored = true;
@@ -239,15 +244,20 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             return Some(Ok(result));
         }
 
-        if let Some(task) = self.tasks.pop_front() {
+        if let Some(task) = self.tasks.front_mut() {
             let (i, o) = task.await;
             return match o {
-                Ok(o) => Some(Ok(o)),
+                Ok(o) => {
+                    let _ = self.tasks.pop_front();
+                    Some(Ok(o))
+                }
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
                         self.tasks
-                            .push_front(self.executor.execute((self.factory)(i)));
+                            .front_mut()
+                            .expect("tasks must have at least one task")
+                            .replace(self.executor.execute((self.factory)(i)));
                     } else {
                         self.clear();
                         self.errored = true;

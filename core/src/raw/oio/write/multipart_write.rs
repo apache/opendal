@@ -276,6 +276,10 @@ where
             self.parts.push(result)
         }
 
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(self.parts.len(), self.next_part_number);
+        }
         self.w.complete_part(&upload_id, &self.parts).await
     }
 
@@ -300,7 +304,7 @@ mod tests {
     use rand::Rng;
     use rand::RngCore;
     use tokio::sync::Mutex;
-    use tokio::time::sleep;
+    use tokio::time::{sleep, timeout};
 
     use super::*;
     use crate::raw::oio::Write;
@@ -347,7 +351,7 @@ mod tests {
             }
 
             // Add an async sleep here to enforce some pending.
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_nanos(50)).await;
 
             // We will have 10% percent rate for write part to fail.
             if thread_rng().gen_bool(1.0 / 10.0) {
@@ -385,11 +389,38 @@ mod tests {
         }
     }
 
+    struct TimeoutExecutor {
+        exec: Arc<dyn Execute>,
+    }
+
+    impl TimeoutExecutor {
+        pub fn new() -> Self {
+            Self {
+                exec: Executor::new().into_inner(),
+            }
+        }
+    }
+
+    impl Execute for TimeoutExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            self.exec.execute(f)
+        }
+
+        fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+            let time = thread_rng().gen_range(0..100);
+            Some(Box::pin(tokio::time::sleep(Duration::from_nanos(time))))
+        }
+    }
+
     #[tokio::test]
     async fn test_multipart_upload_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = MultipartWriter::new(TestWrite::new(), Some(Executor::new()), 200);
+        let mut w = MultipartWriter::new(
+            TestWrite::new(),
+            Some(Executor::with(TimeoutExecutor::new())),
+            200,
+        );
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -400,17 +431,23 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(bs.clone().into()).await {
-                    Ok(_) => break,
-                    Err(_) => continue,
+                match timeout(Duration::from_nanos(10), w.write(bs.clone().into())).await {
+                    Ok(Ok(_)) => break,
+                    Ok(Err(_)) => continue,
+                    Err(_) => {
+                        continue;
+                    }
                 }
             }
         }
 
         loop {
-            match w.close().await {
-                Ok(_) => break,
-                Err(_) => continue,
+            match timeout(Duration::from_nanos(10), w.close()).await {
+                Ok(Ok(_)) => break,
+                Ok(Err(_)) => continue,
+                Err(_) => {
+                    continue;
+                }
             }
         }
 

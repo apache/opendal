@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
-## [v0.46.0] - 2024-06-07
+## [v0.47.0] - 2024-06-07
 
 ### Added
 * feat(core/types): change oio::BlockingReader to Arc<dyn oio::BlockingReader> by @hoslo in https://github.com/apache/opendal/pull/4577

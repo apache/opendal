@@ -276,9 +276,14 @@ where
             self.parts.push(result)
         }
 
-        #[cfg(debug_assertions)]
-        {
-            assert_eq!(self.parts.len(), self.next_part_number);
+        if self.parts.len() != self.next_part_number {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "multipart part numbers mismatch, please report bug to opendal",
+            )
+            .with_context("expected", self.next_part_number)
+            .with_context("actual", self.parts.len())
+            .with_context("upload_id", upload_id));
         }
         self.w.complete_part(&upload_id, &self.parts).await
     }

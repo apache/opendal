@@ -30,6 +30,7 @@ on:
       - "core/**"
       - "bindings/**"
       - "integrations/**"
+      - "website/**"
       - ".github/workflows/docs.yml"
 
 concurrency:

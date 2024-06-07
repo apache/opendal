@@ -423,7 +423,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         }
 
         // Calculate buffer size.
-        // If `chunk` is not set, we use the `write_multi_min_size` or the `write_multi_max_size`
+        // If `chunk` is not set, we use `write_multi_min_size` or `write_multi_align_size`
         // as the default size.
         let chunk_size = args
             .chunk()

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [v0.47.0] - 2024-06-07
 
 ### Added
-* feat(core/types): change oio::BlockingReader to Arc<dyn oio::BlockingReader> by @hoslo in https://github.com/apache/opendal/pull/4577
+* feat(core/types): change oio::BlockingReader to `Arc<dyn oio::BlockingReader>` by @hoslo in https://github.com/apache/opendal/pull/4577
 * fix: format_object_meta should not require metakeys that don't exist by @rebasedming in https://github.com/apache/opendal/pull/4582
 * feat: add checksums to MultiPartComplete by @JWackerbauer in https://github.com/apache/opendal/pull/4580
 * feat(doc): update object_store_opendal README by @hanxuanliang in https://github.com/apache/opendal/pull/4606
@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(ofs): Close file during flush by @Xuanwo in https://github.com/apache/opendal/pull/4680
 * fix(core): RetryLayer could panic when other threads raises panic by @Xuanwo in https://github.com/apache/opendal/pull/4685
 * fix(core/prometheus): Fix metrics from prometheus not correct for reader by @Xuanwo in https://github.com/apache/opendal/pull/4691
+* fix(core/oio): Make ConcurrentTasks cancel safe by only pop after ready by @Xuanwo in https://github.com/apache/opendal/pull/4707
 ### Docs
 * docs: fix Operator::writer doc comment by @mnpw in https://github.com/apache/opendal/pull/4605
 * doc: explain GCS authentication options by @jokester in https://github.com/apache/opendal/pull/4671
@@ -76,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(core): Fix unit tests by @Xuanwo in https://github.com/apache/opendal/pull/4684
 * chore(core): Add unit and bench tests for concurrent tasks by @Xuanwo in https://github.com/apache/opendal/pull/4695
 * chore: bump version to 0.47.0 by @tisonkun in https://github.com/apache/opendal/pull/4701
+* chore: Update changelogs for v0.47 by @Xuanwo in https://github.com/apache/opendal/pull/4706
 
 ## [v0.46.0] - 2024-05-02
 

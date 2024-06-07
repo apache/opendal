@@ -7,7 +7,7 @@ heck@0.5.0	X		X
 libc@0.2.155	X		X	
 log@0.4.21	X		X	
 ovfs@0.1.0					X
-proc-macro2@1.0.84	X		X	
+proc-macro2@1.0.85	X		X	
 quote@1.0.36	X		X	
 snafu@0.8.3	X		X	
 snafu-derive@0.8.3	X		X	

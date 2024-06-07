@@ -45,6 +45,26 @@ use crate::*;
 /// - timeout: 60 seconds
 /// - io_timeout: 10 seconds
 ///
+/// # Panics
+///
+/// TimeoutLayer will drop the future if the timeout is reached. This might cause the internal state
+/// of the future to be broken. If underlying future moves ownership into the future, it will be
+/// dropped and will neven return back.
+///
+/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time, please make sure
+/// timeout layer showed up before retry layer.
+///
+/// ```no_build
+///  let op = Operator::new(builder.clone())
+///     .unwrap()
+///     // This is fine, since timeout happen during retry.
+///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(RetryLayer::new())
+///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
+///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .finish();
+/// ```
+///
 /// # Examples
 ///
 /// The following examples will create a timeout layer with 10 seconds timeout for all non-io

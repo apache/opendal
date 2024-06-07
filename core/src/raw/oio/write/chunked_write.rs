@@ -22,21 +22,27 @@ use crate::*;
 /// flush the underlying storage at the `chunk`` size.
 ///
 /// ChunkedWriter makes sure that the size of the data written to the
-/// underlying storage is exactly `chunk` bytes.
+/// underlying storage is
+/// - exactly `chunk` bytes if `exact` is true
+/// - at least `chunk` bytes if `exact` is false
 pub struct ChunkedWriter<W: oio::Write> {
     inner: W,
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     chunk_size: usize,
+    /// If `exact` is true, the size of the data written to the underlying storage is
+    /// exactly `chunk_size` bytes.
+    exact: bool,
     buffer: oio::QueueBuf,
 }
 
 impl<W: oio::Write> ChunkedWriter<W> {
     /// Create a new exact buf writer.
-    pub fn new(inner: W, chunk_size: usize) -> Self {
+    pub fn new(inner: W, chunk_size: usize, exact: bool) -> Self {
         Self {
             inner,
             chunk_size,
+            exact,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -47,6 +53,12 @@ impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
         if self.buffer.len() >= self.chunk_size {
             let written = self.inner.write(self.buffer.clone().collect()).await?;
             self.buffer.advance(written);
+        }
+
+        if !self.exact && bs.len() >= self.chunk_size && self.buffer.is_empty() {
+            // Sends the buffer directly if the buffer queue is empty and we are in
+            // inexact mode.
+            return self.inner.write(bs.collect()).await;
         }
 
         let remaining = self.chunk_size - self.buffer.len();
@@ -124,12 +136,84 @@ mod tests {
         let mut expected = vec![0; 5];
         rng.fill_bytes(&mut expected);
 
-        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10);
+        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, true);
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
             let n = w.write(bs.clone().into()).await?;
             bs.advance(n);
+        }
+
+        w.close().await?;
+
+        assert_eq!(w.inner.buf.len(), expected.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&expected))
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_inexact_buf_writer_large_write() -> Result<()> {
+        let _ = tracing_subscriber::fmt()
+            .pretty()
+            .with_test_writer()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
+        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+
+        let mut rng = thread_rng();
+        let mut expected = vec![0; 15];
+        rng.fill_bytes(&mut expected);
+
+        let bs = Bytes::from(expected.clone());
+        // The MockWriter always returns the first chunk size.
+        let n = w.write(bs.into()).await?;
+        assert_eq!(expected.len(), n);
+
+        w.close().await?;
+
+        assert_eq!(w.inner.buf.len(), expected.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&expected))
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_inexact_buf_writer_mix_write() -> Result<()> {
+        let _ = tracing_subscriber::fmt()
+            .pretty()
+            .with_test_writer()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
+        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+
+        let mut new_content = |size| {
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            expected.extend_from_slice(&content);
+            Bytes::from(content)
+        };
+
+        // content > chunk size.
+        let content = new_content(15);
+        assert_eq!(15, w.write(content.into()).await?);
+        // content < chunk size.
+        let content = new_content(5);
+        assert_eq!(5, w.write(content.into()).await?);
+        // content > chunk size.
+        let mut content = new_content(15);
+        while !content.is_empty() {
+            assert_eq!(5, w.write(content.clone().into()).await?);
+            content.advance(5);
         }
 
         w.close().await?;
@@ -154,7 +238,7 @@ mod tests {
         let mut expected = vec![];
 
         let buffer_size = rng.gen_range(1..10);
-        let mut writer = ChunkedWriter::new(MockWriter { buf: vec![] }, buffer_size);
+        let mut writer = ChunkedWriter::new(MockWriter { buf: vec![] }, buffer_size, true);
         debug!("test_fuzz_exact_buf_writer: buffer size: {buffer_size}");
 
         for _ in 0..1000 {

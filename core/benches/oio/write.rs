@@ -44,7 +44,7 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
         group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
         group.bench_with_input(size.to_string(), &content, |b, content| {
             b.to_async(&*TOKIO).iter(|| async {
-                let mut w = ChunkedWriter::new(BlackHoleWriter, 256 * 1024);
+                let mut w = ChunkedWriter::new(BlackHoleWriter, 256 * 1024, true);
 
                 let mut bs = content.clone();
                 while !bs.is_empty() {

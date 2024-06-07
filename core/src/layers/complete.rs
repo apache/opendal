@@ -423,7 +423,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         }
 
         // Calculate buffer size.
-        // If `chunk` is not set, we use the write_multi_min_size or the write_multi_max_size
+        // If `chunk` is not set, we use the `write_multi_min_size` or the `write_multi_max_size`
         // as the default size.
         let chunk_size = args
             .chunk()
@@ -444,13 +444,14 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
                 size
             });
+        let exact = capability.write_multi_align_size.is_some();
 
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
 
         let w = match chunk_size {
             None => TwoWays::One(w),
-            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size)),
+            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size, exact)),
         };
 
         Ok((rp, w))

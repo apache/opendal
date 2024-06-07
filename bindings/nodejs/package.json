@@ -1,7 +1,7 @@
 {
   "name": "opendal",
   "author": "Apache OpenDAL <dev@opendal.apache.org>",
-  "version": "0.45.2",
+  "version": "0.46.1",
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",

@@ -85,7 +85,7 @@ def generate_checksum():
     for i in Path(ROOT_DIR / "dist").glob("*.tar.gz"):
         print(f"Generate checksum for {i}")
         subprocess.run(
-            ["sha512sum", str(i.relative_to(ROOT_DIR / "dist"))],
+            ["shasum", "-a", "512", str(i.relative_to(ROOT_DIR / "dist"))],
             stdout=open(f"{i}.sha512", "w"),
             cwd=ROOT_DIR / "dist",
             check=True,
@@ -94,7 +94,7 @@ def generate_checksum():
     for i in Path(ROOT_DIR / "dist").glob("*.tar.gz"):
         print(f"Check checksum for {i}")
         subprocess.run(
-            ["sha512sum", "--check", f"{str(i.relative_to(ROOT_DIR / 'dist'))}.sha512"],
+            ["shasum", "-a", "512", "-c", f"{str(i.relative_to(ROOT_DIR / 'dist'))}.sha512"],
             cwd=ROOT_DIR / "dist",
             check=True,
         )

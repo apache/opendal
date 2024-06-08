@@ -17,6 +17,7 @@
 # under the License.
 
 import subprocess
+import tarfile
 from pathlib import Path
 from constants import get_package_version, get_package_dependence, PACKAGES
 
@@ -47,21 +48,9 @@ def archive_package(path):
     )
     files = list(filter(lambda x: len(x) > 0, ls_result.stdout.split("\n")))
 
-    tar_command = [
-        "git",
-        "archive",
-        "--format=tar.gz",
-        f"--output={ROOT_DIR}/dist/{name}.tar.gz",
-        f"--prefix={name}/",
-        "HEAD",
-        *files
-    ]
-
-    subprocess.run(
-        tar_command,
-        cwd=ROOT_DIR,
-        check=True,
-    )
+    with tarfile.open(f"{ROOT_DIR}/dist/{name}.tar.gz", "w:gz") as tar:
+        for file in files:
+            tar.add(f"{ROOT_DIR}/{file}", arcname=f"{name}/{file}")
 
     print(f"Archive package {path} to dist/{name}.tar.gz")
 

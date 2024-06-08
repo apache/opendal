@@ -42,7 +42,7 @@ def check_signature(pkg):
 def check_sha512sum(pkg):
     """Check the sha512 checksum of the package."""
     try:
-        subprocess.check_call(["sha512sum", "--check", f"{pkg}.sha512"])
+        subprocess.check_call(["shasum", "-a", "512", "-c", f"{pkg}.sha512"])
         print(f"{GREEN}> Success to verify the checksum for {pkg}{ENDCOLOR}")
     except subprocess.CalledProcessError:
         print(f"{YELLOW}> Failed to verify the checksum for {pkg}{ENDCOLOR}")

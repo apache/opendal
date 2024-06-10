@@ -24,8 +24,8 @@ In the context of our release, we use several terms to describe different stages
 
 Here's an explanation of these terms:
 
-- `opendal_version`: the version of OpenDAL to be released, like `0.36.0`.
-- `release_version`: the version of release candidate, like `0.36.0-rc.1`.
+- `opendal_version`: the version of OpenDAL to be released, like `0.46.0`.
+- `release_version`: the version of release candidate, like `0.46.0-rc.1`.
 - `rc_version`: the minor version for voting round, like `rc.1`.
 - `maven_artifact_number`: the number for Maven staging artifacts, like `1010`. The number can be found by searching "opendal" on https://repository.apache.org/#stagingRepositories. And the Maven staging artifacts will be created automatically when we push a git tag to GitHub for now.
 
@@ -154,7 +154,7 @@ Running `python3 ./scripts/dependencies.py generate` to update the dependency li
 
 After bump version PR gets merged, we can create a GitHub release for the release candidate:
 
-- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
+- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.46.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
 
 
@@ -186,7 +186,7 @@ Additionally, we should also drop the staging Maven artifacts on https://reposit
 
 After GitHub Release has been created, we can start to create ASF Release.
 
-- Checkout to released tag. (e.g. `git checkout v0.36.0-rc.1`, tag is created in the previous step)
+- Checkout to released tag. (e.g. `git checkout v0.46.0-rc.1`, tag is created in the previous step)
 - Use the release script to create a new release: `python ./scripts/release.py`
   - This script will generate the release candidate artifacts under `dist`, including:
     - `apache-opendal-{package}-{version}-src.tar.gz`
@@ -236,7 +236,7 @@ svn co https://dist.apache.org/repos/dist/dev/opendal opendal-dist-dev
 
 Then, upload the artifacts:
 
-> The `${release_version}` here should be like `0.36.0-rc.1`
+> The `${release_version}` here should be like `0.46.0-rc.1`
 
 ```shell
 cd opendal-dist-dev
@@ -347,8 +347,11 @@ Checklist for reference:
 Use our verify.py to assist in the verify process:
 
 svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
+
 cd opendal-dev
+
 curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
+
 python verify.py
 
 Thanks
@@ -361,7 +364,7 @@ Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 The vote should be open for **at least 72 hours** except the following cases:
 
 1. Security issues
-2. The wild user effected bug fixes
+2. The wild user affected bug fixes
 3. Any other emergency cases
 
 The Release manager should claim the emergency cases in the vote email if he wants to vote it rapidly.
@@ -513,7 +516,7 @@ Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>
 
 ## Post release
 
-After the official release out, you may perform a few post actions.
+After the official release out, you may perform a few post-actions.
 
 ### Remove the old releases
 

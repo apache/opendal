@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.46.0"
+version = "0.47.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -56,6 +56,7 @@ tests = [
     "services-fs",
     "services-http",
     "services-memory",
+    "internal-tokio-rt",
     "services-s3",
 ]
 
@@ -224,7 +225,7 @@ async-tls = { version = "0.13.0", optional = true }
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
-backon = "0.4.3"
+backon = "0.4.4"
 base64 = "0.22"
 bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
@@ -263,7 +264,7 @@ sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
 
 # For http based services.
-reqsign = { version = "0.15.0", default-features = false, optional = true }
+reqsign = { version = "0.15.2", default-features = false, optional = true }
 
 # for services-atomic-server
 atomic_lib = { version = "0.34.5", optional = true }

@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -32,7 +33,6 @@ use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
-use crate::services::pcloud::reader::PcloudReader;
 use crate::*;
 
 /// Config for backblaze Pcloud services support.
@@ -97,7 +97,7 @@ impl PcloudBuilder {
     }
 
     /// Pcloud endpoint.
-    /// https://api.pcloud.com for United States and https://eapi.pcloud.com for Europe
+    /// <https://api.pcloud.com> for United States and <https://eapi.pcloud.com> for Europe
     /// ref to [doc.pcloud.com](https://docs.pcloud.com/)
     ///
     /// It is required. e.g. `https://api.pcloud.com`
@@ -228,7 +228,7 @@ pub struct PcloudBackend {
 }
 
 impl Access for PcloudBackend {
-    type Reader = PcloudReader;
+    type Reader = HttpBody;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type BlockingReader = ();
@@ -297,10 +297,20 @@ impl Access for PcloudBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let link = self.core.get_file_link(path).await?;
 
-        Ok((
-            RpRead::default(),
-            PcloudReader::new(self.core.clone(), &link, args),
-        ))
+        let resp = self.core.download(&link, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

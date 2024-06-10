@@ -76,7 +76,7 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
@@ -94,7 +94,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn gdrive_list(

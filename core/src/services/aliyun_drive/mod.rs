@@ -18,7 +18,6 @@
 mod backend;
 mod error;
 mod lister;
-mod reader;
 mod writer;
 pub use backend::AliyunDriveBuilder as AliyunDrive;
 pub use backend::AliyunDriveConfig;

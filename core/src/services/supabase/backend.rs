@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 
@@ -25,7 +26,6 @@ use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
 use crate::raw::*;
-use crate::services::supabase::reader::SupabaseReader;
 use crate::*;
 
 /// [Supabase](https://supabase.com/) service support
@@ -155,7 +155,7 @@ pub struct SupabaseBackend {
 }
 
 impl Access for SupabaseBackend {
-    type Reader = SupabaseReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list
     type Lister = ();
@@ -203,10 +203,18 @@ impl Access for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            SupabaseReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

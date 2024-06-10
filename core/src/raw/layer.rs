@@ -44,7 +44,6 @@ use crate::*;
 /// ```
 /// use std::sync::Arc;
 ///
-///
 /// use opendal::raw::*;
 /// use opendal::*;
 ///

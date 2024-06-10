@@ -20,4 +20,3 @@ pub use backend::HttpBuilder as Http;
 pub use backend::HttpConfig;
 
 mod error;
-mod reader;

@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{collections::HashMap, env, sync::OnceLock};
+use std::sync::OnceLock;
 
-use opendal::{Capability, Operator};
+use opendal::raw::tests;
+use opendal::Capability;
 use tempfile::TempDir;
 use test_context::TestContext;
-use tokio::runtime::{self, Runtime};
+use tokio::runtime::Runtime;
+use tokio::runtime::{self};
 
 static INIT_LOGGER: OnceLock<()> = OnceLock::new();
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -33,7 +35,9 @@ pub struct OfsTestContext {
 
 impl TestContext for OfsTestContext {
     fn setup() -> Self {
-        let backend = backend();
+        let backend = tests::init_test_service()
+            .expect("init test services failed")
+            .expect("no test services has been configured");
         let capability = backend.info().full_capability();
 
         INIT_LOGGER.get_or_init(env_logger::init);
@@ -61,38 +65,12 @@ impl TestContext for OfsTestContext {
         }
     }
 
+    // We don't care if the unmount fails, so we ignore the result.
     fn teardown(self) {
-        RUNTIME
+        let _ = RUNTIME
             .get()
             .expect("runtime")
-            .block_on(async move { self.mount_handle.unmount().await })
-            .unwrap();
-        self.mount_point.close().unwrap();
+            .block_on(async move { self.mount_handle.unmount().await });
+        let _ = self.mount_point.close();
     }
-}
-
-fn backend() -> Operator {
-    let scheme = env::var("OPENDAL_TEST").unwrap().parse().unwrap();
-    let prefix = format!("opendal_{scheme}_");
-
-    let mut cfg = env::vars()
-        .filter_map(|(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        })
-        .collect::<HashMap<String, String>>();
-
-    // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
-    let disable_random_root = env::var("OPENDAL_DISABLE_RANDOM_ROOT").unwrap_or_default() == "true";
-    if !disable_random_root {
-        let root = format!(
-            "{}{}/",
-            cfg.get("root").cloned().unwrap_or_else(|| "/".to_string()),
-            uuid::Uuid::new_v4()
-        );
-        cfg.insert("root".to_string(), root);
-    }
-
-    Operator::via_map(scheme, cfg).unwrap()
 }

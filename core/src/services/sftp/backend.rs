@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -29,6 +30,7 @@ use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;
+use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
 use super::error::is_not_found;
@@ -409,10 +411,28 @@ impl Access for SftpBackend {
         Ok(RpStat::new(meta))
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+        let mut f = client
+            .open(path.as_path())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if args.range().offset() != 0 {
+            f.seek(SeekFrom::Start(args.range().offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
+
         Ok((
             RpRead::default(),
-            SftpReader::new(self.clone(), self.root.clone(), path.to_owned()),
+            SftpReader::new(client, f, args.range().size().unwrap_or(u64::MAX) as _),
         ))
     }
 

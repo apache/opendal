@@ -20,7 +20,6 @@ mod builder;
 mod core;
 mod error;
 mod lister;
-mod reader;
 mod writer;
 
 pub use builder::DropboxBuilder as Dropbox;

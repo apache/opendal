@@ -226,14 +226,14 @@ impl SupabaseCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?
         } else {
             self.supabase_get_object_public_request(path, range)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        self.http_client.fetch(req).await
     }
 
     pub async fn supabase_head_object(&self, path: &str) -> Result<Response<Buffer>> {

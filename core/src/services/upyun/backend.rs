@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -32,7 +33,6 @@ use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
 use crate::services::upyun::core::UpyunSigner;
-use crate::services::upyun::reader::UpyunReader;
 use crate::*;
 
 /// Config for backblaze upyun services support.
@@ -232,7 +232,7 @@ pub struct UpyunBackend {
 }
 
 impl Access for UpyunBackend {
-    type Reader = UpyunReader;
+    type Reader = HttpBody;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type BlockingReader = ();
@@ -296,10 +296,20 @@ impl Access for UpyunBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            UpyunReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.download_file(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

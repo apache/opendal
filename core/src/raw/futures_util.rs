@@ -21,10 +21,12 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::*;
+use futures::poll;
 use futures::stream::FuturesOrdered;
+use futures::FutureExt;
 use futures::StreamExt;
-use futures::{poll, FutureExt};
+
+use crate::*;
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
 ///
@@ -88,6 +90,12 @@ pub struct ConcurrentTasks<I, O> {
     tasks: VecDeque<Task<(I, Result<O>)>>,
     /// `results` stores the successful results.
     results: VecDeque<O>,
+
+    /// hitting the last unrecoverable error.
+    ///
+    /// If concurrent tasks hit an unrecoverable error, it will stop executing new tasks and return
+    /// an unrecoverable error to users.
+    errored: bool,
 }
 
 impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
@@ -95,16 +103,17 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     ///
     /// The factory is a function pointer that shouldn't capture any context.
     pub fn new(
-        executor: Option<Executor>,
+        executor: Executor,
         concurrent: usize,
         factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
     ) -> Self {
         Self {
-            executor: executor.unwrap_or_default(),
+            executor,
             factory,
 
             tasks: VecDeque::with_capacity(concurrent),
             results: VecDeque::with_capacity(concurrent),
+            errored: false,
         }
     }
 
@@ -122,12 +131,31 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         self.results.clear();
     }
 
+    /// Check if there are remaining space to push new tasks.
+    #[inline]
+    pub fn has_remaining(&self) -> bool {
+        self.tasks.len() < self.tasks.capacity()
+    }
+
+    /// Chunk if there are remaining results to fetch.
+    #[inline]
+    pub fn has_result(&self) -> bool {
+        !self.results.is_empty()
+    }
+
     /// Execute the task with given input.
     ///
     /// - Execute the task in the current thread if is not concurrent.
     /// - Execute the task in the background if there are available slots.
     /// - Await the first task in the queue if there is no available slots.
     pub async fn execute(&mut self, input: I) -> Result<()> {
+        if self.errored {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "concurrent tasks met an unrecoverable error",
+            ));
+        }
+
         // Short path for non-concurrent case.
         if !self.is_concurrent() {
             let (_, o) = (self.factory)(input).await;
@@ -143,19 +171,27 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
         loop {
             // Try poll once to see if there is any ready task.
-            if let Some(mut task) = self.tasks.pop_front() {
-                if let Poll::Ready((i, o)) = poll!(&mut task) {
+            if let Some(task) = self.tasks.front_mut() {
+                if let Poll::Ready((i, o)) = poll!(task) {
                     match o {
-                        Ok(o) => self.results.push_back(o),
+                        Ok(o) => {
+                            let _ = self.tasks.pop_front();
+                            self.results.push_back(o)
+                        }
                         Err(err) => {
-                            self.tasks
-                                .push_front(self.executor.execute((self.factory)(i)));
+                            // Retry this task if the error is temporary
+                            if err.is_temporary() {
+                                self.tasks
+                                    .front_mut()
+                                    .expect("tasks must have at least one task")
+                                    .replace(self.executor.execute((self.factory)(i)));
+                            } else {
+                                self.clear();
+                                self.errored = true;
+                            }
                             return Err(err);
                         }
                     }
-                } else {
-                    // task is not ready, push it back.
-                    self.tasks.push_front(task)
                 }
             }
 
@@ -169,17 +205,26 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             // Wait for the next task to be ready.
             let task = self
                 .tasks
-                .pop_front()
+                .front_mut()
                 .expect("tasks must have at least one task");
             let (i, o) = task.await;
             match o {
                 Ok(o) => {
+                    let _ = self.tasks.pop_front();
                     self.results.push_back(o);
                     continue;
                 }
                 Err(err) => {
-                    self.tasks
-                        .push_front(self.executor.execute((self.factory)(i)));
+                    // Retry this task if the error is temporary
+                    if err.is_temporary() {
+                        self.tasks
+                            .front_mut()
+                            .expect("tasks must have at least one task")
+                            .replace(self.executor.execute((self.factory)(i)));
+                    } else {
+                        self.clear();
+                        self.errored = true;
+                    }
                     return Err(err);
                 }
             }
@@ -188,20 +233,38 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
     /// Fetch the successful result from the result queue.
     pub async fn next(&mut self) -> Option<Result<O>> {
+        if self.errored {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "concurrent tasks met an unrecoverable error",
+            )));
+        }
+
         if let Some(result) = self.results.pop_front() {
             return Some(Ok(result));
         }
 
-        if let Some(task) = self.tasks.pop_front() {
+        if let Some(task) = self.tasks.front_mut() {
             let (i, o) = task.await;
-            match o {
-                Ok(o) => return Some(Ok(o)),
-                Err(err) => {
-                    self.tasks
-                        .push_front(self.executor.execute((self.factory)(i)));
-                    return Some(Err(err));
+            return match o {
+                Ok(o) => {
+                    let _ = self.tasks.pop_front();
+                    Some(Ok(o))
                 }
-            }
+                Err(err) => {
+                    // Retry this task if the error is temporary
+                    if err.is_temporary() {
+                        self.tasks
+                            .front_mut()
+                            .expect("tasks must have at least one task")
+                            .replace(self.executor.execute((self.factory)(i)));
+                    } else {
+                        self.clear();
+                        self.errored = true;
+                    }
+                    Some(Err(err))
+                }
+            };
         }
 
         None
@@ -398,6 +461,7 @@ mod tests {
     use futures::future::BoxFuture;
     use futures::Stream;
     use rand::Rng;
+    use tokio::time::sleep;
 
     use super::*;
 
@@ -452,5 +516,48 @@ mod tests {
 
             assert_eq!(expected, result, "concurrent futures failed: {}", name);
         }
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_tasks() {
+        let executor = Executor::new();
+
+        let mut tasks = ConcurrentTasks::new(executor, 16, |(i, dur)| {
+            Box::pin(async move {
+                sleep(dur).await;
+
+                // 5% rate to fail.
+                if rand::thread_rng().gen_range(0..100) > 90 {
+                    return (
+                        (i, dur),
+                        Err(Error::new(ErrorKind::Unexpected, "I'm lucky").set_temporary()),
+                    );
+                }
+                ((i, dur), Ok(i))
+            })
+        });
+
+        let mut ans = vec![];
+
+        for i in 0..10240 {
+            // Sleep up to 10ms
+            let dur = Duration::from_millis(rand::thread_rng().gen_range(0..10));
+            loop {
+                let res = tasks.execute((i, dur)).await;
+                if res.is_ok() {
+                    break;
+                }
+            }
+        }
+
+        loop {
+            match tasks.next().await.transpose() {
+                Ok(Some(i)) => ans.push(i),
+                Ok(None) => break,
+                Err(_) => continue,
+            }
+        }
+
+        assert_eq!(ans, (0..10240).collect::<Vec<_>>())
     }
 }

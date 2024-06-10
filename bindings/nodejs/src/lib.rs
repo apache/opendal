@@ -26,7 +26,8 @@ use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
 
-use futures::{AsyncReadExt, TryStreamExt};
+use futures::AsyncReadExt;
+use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 
 #[napi]

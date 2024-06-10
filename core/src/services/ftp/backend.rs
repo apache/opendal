@@ -22,7 +22,6 @@ use std::str;
 use std::str::FromStr;
 
 use async_tls::TlsConnector;
-
 use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
@@ -358,7 +357,10 @@ impl Access for FtpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::new(), FtpReader::new(self.clone(), path, args)))
+        let ftp_stream = self.ftp_connect(Operation::Read).await?;
+
+        let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
+        Ok((RpRead::new(), reader))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

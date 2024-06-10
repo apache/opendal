@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.3"
+version = "0.0.4"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -69,3 +69,4 @@ test-context = "0.3.0"
 urlencoding = "2.1.3"
 uuid = "1.7.0"
 walkdir = "2.5.0"
+opendal = { version = "0.47.0", path = "../../core", features = ["tests"] }

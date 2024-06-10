@@ -21,5 +21,4 @@ pub use backend::SwiftBuilder as Swift;
 mod core;
 mod error;
 mod lister;
-mod reader;
 mod writer;

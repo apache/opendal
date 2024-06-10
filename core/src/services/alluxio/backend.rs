@@ -20,15 +20,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
 use log::debug;
 use serde::Deserialize;
 
 use super::core::AlluxioCore;
+use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
-use crate::services::alluxio::reader::AlluxioReader;
 use crate::*;
 
 /// Config for alluxio services support.
@@ -180,7 +181,7 @@ pub struct AlluxioBackend {
 }
 
 impl Access for AlluxioBackend {
-    type Reader = AlluxioReader;
+    type Reader = HttpBody;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type BlockingReader = ();
@@ -228,8 +229,13 @@ impl Access for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let stream_id = self.core.open_file(path).await?;
 
-        let r = AlluxioReader::new(self.core.clone(), stream_id, args.clone());
-        Ok((RpRead::new(), r))
+        let resp = self.core.read(stream_id, args.range()).await?;
+        if !resp.status().is_success() {
+            let (part, mut body) = resp.into_parts();
+            let buf = body.to_buffer().await?;
+            return Err(parse_error(Response::from_parts(part, buf)).await?);
+        }
+        Ok((RpRead::new(), resp.into_body()))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

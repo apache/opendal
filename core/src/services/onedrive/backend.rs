@@ -32,7 +32,6 @@ use super::graph_model::OnedriveGetItemBody;
 use super::lister::OnedriveLister;
 use super::writer::OneDriveWriter;
 use crate::raw::*;
-use crate::services::onedrive::reader::OnedriveReader;
 use crate::*;
 
 #[derive(Clone)]
@@ -62,7 +61,7 @@ impl Debug for OnedriveBackend {
 }
 
 impl Access for OnedriveBackend {
-    type Reader = OnedriveReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;
     type BlockingReader = ();
@@ -150,10 +149,20 @@ impl Access for OnedriveBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            OnedriveReader::new(self.clone(), path, args),
-        ))
+        let resp = self.onedrive_get_content(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -221,7 +230,7 @@ impl OnedriveBackend {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
@@ -236,7 +245,7 @@ impl OnedriveBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn onedrive_upload_simple(

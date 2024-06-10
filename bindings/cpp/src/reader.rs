@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Read;
+use std::io::Seek;
+
 use anyhow::Result;
 use opendal as od;
-use std::io::{Read, Seek};
 
 use super::ffi;
 

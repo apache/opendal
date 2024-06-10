@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::Path;
+use std::path::PathBuf;
+
 use uuid::Uuid;
 
 use crate::raw::*;
 use crate::*;
-use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct FsCore {

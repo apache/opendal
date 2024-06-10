@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use super::core::CompioThread;
 use crate::raw::*;
 use crate::*;
-
-use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]

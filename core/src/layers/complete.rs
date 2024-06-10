@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -398,10 +399,12 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if !capability.read {
             return Err(self.new_unsupported_error(Operation::Read));
         }
+
+        let size = args.range().size();
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, CompleteReader(r)))
+            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -514,9 +517,11 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if !capability.read || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::Read));
         }
+
+        let size = args.range().size();
         self.inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, CompleteReader(r)))
+            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -584,42 +589,66 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 pub type CompleteLister<A, P> =
     FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
 
-pub struct CompleteReader<R>(R);
+pub struct CompleteReader<R> {
+    inner: R,
+    size: Option<u64>,
+    read: u64,
+}
+
+impl<R> CompleteReader<R> {
+    pub fn new(inner: R, size: Option<u64>) -> Self {
+        Self {
+            inner,
+            size,
+            read: 0,
+        }
+    }
+
+    pub fn check(&self) -> Result<()> {
+        let Some(size) = self.size else {
+            return Ok(());
+        };
+
+        match self.read.cmp(&size) {
+            Ordering::Equal => Ok(()),
+            Ordering::Less => Err(
+                Error::new(ErrorKind::Unexpected, "reader got too little data")
+                    .with_context("expect", size)
+                    .with_context("actual", self.read),
+            ),
+            Ordering::Greater => Err(
+                Error::new(ErrorKind::Unexpected, "reader got too much data")
+                    .with_context("expect", size)
+                    .with_context("actual", self.read),
+            ),
+        }
+    }
+}
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
+    async fn read(&mut self) -> Result<Buffer> {
+        let buf = self.inner.read().await?;
+
+        if buf.is_empty() {
+            self.check()?;
+        } else {
+            self.read += buf.len() as u64;
         }
 
-        let buf = self.0.read_at(offset, size).await?;
-        if buf.len() != size {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "service didn't return the expected size",
-            )
-            .with_context("expect", size.to_string())
-            .with_context("actual", buf.len().to_string()));
-        }
         Ok(buf)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
+    fn read(&mut self) -> Result<Buffer> {
+        let buf = self.inner.read()?;
+
+        if buf.is_empty() {
+            self.check()?;
+        } else {
+            self.read += buf.len() as u64;
         }
 
-        let buf = self.0.read_at(offset, size)?;
-        if buf.len() != size {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "service didn't return the expected size",
-            )
-            .with_context("expect", size.to_string())
-            .with_context("actual", buf.len().to_string()));
-        }
         Ok(buf)
     }
 }
@@ -742,7 +771,7 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Arc::new(bytes::Bytes::new())))
+            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

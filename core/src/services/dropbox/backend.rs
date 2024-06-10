@@ -20,12 +20,12 @@ use std::sync::Arc;
 
 use backon::Retryable;
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::*;
 use super::lister::DropboxLister;
-use super::reader::DropboxReader;
 use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::*;
@@ -36,7 +36,7 @@ pub struct DropboxBackend {
 }
 
 impl Access for DropboxBackend {
-    type Reader = DropboxReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
     type BlockingReader = ();
@@ -143,10 +143,19 @@ impl Access for DropboxBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            DropboxReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.dropbox_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

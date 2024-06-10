@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
@@ -37,7 +38,6 @@ use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::b2::core::B2Signer;
 use crate::services::b2::core::ListFileNamesResponse;
-use crate::services::b2::reader::B2Reader;
 use crate::*;
 
 /// Config for backblaze b2 services support.
@@ -267,7 +267,7 @@ pub struct B2Backend {
 }
 
 impl Access for B2Backend {
-    type Reader = B2Reader;
+    type Reader = HttpBody;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type BlockingReader = ();
@@ -352,10 +352,22 @@ impl Access for B2Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            B2Reader::new(self.core.clone(), path, args),
-        ))
+        let resp = self
+            .core
+            .download_file_by_name(path, args.range(), &args)
+            .await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

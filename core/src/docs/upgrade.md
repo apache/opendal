@@ -1,3 +1,40 @@
+# Upgrade to v0.47
+
+## Public API
+
+### Reader `into_xxx` APIs
+
+Since v0.47, `Reader`'s `into_xxx` APIs requires `async` and returns `Result` instead.
+
+```diff
+- let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048);
++ let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048).await?;
+```
+
+Affected API includes:
+
+- `Reader::into_futures_async_read`
+- `Reader::into_bytes_stream`
+- `BlockingReader::into_std_read`
+- `BlockingReader::into_bytes_iterator`
+
+## Raw API
+
+### Bring Streaming Read Back
+
+As explained in [core: Bring Streaming Read Back](https://github.com/apache/opendal/issues/4672), we do need read streaming back for better performance and low memory usage.
+
+So our `oio::Read` changed back to streaming read instead:
+
+```diff
+trait Read {
+-  async fn read(&self, offset: u64, size: usize) -> Result<Buffer>;
++  async fn read(&mut self) -> Result<Buffer>;
+}
+```
+
+All services and layers should be updated to meet this change.
+
 # Upgrade to v0.46
 
 ## Public API
@@ -205,7 +242,7 @@ There is no public API and raw API changes.
 
 ### RFC-2578 Merge Append Into Write
 
-[RFC-2578](crate::docs::rfcs::rfc_2578_merge_append_into_write) merges `append` into `write` and removes `append` API.
+[RFC-2578](crate::docs::rfcs::rfc_2758_merge_append_into_write) merges `append` into `write` and removes `append` API.
 
 - For writing a file at once, please use `op.write()` for convenience.
 - For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
@@ -291,7 +328,7 @@ OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, ple
 
 ### RFC-3017 Remove Write Copy From
 
-[RFC-3017](opendal::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
+[RFC-3017](crate::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
 
 # Upgrade to v0.39
 

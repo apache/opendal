@@ -87,22 +87,22 @@ impl<S: Adapter> Access for Backend<S> {
         am
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
         let bs = match self.kv.get(&p).await? {
             Some(bs) => bs,
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
-        Ok((RpRead::new(), bs))
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    fn blocking_read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_abs_path(&self.root, path);
         let bs = match self.kv.blocking_get(&p)? {
             Some(bs) => bs,
             None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
-        Ok((RpRead::new(), bs))
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

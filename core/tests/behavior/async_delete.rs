@@ -17,6 +17,7 @@
 
 use anyhow::Result;
 use futures::StreamExt;
+use futures::TryStreamExt;
 use log::warn;
 
 use crate::*;
@@ -24,7 +25,7 @@ use crate::*;
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if cap.delete && cap.write {
+    if cap.stat && cap.delete && cap.write {
         tests.extend(async_trials!(
             op,
             test_delete_file,
@@ -33,7 +34,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_not_existing,
             test_delete_stream,
             test_remove_one_file
-        ))
+        ));
+        if cap.list_with_recursive {
+            tests.extend(async_trials!(op, test_remove_all_basic));
+            if !cap.create_dir {
+                tests.extend(async_trials!(op, test_remove_all_with_prefix_exists));
+            }
+        }
     }
 }
 
@@ -160,4 +167,48 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn test_blocking_remove_all_with_objects(
+    op: Operator,
+    parent: String,
+    paths: impl IntoIterator<Item = &'static str>,
+) -> Result<()> {
+    for path in paths {
+        let path = format!("{parent}/{path}");
+        let (content, _) = gen_bytes(op.info().full_capability());
+        op.write(&path, content).await.expect("write must succeed");
+    }
+
+    op.remove_all(&parent).await?;
+
+    let found = op
+        .lister_with(&format!("{parent}/"))
+        .recursive(true)
+        .await
+        .expect("list must succeed")
+        .try_next()
+        .await
+        .expect("list must succeed")
+        .is_some();
+
+    assert!(!found, "all objects should be removed");
+
+    Ok(())
+}
+
+/// Remove all under a prefix
+pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+    test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
+}
+
+/// Remove all under a prefix, while the prefix itself is also an object
+pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().full_capability());
+    op.write(&parent, content)
+        .await
+        .expect("write must succeed");
+    test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
 }

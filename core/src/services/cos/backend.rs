@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -32,7 +33,6 @@ use super::error::parse_error;
 use super::lister::CosLister;
 use super::writer::CosWriter;
 use crate::raw::*;
-use crate::services::cos::reader::CosReader;
 use crate::services::cos::writer::CosWriters;
 use crate::*;
 
@@ -253,7 +253,7 @@ pub struct CosBackend {
 }
 
 impl Access for CosBackend {
-    type Reader = CosReader;
+    type Reader = HttpBody;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;
     type BlockingReader = ();
@@ -324,10 +324,20 @@ impl Access for CosBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            CosReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.cos_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

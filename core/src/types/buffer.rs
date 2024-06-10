@@ -34,6 +34,8 @@ use bytes::Bytes;
 use bytes::BytesMut;
 use futures::Stream;
 
+use crate::*;
+
 /// Buffer is a wrapper of contiguous `Bytes` and non-contiguous `[Bytes]`.
 ///
 /// We designed buffer to allow underlying storage to return non-contiguous bytes. For example,
@@ -106,7 +108,6 @@ use futures::Stream;
 ///     buf.to_bytes()
 /// }
 /// ```
-///
 #[derive(Clone)]
 pub struct Buffer(Inner);
 

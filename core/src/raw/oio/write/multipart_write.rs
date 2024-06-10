@@ -17,12 +17,14 @@
 
 use std::sync::Arc;
 
+use futures::select;
 use futures::Future;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
 
-/// MultipartWrite is used to implement [`Write`] based on multipart
+/// MultipartWrite is used to implement [`oio::Write`] based on multipart
 /// uploads. By implementing MultipartWrite, services don't need to
 /// care about the details of uploading parts.
 ///
@@ -116,15 +118,17 @@ pub struct MultipartPart {
 
 struct WriteInput<W: MultipartWrite> {
     w: Arc<W>,
+    executor: Executor,
     upload_id: Arc<String>,
     part_number: usize,
     bytes: Buffer,
 }
 
-/// MultipartWriter will implements [`Write`] based on multipart
+/// MultipartWriter will implements [`oio::Write`] based on multipart
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
     w: Arc<W>,
+    executor: Executor,
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
@@ -142,8 +146,10 @@ impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
     pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
         let w = Arc::new(inner);
+        let executor = executor.unwrap_or_default();
         Self {
             w,
+            executor: executor.clone(),
             upload_id: None,
             parts: Vec::new(),
             cache: None,
@@ -152,16 +158,33 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             tasks: ConcurrentTasks::new(executor, concurrent, |input| {
                 Box::pin({
                     async move {
-                        let result = input
-                            .w
-                            .write_part(
-                                &input.upload_id,
-                                input.part_number,
-                                input.bytes.len() as u64,
-                                input.bytes.clone(),
-                            )
-                            .await;
-                        (input, result)
+                        let fut = input.w.write_part(
+                            &input.upload_id,
+                            input.part_number,
+                            input.bytes.len() as u64,
+                            input.bytes.clone(),
+                        );
+                        match input.executor.timeout() {
+                            None => {
+                                let result = fut.await;
+                                (input, result)
+                            }
+                            Some(timeout) => {
+                                let result = select! {
+                                    result = fut.fuse() => {
+                                        result
+                                    }
+                                    _ = timeout.fuse() => {
+                                        Err(Error::new(
+                                            ErrorKind::Unexpected, "write part timeout")
+                                                .with_context("upload_id", input.upload_id.to_string())
+                                                .with_context("part_number", input.part_number.to_string())
+                                                .set_temporary())
+                                    }
+                                };
+                                (input, result)
+                            }
+                        }
                     }
                 })
             }),
@@ -203,6 +226,7 @@ where
         self.tasks
             .execute(WriteInput {
                 w: self.w.clone(),
+                executor: self.executor.clone(),
                 upload_id: upload_id.clone(),
                 part_number,
                 bytes,
@@ -235,6 +259,7 @@ where
             self.tasks
                 .execute(WriteInput {
                     w: self.w.clone(),
+                    executor: self.executor.clone(),
                     upload_id: upload_id.clone(),
                     part_number,
                     bytes: cache,
@@ -251,6 +276,15 @@ where
             self.parts.push(result)
         }
 
+        if self.parts.len() != self.next_part_number {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "multipart part numbers mismatch, please report bug to opendal",
+            )
+            .with_context("expected", self.next_part_number)
+            .with_context("actual", self.parts.len())
+            .with_context("upload_id", upload_id));
+        }
         self.w.complete_part(&upload_id, &self.parts).await
     }
 
@@ -260,8 +294,8 @@ where
         };
 
         self.tasks.clear();
-        self.w.abort_part(&upload_id).await?;
         self.cache = None;
+        self.w.abort_part(&upload_id).await?;
         Ok(())
     }
 }
@@ -275,7 +309,7 @@ mod tests {
     use rand::Rng;
     use rand::RngCore;
     use tokio::sync::Mutex;
-    use tokio::time::sleep;
+    use tokio::time::{sleep, timeout};
 
     use super::*;
     use crate::raw::oio::Write;
@@ -322,11 +356,13 @@ mod tests {
             }
 
             // Add an async sleep here to enforce some pending.
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_nanos(50)).await;
 
             // We will have 10% percent rate for write part to fail.
             if thread_rng().gen_bool(1.0 / 10.0) {
-                return Err(Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!"));
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
             }
 
             {
@@ -358,11 +394,38 @@ mod tests {
         }
     }
 
+    struct TimeoutExecutor {
+        exec: Arc<dyn Execute>,
+    }
+
+    impl TimeoutExecutor {
+        pub fn new() -> Self {
+            Self {
+                exec: Executor::new().into_inner(),
+            }
+        }
+    }
+
+    impl Execute for TimeoutExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            self.exec.execute(f)
+        }
+
+        fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+            let time = thread_rng().gen_range(0..100);
+            Some(Box::pin(tokio::time::sleep(Duration::from_nanos(time))))
+        }
+    }
+
     #[tokio::test]
     async fn test_multipart_upload_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = MultipartWriter::new(TestWrite::new(), Some(Executor::new()), 200);
+        let mut w = MultipartWriter::new(
+            TestWrite::new(),
+            Some(Executor::with(TimeoutExecutor::new())),
+            200,
+        );
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -373,17 +436,23 @@ mod tests {
             rng.fill_bytes(&mut bs);
 
             loop {
-                match w.write(bs.clone().into()).await {
-                    Ok(_) => break,
-                    Err(_) => continue,
+                match timeout(Duration::from_nanos(10), w.write(bs.clone().into())).await {
+                    Ok(Ok(_)) => break,
+                    Ok(Err(_)) => continue,
+                    Err(_) => {
+                        continue;
+                    }
                 }
             }
         }
 
         loop {
-            match w.close().await {
-                Ok(_) => break,
-                Err(_) => continue,
+            match timeout(Duration::from_nanos(10), w.close()).await {
+                Ok(Ok(_)) => break,
+                Ok(Err(_)) => continue,
+                Err(_) => {
+                    continue;
+                }
             }
         }
 

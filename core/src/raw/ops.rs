@@ -300,6 +300,7 @@ impl BatchOperation {
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
+    range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
     override_content_type: Option<String>,
@@ -313,6 +314,22 @@ impl OpRead {
     /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the range of the option
+    pub fn with_range(mut self, range: BytesRange) -> Self {
+        self.range = range;
+        self
+    }
+
+    /// Get range from option
+    pub fn range(&self) -> BytesRange {
+        self.range
+    }
+
+    /// Returns a mutable range to allow updating.
+    pub(crate) fn range_mut(&mut self) -> &mut BytesRange {
+        &mut self.range
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.
@@ -411,10 +428,6 @@ impl OpRead {
 /// Args for reader operation.
 #[derive(Debug, Clone)]
 pub struct OpReader {
-    /// The range of the read request.
-    ///
-    /// Not available for `reader`.
-    range: BytesRange,
     /// The concurrent requests that reader can send.
     concurrent: usize,
     /// The chunk size of each request.
@@ -426,7 +439,6 @@ pub struct OpReader {
 impl Default for OpReader {
     fn default() -> Self {
         Self {
-            range: BytesRange::default(),
             concurrent: 1,
             chunk: None,
             gap: None,
@@ -438,17 +450,6 @@ impl OpReader {
     /// Create a new `OpReader`.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Set the range of the option
-    pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.range = range;
-        self
-    }
-
-    /// Get range from option
-    pub fn range(&self) -> BytesRange {
-        self.range
     }
 
     /// Set the concurrent of the option

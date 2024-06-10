@@ -129,7 +129,7 @@ impl DropboxCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -148,7 +148,7 @@ impl DropboxCore {
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.client.fetch(request).await
     }
 
     pub async fn dropbox_update(

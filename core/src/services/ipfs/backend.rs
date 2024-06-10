@@ -29,7 +29,6 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
-use crate::services::ipfs::reader::IpfsReader;
 use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
@@ -160,7 +159,7 @@ impl Debug for IpfsBackend {
 }
 
 impl Access for IpfsBackend {
-    type Reader = IpfsReader;
+    type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
     type BlockingReader = ();
@@ -336,7 +335,20 @@ impl Access for IpfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
+        let resp = self.ipfs_get(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)).await?)
+            }
+        }
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -346,7 +358,7 @@ impl Access for IpfsBackend {
 }
 
 impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -359,7 +371,7 @@ impl IpfsBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {

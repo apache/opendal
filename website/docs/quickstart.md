@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-sidebar_position: 3
+sidebar_position: 2
 ---
 
 Apache OpenDAL™ can be easily integrated into different software with its Rust core and multilingual bindings.
@@ -20,7 +20,7 @@ cargo add opendal
 Or add the following line to your Cargo.toml:
 
 ```shell
-opendal = "0.40.0"
+opendal = "0.46.0"
 ```
 
 ### Demo

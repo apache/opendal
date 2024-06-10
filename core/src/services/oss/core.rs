@@ -363,10 +363,10 @@ impl OssCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = self.oss_get_object_request(path, range, false, args)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn oss_head_object(

@@ -15,48 +15,65 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bb8::PooledConnection;
+use bytes::BytesMut;
+use futures::AsyncRead;
 use futures::AsyncReadExt;
 
-use super::backend::FtpBackend;
+use super::backend::Manager;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct FtpReader {
-    core: FtpBackend,
+    /// Keep the connection alive while data stream is alive.
+    _ftp_stream: PooledConnection<'static, Manager>,
 
-    path: String,
-    _op: OpRead,
+    data_stream: Box<dyn AsyncRead + Sync + Send + Unpin + 'static>,
+    chunk: usize,
+    buf: BytesMut,
 }
 
 impl FtpReader {
-    pub fn new(core: FtpBackend, path: &str, op: OpRead) -> Self {
-        FtpReader {
-            core,
-            path: path.to_string(),
-            _op: op,
-        }
-    }
-}
-
-impl oio::Read for FtpReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-
+    pub async fn new(
+        mut ftp_stream: PooledConnection<'static, Manager>,
+        path: String,
+        args: OpRead,
+    ) -> Result<Self> {
+        let (offset, size) = (
+            args.range().offset(),
+            args.range().size().unwrap_or(u64::MAX),
+        );
         if offset != 0 {
             ftp_stream
                 .resume_transfer(offset as usize)
                 .await
                 .map_err(parse_error)?;
         }
-
-        let mut ds = ftp_stream
-            .retr_as_stream(&self.path)
+        let ds = ftp_stream
+            .retr_as_stream(path)
             .await
             .map_err(parse_error)?
             .take(size as _);
-        let mut bs = Vec::with_capacity(size);
-        ds.read_to_end(&mut bs).await.map_err(new_std_io_error)?;
-        Ok(Buffer::from(bs))
+
+        Ok(Self {
+            _ftp_stream: ftp_stream,
+
+            data_stream: Box::new(ds),
+            chunk: 1024 * 1024,
+            buf: BytesMut::new(),
+        })
+    }
+}
+
+impl oio::Read for FtpReader {
+    async fn read(&mut self) -> Result<Buffer> {
+        self.buf.resize(self.chunk, 0);
+        let n = self
+            .data_stream
+            .read(&mut self.buf)
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(Buffer::from(self.buf.split_to(n).freeze()))
     }
 }

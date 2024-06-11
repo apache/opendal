@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_inexact_buf_writer_partial_send_1() -> Result<()> {
+    async fn test_inexact_buf_writer_partial_send() -> Result<()> {
         let _ = tracing_subscriber::fmt()
             .pretty()
             .with_test_writer()
@@ -355,7 +355,7 @@ mod tests {
         // content < chunk size.
         let content = new_content(5);
         assert_eq!(5, w.write(content.into()).await?);
-        // Non-continguous buffer.
+        // Non-contiguous buffer.
         let content = Buffer::from(vec![new_content(3), new_content(2)]);
         assert_eq!(5, w.write(content).await?);
 

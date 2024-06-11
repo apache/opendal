@@ -294,6 +294,77 @@ mod tests {
         Ok(())
     }
 
+    struct PartialWriter {
+        buf: Vec<u8>,
+    }
+
+    impl Write for PartialWriter {
+        async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
+            if Buffer::count(&bs) > 1 {
+                // Always leaves last buffer for non-contiguous buffer.
+                let mut written = 0;
+                while Buffer::count(&bs) > 1 {
+                    let chunk = bs.chunk();
+                    self.buf.extend_from_slice(chunk);
+                    written += chunk.len();
+                    bs.advance(chunk.len());
+                }
+                Ok(written)
+            } else {
+                let chunk = bs.chunk();
+                self.buf.extend_from_slice(chunk);
+                Ok(chunk.len())
+            }
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_inexact_buf_writer_partial_send() -> Result<()> {
+        let _ = tracing_subscriber::fmt()
+            .pretty()
+            .with_test_writer()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
+        let mut w = ChunkedWriter::new(PartialWriter { buf: vec![] }, 10, false);
+
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+
+        let mut new_content = |size| {
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            expected.extend_from_slice(&content);
+            Bytes::from(content)
+        };
+
+        // content < chunk size.
+        let content = new_content(5);
+        assert_eq!(5, w.write(content.into()).await?);
+        // Non-continguous buffer.
+        let mut content = Buffer::from(vec![new_content(3), new_content(2)]);
+        assert_eq!(3, w.write(content.clone()).await?);
+        content.advance(3);
+        assert_eq!(2, w.write(content.into()).await?);
+
+        w.close().await?;
+
+        assert_eq!(w.inner.buf.len(), expected.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&expected))
+        );
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_fuzz_exact_buf_writer() -> Result<()> {
         let _ = tracing_subscriber::fmt()

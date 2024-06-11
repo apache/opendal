@@ -50,22 +50,48 @@ impl<W: oio::Write> ChunkedWriter<W> {
 
 impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
     async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
-        if self.buffer.len() >= self.chunk_size {
-            let written = self.inner.write(self.buffer.clone().collect()).await?;
-            self.buffer.advance(written);
+        if self.exact {
+            if self.buffer.len() >= self.chunk_size {
+                let written = self.inner.write(self.buffer.clone().collect()).await?;
+                self.buffer.advance(written);
+            }
+
+            let remaining = self.chunk_size - self.buffer.len();
+            bs.truncate(remaining);
+            let n = bs.len();
+            self.buffer.push(bs);
+            return Ok(n);
+        }
+        // We are in inexact mode.
+
+        if self.buffer.len() + bs.len() < self.chunk_size {
+            // We haven't buffered enough data.
+            let n = bs.len();
+            self.buffer.push(bs);
+            return Ok(n);
         }
 
-        if !self.exact && bs.len() >= self.chunk_size && self.buffer.is_empty() {
-            // Sends the buffer directly if the buffer queue is empty and we are in
-            // inexact mode.
+        // We have buffered enough data.
+        if self.buffer.is_empty() {
+            // Fast path: Sends the buffer directly if the buffer queue is empty.
             return self.inner.write(bs.collect()).await;
         }
 
-        let remaining = self.chunk_size - self.buffer.len();
-        bs.truncate(remaining);
-        let n = bs.len();
-        self.buffer.push(bs);
-        Ok(n)
+        // If we always push `bs` to the buffer queue, the buffer queue may grow infinitely if inner
+        // doesn't fully consume the queue. So we clone the buffer queue and send it with `bs` first.
+        let mut buffer = self.buffer.clone();
+        buffer.push(bs.clone());
+        let written = self.inner.write(buffer.collect()).await?;
+        if written < self.buffer.len() {
+            self.buffer.advance(written);
+            // We didn't sent `bs`.
+            Ok(0)
+        } else {
+            self.buffer.clear();
+            let n = bs.len();
+            self.buffer.push(bs);
+            Ok(n)
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -184,7 +210,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_inexact_buf_writer_mix_write() -> Result<()> {
+    async fn test_inexact_buf_writer_combine_small() -> Result<()> {
         let _ = tracing_subscriber::fmt()
             .pretty()
             .with_test_writer()
@@ -210,11 +236,53 @@ mod tests {
         let content = new_content(5);
         assert_eq!(5, w.write(content.into()).await?);
         // content > chunk size.
-        let mut content = new_content(15);
-        while !content.is_empty() {
-            assert_eq!(5, w.write(content.clone().into()).await?);
-            content.advance(5);
-        }
+        let content = new_content(15);
+        assert_eq!(15, w.write(content.clone().into()).await?);
+
+        w.close().await?;
+
+        assert_eq!(w.inner.buf.len(), expected.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&expected))
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_inexact_buf_writer_queue_remaining() -> Result<()> {
+        let _ = tracing_subscriber::fmt()
+            .pretty()
+            .with_test_writer()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
+        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+
+        let mut new_content = |size| {
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            expected.extend_from_slice(&content);
+            Bytes::from(content)
+        };
+
+        // content > chunk size.
+        let content = new_content(15);
+        assert_eq!(15, w.write(content.into()).await?);
+        // content < chunk size.
+        let content = new_content(5);
+        assert_eq!(5, w.write(content.into()).await?);
+        // content < chunk size.
+        let content = new_content(3);
+        assert_eq!(3, w.write(content.into()).await?);
+        // content > chunk size, but only sends the first chunk in the queue.
+        let content = new_content(15);
+        assert_eq!(0, w.write(content.clone().into()).await?);
+        // Sends the content again and it consumes the queue.
+        assert_eq!(15, w.write(content.clone().into()).await?);
 
         w.close().await?;
 

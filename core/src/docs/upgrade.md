@@ -1,4 +1,4 @@
-# Upgrade to v0.47
+# Upgrade to 0.48
 
 ## Raw API
 
@@ -18,6 +18,43 @@ pub struct BytesRange {
     size: u64,
 }
 ````
+
+# Upgrade to v0.47
+
+## Public API
+
+### Reader `into_xxx` APIs
+
+Since v0.47, `Reader`'s `into_xxx` APIs requires `async` and returns `Result` instead.
+
+```diff
+- let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048);
++ let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048).await?;
+```
+
+Affected API includes:
+
+- `Reader::into_futures_async_read`
+- `Reader::into_bytes_stream`
+- `BlockingReader::into_std_read`
+- `BlockingReader::into_bytes_iterator`
+
+## Raw API
+
+### Bring Streaming Read Back
+
+As explained in [core: Bring Streaming Read Back](https://github.com/apache/opendal/issues/4672), we do need read streaming back for better performance and low memory usage.
+
+So our `oio::Read` changed back to streaming read instead:
+
+```diff
+trait Read {
+-  async fn read(&self, offset: u64, size: usize) -> Result<Buffer>;
++  async fn read(&mut self) -> Result<Buffer>;
+}
+```
+
+All services and layers should be updated to meet this change.
 
 # Upgrade to v0.46
 

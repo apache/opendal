@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use criterion::black_box;
 use criterion::BatchSize;
 use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;
+use std::time::Duration;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
@@ -34,15 +34,23 @@ pub fn bench_concurrent_tasks(c: &mut Criterion) {
                 || {
                     ConcurrentTasks::new(Executor::new(), *concurrent, |()| {
                         Box::pin(async {
-                            black_box(());
+                            tokio::time::sleep(Duration::from_millis(1)).await;
                             ((), Ok(()))
                         })
                     })
                 },
                 |mut tasks| async move {
-                    let _ = tasks.execute(()).await;
+                    for _ in 0..100 {
+                        let _ = tasks.execute(()).await;
+                    }
+
+                    loop {
+                        if tasks.next().await.is_none() {
+                            break;
+                        }
+                    }
                 },
-                BatchSize::NumIterations(1000),
+                BatchSize::PerIteration,
             )
         });
     }

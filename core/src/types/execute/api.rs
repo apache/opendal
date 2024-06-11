@@ -91,6 +91,14 @@ impl<T: 'static> Task<T> {
     pub fn new(handle: RemoteHandle<T>) -> Self {
         Self { handle }
     }
+
+    /// Replace the task with a new task.
+    ///
+    /// The old task will be dropped directly.
+    #[inline]
+    pub fn replace(&mut self, new_task: Self) {
+        self.handle = new_task.handle;
+    }
 }
 
 impl<T: 'static> Future for Task<T> {

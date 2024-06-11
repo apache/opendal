@@ -858,12 +858,13 @@ impl Operator {
     ///
     /// ## Chunk
     ///
-    /// OpenDAL is designed to write files directly without chunking by default, giving users
-    /// control over the exact size of their writes and helping avoid unnecessary costs.
+    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
+    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
+    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
+    /// more money if we write data in small chunks.
     ///
-    /// This is not efficient for cases when users write small chunks of data. Some storage services
-    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
-    /// will cost more money if we write data in small chunks.
+    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
+    /// of the service if users don't set it.
     ///
     /// Users can use [`Operator::writer_with`] to set a good chunk size might improve the performance,
     ///
@@ -919,12 +920,13 @@ impl Operator {
     ///
     /// Set `chunk` for the writer.
     ///
-    /// OpenDAL is designed to write files directly without chunking by default, giving users
-    /// control over the exact size of their writes and helping avoid unnecessary costs.
+    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
+    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
+    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
+    /// more money if we write data in small chunks.
     ///
-    /// This is not efficient for cases when users write small chunks of data. Some storage services
-    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
-    /// will cost more money if we write data in small chunks.
+    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
+    /// of the service if users don't set it.
     ///
     /// Set a good chunk size might improve the performance, reduce the API calls and save money.
     ///

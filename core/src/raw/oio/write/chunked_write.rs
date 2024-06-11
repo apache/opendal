@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+
 use crate::raw::*;
 use crate::*;
 
@@ -70,28 +72,32 @@ impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
             self.buffer.push(bs);
             return Ok(n);
         }
+        // We have enough data to send.
 
-        // We have buffered enough data.
         if self.buffer.is_empty() {
             // Fast path: Sends the buffer directly if the buffer queue is empty.
-            return self.inner.write(bs.collect()).await;
+            return self.inner.write(bs).await;
         }
 
         // If we always push `bs` to the buffer queue, the buffer queue may grow infinitely if inner
         // doesn't fully consume the queue. So we clone the buffer queue and send it with `bs` first.
         let mut buffer = self.buffer.clone();
         buffer.push(bs.clone());
-        let written = self.inner.write(buffer.collect()).await?;
+        // TODO(yingwen): don't clone buffer.
+        let written = self.inner.write(buffer.clone().collect()).await?;
         if written < self.buffer.len() {
             self.buffer.advance(written);
             // We didn't sent `bs`.
-            Ok(0)
-        } else {
-            self.buffer.clear();
-            let n = bs.len();
-            self.buffer.push(bs);
-            Ok(n)
+            return Ok(0);
         }
+
+        // We sent all bytes in the queue and some bytes in `bs`.
+        let partial_written = written - self.buffer.len();
+        self.buffer.clear();
+        let n = bs.len();
+        bs.advance(partial_written);
+        self.buffer.push(bs);
+        Ok(n)
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -327,7 +333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_inexact_buf_writer_partial_send() -> Result<()> {
+    async fn test_inexact_buf_writer_partial_send_1() -> Result<()> {
         let _ = tracing_subscriber::fmt()
             .pretty()
             .with_test_writer()
@@ -350,10 +356,8 @@ mod tests {
         let content = new_content(5);
         assert_eq!(5, w.write(content.into()).await?);
         // Non-continguous buffer.
-        let mut content = Buffer::from(vec![new_content(3), new_content(2)]);
-        assert_eq!(3, w.write(content.clone()).await?);
-        content.advance(3);
-        assert_eq!(2, w.write(content.into()).await?);
+        let content = Buffer::from(vec![new_content(3), new_content(2)]);
+        assert_eq!(5, w.write(content).await?);
 
         w.close().await?;
 

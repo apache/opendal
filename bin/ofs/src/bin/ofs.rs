@@ -48,7 +48,7 @@ async fn execute(cfg: Config) -> Result<()> {
     use std::str::FromStr;
 
     use anyhow::anyhow;
-    use ofs::fuse::Fuse;
+    use ofs::fuse3::Fuse;
     use opendal::Operator;
     use opendal::Scheme;
 

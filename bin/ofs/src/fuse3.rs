@@ -15,14 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod adapter;
-
 use std::io;
 use std::path::Path;
 
-use adapter::FuseAdapter;
 use fuse3::path::Session;
-pub use fuse3::raw::MountHandle;
+use fuse3::raw::MountHandle;
 use fuse3::MountOptions;
 use opendal::Operator;
 
@@ -89,7 +86,7 @@ impl Fuse {
         mount_point: impl AsRef<Path>,
         op: Operator,
     ) -> io::Result<MountHandle> {
-        let adapter = FuseAdapter::new(
+        let adapter = fuse3_opendal::Filesystem::new(
             op,
             self.uid.unwrap_or_else(|| nix::unistd::getuid().into()),
             self.gid.unwrap_or_else(|| nix::unistd::getgid().into()),
@@ -107,7 +104,7 @@ impl Fuse {
     ) -> io::Result<MountHandle> {
         log::warn!("unprivileged mount may not detect external unmount, tracking issue: https://github.com/Sherlock-Holo/fuse3/issues/72");
 
-        let adapter = FuseAdapter::new(
+        let adapter = fuse3_opendal::Filesystem::new(
             op,
             self.uid.unwrap_or_else(|| nix::unistd::getuid().into()),
             self.gid.unwrap_or_else(|| nix::unistd::getgid().into()),
@@ -121,9 +118,7 @@ impl Fuse {
 impl Default for Fuse {
     fn default() -> Self {
         let mut mount_options = MountOptions::default();
-        mount_options
-            .fs_name("OpenDAL Filesystem")
-            .no_open_dir_support(true);
+        mount_options.fs_name("ofs").no_open_dir_support(true);
 
         Self {
             mount_options,

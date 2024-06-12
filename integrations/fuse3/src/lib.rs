@@ -15,5 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-pub mod fuse3;
+mod file;
+mod file_system;
+pub use file_system::Filesystem;

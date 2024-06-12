@@ -17,6 +17,7 @@
 
 use std::sync::OnceLock;
 
+use fuse3::raw::MountHandle;
 use opendal::raw::tests;
 use opendal::Capability;
 use tempfile::TempDir;
@@ -30,7 +31,7 @@ static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 pub struct OfsTestContext {
     pub mount_point: TempDir,
     pub capability: Capability,
-    mount_handle: ofs::fuse::MountHandle,
+    mount_handle: MountHandle,
 }
 
 impl TestContext for OfsTestContext {
@@ -52,7 +53,7 @@ impl TestContext for OfsTestContext {
                     .expect("build runtime")
             })
             .block_on(async move {
-                ofs::fuse::Fuse::new()
+                ofs::fuse3::Fuse::new()
                     .mount_with_unprivileged(mount_point_str, backend)
                     .await
             })

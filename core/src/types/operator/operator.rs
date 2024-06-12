@@ -864,7 +864,8 @@ impl Operator {
     /// more money if we write data in small chunks.
     ///
     /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
-    /// of the service if users don't set it.
+    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
+    /// to the storage service.
     ///
     /// Users can use [`Operator::writer_with`] to set a good chunk size might improve the performance,
     ///
@@ -926,7 +927,8 @@ impl Operator {
     /// more money if we write data in small chunks.
     ///
     /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
-    /// of the service if users don't set it.
+    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
+    /// to the storage service.
     ///
     /// Set a good chunk size might improve the performance, reduce the API calls and save money.
     ///

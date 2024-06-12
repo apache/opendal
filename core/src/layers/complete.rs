@@ -444,7 +444,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
                 size
             });
-        let exact = capability.write_multi_align_size.is_some();
+        let exact = args.chunk().is_some() || capability.write_multi_align_size.is_some();
 
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);

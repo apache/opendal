@@ -28,13 +28,13 @@ rust-version = "1.75"
 version = "0.1.0"
 
 [dependencies]
-opendal = { version = "0.47.0", path = "../../core" }
-fuse3 = { version = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
 bytes = "1.6.0"
+fuse3 = { version = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
 futures-util = "0.3.30"
-sharded-slab = "0.1.7"
-tokio = "1.38.0"
 libc = "0.2.155"
 log = "0.4.21"
+opendal = { version = "0.47.0", path = "../../core" }
+sharded-slab = "0.1.7"
+tokio = "1.38.0"
 
 [dev-dependencies]

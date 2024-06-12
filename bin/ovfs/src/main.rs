@@ -16,8 +16,10 @@
 // under the License.
 
 mod error;
+mod server;
+mod server_message;
 mod virtiofs;
-mod virtiofs_utils;
+mod virtiofs_util;
 
 fn main() {
     unimplemented!()

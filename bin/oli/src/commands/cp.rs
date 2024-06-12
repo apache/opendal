@@ -24,7 +24,8 @@ use clap::Arg;
 use clap::ArgAction;
 use clap::ArgMatches;
 use clap::Command;
-use futures::{AsyncWriteExt, TryStreamExt};
+use futures::AsyncWriteExt;
+use futures::TryStreamExt;
 
 use crate::config::Config;
 

@@ -35,11 +35,12 @@ use crate::*;
 /// We will usually do some general checks and data transformations in this layer,
 /// like normalizing path from input, checking whether the path refers to one file or one directory,
 /// and so on.
-/// Read [`Operator::concepts`][docs::concepts] for more about [`Operator::Operator`].
+///
+/// Read [`concepts`][crate::docs::concepts] for more about [`Operator`].
 ///
 /// # Examples
 ///
-/// Read more backend init examples in [`Operator::services`]
+/// Read more backend init examples in [`services`]
 ///
 /// ```
 /// # use anyhow::Result;
@@ -182,7 +183,7 @@ impl Operator {
     ///
     /// ## Reuse Metadata
     ///
-    /// For fetch metadata of entries returned by [`Operator::Lister`], it's better to use
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use
     /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
     /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra stat requests.
     ///
@@ -215,7 +216,7 @@ impl Operator {
     ///
     /// ## Reuse Metadata
     ///
-    /// For fetch metadata of entries returned by [`Operator::Lister`], it's better to use
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use
     /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
     /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra requests.
     ///
@@ -645,7 +646,10 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file").chunk(4 * 1024 * 1024).await?;
+    /// let r = op
+    ///     .reader_with("path/to/file")
+    ///     .chunk(4 * 1024 * 1024)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1700,8 +1704,8 @@ impl Operator {
 
     /// List entries that starts with given `path` in parent dir.
     ///
-    /// This function will create a new [`Operator::Lister`] to list entries. Users can stop
-    /// listing via dropping this [`Operator::Lister`].
+    /// This function will create a new [`Lister`] to list entries. Users can stop
+    /// listing via dropping this [`Lister`].
     ///
     /// # Notes
     ///
@@ -1747,8 +1751,8 @@ impl Operator {
 
     /// List entries that starts with given `path` in parent dir with options.
     ///
-    /// This function will create a new [`Operator::Lister`] to list entries. Users can stop listing via
-    /// dropping this [`Operator::Lister`].
+    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
+    /// dropping this [`Lister`].
     ///
     /// # Options
     ///

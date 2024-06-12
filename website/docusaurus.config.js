@@ -153,36 +153,6 @@ const config = {
             label: 'Docs',
           },
           {
-            position: 'right',
-            label: 'API',
-            items: [
-              {
-                label: 'Rust Core',
-                to: 'pathname:///docs/rust/opendal/'
-              },
-              {
-                label: 'Node.js Binding',
-                to: 'pathname:///docs/nodejs/'
-              },
-              {
-                label: 'Python Binding',
-                to: 'pathname:///docs/python/'
-              },
-              {
-                label: 'Java Binding',
-                to: 'pathname:///docs/java/'
-              },
-              {
-                label: 'object-store-opendal',
-                to: 'pathname:///docs/object-store-opendal/object_store_opendal'
-              },
-              {
-                label: 'dav-server-opendalfs',
-                to: 'pathname:///docs/dav-server-opendalfs/dav_server_opendalfs'
-              }
-            ]
-          },
-          {
             to: '/blog',
             label: 'Blog',
             position: 'right'

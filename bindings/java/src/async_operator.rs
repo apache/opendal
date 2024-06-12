@@ -35,7 +35,9 @@ use opendal::Scheme;
 
 use crate::convert::jmap_to_hashmap;
 use crate::convert::jstring_to_string;
-use crate::executor::{executor_or_default, get_current_env, Executor};
+use crate::executor::executor_or_default;
+use crate::executor::get_current_env;
+use crate::executor::Executor;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;

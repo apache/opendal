@@ -15,19 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::*;
-use crate::raw::MaybeSend;
-use futures::FutureExt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::sync::Arc;
+
+use futures::FutureExt;
+
+use super::*;
+use crate::raw::BoxedStaticFuture;
+use crate::raw::MaybeSend;
 
 /// Executor that runs futures in background.
 ///
 /// Executor is created by users and used by opendal. So it's by design that Executor only
 /// expose constructor methods.
 ///
-/// Executor will run futures in background and return a [`Task`] as handle to the future. Users
+/// Executor will run futures in background and return a `Task` as handle to the future. Users
 /// can call `task.await` to wait for the future to complete or drop the `Task` to cancel it.
 #[derive(Clone)]
 pub struct Executor {
@@ -69,8 +73,17 @@ impl Executor {
         }
     }
 
+    /// Return the inner executor.
+    pub(crate) fn into_inner(self) -> Arc<dyn Execute> {
+        self.executor
+    }
+
+    /// Return a future that will be resolved after the given timeout.
+    pub(crate) fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.executor.timeout()
+    }
+
     /// Run given future in background immediately.
-    #[allow(unused)]
     pub(crate) fn execute<F>(&self, f: F) -> Task<F::Output>
     where
         F: Future + MaybeSend + 'static,

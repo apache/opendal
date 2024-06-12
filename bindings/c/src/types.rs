@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::Buffer;
 use std::collections::HashMap;
 use std::os::raw::c_char;
+
+use opendal::Buffer;
 
 /// \brief opendal_bytes carries raw-bytes with its length
 ///

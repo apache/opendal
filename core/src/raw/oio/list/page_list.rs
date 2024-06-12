@@ -21,7 +21,7 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// PageList is used to implement [`List`] based on API supporting pagination. By implementing
+/// PageList is used to implement [`oio::List`] based on API supporting pagination. By implementing
 /// PageList, services don't need to care about the details of page list.
 ///
 /// # Architecture
@@ -62,7 +62,7 @@ pub struct PageContext {
     pub entries: VecDeque<oio::Entry>,
 }
 
-/// PageLister implements [`List`] based on [`PageList`].
+/// PageLister implements [`oio::List`] based on [`PageList`].
 pub struct PageLister<L: PageList> {
     inner: L,
     ctx: PageContext,

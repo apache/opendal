@@ -83,7 +83,7 @@ impl BlockingReader {
 
     /// Read give range from reader into [`Buffer`].
     ///
-    /// This operation is zero-copy, which means it keeps the [`Bytes`] returned by underlying
+    /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
     ///
     /// # Notes

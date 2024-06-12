@@ -118,7 +118,7 @@ impl KoofrBuilder {
 
     /// Koofr application password.
     ///
-    /// Go to https://app.koofr.net/app/admin/preferences/password.
+    /// Go to <https://app.koofr.net/app/admin/preferences/password>.
     /// Click "Generate Password" button to generate a new application password.
     ///
     /// # Notes

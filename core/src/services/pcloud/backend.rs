@@ -97,7 +97,7 @@ impl PcloudBuilder {
     }
 
     /// Pcloud endpoint.
-    /// https://api.pcloud.com for United States and https://eapi.pcloud.com for Europe
+    /// <https://api.pcloud.com> for United States and <https://eapi.pcloud.com> for Europe
     /// ref to [doc.pcloud.com](https://docs.pcloud.com/)
     ///
     /// It is required. e.g. `https://api.pcloud.com`

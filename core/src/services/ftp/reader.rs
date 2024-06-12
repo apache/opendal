@@ -17,7 +17,8 @@
 
 use bb8::PooledConnection;
 use bytes::BytesMut;
-use futures::{AsyncRead, AsyncReadExt};
+use futures::AsyncRead;
+use futures::AsyncReadExt;
 
 use super::backend::Manager;
 use super::err::parse_error;

@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.43.1"
+version = "0.44.0"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
@@ -35,14 +35,15 @@ async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
 futures-util = "0.3"
-object_store = "0.10.0"
-opendal = { version = "0.46.0", path = "../../core" }
+object_store = "0.10"
+opendal = { version = "0.47.0", path = "../../core" }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
-opendal = { version = "0.46.0", path = "../../core", features = [
-    "services-memory",
+opendal = { version = "0.47.0", path = "../../core", features = [
+  "services-memory",
+  "services-s3",
 ] }
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }

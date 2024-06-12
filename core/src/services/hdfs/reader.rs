@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::BytesMut;
-
-use futures::AsyncReadExt;
-use hdrs::{AsyncFile, File};
 use std::io::Read;
+
+use bytes::BytesMut;
+use futures::AsyncReadExt;
+use hdrs::AsyncFile;
+use hdrs::File;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;

@@ -71,6 +71,16 @@ impl BytesRange {
         self.1
     }
 
+    /// Advance the range by `n` bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panic if input `n` is larger than the size of the range.
+    pub fn advance(&mut self, n: u64) {
+        self.0 += n;
+        self.1 = self.1.map(|size| size - n);
+    }
+
     /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.

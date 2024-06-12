@@ -170,12 +170,6 @@ pub trait BlockingWrite: Send + Sync + 'static {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    ///
-    /// # Safety
-    ///
-    /// - The caller MUST ensure that the buffer is valid before `write` returns `Ready`.
-    /// - The implementor SHOULD NOT store [`oio::ReadableBuf`] in anyways. The buf MUST
-    ///   be passed by or copied out to an owned buffer.
     fn write(&mut self, bs: Buffer) -> Result<usize>;
 
     /// Close the writer and make sure all data has been flushed.

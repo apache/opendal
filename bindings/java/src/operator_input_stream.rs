@@ -15,11 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::convert::jstring_to_string;
-use jni::objects::{JByteArray, JClass, JObject, JString};
-use jni::sys::{jbyteArray, jlong};
+use jni::objects::JByteArray;
+use jni::objects::JClass;
+use jni::objects::JObject;
+use jni::objects::JString;
+use jni::sys::jbyteArray;
+use jni::sys::jlong;
 use jni::JNIEnv;
-use opendal::{BlockingOperator, StdBytesIterator};
+use opendal::BlockingOperator;
+use opendal::StdBytesIterator;
+
+use crate::convert::jstring_to_string;
 
 /// # Safety
 ///

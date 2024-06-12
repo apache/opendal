@@ -16,7 +16,6 @@
 // under the License.
 
 use bb8::PooledConnection;
-
 use bytes::BytesMut;
 use openssh_sftp_client::file::File;
 

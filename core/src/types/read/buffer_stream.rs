@@ -21,9 +21,10 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::oio::Read;
-use futures::{ready, Stream};
+use futures::ready;
+use futures::Stream;
 
+use crate::raw::oio::Read;
 use crate::raw::*;
 use crate::*;
 
@@ -81,9 +82,13 @@ pub struct ChunkedReader {
 
 impl ChunkedReader {
     /// Create a new chunked reader.
+    ///
+    /// # Notes
+    ///
+    /// We don't need to handle `Executor::timeout` since we are outside of the layer.
     fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
         let tasks = ConcurrentTasks::new(
-            ctx.args().executor().cloned(),
+            ctx.args().executor().cloned().unwrap_or_default(),
             ctx.options().concurrent(),
             |mut r: oio::Reader| {
                 Box::pin(async {
@@ -184,12 +189,13 @@ impl Stream for BufferStream {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use bytes::Buf;
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     use super::*;
 

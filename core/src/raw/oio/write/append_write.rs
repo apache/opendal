@@ -20,7 +20,7 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// AppendWrite is used to implement [`Write`] based on append
+/// AppendWrite is used to implement [`oio::Write`] based on append
 /// object. By implementing AppendWrite, services don't need to
 /// care about the details of buffering and uploading parts.
 ///
@@ -51,7 +51,7 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
-/// AppendWriter will implements [`Write`] based on append object.
+/// AppendWriter will implements [`oio::Write`] based on append object.
 ///
 /// ## TODO
 ///

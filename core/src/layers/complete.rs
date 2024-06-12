@@ -423,28 +423,35 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         }
 
         // Calculate buffer size.
-        let chunk_size = args.chunk().map(|mut size| {
-            if let Some(v) = capability.write_multi_max_size {
-                size = size.min(v);
-            }
-            if let Some(v) = capability.write_multi_min_size {
-                size = size.max(v);
-            }
-            if let Some(v) = capability.write_multi_align_size {
-                // Make sure size >= size first.
-                size = size.max(v);
-                size -= size % v;
-            }
+        // If `chunk` is not set, we use `write_multi_min_size` or `write_multi_align_size`
+        // as the default size.
+        let chunk_size = args
+            .chunk()
+            .or(capability.write_multi_min_size)
+            .or(capability.write_multi_align_size)
+            .map(|mut size| {
+                if let Some(v) = capability.write_multi_max_size {
+                    size = size.min(v);
+                }
+                if let Some(v) = capability.write_multi_min_size {
+                    size = size.max(v);
+                }
+                if let Some(v) = capability.write_multi_align_size {
+                    // Make sure size >= size first.
+                    size = size.max(v);
+                    size -= size % v;
+                }
 
-            size
-        });
+                size
+            });
+        let exact = args.chunk().is_some() || capability.write_multi_align_size.is_some();
 
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
 
         let w = match chunk_size {
             None => TwoWays::One(w),
-            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size)),
+            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size, exact)),
         };
 
         Ok((rp, w))

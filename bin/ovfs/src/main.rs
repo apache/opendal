@@ -19,7 +19,7 @@ mod error;
 mod server;
 mod server_message;
 mod virtiofs;
-mod virtiofs_util;
+mod virtiofs_utils;
 
 fn main() {
     unimplemented!()

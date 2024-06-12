@@ -22,7 +22,7 @@ use vm_memory::ByteValued;
 
 use crate::error::*;
 use crate::server_message::*;
-use crate::virtiofs_util::{Reader, Writer};
+use crate::virtiofs_utils::{Reader, Writer};
 
 /// Version number of this interface.
 const KERNEL_VERSION: u32 = 7;

@@ -32,6 +32,6 @@ vmm-sys-util = "0.12.1"
 virtio-bindings = "0.2.1"
 vhost-user-backend = "0.14.0"
 anyhow = { version = "1.0.86", features = ["std"] }
-opendal = { version = "0.46.0", path = "../../core" }
+opendal = { version = "0.47.0", path = "../../core" }
 clap = { version = "4.5.1", features = ["derive", "env"] }
 vm-memory = { version = "0.14.0", features = ["backend-mmap", "backend-atomic"] }

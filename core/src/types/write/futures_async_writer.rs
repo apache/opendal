@@ -21,7 +21,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::{AsyncWrite, SinkExt};
+use futures::AsyncWrite;
+use futures::SinkExt;
 
 use crate::raw::*;
 use crate::*;

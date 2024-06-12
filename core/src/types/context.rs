@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
 use std::ops::Range;
 use std::sync::Arc;
+
+use crate::raw::*;
+use crate::*;
 
 /// ReadContext holds the immutable context for give read operation.
 pub struct ReadContext {
@@ -145,9 +146,11 @@ impl ReadGenerator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use bytes::Bytes;
     use std::collections::HashMap;
+
+    use bytes::Bytes;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_next_reader() -> Result<()> {

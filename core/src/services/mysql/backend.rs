@@ -77,7 +77,7 @@ impl MysqlBuilder {
     ///
     /// ## Url
     ///
-    /// This format resembles the url format of the mysql client. The format is: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
+    /// This format resembles the url format of the mysql client. The format is: `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`
     ///
     /// - `mysql://user@localhost`
     /// - `mysql://user:password@localhost`

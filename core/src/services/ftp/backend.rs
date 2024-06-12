@@ -22,7 +22,6 @@ use std::str;
 use std::str::FromStr;
 
 use async_tls::TlsConnector;
-
 use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;

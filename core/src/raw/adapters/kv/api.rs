@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fmt::Debug, future::ready};
+use std::fmt::Debug;
+use std::future::ready;
 
 use futures::Future;
 

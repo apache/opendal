@@ -17,17 +17,24 @@
 
 use std::cmp::min;
 use std::collections::VecDeque;
-use std::io::{self, Read, Write};
-use std::mem::{size_of, MaybeUninit};
+use std::io::Read;
+use std::io::Write;
+use std::io::{self};
+use std::mem::size_of;
+use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ptr::copy_nonoverlapping;
 
 use virtio_queue::DescriptorChain;
-use vm_memory::bitmap::{Bitmap, BitmapSlice};
-use vm_memory::{
-    Address, ByteValued, GuestMemory, GuestMemoryMmap, GuestMemoryRegion, VolatileMemory,
-    VolatileSlice,
-};
+use vm_memory::bitmap::Bitmap;
+use vm_memory::bitmap::BitmapSlice;
+use vm_memory::Address;
+use vm_memory::ByteValued;
+use vm_memory::GuestMemory;
+use vm_memory::GuestMemoryMmap;
+use vm_memory::GuestMemoryRegion;
+use vm_memory::VolatileMemory;
+use vm_memory::VolatileSlice;
 
 use crate::error::*;
 

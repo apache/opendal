@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::raw::oio::ListOperation;
@@ -43,6 +44,26 @@ use crate::*;
 ///
 /// - timeout: 60 seconds
 /// - io_timeout: 10 seconds
+///
+/// # Panics
+///
+/// TimeoutLayer will drop the future if the timeout is reached. This might cause the internal state
+/// of the future to be broken. If underlying future moves ownership into the future, it will be
+/// dropped and will neven return back.
+///
+/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time, please make sure
+/// timeout layer showed up before retry layer.
+///
+/// ```no_build
+///  let op = Operator::new(builder.clone())
+///     .unwrap()
+///     // This is fine, since timeout happen during retry.
+///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(RetryLayer::new())
+///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
+///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .finish();
+/// ```
 ///
 /// # Examples
 ///
@@ -200,13 +221,27 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        if let Some(exec) = args.executor().cloned() {
+            args = args.with_executor(Executor::with(TimeoutExecutor::new(
+                exec.into_inner(),
+                self.io_timeout,
+            )));
+        }
+
         self.io_timeout(Operation::Read, self.inner.read(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, mut args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if let Some(exec) = args.executor().cloned() {
+            args = args.with_executor(Executor::with(TimeoutExecutor::new(
+                exec.into_inner(),
+                self.io_timeout,
+            )));
+        }
+
         self.io_timeout(Operation::Write, self.inner.write(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
@@ -257,6 +292,27 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+}
+
+pub struct TimeoutExecutor {
+    exec: Arc<dyn Execute>,
+    timeout: Duration,
+}
+
+impl TimeoutExecutor {
+    pub fn new(exec: Arc<dyn Execute>, timeout: Duration) -> Self {
+        Self { exec, timeout }
+    }
+}
+
+impl Execute for TimeoutExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        self.exec.execute(f)
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        Some(Box::pin(tokio::time::sleep(self.timeout)))
     }
 }
 

@@ -347,7 +347,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 
     let mut w = op
         .writer_with(&path)
-        .chunk(5 * 1024 * 1024)
+        .chunk(4 * 1024 * 1024)
         .await?
         .into_bytes_sink();
     w.send_all(&mut stream).await?;
@@ -380,7 +380,7 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
     }
 
     let path = TEST_FIXTURE.new_file_path();
-    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let size = 8 * 1024 * 1024; // write file with 8 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
     let mut stream = stream::iter(vec![

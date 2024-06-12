@@ -19,20 +19,19 @@
 //! Only take effect when the `send_wrapper` feature is enabled.
 
 use futures::Stream;
+#[cfg(not(feature = "send_wrapper"))]
+pub use noop_wrapper::NoopWrapper as SendWrapper;
 #[cfg(feature = "send_wrapper")]
 pub use send_wrapper::SendWrapper;
 
 #[cfg(not(feature = "send_wrapper"))]
-pub use noop_wrapper::NoopWrapper as SendWrapper;
-
-#[cfg(not(feature = "send_wrapper"))]
 mod noop_wrapper {
-    use std::{
-        pin::Pin,
-        task::{Context, Poll},
-    };
+    use std::pin::Pin;
+    use std::task::Context;
+    use std::task::Poll;
 
-    use futures::{Future, Stream};
+    use futures::Future;
+    use futures::Stream;
     use pin_project::pin_project;
 
     #[pin_project]

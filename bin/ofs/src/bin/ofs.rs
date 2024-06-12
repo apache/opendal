@@ -43,11 +43,14 @@ async fn main() -> Result<()> {
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 async fn execute(cfg: Config) -> Result<()> {
-    use std::{collections::HashMap, env, str::FromStr};
+    use std::collections::HashMap;
+    use std::env;
+    use std::str::FromStr;
 
     use anyhow::anyhow;
     use ofs::fuse::Fuse;
-    use opendal::{Operator, Scheme};
+    use opendal::Operator;
+    use opendal::Scheme;
 
     if cfg.backend.has_host() {
         log::warn!("backend host will be ignored");

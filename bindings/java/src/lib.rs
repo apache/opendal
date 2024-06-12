@@ -23,7 +23,6 @@ use jni::sys::jboolean;
 use jni::sys::jint;
 use jni::sys::jlong;
 use jni::JNIEnv;
-
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
 use opendal::Entry;

@@ -121,7 +121,7 @@ impl Read for Buffer {
 /// ReadDyn is the dyn version of [`Read`] make it possible to use as
 /// `Box<dyn ReadDyn>`.
 pub trait ReadDyn: Unpin + Send + Sync {
-    /// The dyn version of [`Read::read_at`].
+    /// The dyn version of [`Read::read`].
     ///
     /// This function returns a boxed future to make it object safe.
     fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;

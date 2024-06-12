@@ -646,7 +646,11 @@ impl Access for WebhdfsBackend {
         let w = if args.append() {
             WebhdfsWriters::Two(oio::AppendWriter::new(w))
         } else {
-            WebhdfsWriters::One(oio::BlockWriter::new(w, args.concurrent()))
+            WebhdfsWriters::One(oio::BlockWriter::new(
+                w,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))

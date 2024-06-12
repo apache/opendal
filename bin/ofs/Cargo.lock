@@ -489,6 +489,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuse3_opendal"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "fuse3",
+ "futures-util",
+ "libc",
+ "log",
+ "opendal",
+ "sharded-slab",
+ "tokio",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -936,6 +950,7 @@ dependencies = [
  "clap",
  "env_logger",
  "fuse3",
+ "fuse3_opendal",
  "futures-util",
  "libc",
  "log",

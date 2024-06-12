@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use fuse3::path::Session;
+use fuse3::MountOptions;
 use std::sync::OnceLock;
 
+use fuse3::raw::MountHandle;
 use opendal::raw::tests;
 use opendal::Capability;
 use tempfile::TempDir;
@@ -30,7 +33,7 @@ static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 pub struct OfsTestContext {
     pub mount_point: TempDir,
     pub capability: Capability,
-    mount_handle: ofs::fuse::MountHandle,
+    mount_handle: MountHandle,
 }
 
 impl TestContext for OfsTestContext {
@@ -51,12 +54,22 @@ impl TestContext for OfsTestContext {
                     .build()
                     .expect("build runtime")
             })
-            .block_on(async move {
-                ofs::fuse::Fuse::new()
-                    .mount_with_unprivileged(mount_point_str, backend)
-                    .await
-            })
-            .unwrap();
+            .block_on(
+                #[allow(clippy::async_yields_async)]
+                async move {
+                    let mut mount_options = MountOptions::default();
+                    let gid = nix::unistd::getgid().into();
+                    mount_options.gid(gid);
+                    let uid = nix::unistd::getuid().into();
+                    mount_options.uid(uid);
+
+                    let fs = fuse3_opendal::Filesystem::new(backend, uid, gid);
+                    Session::new(mount_options)
+                        .mount_with_unprivileged(fs, mount_point_str)
+                        .await
+                        .unwrap()
+                },
+            );
 
         OfsTestContext {
             mount_point,

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::ffi::OsStr;
-use std::ffi::OsString;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,51 +34,26 @@ use opendal::ErrorKind;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
-use opendal::Writer;
 use sharded_slab::Slab;
 use tokio::sync::Mutex;
 
+use super::file::FileKey;
+use super::file::InnerWriter;
+use super::file::OpenedFile;
+
 const TTL: Duration = Duration::from_secs(1); // 1 second
 
-struct OpenedFile {
-    path: OsString,
-    is_read: bool,
-    inner_writer: Option<Arc<Mutex<InnerWriter>>>,
-}
-
-struct InnerWriter {
-    writer: Writer,
-    written: u64,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct FileKey(usize);
-
-impl TryFrom<u64> for FileKey {
-    type Error = Errno;
-
-    fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
-        match value {
-            0 => Err(Errno::from(libc::EBADF)),
-            _ => Ok(FileKey(value as usize - 1)),
-        }
-    }
-}
-
-impl FileKey {
-    fn to_fh(self) -> u64 {
-        self.0 as u64 + 1 // ensure fh is not 0
-    }
-}
-
-pub(super) struct FuseAdapter {
+/// Filesystem represents the filesystem that implements [`PathFilesystem`].
+pub struct Filesystem {
     op: Operator,
     gid: u32,
     uid: u32,
+
     opened_files: Slab<OpenedFile>,
 }
 
-impl FuseAdapter {
+impl Filesystem {
+    /// Create a new filesystem with given operator, uid and gid.
     pub fn new(op: Operator, uid: u32, gid: u32) -> Self {
         Self {
             op,
@@ -150,10 +124,7 @@ impl FuseAdapter {
     }
 }
 
-impl PathFilesystem for FuseAdapter {
-    type DirEntryStream<'a> = BoxStream<'a, Result<DirectoryEntry>>;
-    type DirEntryPlusStream<'a> = BoxStream<'a, Result<DirectoryEntryPlus>>;
-
+impl PathFilesystem for Filesystem {
     // Init a fuse filesystem
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         Ok(ReplyInit {
@@ -366,119 +337,6 @@ impl PathFilesystem for FuseAdapter {
         Err(libc::EOPNOTSUPP.into())
     }
 
-    async fn create(
-        &self,
-        _req: Request,
-        parent: &OsStr,
-        name: &OsStr,
-        mode: u32,
-        flags: u32,
-    ) -> Result<ReplyCreated> {
-        log::debug!(
-            "create(parent={:?}, name={:?}, mode=0o{:o}, flags=0x{:x})",
-            parent,
-            name,
-            mode,
-            flags
-        );
-
-        let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
-
-        let path = PathBuf::from(parent).join(name);
-
-        let inner_writer = if is_trunc || is_append {
-            let writer = self
-                .op
-                .writer_with(&path.to_string_lossy())
-                .chunk(4 * 1024 * 1024)
-                .append(is_append)
-                .await
-                .map_err(opendal_error2errno)?;
-            Some(Arc::new(Mutex::new(InnerWriter { writer, written: 0 })))
-        } else {
-            None
-        };
-
-        let now = SystemTime::now();
-        let attr = dummy_file_attr(FileType::RegularFile, now, self.uid, self.gid);
-
-        let key = self
-            .opened_files
-            .insert(OpenedFile {
-                path: path.into(),
-                is_read,
-                inner_writer,
-            })
-            .ok_or(Errno::from(libc::EBUSY))?;
-
-        Ok(ReplyCreated {
-            ttl: TTL,
-            attr,
-            generation: 0,
-            fh: FileKey(key).to_fh(),
-            flags,
-        })
-    }
-
-    /// In design, flush could be called multiple times for a single open. But there is the only
-    /// place that we can handle the write operations.
-    ///
-    /// So we only support the use case that flush only be called once.
-    async fn flush(
-        &self,
-        _req: Request,
-        path: Option<&OsStr>,
-        fh: u64,
-        lock_owner: u64,
-    ) -> Result<()> {
-        log::debug!(
-            "flush(path={:?}, fh={}, lock_owner={})",
-            path,
-            fh,
-            lock_owner,
-        );
-
-        let file = self
-            .opened_files
-            .take(FileKey::try_from(fh)?.0)
-            .ok_or(Errno::from(libc::EBADF))?;
-
-        if let Some(inner_writer) = file.inner_writer {
-            let mut lock = inner_writer.lock().await;
-            let res = lock.writer.close().await.map_err(opendal_error2errno);
-            return res;
-        }
-
-        if matches!(path, Some(ref p) if p != &file.path) {
-            Err(Errno::from(libc::EBADF))?;
-        }
-
-        Ok(())
-    }
-
-    async fn release(
-        &self,
-        _req: Request,
-        path: Option<&OsStr>,
-        fh: u64,
-        flags: u32,
-        lock_owner: u64,
-        flush: bool,
-    ) -> Result<()> {
-        log::debug!(
-            "release(path={:?}, fh={}, flags=0x{:x}, lock_owner={}, flush={})",
-            path,
-            fh,
-            flags,
-            lock_owner,
-            flush
-        );
-
-        // Just take and forget it.
-        let _ = self.opened_files.take(FileKey::try_from(fh)?.0);
-        Ok(())
-    }
-
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
         log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
 
@@ -607,6 +465,67 @@ impl PathFilesystem for FuseAdapter {
         })
     }
 
+    async fn release(
+        &self,
+        _req: Request,
+        path: Option<&OsStr>,
+        fh: u64,
+        flags: u32,
+        lock_owner: u64,
+        flush: bool,
+    ) -> Result<()> {
+        log::debug!(
+            "release(path={:?}, fh={}, flags=0x{:x}, lock_owner={}, flush={})",
+            path,
+            fh,
+            flags,
+            lock_owner,
+            flush
+        );
+
+        // Just take and forget it.
+        let _ = self.opened_files.take(FileKey::try_from(fh)?.0);
+        Ok(())
+    }
+
+    /// In design, flush could be called multiple times for a single open. But there is the only
+    /// place that we can handle the write operations.
+    ///
+    /// So we only support the use case that flush only be called once.
+    async fn flush(
+        &self,
+        _req: Request,
+        path: Option<&OsStr>,
+        fh: u64,
+        lock_owner: u64,
+    ) -> Result<()> {
+        log::debug!(
+            "flush(path={:?}, fh={}, lock_owner={})",
+            path,
+            fh,
+            lock_owner,
+        );
+
+        let file = self
+            .opened_files
+            .take(FileKey::try_from(fh)?.0)
+            .ok_or(Errno::from(libc::EBADF))?;
+
+        if let Some(inner_writer) = file.inner_writer {
+            let mut lock = inner_writer.lock().await;
+            let res = lock.writer.close().await.map_err(opendal_error2errno);
+            return res;
+        }
+
+        if matches!(path, Some(ref p) if p != &file.path) {
+            Err(Errno::from(libc::EBADF))?;
+        }
+
+        Ok(())
+    }
+
+    type DirEntryStream<'a> = BoxStream<'a, Result<DirectoryEntry>>;
+
     async fn readdir<'a>(
         &'a self,
         _req: Request,
@@ -662,6 +581,62 @@ impl PathFilesystem for FuseAdapter {
 
         Ok(())
     }
+
+    async fn create(
+        &self,
+        _req: Request,
+        parent: &OsStr,
+        name: &OsStr,
+        mode: u32,
+        flags: u32,
+    ) -> Result<ReplyCreated> {
+        log::debug!(
+            "create(parent={:?}, name={:?}, mode=0o{:o}, flags=0x{:x})",
+            parent,
+            name,
+            mode,
+            flags
+        );
+
+        let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
+
+        let path = PathBuf::from(parent).join(name);
+
+        let inner_writer = if is_trunc || is_append {
+            let writer = self
+                .op
+                .writer_with(&path.to_string_lossy())
+                .chunk(4 * 1024 * 1024)
+                .append(is_append)
+                .await
+                .map_err(opendal_error2errno)?;
+            Some(Arc::new(Mutex::new(InnerWriter { writer, written: 0 })))
+        } else {
+            None
+        };
+
+        let now = SystemTime::now();
+        let attr = dummy_file_attr(FileType::RegularFile, now, self.uid, self.gid);
+
+        let key = self
+            .opened_files
+            .insert(OpenedFile {
+                path: path.into(),
+                is_read,
+                inner_writer,
+            })
+            .ok_or(Errno::from(libc::EBUSY))?;
+
+        Ok(ReplyCreated {
+            ttl: TTL,
+            attr,
+            generation: 0,
+            fh: FileKey(key).to_fh(),
+            flags,
+        })
+    }
+
+    type DirEntryPlusStream<'a> = BoxStream<'a, Result<DirectoryEntryPlus>>;
 
     async fn readdirplus<'a>(
         &'a self,

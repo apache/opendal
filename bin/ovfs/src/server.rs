@@ -28,7 +28,7 @@ use crate::virtiofs_utils::{Reader, Writer};
 const KERNEL_VERSION: u32 = 7;
 /// Minor version number of this interface.
 const KERNEL_MINOR_VERSION: u32 = 38;
-/// Minmum Minor version number supported.
+/// Minimum Minor version number supported.
 const MIN_KERNEL_MINOR_VERSION: u32 = 27;
 /// The length of the header part of the message.
 const BUFFER_HEADER_SIZE: u32 = 256;
@@ -119,7 +119,7 @@ fn reply_error(unique: u64, mut w: Writer) -> Result<usize> {
     let header = OutHeader {
         unique,
         error: libc::EIO, // Here we simply return I/O error.
-        len: size_of::<OutHeader> as u32,
+        len: size_of::<OutHeader>() as u32,
     };
     w.write_all(header.as_slice()).map_err(|e| {
         new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))

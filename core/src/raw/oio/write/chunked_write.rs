@@ -83,19 +83,17 @@ impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
         // doesn't fully consume the queue. So we clone the buffer queue and send it with `bs` first.
         let mut buffer = self.buffer.clone();
         buffer.push(bs.clone());
-        // TODO(yingwen): don't clone buffer.
-        let written = self.inner.write(buffer.clone().collect()).await?;
-        if written < self.buffer.len() {
-            self.buffer.advance(written);
-            // We didn't sent `bs`.
-            return Ok(0);
-        }
-
-        // We sent all bytes in the queue and some bytes in `bs`.
-        let partial_written = written - self.buffer.len();
-        self.buffer.clear();
-        let n = bs.len();
-        bs.advance(partial_written);
+        let written = self.inner.write(buffer.collect()).await?;
+        // The number of bytes in `self.buffer` that already written.
+        let queue_written = written.min(self.buffer.len());
+        self.buffer.advance(queue_written);
+        // The number of bytes in `bs` that already written.
+        let bs_written = written - queue_written;
+        // Skip bytes that already written.
+        bs.advance(bs_written);
+        // We already sent `written` bytes so we put more `written` bytes into the buffer queue.
+        bs.truncate(written);
+        let n = bs_written + bs.len();
         self.buffer.push(bs);
         Ok(n)
     }
@@ -241,9 +239,14 @@ mod tests {
         // content < chunk size.
         let content = new_content(5);
         assert_eq!(5, w.write(content.into()).await?);
-        // content > chunk size.
-        let content = new_content(15);
-        assert_eq!(15, w.write(content.clone().into()).await?);
+        // content > chunk size, but 5 bytes in queue.
+        let mut content = new_content(15);
+        // The MockWriter can only send 5 bytes each time, so we can only advance 5 bytes.
+        assert_eq!(5, w.write(content.clone().into()).await?);
+        content.advance(5);
+        assert_eq!(5, w.write(content.clone().into()).await?);
+        content.advance(5);
+        assert_eq!(5, w.write(content.clone().into()).await?);
 
         w.close().await?;
 
@@ -285,10 +288,20 @@ mod tests {
         let content = new_content(3);
         assert_eq!(3, w.write(content.into()).await?);
         // content > chunk size, but only sends the first chunk in the queue.
-        let content = new_content(15);
-        assert_eq!(0, w.write(content.clone().into()).await?);
-        // Sends the content again and it consumes the queue.
-        assert_eq!(15, w.write(content.clone().into()).await?);
+        let mut content = new_content(15);
+        assert_eq!(5, w.write(content.clone().into()).await?);
+        // queue: 3, 5, bs: 10
+        content.advance(5);
+        assert_eq!(3, w.write(content.clone().into()).await?);
+        // queue: 5, 3, bs: 7
+        content.advance(3);
+        assert_eq!(5, w.write(content.clone().into()).await?);
+        // queue: 3, 5, bs: 2
+        content.advance(5);
+        assert_eq!(2, w.write(content.clone().into()).await?);
+        // queue: 5, 2, bs: empty.
+        content.advance(2);
+        assert!(content.is_empty());
 
         w.close().await?;
 

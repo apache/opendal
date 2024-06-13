@@ -21,8 +21,8 @@ use std::mem::size_of;
 use vm_memory::ByteValued;
 
 use crate::error::*;
-use crate::server_message::*;
-use crate::virtiofs_utils::{Reader, Writer};
+use crate::filesystem_message::*;
+use crate::virtiofs_util::{Reader, Writer};
 
 /// Version number of this interface.
 const KERNEL_VERSION: u32 = 7;
@@ -35,13 +35,14 @@ const BUFFER_HEADER_SIZE: u32 = 256;
 /// The maximum length of the data part of the message, used for read/write data.
 const MAX_BUFFER_SIZE: u32 = 1 << 20;
 
-/// Server is a filesystem implementation, will decode and process messages from VMs.
-pub struct Server {}
+/// Filesystem is a filesystem implementation with opendal backend,
+/// and will decode and process messages from VMs.
+pub struct Filesystem {}
 
 #[allow(dead_code)]
-impl Server {
-    pub fn new() -> Server {
-        Server {}
+impl Filesystem {
+    pub fn new() -> Filesystem {
+        Filesystem {}
     }
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {

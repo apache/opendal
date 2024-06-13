@@ -397,7 +397,7 @@ impl PathQuery for GdrivePathQuery {
         let url = "https://www.googleapis.com/drive/v3/files";
 
         // trim "/" at the end of name
-        let name = name.trim_end_matches('/');
+        let name = name.trim_end_matches("/");
 
         let content = serde_json::to_vec(&json!({
             "name": name,

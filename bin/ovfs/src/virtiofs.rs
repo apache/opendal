@@ -99,7 +99,6 @@ impl VhostUserFsThread {
     /// Forwards filesystem messages to specific functions and
     /// returns the filesystem request execution result.
     fn process_queue_serial(&self, _vring_state: &mut VringState) -> Result<bool> {
-        // Pass message to server here.
         unimplemented!()
     }
 }

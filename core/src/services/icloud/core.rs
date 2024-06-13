@@ -623,16 +623,12 @@ pub struct Webservices {
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Drivews {
-    pub pcs_required: bool,
-    pub status: String,
     pub url: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Docws {
-    pub pcs_required: bool,
-    pub status: String,
     pub url: Option<String>,
 }
 

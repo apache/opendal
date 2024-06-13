@@ -162,10 +162,7 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use container: {}", &container);
 
-        let token = match self.token.take() {
-            Some(token) => token,
-            None => String::new(),
-        };
+        let token = self.token.take().unwrap_or_default();
 
         let client = HttpClient::new()?;
 

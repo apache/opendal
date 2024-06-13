@@ -32,7 +32,6 @@ pub struct D1Response {
     pub result: Vec<D1Result>,
     pub success: bool,
     pub errors: Vec<D1Error>,
-    pub messages: Vec<D1Message>,
 }
 
 impl D1Response {
@@ -77,31 +76,11 @@ impl D1Response {
 
 #[derive(Deserialize, Debug)]
 pub struct D1Result {
-    pub meta: Meta,
     pub results: Vec<Map<String, Value>>,
-    pub success: bool,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Meta {
-    pub served_by: String,
-    pub duration: f64,
-    pub changes: i32,
-    pub last_row_id: i32,
-    pub changed_db: bool,
-    pub size_after: i32,
-    pub rows_read: i32,
-    pub rows_written: i32,
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct D1Error {
-    pub message: String,
-    pub code: i32,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct D1Message {
     pub message: String,
     pub code: i32,
 }

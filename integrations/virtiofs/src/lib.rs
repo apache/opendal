@@ -17,8 +17,4 @@
 
 mod error;
 mod virtiofs;
-mod virtiofs_utils;
-
-fn main() {
-    unimplemented!()
-}
+mod virtiofs_util;

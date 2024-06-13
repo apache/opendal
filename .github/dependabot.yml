@@ -48,12 +48,6 @@ updates:
       interval: "monthly"
 
   - package-ecosystem: "cargo"
-    directory: "/bin/ovfs"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "monthly"
-
-  - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
     open-pull-requests-limit: 1
     schedule:

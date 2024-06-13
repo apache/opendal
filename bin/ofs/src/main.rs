@@ -17,6 +17,8 @@
 
 use anyhow::Result;
 use clap::Parser;
+use fuse3::path::Session;
+use fuse3::MountOptions;
 use url::Url;
 
 #[derive(Parser, Debug)]
@@ -48,7 +50,6 @@ async fn execute(cfg: Config) -> Result<()> {
     use std::str::FromStr;
 
     use anyhow::anyhow;
-    use ofs::fuse::Fuse;
     use opendal::Operator;
     use opendal::Scheme;
 
@@ -69,25 +70,38 @@ async fn execute(cfg: Config) -> Result<()> {
     }?;
     let backend = Operator::via_map(scheme, op_args)?;
 
+    let mut mount_options = MountOptions::default();
+    let mut gid = nix::unistd::getgid().into();
+    mount_options.gid(gid);
+    let mut uid = nix::unistd::getuid().into();
+    mount_options.uid(uid);
+
     #[cfg(target_os = "linux")]
     let mut mount_handle = if nix::unistd::getuid().is_root() {
-        let mut fuse = Fuse::new();
-        if let Some(gid) = env::var("SUDO_GID")
+        if let Some(sudo_gid) = env::var("SUDO_GID")
             .ok()
             .and_then(|gid_str| gid_str.parse::<u32>().ok())
         {
-            fuse = fuse.gid(gid);
+            mount_options.gid(sudo_gid);
+            gid = sudo_gid;
         }
-        if let Some(uid) = env::var("SUDO_UID")
+
+        if let Some(sudo_uid) = env::var("SUDO_UID")
             .ok()
             .and_then(|gid_str| gid_str.parse::<u32>().ok())
         {
-            fuse = fuse.uid(uid);
+            mount_options.uid(uid);
+            uid = sudo_uid;
         }
-        fuse.mount(cfg.mount_path, backend).await?
+
+        let fs = fuse3_opendal::Filesystem::new(backend, uid, gid);
+        Session::new(mount_options)
+            .mount(fs, cfg.mount_path)
+            .await?
     } else {
-        Fuse::new()
-            .mount_with_unprivileged(cfg.mount_path, backend)
+        let fs = fuse3_opendal::Filesystem::new(backend, uid, gid);
+        Session::new(mount_options)
+            .mount_with_unprivileged(fs, cfg.mount_path)
             .await?
     };
 

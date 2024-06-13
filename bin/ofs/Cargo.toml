@@ -33,9 +33,10 @@ rust-version = "1.75"
 anyhow = "1"
 bytes = "1.5.0"
 chrono = "0.4.34"
-clap = { version = "4.5.1", features = ["derive", "env"] }
+clap = { version = "4.5.7", features = ["derive", "env"] }
 env_logger = "0.11.2"
 fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
+fuse3_opendal = { version = "0.1.0", path = "../../integrations/fuse3" }
 futures-util = "0.3.30"
 libc = "0.2.154"
 log = "0.4.21"
@@ -57,9 +58,9 @@ services-fs = ["opendal/services-fs"]
 services-s3 = ["opendal/services-s3"]
 
 [dev-dependencies]
+opendal = { version = "0.47.0", path = "../../core", features = ["tests"] }
 tempfile = "3.10.1"
 test-context = "0.3.0"
 urlencoding = "2.1.3"
 uuid = "1.7.0"
 walkdir = "2.5.0"
-opendal = { version = "0.47.0", path = "../../core", features = ["tests"] }

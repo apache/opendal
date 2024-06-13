@@ -15,18 +15,37 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "ovfs"
-version = "0.1.0"
-edition = "2021"
+name: Integration Fuse3 CI
 
-[dependencies]
-snafu = "0.8.3"
-libc = "0.2.139"
-vhost = "0.11.0"
-virtio-queue = "0.11.0"
-vmm-sys-util = "0.12.1"
-virtio-bindings = "0.2.1"
-vhost-user-backend = "0.14.0"
-anyhow = { version = "1.0.86", features = ["std"] }
-vm-memory = { version = "0.14.0", features = ["backend-mmap", "backend-atomic"] }
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "integrations/fuse3/**"
+      - "core/**"
+      - ".github/workflows/ci_integration_fuse3.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  check_clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-rocksdb: true
+          need-protoc: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cargo clippy
+        working-directory: integrations/fuse3
+        run: cargo clippy --all-targets --all-features -- -D warnings

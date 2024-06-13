@@ -15,37 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Ovfs CI
+[package]
+description = "fuse3 integration for Apache OpenDAL"
+name = "fuse3_opendal"
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "bin/ovfs/**"
-      - "core/**"
-      - ".github/workflows/ci_bin_ovfs.yml"
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.75"
+version = "0.1.0"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+[dependencies]
+bytes = "1.6.0"
+fuse3 = { version = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
+futures-util = "0.3.30"
+libc = "0.2.155"
+log = "0.4.21"
+opendal = { version = "0.47.0", path = "../../core" }
+sharded-slab = "0.1.7"
+tokio = "1.38.0"
 
-jobs:
-  check_clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-rocksdb: true
-          need-protoc: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cargo clippy
-        working-directory: bin/ovfs
-        run: cargo clippy --all-targets --all-features -- -D warnings
+[dev-dependencies]

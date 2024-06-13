@@ -396,6 +396,9 @@ impl PathQuery for GdrivePathQuery {
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
         let url = "https://www.googleapis.com/drive/v3/files";
 
+        // trim "/" at the end of name
+        let name = name.trim_end_matches('/');
+
         let content = serde_json::to_vec(&json!({
             "name": name,
             "mimeType": "application/vnd.google-apps.folder",

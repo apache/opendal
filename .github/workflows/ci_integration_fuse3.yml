@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Ovfs CI
+name: Integration Fuse3 CI
 
 on:
   push:
@@ -25,9 +25,9 @@ on:
     branches:
       - main
     paths:
-      - "bin/ovfs/**"
+      - "integrations/fuse3/**"
       - "core/**"
-      - ".github/workflows/ci_bin_ovfs.yml"
+      - ".github/workflows/ci_integration_fuse3.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -47,5 +47,5 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cargo clippy
-        working-directory: bin/ovfs
+        working-directory: integrations/fuse3
         run: cargo clippy --all-targets --all-features -- -D warnings

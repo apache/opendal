@@ -769,14 +769,8 @@ pub struct CompleteMultipartUploadRequest {
 ///
 /// Result part on success are ignored.
 #[derive(Default, Debug, Deserialize, Eq, PartialEq)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(default, rename = "Error", rename_all = "PascalCase")]
 pub struct CompleteMultipartUploadResult {
-    pub error: Vec<CompleteMultipartUploadResultError>,
-}
-
-#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadResultError {
     pub code: String,
     pub message: String,
 }
@@ -1001,10 +995,8 @@ mod tests {
         );
 
         let expected = CompleteMultipartUploadResult {
-            error: vec![CompleteMultipartUploadResultError {
-                code: "InternalError".to_string(),
-                message: "We encountered an internal error. Please try again.".to_string(),
-            }],
+            code: "InternalError".to_string(),
+            message: "We encountered an internal error. Please try again.".to_string(),
         };
 
         let actual: CompleteMultipartUploadResult =

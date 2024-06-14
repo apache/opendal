@@ -42,7 +42,7 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
         ),
     };
 
-    let mut err = Error::new(kind, &msg).set_source(hdfs_error);
+    let mut err = Error::new(kind, msg).set_source(hdfs_error);
 
     if retryable {
         err = err.set_temporary();

@@ -429,7 +429,7 @@ impl IcloudCore {
 
         let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("read path not found: {}", base),
+            format!("read path not found: {}", base),
         ))?;
 
         if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
@@ -456,12 +456,12 @@ impl IcloudCore {
 
         let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", base),
+            format!("stat path not found: {}", base),
         ))?;
 
         let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", parent),
+            format!("stat path not found: {}", parent),
         ))?;
 
         let node = self.get_root(&folder_id).await?;
@@ -590,7 +590,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         }
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

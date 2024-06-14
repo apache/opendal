@@ -75,7 +75,7 @@ fn value_or_env(
             "{} not found, maybe not in github action environment?",
             env_var_name
         );
-        Error::new(ErrorKind::ConfigInvalid, &text)
+        Error::new(ErrorKind::ConfigInvalid, text)
             .with_operation(operation)
             .set_source(err)
     })

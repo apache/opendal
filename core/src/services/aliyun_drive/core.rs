@@ -123,7 +123,7 @@ impl AliyunDriveCore {
         let mut tokener = self.signer.lock().await;
         if tokener.expire_at < Utc::now().timestamp() || tokener.access_token.is_none() {
             let res = self.get_access_token(&tokener.refresh_token).await?;
-            let output: RefresTokenResponse =
+            let output: RefreshTokenResponse =
                 serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
             tokener.access_token = Some(output.access_token);
             tokener.expire_at = output.expires_in + Utc::now().timestamp();
@@ -412,7 +412,7 @@ pub struct RapidUpload {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RefresTokenResponse {
+pub struct RefreshTokenResponse {
     pub access_token: String,
     pub expires_in: i64,
     pub refresh_token: String,
@@ -420,9 +420,6 @@ pub struct RefresTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct DriveInfoResponse {
-    pub user_id: String,
-    pub name: String,
-    pub avatar: String,
     pub default_drive_id: String,
     pub resource_drive_id: Option<String>,
     pub backup_drive_id: Option<String>,
@@ -444,22 +441,13 @@ pub enum CheckNameMode {
 
 #[derive(Deserialize)]
 pub struct UploadUrlResponse {
-    pub drive_id: String,
-    pub file_id: String,
-    pub upload_id: Option<String>,
     pub part_info_list: Option<Vec<PartInfo>>,
 }
 
 #[derive(Deserialize)]
 pub struct CreateResponse {
-    pub drive_id: String,
     pub file_id: String,
-    pub status: Option<String>,
-    pub parent_file_id: String,
     pub upload_id: Option<String>,
-    pub file_name: String,
-    pub available: Option<bool>,
-    pub exist: Option<bool>,
     pub rapid_upload: Option<bool>,
     pub part_info_list: Option<Vec<PartInfo>>,
 }
@@ -481,32 +469,24 @@ pub struct AliyunDriveFileList {
 
 #[derive(Deserialize)]
 pub struct CopyResponse {
-    pub drive_id: String,
     pub file_id: String,
 }
 
 #[derive(Deserialize)]
 pub struct AliyunDriveFile {
-    pub drive_id: String,
     pub file_id: String,
     pub parent_file_id: String,
     pub name: String,
     pub size: Option<u64>,
-    pub file_extension: Option<String>,
-    pub content_hash: Option<String>,
     pub content_type: Option<String>,
-    pub category: Option<String>,
     #[serde(rename = "type")]
     pub path_type: String,
-    pub created_at: String,
     pub updated_at: String,
 }
 
 #[derive(Deserialize)]
 pub struct GetDownloadUrlResponse {
     pub url: String,
-    pub expiration: String,
-    pub method: String,
 }
 
 #[derive(Serialize)]

@@ -413,11 +413,9 @@ pub struct StatResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct StatMetadata {
-    pub name: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -428,11 +426,9 @@ pub struct ListFolderResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListMetadata {
-    pub name: String,
     pub path: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
     pub contents: Option<Vec<ListMetadata>>,
 }

@@ -159,10 +159,9 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::OK => {
-                let (_, mut body) = resp.into_parts();
-                let bs = body.copy_to_bytes(body.remaining());
                 let result: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(resp.into_body().reader())
+                        .map_err(new_xml_deserialize_error)?;
                 if !result.code.is_empty() {
                     return Err(Error::new(ErrorKind::Unexpected, &result.message));
                 }

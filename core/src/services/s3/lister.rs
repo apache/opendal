@@ -78,7 +78,7 @@ impl oio::PageList for S3Lister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp)?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

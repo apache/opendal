@@ -35,7 +35,7 @@ pub(crate) struct S3Error {
 }
 
 /// Parse error response into Error.
-pub fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -66,7 +66,7 @@ pub fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 /// Util function to build [`Error`] from a [`S3Error`] object.

@@ -47,7 +47,7 @@ pub async fn parse_error(res: Response<Buffer>) -> Result<Error> {
         },
         _ => (ErrorKind::Unexpected, false),
     };
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
     if retryable {
         err = err.set_temporary();
     }

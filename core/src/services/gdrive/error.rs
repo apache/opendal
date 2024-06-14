@@ -59,7 +59,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
             parse_gdrive_error_code(gdrive_err.error.message.as_str()).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

@@ -765,6 +765,22 @@ pub struct CompleteMultipartUploadRequest {
     pub part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
+/// Result of MultipartUploadRequest.
+///
+/// Result part on success are ignored.
+#[derive(Default, Debug, Deserialize, Eq, PartialEq)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadResult {
+    pub error: Vec<CompleteMultipartUploadResultError>,
+}
+
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadResultError {
+    pub code: String,
+    pub message: String,
+}
+
 #[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct CompleteMultipartUploadRequestPart {
@@ -969,6 +985,46 @@ mod tests {
                 // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
                 .replace('"', "&quot;")
         )
+    }
+
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Example_4
+    #[test]
+    fn test_deserialize_complete_multipart_upload_response() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+            <Error>
+                <Code>InternalError</Code>
+                <Message>We encountered an internal error. Please try again.</Message>
+                <RequestId>656c76696e6727732072657175657374</RequestId>
+                <HostId>Uuag1LuByRx9e6j5Onimru9pO4ZVKnJ2Qz7/C1NPcfTWAtRPfTaOFg==</HostId>
+            </Error>"#,
+        );
+
+        let expected = CompleteMultipartUploadResult {
+            error: vec![CompleteMultipartUploadResultError {
+                code: "InternalError".to_string(),
+                message: "We encountered an internal error. Please try again.".to_string(),
+            }],
+        };
+
+        let actual: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+        assert_eq!(actual, expected);
+
+        // suceess case are ignored
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+            <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+              <Location>http://Example-Bucket.s3.amazonaws.com/Example-Object</Location>
+              <Bucket>example-bucket</Bucket>
+              <Key>example-object</Key>
+              <ETag>"3858f62230ac3c915f300c664312c11f-9"</ETag>
+            </CompleteMultipartUploadResult>"#,
+        );
+        let expected = CompleteMultipartUploadResult::default();
+        let actual: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+        assert_eq!(actual, expected);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_Examples

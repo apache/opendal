@@ -58,7 +58,7 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -79,7 +79,7 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -127,7 +127,7 @@ impl oio::MultipartWrite for S3Writer {
                     checksum,
                 })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -170,7 +170,7 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -182,7 +182,7 @@ impl oio::MultipartWrite for S3Writer {
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 }

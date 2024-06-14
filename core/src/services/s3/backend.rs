@@ -1094,7 +1094,7 @@ impl Access for S3Backend {
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -1109,7 +1109,7 @@ impl Access for S3Backend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf))?)
             }
         }
     }
@@ -1140,7 +1140,7 @@ impl Access for S3Backend {
             // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
             // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -1162,7 +1162,7 @@ impl Access for S3Backend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)?),
         }
     }
 
@@ -1237,7 +1237,7 @@ impl Access for S3Backend {
 
             Ok(RpBatch::new(batched_result))
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp)?)
         }
     }
 }

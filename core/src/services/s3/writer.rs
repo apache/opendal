@@ -21,7 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
-use super::error::parse_error;
+use super::error::{from_s3_error, parse_error, S3Error};
 use crate::raw::*;
 use crate::*;
 
@@ -159,12 +159,15 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::OK => {
-                let result: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(resp.into_body().reader())
-                        .map_err(new_xml_deserialize_error)?;
-                if !result.code.is_empty() {
-                    return Err(Error::new(ErrorKind::Unexpected, &result.message));
+                // still check if there is any error because S3 might return error for status code 200
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Example_4
+                let (parts, body) = resp.into_parts();
+                let maybe_error: S3Error =
+                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                if !maybe_error.code.is_empty() {
+                    return Err(from_s3_error(maybe_error, parts));
                 }
+
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

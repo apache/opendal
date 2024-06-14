@@ -16,6 +16,7 @@
 // under the License.
 
 use bytes::Buf;
+use http::response::Parts;
 use http::Response;
 use quick_xml::de;
 use serde::Deserialize;
@@ -24,13 +25,13 @@ use crate::raw::*;
 use crate::*;
 
 /// S3Error is the error returned by s3 service.
-#[derive(Default, Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "PascalCase")]
-struct S3Error {
-    code: String,
-    message: String,
-    resource: String,
-    request_id: String,
+pub(crate) struct S3Error {
+    pub code: String,
+    pub message: String,
+    pub resource: String,
+    pub request_id: String,
 }
 
 /// Parse error response into Error.
@@ -66,6 +67,21 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     }
 
     Ok(err)
+}
+
+/// Util function to build [`Error`] from a [`S3Error`] object.
+pub(crate) fn from_s3_error(s3_error: S3Error, parts: Parts) -> Error {
+    let (kind, retryable) =
+        parse_s3_error_code(s3_error.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+    let mut err = Error::new(kind, &format!("{s3_error:?}"));
+
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }
 
 /// Returns the `Error kind` of this code and whether the error is retryable.
@@ -122,5 +138,23 @@ mod tests {
         assert_eq!(out.message, "The resource you requested does not exist");
         assert_eq!(out.resource, "/mybucket/myfoto.jpg");
         assert_eq!(out.request_id, "4442587FB7D0A2F9");
+    }
+
+    #[test]
+    fn test_parse_error_from_unrelated_input() {
+        let bs = bytes::Bytes::from(
+            r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Location>http://Example-Bucket.s3.ap-southeast-1.amazonaws.com/Example-Object</Location>
+  <Bucket>Example-Bucket</Bucket>
+  <Key>Example-Object</Key> 
+  <ETag>"3858f62230ac3c915f300c664312c11f-9"</ETag>
+</CompleteMultipartUploadResult>
+"#,
+        );
+
+        let out: S3Error = de::from_reader(bs.reader()).expect("must success");
+        assert_eq!(out, S3Error::default());
     }
 }

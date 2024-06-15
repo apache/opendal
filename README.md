@@ -9,40 +9,98 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* languages
 
-| Name                                          | Release                                                                                                                                              | 
-|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------| 
-| [Rust Core](core/README.md)                   | [![](https://img.shields.io/crates/v/opendal.svg)](https://crates.io/crates/opendal)                                                                 |
-| [C Binding](bindings/c/README.md)             | -                                                                                                                                                    |
-| [Cpp Binding](bindings/cpp/README.md)         | -                                                                                                                                                    |
-| [Dotnet Binding](bindings/dotnet/README.md)   | -                                                                                                                                                    |
-| [Go Binding](bindings/go/README.md)           | -                                                                                                                                                    |
-| [Haskell Binding](bindings/haskell/README.md) | -                                                                                                                                                    |
-| [Java Binding](bindings/java/README.md)       | [![](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java)](https://central.sonatype.com/artifact/org.apache.opendal/opendal-java) |
-| [Lua Binding](bindings/lua/README.md)         | -                                                                                                                                                    |
-| [Node.js Binding](bindings/nodejs/README.md)  | [![](https://img.shields.io/npm/v/opendal)](https://www.npmjs.com/package/opendal)                                                                   |
-| [Ocaml Binding](bindings/ocaml/README.md)     | -                                                                                                                                                    |
-| [PHP Binding](bindings/php/README.md)         | -                                                                                                                                                    |
-| [Python Binding](bindings/python/README.md)   | [![](https://img.shields.io/pypi/v/opendal)](https://pypi.org/project/opendal/)                                                                      |
-| [Ruby Binding](bindings/ruby/README.md)       | -                                                                                                                                                    |
-| [Swift Binding](bindings/swift/README.md)     | -                                                                                                                                                    |
-| [Zig Binding](bindings/zig/README.md)         | -                                                                                                                                                    |
+| Name              | Release                                          | Docs                                                                              |
+|-------------------|--------------------------------------------------|-----------------------------------------------------------------------------------|
+| [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
+| [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
+| [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
+| [Dotnet Binding]  | -                                                | -                                                                                 |
+| [Go Binding]      | -                                                | -                                                                                 |
+| [Haskell Binding] | -                                                | -                                                                                 |
+| [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] |
+| [Lua Binding]     | -                                                | -                                                                                 |
+| [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           |
+| [Ocaml Binding]   | -                                                | -                                                                                 |
+| [PHP Binding]     | -                                                | -                                                                                 |
+| [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            |
+| [Ruby Binding]    | -                                                | -                                                                                 |
+| [Swift Binding]   | -                                                | -                                                                                 |
+| [Zig Binding]     | -                                                | -                                                                                 |
+
+[Docs Release]: https://img.shields.io/badge/docs-release-blue
+[Docs Dev]: https://img.shields.io/badge/docs-dev-blue
+[Rust Core]: core/README.md
+[Rust Core Image]: https://img.shields.io/crates/v/opendal.svg
+[Rust Core Link]: https://crates.io/crates/opendal
+[Rust Core Release Docs]: https://docs.rs/opendal
+[Rust Core Dev Docs]: https://opendal.apache.org/docs/rust/opendal/
+[C Binding]: bindings/c/README.md
+[C Binding Dev Docs]: https://opendal.apache.org/docs/c/
+[Cpp Binding]: bindings/cpp/README.md
+[Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
+[Dotnet Binding]: bindings/dotnet/README.md
+[Go Binding]: bindings/go/README.md
+[Haskell Binding]: bindings/haskell/README.md
+[Java Binding]: bindings/java/README.md
+[Java Binding Image]: https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java
+[Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
+[Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
+[Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
+[Lua Binding]: bindings/lua/README.md
+[Node.js Binding]: bindings/nodejs/README.md
+[Node.js Binding Image]: https://img.shields.io/npm/v/opendal
+[Node.js Binding Link]: https://www.npmjs.com/package/opendal
+[Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
+[Ocaml Binding]: bindings/ocaml/README.md
+[PHP Binding]: bindings/php/README.md
+[Python Binding]: bindings/python/README.md
+[Python Binding Image]: https://img.shields.io/pypi/v/opendal
+[Python Binding Link]: https://pypi.org/project/opendal/
+[Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
+[Ruby Binding]: bindings/ruby/README.md
+[Swift Binding]: bindings/swift/README.md
+[Zig Binding]: bindings/zig/README.md
+
 
 ## For *ANY* methods
 
-| Name                     | Description                                                        | Release                                                                      | 
-|--------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------| 
-| [oay](bin/oay/README.md) | Access data via API Gateway                                        | [![](https://img.shields.io/crates/v/oay.svg)](https://crates.io/crates/oay) |
-| [oli](bin/oli/README.md) | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![](https://img.shields.io/crates/v/oli.svg)](https://crates.io/crates/oli) |
-| [ofs](bin/ofs/README.md) | Access data via POSIX file system API (alternative to s3fs)        | [![](https://img.shields.io/crates/v/ofs.svg)](https://crates.io/crates/ofs) |
+| Name  | Description                                                        | Release                   | 
+|-------|--------------------------------------------------------------------|---------------------------| 
+| [oay] | Access data via API Gateway                                        | [![oay image]][oay crate] |
+| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
+| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
+
+[oay]: bin/oay/README.md
+[oay image]: https://img.shields.io/crates/v/oay.svg
+[oay crate]: https://crates.io/crates/oay
+[oli]: bin/oli/README.md
+[oli image]: https://img.shields.io/crates/v/oli.svg
+[oli crate]: https://crates.io/crates/oli
+[ofs]: bin/ofs/README.md
+[ofs image]: https://img.shields.io/crates/v/ofs.svg
+[ofs crate]: https://crates.io/crates/ofs
 
 ## For *ANY* integrations
 
-| Name                                                        | Description                                                  | Release                                                      |
-| ----------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| [dav-server-opendalfs](integrations/dav-server/README.md)   | Access data via integrations to [dav-server-rs](https://github.com/messense/dav-server-rs) | [![](https://img.shields.io/crates/v/dav-server-opendalfs.svg)](https://crates.io/crates/dav-server-opendalfs) |
-| [object_store_opendal](integrations/object_store/README.md) | Access data via integrations to [object_store](https://docs.rs/object_store) | [![](https://img.shields.io/crates/v/object_store_opendal.svg)](https://crates.io/crates/object_store_opendal) |
-| [fuse3_opendal](integrations/fuse3/README.md)               | Access data via integrations to [fuse3](https://docs.rs/fuse3) | -                                                            |
-| [virtiofs_opendal](integrations/virtiofs/README.md)         | Access data via integrations to [vhost-user-backend](https://docs.rs/vhost-user-backend) | -                                                            |
+| Name                   | Description                                          | Release                                                     |
+|------------------------|------------------------------------------------------|-------------------------------------------------------------|
+| [dav-server-opendalfs] | Access data via integrations to [dav-server-rs]      | [![dav-server-opendalfs image]][dav-server-opendalfs crate] |
+| [object_store_opendal] | Access data via integrations to [object_store]       | [![object_store_opendal image]][object_store_opendal crate] |
+| [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                                           |
+| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                                           |
+
+[dav-server-opendalfs]: integrations/dav-server/README.md
+[dav-server-rs]: https://github.com/messense/dav-server-rs
+[dav-server-opendalfs image]: https://img.shields.io/crates/v/dav-server-opendalfs.svg
+[dav-server-opendalfs crate]: https://crates.io/crates/dav-server-opendalfs
+[object_store_opendal]: integrations/object_store/README.md
+[object_store]: https://docs.rs/object_store
+[object_store_opendal image]: https://img.shields.io/crates/v/object_store_opendal.svg
+[object_store_opendal crate]: https://crates.io/crates/object_store_opendal
+[fuse3_opendal]: integrations/fuse3/README.md
+[fuse3]: https://docs.rs/fuse3
+[virtiofs_opendal]: integrations/virtiofs/README.md
+[vhost-user-backend]: https://docs.rs/vhost-user-backend
 
 ## For *ANY* services
 

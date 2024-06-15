@@ -16,6 +16,7 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the work dir for backend.
+- `access_token`: Set the access_token for backend.
 - `client_id`: Set the client_id for backend.
 - `client_secret`: Set the client_secret for backend.
 - `refresh_token`: Set the refresh_token for backend.

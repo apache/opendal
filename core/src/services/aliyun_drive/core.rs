@@ -48,18 +48,20 @@ pub enum DriveType {
     Resource,
 }
 
+/// Available Aliyun Drive Signer Set
+pub enum AliyunDriveSign {
+    Refresh(String, String, String, Option<String>, i64),
+    Access(String),
+}
+
 pub struct AliyunDriveSigner {
     pub drive_id: Option<String>,
-    pub access_token: Option<String>,
-    pub refresh_token: String,
-    pub expire_at: i64,
+    pub sign: AliyunDriveSign,
 }
 
 pub struct AliyunDriveCore {
     pub endpoint: String,
     pub root: String,
-    pub client_id: String,
-    pub client_secret: String,
     pub drive_type: DriveType,
     pub rapid_upload: bool,
 
@@ -78,6 +80,12 @@ impl Debug for AliyunDriveCore {
 
 impl AliyunDriveCore {
     async fn send(&self, mut req: Request<Buffer>, token: Option<&str>) -> Result<Buffer> {
+        // AliyunDrive raise NullPointerException if you haven't set a user-agent.
+        req.headers_mut().insert(
+            header::USER_AGENT,
+            HeaderValue::from_str(&format!("opendal/{}", VERSION))
+                .expect("user agent must be valid header value"),
+        );
         if req.method() == Method::POST {
             req.headers_mut().insert(
                 header::CONTENT_TYPE,
@@ -98,12 +106,17 @@ impl AliyunDriveCore {
         Ok(res.into_body())
     }
 
-    async fn get_access_token(&self, refresh_token: &str) -> Result<Buffer> {
+    async fn get_access_token(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+        refresh_token: &str,
+    ) -> Result<Buffer> {
         let body = serde_json::to_vec(&AccessTokenRequest {
             refresh_token,
             grant_type: "refresh_token",
-            client_id: &self.client_id,
-            client_secret: &self.client_secret,
+            client_id,
+            client_secret,
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/oauth/access_token", self.endpoint))
@@ -120,17 +133,31 @@ impl AliyunDriveCore {
     }
 
     pub async fn get_token_and_drive(&self) -> Result<(Option<String>, String)> {
-        let mut tokener = self.signer.lock().await;
-        if tokener.expire_at < Utc::now().timestamp() || tokener.access_token.is_none() {
-            let res = self.get_access_token(&tokener.refresh_token).await?;
-            let output: RefreshTokenResponse =
-                serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
-            tokener.access_token = Some(output.access_token);
-            tokener.expire_at = output.expires_in + Utc::now().timestamp();
-            tokener.refresh_token = output.refresh_token;
-        }
-        let Some(drive_id) = &tokener.drive_id else {
-            let res = self.get_drive_id(tokener.access_token.as_deref()).await?;
+        let mut signer = self.signer.lock().await;
+        let token = match &mut signer.sign {
+            AliyunDriveSign::Access(access_token) => Some(access_token.clone()),
+            AliyunDriveSign::Refresh(
+                client_id,
+                client_secret,
+                refresh_token,
+                access_token,
+                expire_at,
+            ) => {
+                if *expire_at < Utc::now().timestamp() || access_token.is_none() {
+                    let res = self
+                        .get_access_token(client_id, client_secret, refresh_token)
+                        .await?;
+                    let output: RefreshTokenResponse = serde_json::from_reader(res.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    *access_token = Some(output.access_token);
+                    *expire_at = output.expires_in + Utc::now().timestamp();
+                    *refresh_token = output.refresh_token;
+                }
+                access_token.clone()
+            }
+        };
+        let Some(drive_id) = &signer.drive_id else {
+            let res = self.get_drive_id(token.as_deref()).await?;
             let output: DriveInfoResponse =
                 serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
             let drive_id = match self.drive_type {
@@ -138,10 +165,10 @@ impl AliyunDriveCore {
                 DriveType::Backup => output.backup_drive_id.unwrap_or(output.default_drive_id),
                 DriveType::Resource => output.resource_drive_id.unwrap_or(output.default_drive_id),
             };
-            tokener.drive_id = Some(drive_id.clone());
-            return Ok((tokener.access_token.clone(), drive_id));
+            signer.drive_id = Some(drive_id.clone());
+            return Ok((token, drive_id));
         };
-        Ok((tokener.access_token.clone(), drive_id.clone()))
+        Ok((token, drive_id.clone()))
     }
 
     pub async fn get_by_path(&self, path: &str) -> Result<Buffer> {

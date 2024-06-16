@@ -104,16 +104,16 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* services
 
-| Type                           | Services                                                                                                                       | 
-|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------| 
-| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                       |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] [b2] [openstack_swift] [upyun] [vercel_blob]                                             |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                       |
-| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] [pcloud] [seafile] [yandex_disk]                                 |
-| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] [foundationdb] [persy] [redis] [rocksdb] [sled] [redb] [tikv] [atomicserver] |
-| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                       |
-| Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                       |
-| Git Based Storage Services     | [huggingface]                                                                                                                  |
+| Type                           | Services                                                                                                                                 | 
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
+| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
+| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
+| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] [foundationdb] <br> [persy] [redis] [rocksdb] [sled] [redb] [tikv] <br> [atomicserver] |
+| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
+| Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
+| Git Based Storage Services     | [huggingface]                                                                                                                            |
 
 > Welcome to add any services that are not currently supported [here](https://github.com/apache/opendal/issues/5).
 

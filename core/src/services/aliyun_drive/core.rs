@@ -63,7 +63,6 @@ pub struct AliyunDriveCore {
     pub endpoint: String,
     pub root: String,
     pub drive_type: DriveType,
-    pub rapid_upload: bool,
 
     pub signer: Arc<Mutex<AliyunDriveSigner>>,
     pub client: HttpClient,
@@ -475,8 +474,8 @@ pub struct UploadUrlResponse {
 pub struct CreateResponse {
     pub file_id: String,
     pub upload_id: Option<String>,
-    pub rapid_upload: Option<bool>,
     pub part_info_list: Option<Vec<PartInfo>>,
+    pub exist: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -110,7 +110,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
 | Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
-| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] [foundationdb] <br> [persy] [redis] [rocksdb] [sled] [redb] [tikv] <br> [atomicserver] |
+| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
 | Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
 | Git Based Storage Services     | [huggingface]                                                                                                                            |

@@ -17,7 +17,7 @@ This crate can help you to access 30 more storage services with the same object_
 
 ## Useful Links
 
-- Documentation: [stable](https://docs.rs/object_store_opendal/)
+- Documentation: [stable](https://docs.rs/object_store_opendal/) | [main](https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/)
 
 ## Examples
 

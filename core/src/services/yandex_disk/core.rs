@@ -289,7 +289,6 @@ pub struct GetUploadUrlResponse {
 pub struct MetainformationResponse {
     #[serde(rename = "type")]
     pub ty: String,
-    pub name: String,
     pub path: String,
     pub modified: String,
     pub md5: Option<String>,

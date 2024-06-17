@@ -49,18 +49,24 @@ pub struct AliyunDriveConfig {
     ///
     /// default to `/` if not set.
     pub root: Option<String>,
+    /// access_token of this backend.
+    ///
+    /// Solution for client-only purpose. #4733
+    ///
+    /// required if no client_id, client_secret and refresh_token are provided.
+    pub access_token: Option<String>,
     /// client_id of this backend.
     ///
-    /// required.
-    pub client_id: String,
+    /// required if no access_token is provided.
+    pub client_id: Option<String>,
     /// client_secret of this backend.
     ///
-    /// required.
-    pub client_secret: String,
+    /// required if no access_token is provided.
+    pub client_secret: Option<String>,
     /// refresh_token of this backend.
     ///
-    /// required.
-    pub refresh_token: String,
+    /// required if no access_token is provided.
+    pub refresh_token: Option<String>,
     /// drive_type of this backend.
     ///
     /// All operations will happen under this type of drive.
@@ -69,12 +75,6 @@ pub struct AliyunDriveConfig {
     ///
     /// Fallback to default if not set or no other drives can be found.
     pub drive_type: String,
-    /// rapid_upload of this backend.
-    ///
-    /// Skip uploading files that are already in the drive by hashing their content.
-    ///
-    /// Only works under the write_once operation.
-    pub rapid_upload: bool,
 }
 
 impl Debug for AliyunDriveConfig {
@@ -119,23 +119,30 @@ impl AliyunDriveBuilder {
         self
     }
 
+    /// Set access_token of this backend.
+    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+        self.config.access_token = Some(access_token.to_string());
+
+        self
+    }
+
     /// Set client_id of this backend.
     pub fn client_id(&mut self, client_id: &str) -> &mut Self {
-        self.config.client_id = client_id.to_string();
+        self.config.client_id = Some(client_id.to_string());
 
         self
     }
 
     /// Set client_secret of this backend.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
-        self.config.client_secret = client_secret.to_string();
+        self.config.client_secret = Some(client_secret.to_string());
 
         self
     }
 
     /// Set refresh_token of this backend.
     pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
-        self.config.refresh_token = refresh_token.to_string();
+        self.config.refresh_token = Some(refresh_token.to_string());
 
         self
     }
@@ -143,13 +150,6 @@ impl AliyunDriveBuilder {
     /// Set drive_type of this backend.
     pub fn drive_type(&mut self, drive_type: &str) -> &mut Self {
         self.config.drive_type = drive_type.to_string();
-
-        self
-    }
-
-    /// Set rapid_upload of this backend.
-    pub fn rapid_upload(&mut self, rapid_upload: bool) -> &mut Self {
-        self.config.rapid_upload = rapid_upload;
 
         self
     }
@@ -196,32 +196,26 @@ impl Builder for AliyunDriveBuilder {
             })?
         };
 
-        let client_id = self.config.client_id.clone();
-        if client_id.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "client_id is missing.")
+        let sign = match self.config.access_token.clone() {
+            Some(access_token) if !access_token.is_empty() => {
+                AliyunDriveSign::Access(access_token)
+            }
+            _ => match (
+                self.config.client_id.clone(),
+                self.config.client_secret.clone(),
+                self.config.refresh_token.clone(),
+            ) {
+                (Some(client_id), Some(client_secret), Some(refresh_token)) if
+                    !client_id.is_empty() && !client_secret.is_empty() && !refresh_token.is_empty() => {
+                    AliyunDriveSign::Refresh(client_id, client_secret, refresh_token, None, 0)
+                }
+                _ => return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
-
-        let client_secret = self.config.client_secret.clone();
-        if client_secret.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "client_secret is missing.")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
-
-        let refresh_token = self.config.refresh_token.clone();
-        if refresh_token.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "refresh_token is missing.")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
+                    .with_context("service", Scheme::AliyunDrive)),
+            },
+        };
 
         let drive_type = match self.config.drive_type.as_str() {
             "" | "default" => DriveType::Default,
@@ -236,22 +230,14 @@ impl Builder for AliyunDriveBuilder {
         };
         debug!("backend use drive_type {:?}", drive_type);
 
-        let rapid_upload = self.config.rapid_upload;
-        debug!("backend use rapid_upload {}", rapid_upload);
-
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
-                client_id,
-                client_secret,
                 drive_type,
-                rapid_upload,
                 signer: Arc::new(Mutex::new(AliyunDriveSigner {
                     drive_id: None,
-                    access_token: None,
-                    refresh_token,
-                    expire_at: 0,
+                    sign,
                 })),
                 client,
             }),

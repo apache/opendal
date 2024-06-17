@@ -15,5 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// VERSION is the compiled version of OpenDAL.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub fn convert_error(opendal_error: opendal::Error) -> dav_server::fs::FsError {
+    match opendal_error.kind() {
+        opendal::ErrorKind::AlreadyExists | opendal::ErrorKind::IsSameFile => {
+            dav_server::fs::FsError::Exists
+        }
+        opendal::ErrorKind::NotFound => dav_server::fs::FsError::NotFound,
+        _ => dav_server::fs::FsError::GeneralFailure,
+    }
+}

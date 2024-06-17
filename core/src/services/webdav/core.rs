@@ -384,7 +384,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         if code >= 400 {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                &format!("propfind response is unexpected: {} {}", code, text),
+                format!("propfind response is unexpected: {} {}", code, text),
             ));
         }
     }

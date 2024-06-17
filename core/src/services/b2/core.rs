@@ -629,7 +629,6 @@ pub struct File {
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
     pub file_name: String,
-    pub action: String,
 }
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {

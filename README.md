@@ -9,55 +9,182 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* languages
 
-| Name                                          | Release                                                                                                                                              | 
-|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------| 
-| [Rust Core](core/README.md)                   | [![](https://img.shields.io/crates/v/opendal.svg)](https://crates.io/crates/opendal)                                                                 |
-| [C Binding](bindings/c/README.md)             | -                                                                                                                                                    |
-| [Cpp Binding](bindings/cpp/README.md)         | -                                                                                                                                                    |
-| [Dotnet Binding](bindings/dotnet/README.md)   | -                                                                                                                                                    |
-| [Go Binding](bindings/go/README.md)           | -                                                                                                                                                    |
-| [Haskell Binding](bindings/haskell/README.md) | -                                                                                                                                                    |
-| [Java Binding](bindings/java/README.md)       | [![](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java)](https://central.sonatype.com/artifact/org.apache.opendal/opendal-java) |
-| [Lua Binding](bindings/lua/README.md)         | -                                                                                                                                                    |
-| [Node.js Binding](bindings/nodejs/README.md)  | [![](https://img.shields.io/npm/v/opendal)](https://www.npmjs.com/package/opendal)                                                                   |
-| [Ocaml Binding](bindings/ocaml/README.md)     | -                                                                                                                                                    |
-| [PHP Binding](bindings/php/README.md)         | -                                                                                                                                                    |
-| [Python Binding](bindings/python/README.md)   | [![](https://img.shields.io/pypi/v/opendal)](https://pypi.org/project/opendal/)                                                                      |
-| [Ruby Binding](bindings/ruby/README.md)       | -                                                                                                                                                    |
-| [Swift Binding](bindings/swift/README.md)     | -                                                                                                                                                    |
-| [Zig Binding](bindings/zig/README.md)         | -                                                                                                                                                    |
+| Name              | Release                                          | Docs                                                                              |
+|-------------------|--------------------------------------------------|-----------------------------------------------------------------------------------|
+| [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
+| [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
+| [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
+| [Dotnet Binding]  | -                                                | -                                                                                 |
+| [Go Binding]      | -                                                | -                                                                                 |
+| [Haskell Binding] | -                                                | -                                                                                 |
+| [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] |
+| [Lua Binding]     | -                                                | -                                                                                 |
+| [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           |
+| [Ocaml Binding]   | -                                                | -                                                                                 |
+| [PHP Binding]     | -                                                | -                                                                                 |
+| [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            |
+| [Ruby Binding]    | -                                                | -                                                                                 |
+| [Swift Binding]   | -                                                | -                                                                                 |
+| [Zig Binding]     | -                                                | -                                                                                 |
+
+[Docs Release]: https://img.shields.io/badge/docs-release-blue
+[Docs Dev]: https://img.shields.io/badge/docs-dev-blue
+[Rust Core]: core/README.md
+[Rust Core Image]: https://img.shields.io/crates/v/opendal.svg
+[Rust Core Link]: https://crates.io/crates/opendal
+[Rust Core Release Docs]: https://docs.rs/opendal
+[Rust Core Dev Docs]: https://opendal.apache.org/docs/rust/opendal/
+[C Binding]: bindings/c/README.md
+[C Binding Dev Docs]: https://opendal.apache.org/docs/c/
+[Cpp Binding]: bindings/cpp/README.md
+[Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
+[Dotnet Binding]: bindings/dotnet/README.md
+[Go Binding]: bindings/go/README.md
+[Haskell Binding]: bindings/haskell/README.md
+[Java Binding]: bindings/java/README.md
+[Java Binding Image]: https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java
+[Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
+[Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
+[Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
+[Lua Binding]: bindings/lua/README.md
+[Node.js Binding]: bindings/nodejs/README.md
+[Node.js Binding Image]: https://img.shields.io/npm/v/opendal
+[Node.js Binding Link]: https://www.npmjs.com/package/opendal
+[Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
+[Ocaml Binding]: bindings/ocaml/README.md
+[PHP Binding]: bindings/php/README.md
+[Python Binding]: bindings/python/README.md
+[Python Binding Image]: https://img.shields.io/pypi/v/opendal
+[Python Binding Link]: https://pypi.org/project/opendal/
+[Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
+[Ruby Binding]: bindings/ruby/README.md
+[Swift Binding]: bindings/swift/README.md
+[Zig Binding]: bindings/zig/README.md
+
 
 ## For *ANY* methods
 
-| Name                     | Description                                                        | Release                                                                      | 
-|--------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------| 
-| [oay](bin/oay/README.md) | Access data via API Gateway                                        | [![](https://img.shields.io/crates/v/oay.svg)](https://crates.io/crates/oay) |
-| [oli](bin/oli/README.md) | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![](https://img.shields.io/crates/v/oli.svg)](https://crates.io/crates/oli) |
-| [ofs](bin/ofs/README.md) | Access data via POSIX file system API (alternative to s3fs)        | [![](https://img.shields.io/crates/v/ofs.svg)](https://crates.io/crates/ofs) |
+| Name  | Description                                                        | Release                   | 
+|-------|--------------------------------------------------------------------|---------------------------| 
+| [oay] | Access data via API Gateway                                        | [![oay image]][oay crate] |
+| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
+| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
+
+[oay]: bin/oay/README.md
+[oay image]: https://img.shields.io/crates/v/oay.svg
+[oay crate]: https://crates.io/crates/oay
+[oli]: bin/oli/README.md
+[oli image]: https://img.shields.io/crates/v/oli.svg
+[oli crate]: https://crates.io/crates/oli
+[ofs]: bin/ofs/README.md
+[ofs image]: https://img.shields.io/crates/v/ofs.svg
+[ofs crate]: https://crates.io/crates/ofs
 
 ## For *ANY* integrations
 
-| Name                                                        | Description                                                  | Release                                                      |
-| ----------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| [dav-server-opendalfs](integrations/dav-server/README.md)   | Access data via integrations to [dav-server-rs](https://github.com/messense/dav-server-rs) | [![](https://img.shields.io/crates/v/dav-server-opendalfs.svg)](https://crates.io/crates/dav-server-opendalfs) |
-| [object_store_opendal](integrations/object_store/README.md) | Access data via integrations to [object_store](https://docs.rs/object_store) | [![](https://img.shields.io/crates/v/object_store_opendal.svg)](https://crates.io/crates/object_store_opendal) |
-| [fuse3_opendal](integrations/fuse3/README.md)               | Access data via integrations to [fuse3](https://docs.rs/fuse3) | -                                                            |
-| [virtiofs_opendal](integrations/virtiofs/README.md)         | Access data via integrations to [vhost-user-backend](https://docs.rs/vhost-user-backend) | -                                                            |
+| Name                   | Description                                          | Release                                     | Docs                                                                              |
+|------------------------|------------------------------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------|
+| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.      | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
+| [object_store_opendal] | an [object_store] implementation using opendal.      | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
+| [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                           | -                                                                                 |
+| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                           | -                                                                                 |
+
+[dav-server-opendalfs]: integrations/dav-server/README.md
+[dav-server-rs]: https://github.com/messense/dav-server-rs
+[dav-server image]: https://img.shields.io/crates/v/dav-server-opendalfs.svg
+[dav-server crate]: https://crates.io/crates/dav-server-opendalfs
+[dav-server release docs]: https://docs.rs/dav-server-opendalfs/
+[dav-server dev docs]: https://opendal.apache.org/docs/dav-server-opendalfs/dav_server_opendalfs/
+
+[object_store_opendal]: integrations/object_store/README.md
+[object_store]: https://docs.rs/object_store
+[object_store image]: https://img.shields.io/crates/v/object_store_opendal.svg
+[object_store crate]: https://crates.io/crates/object_store_opendal
+[object_store release docs]: https://docs.rs/object_store_opendal/
+[object_store dev docs]: https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/
+
+[fuse3_opendal]: integrations/fuse3/README.md
+[fuse3]: https://docs.rs/fuse3
+
+[virtiofs_opendal]: integrations/virtiofs/README.md
+[vhost-user-backend]: https://docs.rs/vhost-user-backend
 
 ## For *ANY* services
 
-| Type                           | Services                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| 
-| Standard Storage Protocols     | ftp, http, [sftp](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02), [webdav](https://datatracker.ietf.org/doc/html/rfc4918), ..                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Object Storage Services        | [azblob](https://azure.microsoft.com/en-us/services/storage/blobs/), [cos](https://www.tencentcloud.com/products/cos), [gcs](https://cloud.google.com/storage), [obs](https://www.huaweicloud.com/intl/en-us/product/obs.html), [oss](https://www.aliyun.com/product/oss), [s3](https://aws.amazon.com/s3/), [supabase](https://supabase.com/docs/guides/storage), [b2](https://www.backblaze.com/), [openstack swift](https://docs.openstack.org/swift/latest/), [upyun](https://www.upyun.com/), [vercel_blob](https://vercel.com/docs/storage/vercel-blob), ..                                                                                    |
-| File Storage Services          | fs, [alluxio](https://docs.alluxio.io/os/user/stable/en/api/REST-API.html), [azdls](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/), [azfile](https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api), [chainsafe](https://storage.chainsafe.io/), [dbfs](https://docs.databricks.com/en/dbfs/index.html), [gridfs](https://www.mongodb.com/docs/manual/core/gridfs/), [hdfs](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html), [ipfs](https://ipfs.tech/), [webhdfs](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html), .. |
-| Consumer Cloud Storage Service | [gdrive](https://www.google.com/drive/), [onedrive](https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage), [dropbox](https://www.dropbox.com/), [icloud](https://www.icloud.com/iclouddrive), [koofr](https://koofr.eu/), [pcloud](https://www.pcloud.com/), [seafile](https://www.seafile.com/), [yandex_disk](https://360.yandex.com/disk/), ..                                                                                                                                                                                                                                                                             |
-| Key-Value Storage Services     | [cacache](https://crates.io/crates/cacache), [cloudflare_kv](https://developers.cloudflare.com/kv/), [dashmap](https://github.com/xacrimon/dashmap), memory, [etcd](https://etcd.io/), [foundationdb](https://www.foundationdb.org/), [persy](https://crates.io/crates/persy), [redis](https://redis.io/), [rocksdb](http://rocksdb.org/), [sled](https://crates.io/crates/sled), [redb](https://crates.io/crates/redb), [tikv](https://tikv.org/), [atomicserver](https://github.com/atomicdata-dev/atomic-server), ..                                                                                                                              |
-| Database Storage Services      | [d1](https://developers.cloudflare.com/d1/), [libsql](https://github.com/tursodatabase/libsql), [mongodb](https://www.mongodb.com/), [mysql](https://www.mysql.com/), [postgresql](https://www.postgresql.org/), [sqlite](https://www.sqlite.org/), ..                                                                                                                                                                                                                                                                                                                                                                                               |
-| Cache Storage Services         | [ghac](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows), [memcached](https://memcached.org/), [mini_moka](https://github.com/moka-rs/mini-moka), [moka](https://github.com/moka-rs/moka), [vercel_artifacts](https://vercel.com/docs/concepts/monorepos/remote-caching), ..                                                                                                                                                                                                                                                                                                                            |
-| Git Based Storage Services     | [huggingface](https://huggingface.co/), ..                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 
+| Type                           | Services                                                                                                                                 | 
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
+| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
+| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
+| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
+| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
+| Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
+| Git Based Storage Services     | [huggingface]                                                                                                                            |
 
-> Welcome to add any services that are not currently supported [here](https://github.com/apache/opendal/issues/5).
+[sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
+[webdav]: https://datatracker.ietf.org/doc/html/rfc4918
+
+[azblob]: https://azure.microsoft.com/en-us/services/storage/blobs/
+[cos]: https://www.tencentcloud.com/products/cos
+[gcs]: https://cloud.google.com/storage
+[obs]: https://www.huaweicloud.com/intl/en-us/product/obs.html
+[oss]: https://www.aliyun.com/product/oss
+[s3]: https://aws.amazon.com/s3/
+[b2]: https://www.backblaze.com/
+[openstack_swift]: https://docs.openstack.org/swift/latest/
+[upyun]: https://www.upyun.com/
+[vercel_blob]: https://vercel.com/docs/storage/vercel-blob
+
+[alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
+[azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
+[azfile]: https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api
+[chainsafe]: https://storage.chainsafe.io/
+[compfs]: https://github.com/compio-rs/compio/
+[dbfs]: https://docs.databricks.com/en/dbfs/index.html
+[gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/
+[hdfs]: https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html
+[hdfs_native]: https://github.com/Kimahriman/hdfs-native
+[ipfs]: https://ipfs.tech/
+[webhdfs]: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
+
+[aliyun_drive]: https://www.aliyundrive.com/
+[gdrive]: https://www.google.com/drive/
+[onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
+[dropbox]: https://www.dropbox.com/
+[icloud]: https://www.icloud.com/iclouddrive
+[koofr]: https://koofr.eu/
+[pcloud]: https://www.pcloud.com/
+[seafile]: https://www.seafile.com/
+[yandex_disk]: https://360.yandex.com/disk/
+
+[cacache]: https://crates.io/crates/cacache
+[cloudflare_kv]: https://developers.cloudflare.com/kv/
+[dashmap]: https://github.com/xacrimon/dashmap
+[etcd]: https://etcd.io/
+[foundationdb]: https://www.foundationdb.org/
+[persy]: https://crates.io/crates/persy
+[redis]: https://redis.io/
+[rocksdb]: http://rocksdb.org/
+[sled]: https://crates.io/crates/sled
+[redb]: https://crates.io/crates/redb
+[tikv]: https://tikv.org/
+[atomicserver]: https://github.com/atomicdata-dev/atomic-server
+
+[d1]: https://developers.cloudflare.com/d1/
+[mongodb]: https://www.mongodb.com/
+[mysql]: https://www.mysql.com/
+[postgresql]: https://www.postgresql.org/
+[sqlite]: https://www.sqlite.org/
+[surrealdb]: https://surrealdb.com/
+
+[ghac]: https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows
+[memcached]: https://memcached.org/
+[mini_moka]: https://github.com/moka-rs/mini-moka
+[moka]: https://github.com/moka-rs/moka
+[vercel_artifacts]: https://vercel.com/docs/concepts/monorepos/remote-caching
+
+[huggingface]: https://huggingface.co/
 
 ## Examples
 

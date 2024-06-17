@@ -17,7 +17,6 @@
 
 use std::mem;
 use std::sync::Mutex;
-use std::usize;
 
 use futures::Future;
 use libtest_mimic::Failed;

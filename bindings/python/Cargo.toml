@@ -157,8 +157,8 @@ futures = "0.3.28"
 opendal = { version = "0.47.0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.20.1", features = ["abi3", "abi3-py311"] }
-pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+pyo3 = { version = "0.21.2", features = ["abi3", "abi3-py311"] }
+pyo3-asyncio = { package = "pyo3-asyncio-0-21", version = "0.21", features = ["tokio-runtime"]}
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

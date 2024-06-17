@@ -52,7 +52,7 @@ pub struct Operator(ocore::BlockingOperator);
 impl Operator {
     #[new]
     #[pyo3(signature = (scheme, *, **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -97,14 +97,14 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<PyAny>> {
         let buffer = self.0.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&Bound<PyDict>>) -> PyResult<()> {
         let opwrite = build_opwrite(kwargs)?;
         let mut write = self.0.write_with(path, bs).append(opwrite.append());
         if let Some(chunk) = opwrite.chunk() {
@@ -218,7 +218,7 @@ pub struct AsyncOperator(ocore::Operator);
 impl AsyncOperator {
     #[new]
     #[pyo3(signature = (scheme, *,  **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -242,7 +242,12 @@ impl AsyncOperator {
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open<'p>(&'p self, py: Python<'p>, path: String, mode: String) -> PyResult<&'p PyAny> {
+    pub fn open<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        mode: String,
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         let capability = self.capability()?;
 
@@ -268,7 +273,7 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
@@ -282,9 +287,9 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: String,
-        bs: &PyBytes,
-        kwargs: Option<&PyDict>,
-    ) -> PyResult<&'p PyAny> {
+        bs: &Bound<PyBytes>,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Bound<PyAny>> {
         let opwrite = build_opwrite(kwargs)?;
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
@@ -307,7 +312,7 @@ impl AsyncOperator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Metadata = this
@@ -326,7 +331,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
@@ -339,7 +344,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
@@ -347,7 +352,7 @@ impl AsyncOperator {
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.remove_all(&path).await.map_err(format_pyerr)
@@ -366,7 +371,7 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
@@ -378,7 +383,7 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(
             py,
@@ -387,7 +392,7 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
@@ -397,7 +402,7 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let lister = this
@@ -416,7 +421,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -435,7 +440,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -454,7 +459,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -495,7 +500,7 @@ impl AsyncOperator {
 }
 
 /// recognize OpWrite-equivalent options passed as python dict
-pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpWrite> {
+pub(crate) fn build_opwrite(kwargs: Option<&Bound<PyDict>>) -> PyResult<ocore::raw::OpWrite> {
     use ocore::raw::OpWrite;
     let mut op = OpWrite::new();
 

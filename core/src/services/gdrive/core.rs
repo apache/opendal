@@ -60,7 +60,7 @@ impl GdriveCore {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("path not found: {}", path),
+            format!("path not found: {}", path),
         ))?;
 
         // The file metadata in the Google Drive API is very complex.
@@ -80,7 +80,7 @@ impl GdriveCore {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("path not found: {}", path),
+            format!("path not found: {}", path),
         ))?;
 
         let url: String = format!(
@@ -129,7 +129,7 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("source path not found: {}", source),
+            format!("source path not found: {}", source),
         ))?;
         let source_parent = get_parent(source);
         let source_parent_id = self

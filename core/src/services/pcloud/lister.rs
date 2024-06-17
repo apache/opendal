@@ -61,7 +61,7 @@ impl oio::PageList for PcloudLister {
                 }
 
                 if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
                 if let Some(metadata) = resp.metadata {
@@ -86,7 +86,7 @@ impl oio::PageList for PcloudLister {
 
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    &String::from_utf8_lossy(&bs.to_bytes()),
+                    String::from_utf8_lossy(&bs.to_bytes()),
                 ));
             }
             _ => Err(parse_error(resp).await?),

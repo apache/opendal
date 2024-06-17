@@ -32,6 +32,8 @@ static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 pub struct OfsTestContext {
     pub mount_point: TempDir,
+    // This is a false positive, the field is used in the test.
+    #[allow(dead_code)]
     pub capability: Capability,
     mount_handle: MountHandle,
 }

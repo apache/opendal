@@ -15,40 +15,67 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::Path;
-use std::task::ready;
-use std::task::Poll::Ready;
-
 use dav_server::davpath::DavPath;
-use dav_server::fs::DavDirEntry;
-use dav_server::fs::DavFile;
-use dav_server::fs::DavFileSystem;
 use dav_server::fs::DavMetaData;
 use dav_server::fs::FsError;
+use dav_server::fs::{DavDirEntry, FsFuture};
+use dav_server::fs::{DavFile, FsStream};
+use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use futures::FutureExt;
-use futures_util::Stream;
-use futures_util::StreamExt;
-use opendal::Lister;
+use futures::StreamExt;
 use opendal::Operator;
+use std::path::Path;
 
-use super::file::convert_error;
-use super::file::WebdavFile;
-use super::metadata::WebdavMetaData;
-use crate::dir_entry::WebDAVDirEntry;
+use super::dir::OpendalStream;
+use super::file::OpendalFile;
+use super::metadata::OpendalMetaData;
+use super::utils::convert_error;
 
+/// OpendalFs is a `DavFileSystem` implementation for opendal.
+///
+/// ```
+/// use anyhow::Result;
+/// use dav_server::davpath::DavPath;
+/// use dav_server::fs::DavFileSystem;
+/// use dav_server_opendalfs::OpendalFs;
+/// use opendal::services::Memory;
+/// use opendal::Operator;
+///
+/// #[tokio::test]
+/// async fn test() -> Result<()> {
+///     let op = Operator::new(Memory::default())?.finish();
+///
+///     let webdavfs = OpendalFs::new(op);
+///
+///     let metadata = webdavfs
+///         .metadata(&DavPath::new("/").unwrap())
+///         .await
+///         .unwrap();
+///     println!("{}", metadata.is_dir());
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone)]
 pub struct OpendalFs {
     pub op: Operator,
 }
 
+impl OpendalFs {
+    /// Create a new `OpendalFs` instance.
+    pub fn new(op: Operator) -> Box<OpendalFs> {
+        Box::new(OpendalFs { op })
+    }
+}
+
 impl DavFileSystem for OpendalFs {
     fn open<'a>(
         &'a self,
-        path: &'a dav_server::davpath::DavPath,
-        _options: dav_server::fs::OpenOptions,
-    ) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavFile>> {
+        path: &'a DavPath,
+        options: dav_server::fs::OpenOptions,
+    ) -> FsFuture<Box<dyn DavFile>> {
         async move {
-            let file = WebdavFile::new(self.op.clone(), path.clone());
+            let file = OpendalFile::open(self.op.clone(), path.clone(), options).await?;
             Ok(Box::new(file) as Box<dyn DavFile>)
         }
         .boxed()
@@ -56,29 +83,25 @@ impl DavFileSystem for OpendalFs {
 
     fn read_dir<'a>(
         &'a self,
-        path: &'a dav_server::davpath::DavPath,
-        _meta: dav_server::fs::ReadDirMeta,
-    ) -> dav_server::fs::FsFuture<dav_server::fs::FsStream<Box<dyn dav_server::fs::DavDirEntry>>>
-    {
+        path: &'a DavPath,
+        _meta: ReadDirMeta,
+    ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         async move {
             self.op
                 .lister(path.as_url_string().as_str())
                 .await
-                .map(|lister| DavStream::new(self.op.clone(), lister).boxed())
+                .map(|lister| OpendalStream::new(self.op.clone(), lister).boxed())
                 .map_err(convert_error)
         }
         .boxed()
     }
 
-    fn metadata<'a>(
-        &'a self,
-        path: &'a dav_server::davpath::DavPath,
-    ) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
+    fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
             let opendal_metadata = self.op.stat(path.as_url_string().as_str()).await;
             match opendal_metadata {
                 Ok(metadata) => {
-                    let webdav_metadata = WebdavMetaData::new(metadata);
+                    let webdav_metadata = OpendalMetaData::new(metadata);
                     Ok(Box::new(webdav_metadata) as Box<dyn DavMetaData>)
                 }
                 Err(e) => Err(convert_error(e)),
@@ -87,7 +110,7 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn create_dir<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+    fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let path = path.as_url_string();
 
@@ -98,7 +121,7 @@ impl DavFileSystem for OpendalFs {
             match self.op.is_exist(parent.to_str().unwrap()).await {
                 Ok(exist) => {
                     if !exist && parent != Path::new("/") {
-                        return Err(dav_server::fs::FsError::NotFound);
+                        return Err(FsError::NotFound);
                     }
                 }
                 Err(e) => {
@@ -111,7 +134,7 @@ impl DavFileSystem for OpendalFs {
             let exist = self.op.is_exist(path).await;
             match exist {
                 Ok(exist) => match exist {
-                    true => Err(dav_server::fs::FsError::Exists),
+                    true => Err(FsError::Exists),
                     false => {
                         let res = self.op.create_dir(path).await;
                         match res {
@@ -126,7 +149,11 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn remove_file<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        self.remove_file(path)
+    }
+
+    fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             self.op
                 .delete(path.as_url_string().as_str())
@@ -136,26 +163,7 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
-        self.remove_file(path)
-    }
-
-    fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
-        async move {
-            let from_path = from
-                .as_rel_ospath()
-                .to_str()
-                .ok_or(FsError::GeneralFailure)?;
-            let to_path = to.as_rel_ospath().to_str().ok_or(FsError::GeneralFailure)?;
-            self.op
-                .copy(from_path, to_path)
-                .await
-                .map_err(convert_error)
-        }
-        .boxed()
-    }
-
-    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
             let from_path = from
                 .as_rel_ospath()
@@ -172,39 +180,19 @@ impl DavFileSystem for OpendalFs {
         }
         .boxed()
     }
-}
 
-impl OpendalFs {
-    pub fn new(op: Operator) -> Box<OpendalFs> {
-        Box::new(OpendalFs { op })
-    }
-}
-
-struct DavStream {
-    op: Operator,
-    lister: Lister,
-}
-
-impl Stream for DavStream {
-    type Item = Box<dyn DavDirEntry>;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let dav_stream = self.get_mut();
-        match ready!(dav_stream.lister.poll_next_unpin(cx)) {
-            Some(entry) => {
-                let webdav_entry = WebDAVDirEntry::new(entry.unwrap(), dav_stream.op.clone());
-                Ready(Some(Box::new(webdav_entry) as Box<dyn DavDirEntry>))
-            }
-            None => Ready(None),
+    fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+        async move {
+            let from_path = from
+                .as_rel_ospath()
+                .to_str()
+                .ok_or(FsError::GeneralFailure)?;
+            let to_path = to.as_rel_ospath().to_str().ok_or(FsError::GeneralFailure)?;
+            self.op
+                .copy(from_path, to_path)
+                .await
+                .map_err(convert_error)
         }
-    }
-}
-
-impl DavStream {
-    fn new(op: Operator, lister: Lister) -> Self {
-        DavStream { op, lister }
+        .boxed()
     }
 }

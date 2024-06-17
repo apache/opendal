@@ -17,7 +17,7 @@
 
 //! object_store_opendal is an object store implementation using opendal.
 //!
-//! This crate can help you to access 30 more storage services with the same API.
+//! This crate can help you to access 30 more storage services with the same object_store API.
 //!
 //! ```no_run
 //! use std::sync::Arc;

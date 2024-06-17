@@ -15,27 +15,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::DavMetaData;
 use dav_server::fs::FsError;
+use dav_server::fs::{DavMetaData, FsResult};
 use opendal::Metadata;
+use std::time::SystemTime;
 
+/// OpendalMetaData is a `DavMetaData` implementation for opendal.
 #[derive(Debug, Clone)]
-pub struct WebdavMetaData {
+pub struct OpendalMetaData {
     metadata: Metadata,
 }
 
-impl WebdavMetaData {
+impl OpendalMetaData {
+    /// Create a new opendal metadata.
     pub fn new(metadata: Metadata) -> Self {
-        WebdavMetaData { metadata }
+        OpendalMetaData { metadata }
     }
 }
 
-impl DavMetaData for WebdavMetaData {
+impl DavMetaData for OpendalMetaData {
     fn len(&self) -> u64 {
         self.metadata.content_length()
     }
 
-    fn modified(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
+    fn modified(&self) -> FsResult<SystemTime> {
         match self.metadata.last_modified() {
             Some(t) => Ok(t.into()),
             None => Err(FsError::GeneralFailure),
@@ -46,15 +49,15 @@ impl DavMetaData for WebdavMetaData {
         self.metadata.is_dir()
     }
 
-    fn is_file(&self) -> bool {
-        self.metadata.is_file()
-    }
-
     fn etag(&self) -> Option<String> {
         self.metadata.etag().map(|s| s.to_string())
     }
 
-    fn status_changed(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
+    fn is_file(&self) -> bool {
+        self.metadata.is_file()
+    }
+
+    fn status_changed(&self) -> FsResult<SystemTime> {
         self.metadata
             .last_modified()
             .map_or(Err(FsError::GeneralFailure), |t| Ok(t.into()))

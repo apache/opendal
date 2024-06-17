@@ -115,8 +115,6 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
 | Git Based Storage Services     | [huggingface]                                                                                                                            |
 
-> Welcome to add any services that are not currently supported [here](https://github.com/apache/opendal/issues/5).
-
 [sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
 [webdav]: https://datatracker.ietf.org/doc/html/rfc4918
 

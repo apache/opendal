@@ -30,8 +30,6 @@ use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
 use serde::Serialize;
-use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
 use tracing::debug;
 
 use crate::Config;
@@ -51,14 +49,12 @@ impl S3Service {
 
         let app = Router::new()
             .route("/", get(handle_list_objects))
-            .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
             .with_state(S3State {
                 op: self.op.clone(),
             });
 
-        axum::Server::bind(&s3_cfg.addr.parse().unwrap())
-            .serve(app.into_make_service())
-            .await?;
+        let listener = tokio::net::TcpListener::bind(&s3_cfg.addr).await.unwrap();
+        axum::serve(listener, app.into_make_service()).await?;
 
         Ok(())
     }

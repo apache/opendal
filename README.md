@@ -82,23 +82,30 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* integrations
 
-| Name                   | Description                                          | Release                                                     |
-|------------------------|------------------------------------------------------|-------------------------------------------------------------|
-| [dav-server-opendalfs] | Access data via integrations to [dav-server-rs]      | [![dav-server-opendalfs image]][dav-server-opendalfs crate] |
-| [object_store_opendal] | Access data via integrations to [object_store]       | [![object_store_opendal image]][object_store_opendal crate] |
-| [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                                           |
-| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                                           |
+| Name                   | Description                                          | Release                                     | Docs                                                                              |
+|------------------------|------------------------------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------|
+| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.      | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
+| [object_store_opendal] | an [object_store] implementation using opendal.      | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
+| [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                           | -                                                                                 |
+| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                           | -                                                                                 |
 
 [dav-server-opendalfs]: integrations/dav-server/README.md
 [dav-server-rs]: https://github.com/messense/dav-server-rs
-[dav-server-opendalfs image]: https://img.shields.io/crates/v/dav-server-opendalfs.svg
-[dav-server-opendalfs crate]: https://crates.io/crates/dav-server-opendalfs
+[dav-server image]: https://img.shields.io/crates/v/dav-server-opendalfs.svg
+[dav-server crate]: https://crates.io/crates/dav-server-opendalfs
+[dav-server release docs]: https://docs.rs/dav-server-opendalfs/
+[dav-server dev docs]: https://opendal.apache.org/docs/dav-server-opendalfs/dav_server_opendalfs/
+
 [object_store_opendal]: integrations/object_store/README.md
 [object_store]: https://docs.rs/object_store
-[object_store_opendal image]: https://img.shields.io/crates/v/object_store_opendal.svg
-[object_store_opendal crate]: https://crates.io/crates/object_store_opendal
+[object_store image]: https://img.shields.io/crates/v/object_store_opendal.svg
+[object_store crate]: https://crates.io/crates/object_store_opendal
+[object_store release docs]: https://docs.rs/object_store_opendal/
+[object_store dev docs]: https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/
+
 [fuse3_opendal]: integrations/fuse3/README.md
 [fuse3]: https://docs.rs/fuse3
+
 [virtiofs_opendal]: integrations/virtiofs/README.md
 [vhost-user-backend]: https://docs.rs/vhost-user-backend
 

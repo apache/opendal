@@ -16,7 +16,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## Useful Links
 
-- Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
+- Documentation: [release](https://docs.rs/opendal/) | [dev](https://opendal.apache.org/docs/rust/opendal/)
 - [Release Notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 - [Upgrade Guide](https://docs.rs/opendal/latest/opendal/docs/upgrade/index.html)
 - [RFC List](https://docs.rs/opendal/latest/opendal/docs/rfcs/index.html)

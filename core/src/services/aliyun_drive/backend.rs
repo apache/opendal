@@ -75,12 +75,6 @@ pub struct AliyunDriveConfig {
     ///
     /// Fallback to default if not set or no other drives can be found.
     pub drive_type: String,
-    /// rapid_upload of this backend.
-    ///
-    /// Skip uploading files that are already in the drive by hashing their content.
-    ///
-    /// Only works under the write_once operation.
-    pub rapid_upload: bool,
 }
 
 impl Debug for AliyunDriveConfig {
@@ -156,13 +150,6 @@ impl AliyunDriveBuilder {
     /// Set drive_type of this backend.
     pub fn drive_type(&mut self, drive_type: &str) -> &mut Self {
         self.config.drive_type = drive_type.to_string();
-
-        self
-    }
-
-    /// Set rapid_upload of this backend.
-    pub fn rapid_upload(&mut self, rapid_upload: bool) -> &mut Self {
-        self.config.rapid_upload = rapid_upload;
 
         self
     }
@@ -243,15 +230,11 @@ impl Builder for AliyunDriveBuilder {
         };
         debug!("backend use drive_type {:?}", drive_type);
 
-        let rapid_upload = self.config.rapid_upload;
-        debug!("backend use rapid_upload {}", rapid_upload);
-
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
                 drive_type,
-                rapid_upload,
                 signer: Arc::new(Mutex::new(AliyunDriveSigner {
                     drive_id: None,
                     sign,

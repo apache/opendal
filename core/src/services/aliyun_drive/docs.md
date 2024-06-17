@@ -21,7 +21,6 @@ This service can be used to:
 - `client_secret`: Set the client_secret for backend.
 - `refresh_token`: Set the refresh_token for backend.
 - `drive_type`: Set the drive_type for backend.
-- `rapid_upload`: Set the rapid_upload for backend.
 
 Refer to [`AliyunDriveBuilder`]`s  public API docs for more information.
 
@@ -54,10 +53,6 @@ async fn main() -> Result<()> {
     //
     // Fallback to the default type if no other types found.
     builder.drive_type("resource");
-    // Set the rapid_upload.
-    //
-    // Works only under the write_once operation for now.
-    builder.rapid_upload(true);
 
     let op: Operator = Operator::new(builder)?.finish();
 

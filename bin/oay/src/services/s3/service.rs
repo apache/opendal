@@ -53,10 +53,7 @@ impl S3Service {
                 op: self.op.clone(),
             });
 
-
-        let listener = tokio::net::TcpListener::bind(&s3_cfg.addr)
-            .await
-            .unwrap();
+        let listener = tokio::net::TcpListener::bind(&s3_cfg.addr).await.unwrap();
         axum::serve(listener, app.into_make_service()).await?;
 
         Ok(())

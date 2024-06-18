@@ -2421,7 +2421,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_aws_s3_assume_role_with_web_identity"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_file_write_on_full_disk"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "futures",
  "opendal",
@@ -2440,7 +2440,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_s3_read_on_wasm"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "opendal",
  "wasm-bindgen",
@@ -4750,7 +4750,7 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "opendal"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -4856,7 +4856,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-basic"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "futures",
  "opendal",
@@ -4865,7 +4865,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-concurrent-upload"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "futures",
  "opendal",
@@ -4874,7 +4874,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-multipart-upload"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "futures",
  "opendal",

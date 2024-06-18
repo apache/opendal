@@ -19,9 +19,9 @@
 name = "opendal-examples-concurrent-upload"
 publish = false
 
-version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [dependencies]
 futures = "0.3"

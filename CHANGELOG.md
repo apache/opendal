@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.47.1] - 2024-06-18
+
+### Added
+* feat(core): sets default chunk_size and sends buffer > chunk_size directly by @evenyag in https://github.com/apache/opendal/pull/4710
+* feat(services): add optional access_token for AliyunDrive by @yuchanns in https://github.com/apache/opendal/pull/4740
+* feat(unftp-sbe): Add integration for unftp-sbe by @George-Miao in https://github.com/apache/opendal/pull/4753
+### Changed
+* refactor(ofs): Split fuse3 impl into fuse3_opendal  by @Xuanwo in https://github.com/apache/opendal/pull/4721
+* refactor(ovfs): Split ovfs impl into virtiofs_opendal by @zjregee in https://github.com/apache/opendal/pull/4723
+* refactor(*): tiny refactor to the Error type by @waynexia in https://github.com/apache/opendal/pull/4737
+* refactor(aliyun-drive): rewrite writer part by @yuchanns in https://github.com/apache/opendal/pull/4744
+* refactor(object_store): Polish implementation details of object_store by @Xuanwo in https://github.com/apache/opendal/pull/4749
+* refactor(dav-server): Polish dav-server integration details by @Xuanwo in https://github.com/apache/opendal/pull/4751
+* refactor(core): Remove unused `size` for `RangeWrite`. by @reswqa in https://github.com/apache/opendal/pull/4755
+### Fixed
+* fix(s3): parse MultipartUploadResponse to check error in body by @waynexia in https://github.com/apache/opendal/pull/4735
+* fix(services/aliyun-drive): unable to list `/` by @yuchanns in https://github.com/apache/opendal/pull/4754
+### Docs
+* docs: keep docs updated and tidy by @tisonkun in https://github.com/apache/opendal/pull/4709
+* docs: fixup broken links by @tisonkun in https://github.com/apache/opendal/pull/4711
+* docs(website): update release/verify docs by @suyanhanx in https://github.com/apache/opendal/pull/4714
+* docs: Update release.md link correspondingly by @tisonkun in https://github.com/apache/opendal/pull/4717
+* docs: update readme for fuse3_opendal & virtiofs_opendal by @zjregee in https://github.com/apache/opendal/pull/4730
+* docs: Polish README and links to docs by @Xuanwo in https://github.com/apache/opendal/pull/4741
+* docs: Enhance maintainability of the service section by @Xuanwo in https://github.com/apache/opendal/pull/4742
+* docs: Polish opendal rust core README by @Xuanwo in https://github.com/apache/opendal/pull/4745
+* docs: Refactor rust core examples by @Xuanwo in https://github.com/apache/opendal/pull/4757
+### CI
+* ci: verify build website on site content changes by @tisonkun in https://github.com/apache/opendal/pull/4712
+* ci: Fix cert for redis and add docs for key maintenance by @Xuanwo in https://github.com/apache/opendal/pull/4718
+### Chore
+* chore: use more portable binutils  by @tisonkun in https://github.com/apache/opendal/pull/4713
+* chore(deps): bump clap from 4.5.6 to 4.5.7 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4728
+* chore(deps): bump url from 2.5.0 to 2.5.1 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4729
+* chore(binding/python): Upgrade pyo3 to 0.21 by @reswqa in https://github.com/apache/opendal/pull/4734
+* chore: Make 1.79 clippy happy by @Xuanwo in https://github.com/apache/opendal/pull/4731
+* chore(docs): Add new line in lone services by @Xuanwo in https://github.com/apache/opendal/pull/4743
+* chore: Bump versions to prepare v0.47.1 release by @Xuanwo in https://github.com/apache/opendal/pull/4759
+
 ## [v0.47.0] - 2024-06-07
 
 ### Added
@@ -3719,6 +3758,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.47.1]: https://github.com/apache/opendal/compare/v0.47.0...v0.47.1
 [v0.47.0]: https://github.com/apache/opendal/compare/v0.46.0...v0.47.0
 [v0.46.0]: https://github.com/apache/opendal/compare/v0.45.1...v0.46.0
 [v0.45.1]: https://github.com/apache/opendal/compare/v0.45.0...v0.45.1

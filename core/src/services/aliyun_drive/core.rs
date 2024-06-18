@@ -170,9 +170,21 @@ impl AliyunDriveCore {
         Ok((token, drive_id.clone()))
     }
 
-    pub async fn get_by_path(&self, path: &str) -> Result<Buffer> {
-        let file_path = build_rooted_abs_path(&self.root, path);
+    pub fn build_path(&self, path: &str, rooted: bool) -> String {
+        let file_path = if rooted {
+            build_rooted_abs_path(&self.root, path)
+        } else {
+            build_abs_path(&self.root, path)
+        };
         let file_path = file_path.strip_suffix('/').unwrap_or(&file_path);
+        if file_path.is_empty() {
+            return "/".to_string();
+        }
+        file_path.to_string()
+    }
+
+    pub async fn get_by_path(&self, path: &str) -> Result<Buffer> {
+        let file_path = self.build_path(path, true);
         let req = Request::post(format!(
             "{}/adrive/v1.0/openFile/get_by_path",
             self.endpoint
@@ -180,7 +192,7 @@ impl AliyunDriveCore {
         let (token, drive_id) = self.get_token_and_drive().await?;
         let body = serde_json::to_vec(&GetByPathRequest {
             drive_id: &drive_id,
-            file_path,
+            file_path: &file_path,
         })
         .map_err(new_json_serialize_error)?;
         let req = req
@@ -190,7 +202,7 @@ impl AliyunDriveCore {
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<String> {
-        let file_path = build_abs_path(&self.root, path.strip_suffix('/').unwrap_or(path));
+        let file_path = self.build_path(path, false);
         if file_path == "/" {
             return Ok("root".to_string());
         }

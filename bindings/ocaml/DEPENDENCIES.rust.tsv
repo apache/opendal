@@ -93,7 +93,7 @@ ocaml-interop@0.8.8								X
 ocaml-sys@0.22.3							X						
 ocaml-sys@0.23.0							X						
 once_cell@1.19.0		X						X					
-opendal@0.47.0		X											
+opendal@0.47.1		X											
 opendal-ocaml@0.0.0		X											
 ordered-multimap@0.7.3								X					
 pbkdf2@0.12.2		X						X					

@@ -17,6 +17,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 ## Useful Links
 
 - Documentation: [release](https://docs.rs/opendal/) | [dev](https://opendal.apache.org/docs/rust/opendal/)
+- [Examples](./examples)
 - [Release Notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 - [Upgrade Guide](https://docs.rs/opendal/latest/opendal/docs/upgrade/index.html)
 - [RFC List](https://docs.rs/opendal/latest/opendal/docs/rfcs/index.html)
@@ -194,7 +195,15 @@ async fn main() -> Result<()> {
 
 ## Examples
 
-The examples are available at [here](../examples/rust).
+| Name                | Description                                                   |
+|---------------------|---------------------------------------------------------------|
+| [Basic]             | Show how to use opendal to operate storage service.           |
+| [Concurrent Upload] | Show how to perform upload concurrently to a storage service. |
+| [Multipart Upload]  | Show how to perform a multipart upload to a storage service.  |
+
+[Basic]: ./examples/basic
+[Concurrent Upload]: ./examples/concurrent-upload
+[Multipart Upload]: ./examples/multipart-upload
 
 ## Contributing
 

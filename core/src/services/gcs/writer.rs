@@ -43,7 +43,8 @@ impl GcsWriter {
 }
 
 impl oio::RangeWrite for GcsWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, body: Buffer) -> Result<()> {
+        let size = body.len() as u64;
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
             Some(size),
@@ -83,13 +84,8 @@ impl oio::RangeWrite for GcsWriter {
         }
     }
 
-    async fn write_range(
-        &self,
-        location: &str,
-        written: u64,
-        size: u64,
-        body: Buffer,
-    ) -> Result<()> {
+    async fn write_range(&self, location: &str, written: u64, body: Buffer) -> Result<()> {
+        let size = body.len() as u64;
         let mut req = self
             .core
             .gcs_upload_in_resumable_upload(location, size, written, body)?;
@@ -105,13 +101,8 @@ impl oio::RangeWrite for GcsWriter {
         }
     }
 
-    async fn complete_range(
-        &self,
-        location: &str,
-        written: u64,
-        size: u64,
-        body: Buffer,
-    ) -> Result<()> {
+    async fn complete_range(&self, location: &str, written: u64, body: Buffer) -> Result<()> {
+        let size = body.len() as u64;
         let resp = self
             .core
             .gcs_complete_resumable_upload(location, written, size, body)

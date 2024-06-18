@@ -120,8 +120,8 @@ num-iter@0.1.45		X						X
 num-traits@0.2.19		X						X					
 object@0.35.0		X						X					
 once_cell@1.19.0		X						X					
-opendal@0.47.0		X											
-opendal-php@0.1.1		X											
+opendal@0.47.1		X											
+opendal-php@0.1.2		X											
 openssl@0.10.64		X											
 openssl-macros@0.1.1		X						X					
 openssl-probe@0.1.5		X						X					

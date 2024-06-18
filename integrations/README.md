@@ -11,3 +11,5 @@ This folder contains the integrations for OpenDAL. Integrations are used to inte
 - [`fuse3_opendal`](fuse3/README.md): Use OpenDAL as a backend to access data in various services with FUSE protocol.
 
 - [`virtiofs_opendal`](virtiofs/README.md): Use OpenDAL as a backend to access data in various services with VirtioFS protocol.
+
+- [`unftp-sbe-opendal`](unftp-sbe/README.md): Use OpenDAL as a backend to access data in various services with FTP protocol.

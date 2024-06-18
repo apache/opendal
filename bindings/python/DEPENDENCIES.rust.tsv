@@ -102,8 +102,8 @@ num-traits@0.2.19		X						X
 num_cpus@1.16.0		X						X					
 object@0.35.0		X						X					
 once_cell@1.19.0		X						X					
-opendal@0.47.0		X											
-opendal-python@0.45.3		X											
+opendal@0.47.1		X											
+opendal-python@0.45.4		X											
 openssh@0.10.4		X						X					
 openssh-sftp-client@0.14.3								X					
 openssh-sftp-client-lowlevel@0.6.0								X					
@@ -128,12 +128,12 @@ portable-atomic@1.6.0		X						X
 powerfmt@0.2.0		X						X					
 ppv-lite86@0.2.17		X						X					
 proc-macro2@1.0.85		X						X					
-pyo3@0.20.3		X						X					
-pyo3-asyncio@0.20.0		X											
-pyo3-build-config@0.20.3		X						X					
-pyo3-ffi@0.20.3		X						X					
-pyo3-macros@0.20.3		X						X					
-pyo3-macros-backend@0.20.3		X						X					
+pyo3@0.21.2		X						X					
+pyo3-asyncio-0-21@0.21.0		X											
+pyo3-build-config@0.21.2		X						X					
+pyo3-ffi@0.21.2		X						X					
+pyo3-macros@0.21.2		X						X					
+pyo3-macros-backend@0.21.2		X						X					
 quick-xml@0.31.0								X					
 quote@1.0.36		X						X					
 rand@0.8.5		X						X					

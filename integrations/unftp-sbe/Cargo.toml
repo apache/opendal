@@ -1,0 +1,6 @@
+[package]
+name = "unftp-sbe-opendal"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

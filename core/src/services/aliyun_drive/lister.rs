@@ -22,7 +22,6 @@ use chrono::Utc;
 
 use self::oio::Entry;
 use super::core::AliyunDriveCore;
-use super::core::AliyunDriveFile;
 use super::core::AliyunDriveFileList;
 use crate::raw::*;
 use crate::EntryMode;
@@ -93,20 +92,16 @@ impl oio::PageList for AliyunDriveLister {
         let n = result.items.len();
 
         for item in result.items {
-            let res = self.core.get(&item.file_id).await?;
-            let file: AliyunDriveFile =
-                serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-
             let path = if parent.parent_path.starts_with('/') {
-                build_abs_path(&parent.parent_path, &file.name)
+                build_abs_path(&parent.parent_path, &item.name)
             } else {
-                build_abs_path(&format!("/{}", &parent.parent_path), &file.name)
+                build_abs_path(&format!("/{}", &parent.parent_path), &item.name)
             };
 
-            let (path, md) = if file.path_type == "folder" {
+            let (path, md) = if item.path_type == "folder" {
                 let path = format!("{}/", path);
                 let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                    file.updated_at
+                    item.updated_at
                         .parse::<chrono::DateTime<Utc>>()
                         .map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "parse last modified time")
@@ -116,17 +111,17 @@ impl oio::PageList for AliyunDriveLister {
                 (path, meta)
             } else {
                 let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-                    file.updated_at
+                    item.updated_at
                         .parse::<chrono::DateTime<Utc>>()
                         .map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "parse last modified time")
                                 .set_source(e)
                         })?,
                 );
-                if let Some(v) = file.size {
+                if let Some(v) = item.size {
                     meta = meta.with_content_length(v);
                 }
-                if let Some(v) = file.content_type {
+                if let Some(v) = item.content_type {
                     meta = meta.with_content_type(v);
                 }
                 (path, meta)

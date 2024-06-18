@@ -51,6 +51,7 @@ default = [
 
 services-all = [
   "default",
+  "services-aliyun-drive",
   "services-cacache",
   "services-chainsafe",
   "services-dashmap",
@@ -95,6 +96,7 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-chainsafe = ["opendal/services-chainsafe"]

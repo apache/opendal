@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.46.1"
+version = "0.46.2"
 
 [features]
 default = [
@@ -47,45 +47,47 @@ default = [
 
 services-all = [
   "default",
-  "services-alluxio",
   "services-azfile",
-  "services-b2",
   "services-cacache",
   "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
-  "services-etcd",
+  # FIXME this service need protoc
+  # "services-etcd",
   # FIXME this requires a preinstalled fdb library
   # "services-foundationdb",
-  # FIXME waiting for this issue close https://github.com/async-rs/async-tls/issues/55
-  #  "services-ftp",
+  # "services-ftp",
   "services-gdrive",
-  "services-gridfs",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
   "services-huggingface",
   "services-ipfs",
-  "services-koofr",
-  "services-libsql",
   "services-memcached",
   "services-mini-moka",
   "services-moka",
-  "services-mongodb",
   "services-onedrive",
   "services-persy",
   "services-postgresql",
   "services-mysql",
   "services-redb",
   "services-redis",
-  "services-rocksdb",
-  "services-seafile",
+  # FIXME how to support rocksdb services in bindings?
+  # "services-rocksdb",
   "services-sled",
-  "services-sqlite",
   "services-supabase",
   "services-swift",
-  "services-tikv",
-  "services-upyun",
+  # FIXME this service need protoc
+  # "services-tikv",
   "services-vercel-artifacts",
+  "services-mongodb",
+  "services-gridfs",
+  "services-sqlite",
+  "services-libsql",
+  "services-alluxio",
+  "services-b2",
+  "services-seafile",
+  "services-upyun",
+  "services-koofr",
   "services-yandex-disk",
 ]
 

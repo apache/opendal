@@ -139,16 +139,18 @@ if __name__ == "__main__":
         check_license(dir)
         check_notice(dir)
 
-        if check_rust():
-            build_core(dir)
-        else:
-            print(
-                "Cargo is not found, please check if rust development has been setup correctly"
-            )
-            print("Visit https://www.rust-lang.org/tools/install for more information")
-            sys.exit(1)
+        if "core" in dir.name:
+            if check_rust():
+                build_core(dir)
+            else:
+                print(
+                    "Cargo is not found, please check if rust development has been setup correctly"
+                )
+                print("Visit https://www.rust-lang.org/tools/install for more information")
+                sys.exit(1)
 
-        if check_java():
-            build_java_binding(dir)
-        else:
-            print("Java is not found, skipped building java binding")
+        if "java" in dir.name:
+            if check_java():
+                build_java_binding(dir)
+            else:
+                print("Java is not found, skipped building java binding")

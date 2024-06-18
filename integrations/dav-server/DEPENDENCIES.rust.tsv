@@ -23,12 +23,10 @@ chrono@0.4.38		X						X
 core-foundation-sys@0.8.6		X						X					
 cpufeatures@0.2.12		X						X					
 crypto-common@0.1.6		X						X					
-dav-server@0.5.8		X											
-dav-server-opendalfs@0.0.2		X											
+dav-server@0.6.0		X											
+dav-server-opendalfs@0.0.3		X											
 deranged@0.3.11		X						X					
 digest@0.10.7		X						X					
-dirs@5.0.1		X						X					
-dirs-sys@0.4.1		X						X					
 fastrand@2.1.0		X						X					
 flagset@0.4.5		X											
 fnv@1.0.7		X						X					
@@ -46,13 +44,11 @@ generic-array@0.14.7								X
 getrandom@0.2.15		X						X					
 gimli@0.29.0		X						X					
 hashbrown@0.14.5		X						X					
-headers@0.3.9								X					
-headers-core@0.2.0								X					
+headers@0.4.0								X					
+headers-core@0.3.0								X					
 hermit-abi@0.3.9		X						X					
 htmlescape@0.3.1		X						X	X				
-http@0.2.12		X						X					
 http@1.1.0		X						X					
-http-body@0.4.6								X					
 http-body@1.0.0								X					
 http-body-util@0.1.1								X					
 httparse@1.8.0		X						X					
@@ -68,7 +64,6 @@ itoa@1.0.11		X						X
 js-sys@0.3.69		X						X					
 lazy_static@1.4.0		X						X					
 libc@0.2.155		X						X					
-libredox@0.1.3								X					
 lock_api@0.4.12		X						X					
 log@0.4.21		X						X					
 lru@0.12.3								X					
@@ -83,8 +78,7 @@ num-traits@0.2.19		X						X
 num_cpus@1.16.0		X						X					
 object@0.35.0		X						X					
 once_cell@1.19.0		X						X					
-opendal@0.47.0		X											
-option-ext@0.2.0									X				
+opendal@0.47.1		X											
 parking_lot@0.12.3		X						X					
 parking_lot_core@0.9.10		X						X					
 percent-encoding@2.3.1		X						X					
@@ -97,7 +91,6 @@ proc-macro2@1.0.85		X						X
 quick-xml@0.31.0								X					
 quote@1.0.36		X						X					
 redox_syscall@0.5.1								X					
-redox_users@0.4.5								X					
 regex@1.10.4		X						X					
 regex-automata@0.4.6		X						X					
 regex-syntax@0.8.3		X						X					
@@ -122,8 +115,6 @@ spin@0.9.8								X
 subtle@2.5.0					X								
 syn@2.0.66		X						X					
 sync_wrapper@0.1.2		X											
-thiserror@1.0.61		X						X					
-thiserror-impl@1.0.61		X						X					
 time@0.3.36		X						X					
 time-core@0.1.2		X						X					
 time-macros@0.2.18		X						X					

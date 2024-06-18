@@ -57,7 +57,7 @@ impl Debug for GdriveCore {
 
 impl GdriveCore {
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = gdrive_normalize_dir_path(build_abs_path(&self.root, path));
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {}", path),
@@ -77,7 +77,7 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = gdrive_normalize_dir_path(build_abs_path(&self.root, path));
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {}", path),
@@ -184,7 +184,10 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
+        let parent = self
+            .path_cache
+            .ensure_dir(&gdrive_normalize_dir_path(get_parent(path).to_owned()))
+            .await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -397,7 +400,7 @@ impl PathQuery for GdrivePathQuery {
         let url = "https://www.googleapis.com/drive/v3/files";
 
         // trim "/" at the end of name
-        let name = name.trim_end_matches("/");
+        let name = gdrive_normalize_dir_path(name.to_owned());
 
         let content = serde_json::to_vec(&json!({
             "name": name,
@@ -456,4 +459,24 @@ pub struct GdriveFile {
 pub(crate) struct GdriveFileList {
     pub(crate) files: Vec<GdriveFile>,
     pub(crate) next_page_token: Option<String>,
+}
+
+/// On Google Drive, dir path name cannot end with slash (/) because if we add a slash, it would be different from the dir name
+pub(super) fn gdrive_normalize_dir_path(path: String) -> String {
+    if path == "/" {
+        path
+    } else if path.ends_with('/') {
+        path.split_at(path.len() - 1).0.to_owned()
+    } else {
+        path
+    }
+}
+
+#[test]
+fn test_normalize_dir_path() {
+    assert_eq!(gdrive_normalize_dir_path("/".to_owned()), "/");
+    assert_eq!(gdrive_normalize_dir_path("/a".to_owned()), "/a");
+    assert_eq!(gdrive_normalize_dir_path("/a/".to_owned()), "/a");
+    assert_eq!(gdrive_normalize_dir_path("/a/b".to_owned()), "/a/b");
+    assert_eq!(gdrive_normalize_dir_path("/a/b/".to_owned()), "/a/b");
 }

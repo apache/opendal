@@ -36,7 +36,13 @@ rustdoc-args = ["--cfg", "docs"]
 
 [workspace]
 default-members = ["."]
-members = [".", "fuzz", "edge/*", "benches/vs_*"]
+members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.75"
+version = "0.47.0"
 
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
@@ -95,6 +101,7 @@ layers-async-backtrace = ["dep:async-backtrace"]
 layers-blocking = ["internal-tokio-rt"]
 layers-dtrace = ["dep:probe"]
 
+services-aliyun-drive = []
 services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
@@ -193,7 +200,6 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-aliyun-drive = []
 
 [lib]
 bench = false
@@ -233,7 +239,10 @@ chrono = { version = "0.4.28", default-features = false, features = [
     "std",
 ] }
 flagset = "0.4"
-futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+futures = { version = "0.3", default-features = false, features = [
+    "std",
+    "async-await",
+] }
 http = "1.1"
 log = "0.4"
 md-5 = "0.10"
@@ -335,7 +344,11 @@ hdfs-native = { version = "0.9.4", optional = true }
 # for services-surrealdb
 surrealdb = { version = "1.3.0", optional = true, features = ["protocol-http"] }
 # for services-compfs
-compio = { version = "0.10.0", optional = true, features = ["runtime", "bytes", "polling"] }
+compio = { version = "0.10.0", optional = true, features = [
+    "runtime",
+    "bytes",
+    "polling",
+] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
 

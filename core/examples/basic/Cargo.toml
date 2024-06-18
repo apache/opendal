@@ -16,15 +16,14 @@
 # under the License.
 
 [package]
-name = "edge_test_aws_s3_assume_role_with_web_identity"
-
-edition.workspace = true
-license.workspace = true
+name = "opendal-examples-basic"
 publish = false
-rust-version.workspace = true
+
 version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
+futures = "0.3"
 opendal = { path = "../..", features = ["tests"] }
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["serde", "v4"] }
+tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread"] }

@@ -6,5 +6,5 @@ The goal of these documents is to provide you with everything you need to start 
 
 ## Examples
 
-- [Rust](rust/README.md)
+- [Rust](../core/examples/README.md)
 - [C++](cpp/README.md)

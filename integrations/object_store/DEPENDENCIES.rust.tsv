@@ -72,9 +72,9 @@ num-traits@0.2.19		X					X
 num_cpus@1.16.0		X					X					
 object@0.35.0		X					X					
 object_store@0.10.1		X					X					
-object_store_opendal@0.44.0		X										
+object_store_opendal@0.44.1		X										
 once_cell@1.19.0		X					X					
-opendal@0.47.0		X										
+opendal@0.47.1		X										
 parking_lot@0.12.3		X					X					
 parking_lot_core@0.9.10		X					X					
 percent-encoding@2.3.1		X					X					

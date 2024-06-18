@@ -93,8 +93,6 @@ impl<Q: PathQuery> PathCacher<Q> {
     pub async fn insert(&self, path: &str, id: &str) {
         let _guard = self.lock().await;
 
-        let path = normalize_dir_path(path);
-
         // This should never happen, but let's ignore the insert if happened.
         if self.cache.contains_key(path) {
             debug_assert!(
@@ -111,16 +109,12 @@ impl<Q: PathQuery> PathCacher<Q> {
     pub async fn remove(&self, path: &str) {
         let _guard = self.lock().await;
 
-        let path = normalize_dir_path(path);
-
         self.cache.invalidate(path)
     }
 
     /// Get the id for the given path.
     pub async fn get(&self, path: &str) -> Result<Option<String>> {
         let _guard = self.lock().await;
-
-        let path = normalize_dir_path(path);
 
         if let Some(id) = self.cache.get(path) {
             return Ok(Some(id));
@@ -164,7 +158,6 @@ impl<Q: PathQuery> PathCacher<Q> {
     /// Ensure input dir exists.
     pub async fn ensure_dir(&self, path: &str) -> Result<String> {
         let _guard = self.lock().await;
-        let path = normalize_dir_path(path);
 
         let mut tmp = "".to_string();
         // All parents that need to check.
@@ -184,8 +177,7 @@ impl<Q: PathQuery> PathCacher<Q> {
             None => self.query.root().await?,
         };
         for parent in parents {
-            let parent = normalize_dir_path(&parent);
-            parent_id = match self.cache.get(parent) {
+            parent_id = match self.cache.get(&parent) {
                 Some(value) => value,
                 None => {
                     let value = match self.query.query(&parent_id, get_basename(&parent)).await? {
@@ -196,7 +188,7 @@ impl<Q: PathQuery> PathCacher<Q> {
                                 .await?
                         }
                     };
-                    self.cache.insert(parent.to_owned(), value.clone());
+                    self.cache.insert(parent, value.clone());
                     value
                 }
             }
@@ -206,21 +198,8 @@ impl<Q: PathQuery> PathCacher<Q> {
     }
 }
 
-/// Normalize the path for dirs
-pub fn normalize_dir_path(path: &str) -> &str {
-    if path == "/" {
-        path
-    } else if path.ends_with('/') {
-        path.split_at(path.len() - 1).0
-    } else {
-        path
-    }
-}
-
 #[cfg(test)]
 mod tests {
-
-    use raw::normalize_dir_path;
 
     use crate::raw::PathCacher;
     use crate::raw::PathQuery;
@@ -261,14 +240,5 @@ mod tests {
             let actual = cache.get(input).await.unwrap();
             assert_eq!(actual.as_deref(), expect, "{}", name)
         }
-    }
-
-    #[test]
-    fn test_normalize_dir_path() {
-        assert_eq!(normalize_dir_path("/"), "/");
-        assert_eq!(normalize_dir_path("/a"), "/a");
-        assert_eq!(normalize_dir_path("/a/"), "/a");
-        assert_eq!(normalize_dir_path("/a/b"), "/a/b");
-        assert_eq!(normalize_dir_path("/a/b/"), "/a/b");
     }
 }

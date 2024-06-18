@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### CI
 * ci: verify build website on site content changes by @tisonkun in https://github.com/apache/opendal/pull/4712
 * ci: Fix cert for redis and add docs for key maintenance by @Xuanwo in https://github.com/apache/opendal/pull/4718
+* ci(nodejs): Disable services-all on windows by @Xuanwo in https://github.com/apache/opendal/pull/4762
+
 ### Chore
 * chore: use more portable binutils  by @tisonkun in https://github.com/apache/opendal/pull/4713
 * chore(deps): bump clap from 4.5.6 to 4.5.7 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4728

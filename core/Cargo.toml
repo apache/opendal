@@ -36,7 +36,13 @@ rustdoc-args = ["--cfg", "docs"]
 
 [workspace]
 default-members = ["."]
-members = [".", "fuzz", "edge/*", "benches/vs_*"]
+members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.75"
+version = "0.47.1"
 
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
@@ -229,13 +235,13 @@ backon = "0.4.4"
 base64 = "0.22"
 bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
-  "clock",
-  "std",
+    "clock",
+    "std",
 ] }
 flagset = "0.4"
 futures = { version = "0.3", default-features = false, features = [
-  "std",
-  "async-await",
+    "std",
+    "async-await",
 ] }
 http = "1.1"
 log = "0.4"
@@ -276,8 +282,8 @@ bb8-postgres = { version = "0.8.1", optional = true }
 tokio-postgres = { version = "0.7.8", optional = true }
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
-  "tokio-runtime",
-  "mmap",
+    "tokio-runtime",
+    "mmap",
 ], optional = true }
 # for services-dashmap
 dashmap = { version = "5.4", optional = true }
@@ -285,7 +291,7 @@ dashmap = { version = "5.4", optional = true }
 etcd-client = { version = "0.12", optional = true, features = ["tls"] }
 # for services-foundationdb
 foundationdb = { version = "0.8.0", features = [
-  "embedded-fdb-include",
+    "embedded-fdb-include",
 ], optional = true }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
@@ -301,13 +307,13 @@ moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 mongodb = { version = "2.8.1", optional = true, features = ["tokio-runtime"] }
 # for services-mysql
 mysql_async = { version = "0.32.2", default-features = false, features = [
-  "default-rustls",
+    "default-rustls",
 ], optional = true }
 # for services-sftp
 openssh = { version = "0.10.0", optional = true }
 openssh-sftp-client = { version = "0.14.0", optional = true, features = [
-  "openssh",
-  "tracing",
+    "openssh",
+    "tracing",
 ] }
 # for services-persy
 persy = { version = "1.4.6", optional = true }
@@ -315,9 +321,9 @@ persy = { version = "1.4.6", optional = true }
 redb = { version = "1.1.0", optional = true }
 # for services-redis
 redis = { version = "0.23.1", features = [
-  "cluster-async",
-  "tokio-comp",
-  "connection-manager",
+    "cluster-async",
+    "tokio-comp",
+    "connection-manager",
 ], optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
@@ -327,9 +333,9 @@ rusqlite = { version = "0.31.0", optional = true, features = ["bundled"] }
 sled = { version = "0.34.7", optional = true }
 # for services-ftp
 suppaftp = { version = "5.3.1", default-features = false, features = [
-  "async-secure",
-  "rustls",
-  "async-rustls",
+    "async-secure",
+    "rustls",
+    "async-rustls",
 ], optional = true }
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
@@ -339,9 +345,9 @@ hdfs-native = { version = "0.9.4", optional = true }
 surrealdb = { version = "1.3.0", optional = true, features = ["protocol-http"] }
 # for services-compfs
 compio = { version = "0.10.0", optional = true, features = [
-  "runtime",
-  "bytes",
-  "polling",
+    "runtime",
+    "bytes",
+    "polling",
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
@@ -379,7 +385,7 @@ dotenvy = "0.15"
 libtest-mimic = "0.6"
 minitrace = { version = "0.6", features = ["enable"] }
 opentelemetry = { version = "0.21", default-features = false, features = [
-  "trace",
+    "trace",
 ] }
 pretty_assertions = "1"
 rand = "0.8"
@@ -387,6 +393,6 @@ sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
+    "env-filter",
+    "tracing-log",
 ] }

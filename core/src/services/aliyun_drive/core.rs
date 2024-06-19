@@ -40,11 +40,11 @@ pub enum DriveType {
     Default,
     /// Use the backup type of Aliyun Drive.
     ///
-    /// fallback to the default type if no backup drive found.
+    /// Fallback to the default type if no backup drive is found.
     Backup,
     /// Use the resource type of Aliyun Drive.
     ///
-    /// fallback to the default type if no resource drive found.
+    /// Fallback to the default type if no resource drive is found.
     Resource,
 }
 

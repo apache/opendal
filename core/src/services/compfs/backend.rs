@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-
-use super::core::CompioThread;
+use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
 use crate::raw::*;
 use crate::*;
+
+use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
@@ -60,18 +59,94 @@ impl Builder for CompfsBuilder {
 
 #[derive(Debug)]
 pub struct CompfsBackend {
-    rt: CompioThread,
+    core: Arc<CompfsCore>,
 }
 
 impl Access for CompfsBackend {
-    type Reader = ();
-    type Writer = ();
-    type Lister = ();
+    type Reader = CompfsReader;
+    type Writer = CompfsWriter;
+    type Lister = Option<CompfsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
-        todo!()
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::Compfs)
+            .set_root(&self.core.root.to_string_lossy())
+            .set_native_capability(Capability {
+                stat: true,
+
+                read: true,
+
+                write: true,
+                write_can_empty: true,
+                write_can_multi: true,
+                create_dir: true,
+                delete: true,
+
+                list: true,
+
+                copy: true,
+                rename: true,
+                blocking: true,
+
+                ..Default::default()
+            });
+
+        am
+    }
+
+    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+
+        let file = self
+            .core
+            .exec(|| async move { compio::fs::OpenOptions::new().read(true).open(&path).await })
+            .await?;
+
+        let r = CompfsReader::new(self.core.clone(), file, op.range());
+        Ok((RpRead::new(), r))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+        let append = args.append();
+        let file = self
+            .core
+            .exec(move || async move {
+                compio::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(!append)
+                    .open(path)
+                    .await
+            })
+            .await
+            .map(Cursor::new)?;
+
+        let w = CompfsWriter::new(self.core.clone(), file);
+        Ok((RpWrite::new(), w))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let path = self.core.root.join(path.trim_end_matches('/'));
+        let read_dir = match self
+            .core
+            .exec_blocking(move || std::fs::read_dir(path))
+            .await?
+        {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == std::io::ErrorKind::NotFound {
+                    Ok((RpList::default(), None))
+                } else {
+                    Err(new_std_io_error(e))
+                };
+            }
+        };
+
+        let lister = CompfsLister::new(self.core.clone(), read_dir);
+        Ok((RpList::default(), Some(lister)))
     }
 }

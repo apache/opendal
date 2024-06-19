@@ -15,28 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::task::Poll;
-use std::{fmt::Debug, sync::Arc};
 
 use bytes::{Buf, BufMut};
 use libunftp::auth::UserDetail;
 use libunftp::storage::{self, StorageBackend};
-use opendal::{raw::oio::PooledBuf, Buffer, Operator};
-use tokio::io::{AsyncRead, AsyncReadExt};
+use opendal::{Buffer, Operator};
+
+use tokio::io::AsyncRead;
+use tokio_util::compat::FuturesAsyncWriteCompatExt;
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {
     op: Operator,
-    pool: Arc<PooledBuf>,
 }
 
 impl OpendalStorage {
     pub fn new(op: Operator) -> Self {
-        Self {
-            op,
-            pool: PooledBuf::new(16).into(),
-        }
+        Self { op }
     }
 }
 
@@ -56,7 +54,7 @@ impl AsyncRead for IoBuffer {
 }
 
 /// A wrapper around [`opendal::Metadata`] to implement [`libunftp::storage::Metadata`].
-pub struct OpendalMetadata(pub opendal::Metadata);
+pub struct OpendalMetadata(opendal::Metadata);
 
 impl storage::Metadata for OpendalMetadata {
     fn len(&self) -> u64 {
@@ -90,7 +88,7 @@ impl storage::Metadata for OpendalMetadata {
     }
 }
 
-fn cvt_err(err: opendal::Error) -> storage::Error {
+fn convert_err(err: opendal::Error) -> storage::Error {
     let kind = match err.kind() {
         opendal::ErrorKind::NotFound => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::AlreadyExists => storage::ErrorKind::PermanentFileNotAvailable,
@@ -100,7 +98,7 @@ fn cvt_err(err: opendal::Error) -> storage::Error {
     storage::Error::new(kind, err)
 }
 
-fn cvt_path(path: &Path) -> storage::Result<&str> {
+fn convert_path(path: &Path) -> storage::Result<&str> {
     path.to_str().ok_or_else(|| {
         storage::Error::new(
             storage::ErrorKind::LocalError,
@@ -120,9 +118,9 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     ) -> storage::Result<Self::Metadata> {
         let metadata = self
             .op
-            .stat(cvt_path(path.as_ref())?)
+            .stat(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)?;
+            .map_err(convert_err)?;
         Ok(OpendalMetadata(metadata))
     }
 
@@ -136,9 +134,9 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     {
         let ret = self
             .op
-            .list(cvt_path(path.as_ref())?)
+            .list(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)?
+            .map_err(convert_err)?
             .into_iter()
             .map(|x| {
                 let (path, metadata) = x.into_parts();
@@ -159,10 +157,10 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     ) -> storage::Result<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>> {
         let buf = self
             .op
-            .read_with(cvt_path(path.as_ref())?)
+            .read_with(convert_path(path.as_ref())?)
             .range(start_pos..)
             .await
-            .map_err(cvt_err)?;
+            .map_err(convert_err)?;
         Ok(Box::new(IoBuffer(buf)))
     }
 
@@ -176,30 +174,29 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         path: P,
         _: u64,
     ) -> storage::Result<u64> {
-        let mut buf = self.pool.get();
-        input.read_buf(&mut buf).await?;
-        let bytes = buf.split().freeze();
-        let len = bytes.len() as u64;
-        self.pool.put(buf);
-        self.op
-            .write_with(cvt_path(path.as_ref())?, bytes)
+        let mut w = self
+            .op
+            .writer(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)?;
+            .map_err(convert_err)?
+            .into_futures_async_write()
+            .compat_write();
+        let len = tokio::io::copy(&mut input, &mut w).await?;
         Ok(len)
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .delete(cvt_path(path.as_ref())?)
+            .delete(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)
+            .map_err(convert_err)
     }
 
     async fn mkd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .create_dir(cvt_path(path.as_ref())?)
+            .create_dir(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)
+            .map_err(convert_err)
     }
 
     async fn rename<P: AsRef<Path> + Send + Debug>(
@@ -208,27 +205,27 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         from: P,
         to: P,
     ) -> storage::Result<()> {
-        let (from, to) = (cvt_path(from.as_ref())?, cvt_path(to.as_ref())?);
-        self.op.rename(from, to).await.map_err(cvt_err)
+        let (from, to) = (convert_path(from.as_ref())?, convert_path(to.as_ref())?);
+        self.op.rename(from, to).await.map_err(convert_err)
     }
 
     async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .remove_all(cvt_path(path.as_ref())?)
+            .remove_all(convert_path(path.as_ref())?)
             .await
-            .map_err(cvt_err)
+            .map_err(convert_err)
     }
 
     async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         use opendal::ErrorKind::*;
 
-        match self.op.stat(cvt_path(path.as_ref())?).await {
+        match self.op.stat(convert_path(path.as_ref())?).await {
             Ok(_) => Ok(()),
             Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(storage::Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
                 e,
             )),
-            Err(e) => Err(cvt_err(e)),
+            Err(e) => Err(convert_err(e)),
         }
     }
 }

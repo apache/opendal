@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::task::Poll;
+use std::{fmt::Debug, sync::Arc};
 
 use bytes::{Buf, BufMut};
 use libunftp::auth::UserDetail;
@@ -25,17 +25,17 @@ use libunftp::storage::{self, StorageBackend};
 use opendal::{raw::oio::PooledBuf, Buffer, Operator};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OpendalStorage {
     op: Operator,
-    pool: PooledBuf,
+    pool: Arc<PooledBuf>,
 }
 
 impl OpendalStorage {
     pub fn new(op: Operator) -> Self {
         Self {
             op,
-            pool: PooledBuf::new(16),
+            pool: PooledBuf::new(16).into(),
         }
     }
 }

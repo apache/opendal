@@ -445,8 +445,10 @@ impl Access for AliyunDriveBackend {
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
                 Some(AliyunDriveParent {
-                    parent_path: path.to_string(),
-                    parent_file_id: file.file_id,
+                    file_id: file.file_id,
+                    name: file.name,
+                    path: path.to_string(),
+                    updated_at: file.updated_at,
                 })
             }
         };

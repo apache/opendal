@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use compio::dispatcher::Dispatcher;
+
 use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+
 use crate::raw::*;
 use crate::*;
 
@@ -42,7 +45,7 @@ impl CompfsBuilder {
 
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
-    type Accessor = ();
+    type Accessor = CompfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = CompfsBuilder::default();
@@ -53,7 +56,27 @@ impl Builder for CompfsBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        todo!()
+        let root = match self.root.take() {
+            Some(root) => Ok(root),
+            None => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "root is not specified",
+            )),
+        }?;
+        let dispatcher = Dispatcher::new().map_err(|_| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "failed to initiate compio dispatcher",
+            )
+        })?;
+        let core = CompfsCore {
+            root,
+            dispatcher,
+            buf_pool: oio::PooledBuf::new(16),
+        };
+        Ok(CompfsBackend {
+            core: Arc::new(core),
+        })
     }
 }
 

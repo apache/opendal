@@ -31,7 +31,7 @@ pub struct CompfsReader {
 }
 
 impl CompfsReader {
-    pub fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
+    pub(super) fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
         Self { core, file, range }
     }
 }

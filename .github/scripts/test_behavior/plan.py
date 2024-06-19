@@ -222,6 +222,9 @@ def generate_language_binding_cases(
     cases = unique_cases(cases)
 
     # Disable aliyun_drive case for every language.
+    #
+    # This is because aliyun_drive has a speed limit and tests may not be stable enough.
+    # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
     # Remove hdfs cases for jav:a.

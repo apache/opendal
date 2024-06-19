@@ -1840,6 +1840,7 @@ checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-io",
  "futures-sink",
  "pin-project-lite",
  "tokio",
@@ -1925,8 +1926,12 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 name = "unftp-sbe-opendal"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
+ "bytes",
  "libunftp",
  "opendal",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

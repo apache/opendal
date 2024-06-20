@@ -64,8 +64,8 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* methods
 
-| Name  | Description                                                        | Release                   | 
-|-------|--------------------------------------------------------------------|---------------------------| 
+| Name  | Description                                                        | Release                   |
+|-------|--------------------------------------------------------------------|---------------------------|
 | [oay] | Access data via API Gateway                                        | [![oay image]][oay crate] |
 | [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
 | [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
@@ -88,6 +88,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | [object_store_opendal] | an [object_store] implementation using opendal.      | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
 | [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                           | -                                                                                 |
 | [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                           | -                                                                                 |
+| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal. | -                                           | -                                                                                 |
 
 [dav-server-opendalfs]: integrations/dav-server/README.md
 [dav-server-rs]: https://github.com/messense/dav-server-rs
@@ -109,10 +110,13 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [virtiofs_opendal]: integrations/virtiofs/README.md
 [vhost-user-backend]: https://docs.rs/vhost-user-backend
 
+[unftp-sbe-opendal]: integrations/unftp-sbe/README.md
+[unftp]: https://crates.io/crates/unftp
+
 ## For *ANY* services
 
-| Type                           | Services                                                                                                                                 | 
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
+| Type                           | Services                                                                                                                                 |
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |

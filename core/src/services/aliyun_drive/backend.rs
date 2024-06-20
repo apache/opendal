@@ -43,31 +43,31 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct AliyunDriveConfig {
-    /// root of this backend.
+    /// The Root of this backend.
     ///
     /// All operations will happen under this root.
     ///
-    /// default to `/` if not set.
+    /// Default to `/` if not set.
     pub root: Option<String>,
-    /// access_token of this backend.
+    /// The access_token of this backend.
     ///
     /// Solution for client-only purpose. #4733
     ///
-    /// required if no client_id, client_secret and refresh_token are provided.
+    /// Required if no client_id, client_secret and refresh_token are provided.
     pub access_token: Option<String>,
-    /// client_id of this backend.
+    /// The client_id of this backend.
     ///
-    /// required if no access_token is provided.
+    /// Required if no access_token is provided.
     pub client_id: Option<String>,
-    /// client_secret of this backend.
+    /// The client_secret of this backend.
     ///
-    /// required if no access_token is provided.
+    /// Required if no access_token is provided.
     pub client_secret: Option<String>,
-    /// refresh_token of this backend.
+    /// The refresh_token of this backend.
     ///
-    /// required if no access_token is provided.
+    /// Required if no access_token is provided.
     pub refresh_token: Option<String>,
-    /// drive_type of this backend.
+    /// The drive_type of this backend.
     ///
     /// All operations will happen under this type of drive.
     ///
@@ -106,7 +106,7 @@ impl Debug for AliyunDriveBuilder {
 }
 
 impl AliyunDriveBuilder {
-    /// Set root of this backend.
+    /// Set the root of this backend.
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
@@ -342,8 +342,8 @@ impl Access for AliyunDriveBackend {
         let parent_path = get_parent(to);
         let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
 
-        // if from and to are going to be placed in the same folder
-        // copy_path will fail as we cannot change name during this action.
+        // if from and to are going to be placed in the same folder,
+        // copy_path will fail as we cannot change the name during this action.
         // it has to be auto renamed.
         let auto_rename = file.parent_file_id == parent_file_id;
         let res = self
@@ -445,8 +445,10 @@ impl Access for AliyunDriveBackend {
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
                 Some(AliyunDriveParent {
-                    parent_path: path.to_string(),
-                    parent_file_id: file.file_id,
+                    file_id: file.file_id,
+                    name: file.name,
+                    path: path.to_string(),
+                    updated_at: file.updated_at,
                 })
             }
         };

@@ -38,8 +38,10 @@ pub struct AliyunDriveLister {
 }
 
 pub struct AliyunDriveParent {
-    pub parent_path: String,
-    pub parent_file_id: String,
+    pub file_id: String,
+    pub name: String,
+    pub path: String,
+    pub updated_at: String,
 }
 
 impl AliyunDriveLister {
@@ -64,15 +66,32 @@ impl oio::PageList for AliyunDriveLister {
         };
 
         let offset = if ctx.token.is_empty() {
+            if !parent.path.ends_with('/') {
+                // List "dir" should contains "dir/".
+                let path = if !parent.path.starts_with('/') {
+                    format!("/{}", parent.path)
+                } else {
+                    parent.path.clone()
+                };
+                ctx.entries.push_back(Entry::new(
+                    &format!("{}/", path),
+                    Metadata::new(EntryMode::DIR).with_last_modified(
+                        parent
+                            .updated_at
+                            .parse::<chrono::DateTime<Utc>>()
+                            .map_err(|e| {
+                                Error::new(ErrorKind::Unexpected, "parse last modified time")
+                                    .set_source(e)
+                            })?,
+                    ),
+                ));
+            }
             None
         } else {
             Some(ctx.token.clone())
         };
 
-        let res = self
-            .core
-            .list(&parent.parent_file_id, self.limit, offset)
-            .await;
+        let res = self.core.list(&parent.file_id, self.limit, offset).await;
         let res = match res {
             Err(err) if err.kind() == ErrorKind::NotFound => {
                 ctx.done = true;
@@ -92,10 +111,10 @@ impl oio::PageList for AliyunDriveLister {
         let n = result.items.len();
 
         for item in result.items {
-            let path = if parent.parent_path.starts_with('/') {
-                build_abs_path(&parent.parent_path, &item.name)
+            let path = if parent.path.starts_with('/') {
+                build_abs_path(&parent.path, &item.name)
             } else {
-                build_abs_path(&format!("/{}", &parent.parent_path), &item.name)
+                build_abs_path(&format!("/{}", &parent.path), &item.name)
             };
 
             let (path, md) = if item.path_type == "folder" {

@@ -13,3 +13,5 @@ This folder contains the integrations for OpenDAL. Integrations are used to inte
 - [`virtiofs_opendal`](virtiofs/README.md): Use OpenDAL as a backend to access data in various services with VirtioFS protocol.
 
 - [`unftp-sbe-opendal`](unftp-sbe/README.md): Use OpenDAL as a backend to access data in various services with FTP protocol.
+
+- [`cloudfilter_opendal`](cloudfilter/README.md): Use OpenDAL as a backend to access data in various services with CloudFilter.

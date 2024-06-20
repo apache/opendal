@@ -31,7 +31,7 @@ pub struct CompfsReader {
 }
 
 impl CompfsReader {
-    pub fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
+    pub(super) fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
         Self { core, file, range }
     }
 }
@@ -40,13 +40,14 @@ impl oio::Read for CompfsReader {
     async fn read(&mut self) -> Result<Buffer> {
         let mut bs = self.core.buf_pool.get();
 
+        let pos = self.range.offset();
         let len = self.range.size().expect("range size is always Some");
         bs.reserve(len as _);
         let f = self.file.clone();
         let mut bs = self
             .core
             .exec(move || async move {
-                let (_, bs) = buf_try!(@try f.read_at(bs, len).await);
+                let (_, bs) = buf_try!(@try f.read_at(bs, pos).await);
                 Ok(bs)
             })
             .await?;

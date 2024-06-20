@@ -28,7 +28,7 @@ pub struct CompfsLister {
 }
 
 impl CompfsLister {
-    pub fn new(core: Arc<CompfsCore>, read_dir: ReadDir) -> Self {
+    pub(super) fn new(core: Arc<CompfsCore>, read_dir: ReadDir) -> Self {
         Self {
             core,
             read_dir: Some(read_dir),

@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+
 use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+
 use crate::raw::*;
 use crate::*;
 
@@ -42,7 +45,7 @@ impl CompfsBuilder {
 
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
-    type Accessor = ();
+    type Accessor = CompfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = CompfsBuilder::default();
@@ -53,7 +56,27 @@ impl Builder for CompfsBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        todo!()
+        let root = match self.root.take() {
+            Some(root) => Ok(root),
+            None => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "root is not specified",
+            )),
+        }?;
+        let dispatcher = Dispatcher::new().map_err(|_| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "failed to initiate compio dispatcher",
+            )
+        })?;
+        let core = CompfsCore {
+            root,
+            dispatcher,
+            buf_pool: oio::PooledBuf::new(16),
+        };
+        Ok(CompfsBackend {
+            core: Arc::new(core),
+        })
     }
 }
 
@@ -89,7 +112,6 @@ impl Access for CompfsBackend {
 
                 copy: true,
                 rename: true,
-                blocking: true,
 
                 ..Default::default()
             });
@@ -97,8 +119,79 @@ impl Access for CompfsBackend {
         am
     }
 
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let path = self.core.prepare_path(path);
+
+        self.core
+            .exec(move || async move { compio::fs::create_dir_all(path).await })
+            .await?;
+
+        Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let path = self.core.prepare_path(path);
+
+        let meta = self
+            .core
+            .exec(move || async move { compio::fs::metadata(path).await })
+            .await?;
+        let ty = meta.file_type();
+        let mode = if ty.is_dir() {
+            EntryMode::DIR
+        } else if ty.is_file() {
+            EntryMode::FILE
+        } else {
+            EntryMode::Unknown
+        };
+        let last_mod = meta.modified().map_err(new_std_io_error)?.into();
+        let ret = Metadata::new(mode).with_last_modified(last_mod);
+
+        Ok(RpStat::new(ret))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let path = self.core.prepare_path(path);
+
+        self.core
+            .exec(move || async move { compio::fs::remove_file(path).await })
+            .await?;
+
+        Ok(RpDelete::default())
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let from = self.core.prepare_path(from);
+        let to = self.core.prepare_path(to);
+
+        self.core
+            .exec(move || async move {
+                let from = OpenOptions::new().read(true).open(from).await?;
+                let to = OpenOptions::new().write(true).create(true).open(to).await?;
+
+                let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
+                compio::io::copy(&mut from, &mut to).await?;
+
+                Ok(())
+            })
+            .await?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        let from = self.core.prepare_path(from);
+        let to = self.core.prepare_path(to);
+
+        self.core
+            .exec(move || async move { compio::fs::rename(from, to).await })
+            .await?;
+
+        Ok(RpRename::default())
+    }
+
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.root.join(path.trim_end_matches('/'));
+        let path = self.core.prepare_path(path);
 
         let file = self
             .core
@@ -110,7 +203,7 @@ impl Access for CompfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = self.core.root.join(path.trim_end_matches('/'));
+        let path = self.core.prepare_path(path);
         let append = args.append();
         let file = self
             .core
@@ -130,7 +223,8 @@ impl Access for CompfsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let path = self.core.root.join(path.trim_end_matches('/'));
+        let path = self.core.prepare_path(path);
+
         let read_dir = match self
             .core
             .exec_blocking(move || std::fs::read_dir(path))

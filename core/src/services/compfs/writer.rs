@@ -30,7 +30,7 @@ pub struct CompfsWriter {
 }
 
 impl CompfsWriter {
-    pub fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
+    pub(super) fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
         Self { core, file }
     }
 }

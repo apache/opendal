@@ -1927,7 +1927,6 @@ name = "unftp-sbe-opendal"
 version = "0.0.0"
 dependencies = [
  "async-trait",
- "bytes",
  "libunftp",
  "opendal",
  "tokio",

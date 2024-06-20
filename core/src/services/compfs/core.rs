@@ -44,6 +44,10 @@ pub(super) struct CompfsCore {
 }
 
 impl CompfsCore {
+    pub fn prepare_path(&self, path: &str) -> PathBuf {
+        self.root.join(path.trim_end_matches('/'))
+    }
+
     pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> crate::Result<R>
     where
         Fn: FnOnce() -> Fut + Send + 'static,

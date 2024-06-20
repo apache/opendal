@@ -25,7 +25,7 @@ use libunftp::storage::{self, StorageBackend};
 use opendal::{Buffer, Operator};
 
 use tokio::io::AsyncRead;
-use tokio_util::compat::FuturesAsyncWriteCompatExt;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {
@@ -155,13 +155,16 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         path: P,
         start_pos: u64,
     ) -> storage::Result<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>> {
-        let buf = self
+        let reader = self
             .op
-            .read_with(convert_path(path.as_ref())?)
-            .range(start_pos..)
+            .reader(convert_path(path.as_ref())?)
             .await
-            .map_err(convert_err)?;
-        Ok(Box::new(IoBuffer(buf)))
+            .map_err(convert_err)?
+            .into_futures_async_read(start_pos..)
+            .await
+            .map_err(convert_err)?
+            .compat();
+        Ok(Box::new(reader))
     }
 
     async fn put<

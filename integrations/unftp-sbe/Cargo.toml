@@ -28,7 +28,6 @@ version = "0.0.0"
 
 [dependencies]
 async-trait = "0.1.80"
-bytes = "1.6.0"
 libunftp = "0.20.0"
 opendal = { version = "0.47.0", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }

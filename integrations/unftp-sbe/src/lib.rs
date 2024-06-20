@@ -17,15 +17,12 @@
 
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use std::task::Poll;
 
-use bytes::{Buf, BufMut};
 use libunftp::auth::UserDetail;
 use libunftp::storage::{self, StorageBackend};
-use opendal::{Buffer, Operator};
+use opendal::Operator;
 
-use tokio::io::AsyncRead;
-use tokio_util::compat::FuturesAsyncWriteCompatExt;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {
@@ -35,21 +32,6 @@ pub struct OpendalStorage {
 impl OpendalStorage {
     pub fn new(op: Operator) -> Self {
         Self { op }
-    }
-}
-
-/// A wrapper around [`Buffer`] to implement [`tokio::io::AsyncRead`].
-pub struct IoBuffer(Buffer);
-
-impl AsyncRead for IoBuffer {
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        let len = std::io::copy(&mut self.as_mut().0.by_ref().reader(), &mut buf.writer())?;
-        self.0.advance(len as usize);
-        Poll::Ready(Ok(()))
     }
 }
 
@@ -155,13 +137,16 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         path: P,
         start_pos: u64,
     ) -> storage::Result<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>> {
-        let buf = self
+        let reader = self
             .op
-            .read_with(convert_path(path.as_ref())?)
-            .range(start_pos..)
+            .reader(convert_path(path.as_ref())?)
             .await
-            .map_err(convert_err)?;
-        Ok(Box::new(IoBuffer(buf)))
+            .map_err(convert_err)?
+            .into_futures_async_read(start_pos..)
+            .await
+            .map_err(convert_err)?
+            .compat();
+        Ok(Box::new(reader))
     }
 
     async fn put<

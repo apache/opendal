@@ -57,7 +57,7 @@ impl Debug for GdriveCore {
 
 impl GdriveCore {
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
-        let path = gdrive_normalize_dir_path(build_abs_path(&self.root, path));
+        let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {}", path),
@@ -77,7 +77,7 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let path = gdrive_normalize_dir_path(build_abs_path(&self.root, path));
+        let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {}", path),
@@ -184,10 +184,7 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self
-            .path_cache
-            .ensure_dir(&gdrive_normalize_dir_path(get_parent(path).to_owned()))
-            .await?;
+        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -398,9 +395,6 @@ impl PathQuery for GdrivePathQuery {
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
         let url = "https://www.googleapis.com/drive/v3/files";
-
-        // trim "/" at the end of name
-        let name = gdrive_normalize_dir_path(name.to_owned());
 
         let content = serde_json::to_vec(&json!({
             "name": name,

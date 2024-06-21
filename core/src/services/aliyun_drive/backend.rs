@@ -240,6 +240,7 @@ impl Builder for AliyunDriveBuilder {
                     sign,
                 })),
                 client,
+                dir_lock: Arc::new(Mutex::new(())),
             }),
         })
     }
@@ -461,6 +462,17 @@ impl Access for AliyunDriveBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let parent_path = get_parent(path);
         let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
+
+        // write can overwrite
+        match self.core.get_by_path(path).await {
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+            Ok(res) => {
+                let file: AliyunDriveFile =
+                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                self.core.delete_path(&file.file_id).await?;
+            }
+        };
 
         let executor = args.executor().cloned();
 

@@ -66,6 +66,7 @@ pub struct AliyunDriveCore {
 
     pub signer: Arc<Mutex<AliyunDriveSigner>>,
     pub client: HttpClient,
+    pub dir_lock: Arc<Mutex<()>>,
 }
 
 impl Debug for AliyunDriveCore {
@@ -210,6 +211,7 @@ impl AliyunDriveCore {
         let paths = file_path.split('/').collect::<Vec<&str>>();
         let mut parent: Option<String> = None;
         for path in paths {
+            let _guard = self.dir_lock.lock().await;
             let res = self
                 .create(
                     parent.as_deref(),

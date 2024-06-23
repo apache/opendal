@@ -171,6 +171,7 @@ impl ObjectStore for OpendalStore {
         let writer = self
             .inner
             .writer(location.as_ref())
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
         let upload = OpendalUpload::new(writer, location.clone());
@@ -440,6 +441,7 @@ impl MultipartUpload for OpendalUpload {
     fn put_part(&mut self, data: PutPayload) -> UploadPart {
         let writer = self.writer.clone();
         let location = self.location.clone();
+
         async move {
             let mut writer = writer.lock().await;
             writer
@@ -447,6 +449,7 @@ impl MultipartUpload for OpendalUpload {
                 .await
                 .map_err(|err| format_object_store_error(err, location.as_ref()))
         }
+        .into_send()
         .boxed()
     }
 
@@ -454,6 +457,7 @@ impl MultipartUpload for OpendalUpload {
         let mut writer = self.writer.lock().await;
         writer
             .close()
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
 
@@ -467,6 +471,7 @@ impl MultipartUpload for OpendalUpload {
         let mut writer = self.writer.lock().await;
         writer
             .abort()
+            .into_send()
             .await
             .map_err(|err| format_object_store_error(err, self.location.as_ref()))
     }
@@ -530,6 +535,49 @@ mod tests {
                 .unwrap(),
             bytes
         );
+    }
+
+    #[tokio::test]
+    async fn test_put_multipart() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
+
+        let bytes = Bytes::from_static(b"hello, world!");
+        let part1 = Bytes::copy_from_slice(&bytes.slice(0..6));
+        let part2 = Bytes::copy_from_slice(&bytes.slice(6..));
+
+        // Case complete
+        let path: Path = "data/test_complete.txt".into();
+        let mut upload = object_store.put_multipart(&path).await.unwrap();
+        upload.put_part(part1.clone().into()).await.unwrap();
+        upload.put_part(part2.clone().into()).await.unwrap();
+        let _ = upload.complete().await.unwrap();
+
+        let meta = object_store.head(&path).await.unwrap();
+
+        assert_eq!(meta.size, 13);
+
+        assert_eq!(
+            object_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap(),
+            bytes
+        );
+
+        // Case abort
+        let path: Path = "data/test_abort.txt".into();
+        let mut upload = object_store.put_multipart(&path).await.unwrap();
+        upload.put_part(part1.clone().into()).await.unwrap();
+        let _ = upload.abort().await.unwrap();
+
+        let res = object_store.head(&path).await;
+        let err = res.unwrap_err();
+
+        assert!(matches!(err, object_store::Error::NotFound { .. }))
     }
 
     #[tokio::test]

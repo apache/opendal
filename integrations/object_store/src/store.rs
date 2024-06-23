@@ -572,7 +572,7 @@ mod tests {
         let path: Path = "data/test_abort.txt".into();
         let mut upload = object_store.put_multipart(&path).await.unwrap();
         upload.put_part(part1.clone().into()).await.unwrap();
-        let _ = upload.abort().await.unwrap();
+        upload.abort().await.unwrap();
 
         let res = object_store.head(&path).await;
         let err = res.unwrap_err();

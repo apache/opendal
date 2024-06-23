@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::{Future, FutureExt};
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -169,18 +169,18 @@ impl<R: oio::BlockingRead> oio::BlockingRead for AsyncBacktraceWrapper<R> {
 
 impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
-        self.inner.write(bs)
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        self.inner.write(bs).await
     }
 
     #[async_backtrace::framed]
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.inner.abort()
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 
     #[async_backtrace::framed]
-    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.inner.close()
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }
 

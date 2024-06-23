@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::{Future, FutureExt};
+
 use crate::raw::*;
 use crate::*;
 
@@ -58,12 +60,12 @@ pub struct AsyncBacktraceAccessor<A: Access> {
 
 impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type Inner = A;
-    type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
-    type Lister = A::Lister;
-    type BlockingLister = A::BlockingLister;
+    type Reader = AsyncBacktraceWrapper<A::Reader>;
+    type BlockingReader = AsyncBacktraceWrapper<A::BlockingReader>;
+    type Writer = AsyncBacktraceWrapper<A::Writer>;
+    type BlockingWriter = AsyncBacktraceWrapper<A::BlockingWriter>;
+    type Lister = AsyncBacktraceWrapper<A::Lister>;
+    type BlockingLister = AsyncBacktraceWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -71,12 +73,17 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
 
     #[async_backtrace::framed]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(path, args).await
+        self.inner
+            .read(path, args)
+            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
+            .await
     }
 
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+        self.inner.write(path, args)
+        .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
+        .await
     }
 
     #[async_backtrace::framed]
@@ -101,7 +108,9 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
 
     #[async_backtrace::framed]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args).await
+        self.inner.list(path, args)
+        .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
+        .await
     }
 
     #[async_backtrace::framed]
@@ -115,14 +124,77 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
+        self.inner.blocking_read(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
+        self.inner.blocking_write(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
+        self.inner.blocking_list(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+    }
+}
+
+pub struct AsyncBacktraceWrapper<R> {
+    inner: R,
+}
+
+impl<R> AsyncBacktraceWrapper<R> {
+    fn new(inner: R) -> Self {
+        Self { inner }
+    }
+}
+
+impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
+    #[async_backtrace::framed]
+    async fn read(&mut self) -> Result<Buffer> {
+        self.inner.read().await
+    }
+}
+
+impl<R: oio::BlockingRead> oio::BlockingRead for AsyncBacktraceWrapper<R> {
+    fn read(&mut self) -> Result<Buffer> {
+        self.inner.read()
+    }
+}
+
+impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
+    #[async_backtrace::framed]
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
+        self.inner.write(bs)
+    }
+
+    #[async_backtrace::framed]
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.abort()
+    }
+
+    #[async_backtrace::framed]
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.close()
+    }
+}
+
+impl<R: oio::BlockingWrite> oio::BlockingWrite for AsyncBacktraceWrapper<R> {
+    fn write(&mut self, bs: Buffer) -> Result<usize> {
+        self.inner.write(bs)
+    }
+
+    fn close(&mut self) -> Result<()> {
+        self.inner.close()
+    }
+}
+
+impl<R: oio::List> oio::List for AsyncBacktraceWrapper<R> {
+    #[async_backtrace::framed]
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
+    }
+}
+
+impl<R: oio::BlockingList> oio::BlockingList for AsyncBacktraceWrapper<R> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next()
     }
 }

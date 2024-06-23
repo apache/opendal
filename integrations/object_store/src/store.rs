@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::future::IntoFuture;
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::utils::*;
 use async_trait::async_trait;
@@ -27,7 +28,6 @@ use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use object_store::path::Path;
-use object_store::GetOptions;
 use object_store::GetResult;
 use object_store::GetResultPayload;
 use object_store::ListResult;
@@ -38,8 +38,10 @@ use object_store::PutMultipartOpts;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
-use opendal::Operator;
+use object_store::{GetOptions, UploadPart};
 use opendal::{Buffer, Metakey};
+use opendal::{Operator, Writer};
+use tokio::sync::Mutex;
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -164,14 +166,16 @@ impl ObjectStore for OpendalStore {
 
     async fn put_multipart(
         &self,
-        _location: &Path,
+        location: &Path,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "put_multipart is not implemented so far",
-            )),
-        })
+        let writer = self
+            .inner
+            .writer(location.as_ref())
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let upload = OpendalUpload::new(writer, location.clone());
+
+        Ok(Box::new(upload))
     }
 
     async fn put_multipart_opts(
@@ -409,6 +413,70 @@ impl ObjectStore for OpendalStore {
                 "copy_if_not_exists is not implemented so far",
             )),
         })
+    }
+}
+
+/// `MultipartUpload`'s impl based on `Writer` in opendal
+struct OpendalUpload {
+    // Refer to the fs impl in `object_store`:
+    // https://github.com/apache/arrow-rs/blob/a35214f92ad7c3bce19875bb091cb776447aa49e/object_store/src/local.rs#L715
+    // IO exists during locking, so use tokio::sync::Mutex here
+    writer: Arc<Mutex<Writer>>,
+
+    location: Path,
+}
+
+impl OpendalUpload {
+    fn new(writer: Writer, location: Path) -> Self {
+        Self {
+            writer: Arc::new(Mutex::new(writer)),
+            location,
+        }
+    }
+}
+
+#[async_trait]
+impl MultipartUpload for OpendalUpload {
+    fn put_part(&mut self, data: PutPayload) -> UploadPart {
+        let writer = self.writer.clone();
+        let location = self.location.clone();
+        async move {
+            let mut writer = writer.lock().await;
+            writer
+                .write(Buffer::from_iter(data.into_iter()))
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))
+        }
+        .boxed()
+    }
+
+    async fn complete(&mut self) -> object_store::Result<PutResult> {
+        let mut writer = self.writer.lock().await;
+        writer
+            .close()
+            .await
+            .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
+
+        Ok(PutResult {
+            e_tag: None,
+            version: None,
+        })
+    }
+
+    async fn abort(&mut self) -> object_store::Result<()> {
+        let mut writer = self.writer.lock().await;
+        writer
+            .abort()
+            .await
+            .map_err(|err| format_object_store_error(err, self.location.as_ref()))
+    }
+}
+
+impl fmt::Debug for OpendalUpload {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OpendalMultipartUpload")
+            .field("location", &self.location)
+            .finish()
     }
 }
 

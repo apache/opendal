@@ -32,6 +32,28 @@ export interface ListOptions {
   limit?: number
   recursive?: boolean
 }
+export interface OpWriteOptions {
+  /** Append bytes into file. */
+  append?: boolean
+  /**
+   * Set the chunk of op.
+   *
+   * If chunk is set, the data will be chunked by the underlying writer.
+   *
+   * ## NOTE
+   *
+   * Service could have their own minimum chunk size while perform write
+   * operations like multipart uploads. So the chunk size may be larger than
+   * the given buffer size.
+   */
+  chunk?: bigint
+  /** Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op. */
+  contentType?: string
+  /** Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op. */
+  contentDisposition?: string
+  /** Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op. */
+  cacheControl?: string
+}
 /** PresignedRequest is a presigned request return by `presign`. */
 export interface PresignedRequest {
   /** HTTP method of this request. */
@@ -265,21 +287,23 @@ export class Operator {
    * await op.write("path/to/file", Buffer.from("hello world"));
    * // or
    * await op.write("path/to/file", "hello world");
+   * // or
+   * await op.write("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
    * ```
    */
-  write(path: string, content: Buffer | string): Promise<void>
+  write(path: string, content: Buffer | string, options?: OpWriteOptions | undefined | null): Promise<void>
   /**
    * Write multiple bytes into path.
    *
    * It could be used to write large file in a streaming way.
    */
-  writer(path: string): Promise<Writer>
+  writer(path: string, options?: OpWriteOptions | undefined | null): Promise<Writer>
   /**
    * Write multiple bytes into path synchronously.
    *
    * It could be used to write large file in a streaming way.
    */
-  writerSync(path: string): BlockingWriter
+  writerSync(path: string, options?: OpWriteOptions | undefined | null): BlockingWriter
   /**
    * Write bytes into path synchronously.
    *
@@ -288,9 +312,11 @@ export class Operator {
    * op.writeSync("path/to/file", Buffer.from("hello world"));
    * // or
    * op.writeSync("path/to/file", "hello world");
+   * // or
+   * op.writeSync("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
    * ```
    */
-  writeSync(path: string, content: Buffer | string): void
+  writeSync(path: string, content: Buffer | string, options?: OpWriteOptions | undefined | null): void
   /**
    * Append bytes into path.
    *

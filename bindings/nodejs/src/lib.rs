@@ -18,10 +18,9 @@
 #[macro_use]
 extern crate napi_derive;
 
-mod capability;
-
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::future::Future;
 use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
@@ -29,6 +28,11 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+
+use opendal::operator_functions::{FunctionWrite, FunctionWriter};
+use opendal::operator_futures::{FutureWrite, FutureWriter};
+
+mod capability;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -233,22 +237,37 @@ impl Operator {
     /// await op.write("path/to/file", Buffer.from("hello world"));
     /// // or
     /// await op.write("path/to/file", "hello world");
+    /// // or
+    /// await op.write("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
     /// ```
     #[napi]
-    pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
+    pub async fn write(
+        &self,
+        path: String,
+        content: Either<Buffer, String>,
+        options: Option<OpWriteOptions>,
+    ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        self.0.write(&path, c).await.map_err(format_napi_error)
+        let mut writer = self.0.write_with(&path, c);
+        if let Some(options) = options {
+            writer = writer.with(options);
+        }
+        writer.await.map_err(format_napi_error)
     }
 
     /// Write multiple bytes into path.
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String) -> Result<Writer> {
-        let w = self.0.writer(&path).await.map_err(format_napi_error)?;
+    pub async fn writer(&self, path: String, options: Option<OpWriteOptions>) -> Result<Writer> {
+        let mut writer = self.0.writer_with(&path);
+        if let Some(options) = options {
+            writer = writer.with(options);
+        }
+        let w = writer.await.map_err(format_napi_error)?;
         Ok(Writer(w))
     }
 
@@ -256,8 +275,16 @@ impl Operator {
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub fn writer_sync(&self, path: String) -> Result<BlockingWriter> {
-        let w = self.0.blocking().writer(&path).map_err(format_napi_error)?;
+    pub fn writer_sync(
+        &self,
+        path: String,
+        options: Option<OpWriteOptions>,
+    ) -> Result<BlockingWriter> {
+        let mut writer = self.0.blocking().writer_with(&path);
+        if let Some(options) = options {
+            writer = writer.with(options);
+        }
+        let w = writer.call().map_err(format_napi_error)?;
         Ok(BlockingWriter(w))
     }
 
@@ -268,14 +295,25 @@ impl Operator {
     /// op.writeSync("path/to/file", Buffer.from("hello world"));
     /// // or
     /// op.writeSync("path/to/file", "hello world");
+    /// // or
+    /// op.writeSync("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
     /// ```
     #[napi]
-    pub fn write_sync(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
+    pub fn write_sync(
+        &self,
+        path: String,
+        content: Either<Buffer, String>,
+        options: Option<OpWriteOptions>,
+    ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        self.0.blocking().write(&path, c).map_err(format_napi_error)
+        let mut writer = self.0.blocking().write_with(&path, c);
+        if let Some(options) = options {
+            writer = writer.with(options);
+        }
+        writer.call().map_err(format_napi_error)
     }
 
     /// Append bytes into path.
@@ -293,16 +331,15 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn append(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
-        let c = match content {
-            Either::A(buf) => buf.as_ref().to_owned(),
-            Either::B(s) => s.into_bytes(),
-        };
-
-        self.0
-            .write_with(&path, c)
-            .append(true)
-            .await
-            .map_err(format_napi_error)
+        self.write(
+            path,
+            content,
+            Some(OpWriteOptions {
+                append: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -787,6 +824,126 @@ impl Writer {
     #[napi]
     pub async unsafe fn close(&mut self) -> Result<()> {
         self.0.close().await.map_err(format_napi_error)
+    }
+}
+
+#[napi(object)]
+#[derive(Default)]
+pub struct OpWriteOptions {
+    /// Append bytes into file.
+    pub append: Option<bool>,
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub chunk: Option<BigInt>,
+
+    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
+    pub content_type: Option<String>,
+
+    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
+    pub content_disposition: Option<String>,
+
+    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
+    pub cache_control: Option<String>,
+}
+
+trait WithOpWrite {
+    fn with(self, options: OpWriteOptions) -> Self;
+}
+
+impl<F: Future<Output = opendal::Result<()>>> WithOpWrite for FutureWrite<F> {
+    //noinspection DuplicatedCode
+    fn with(self, options: OpWriteOptions) -> Self {
+        let mut writer = self;
+        if let Some(append) = options.append {
+            writer = writer.append(append);
+        }
+        if let Some(chunk) = options.chunk {
+            writer = writer.chunk(chunk.get_u64().1 as usize);
+        }
+        if let Some(ref content_type) = options.content_type {
+            writer = writer.content_type(content_type);
+        }
+        if let Some(ref content_disposition) = options.content_disposition {
+            writer = writer.content_disposition(content_disposition);
+        }
+        if let Some(ref cache_control) = options.cache_control {
+            writer = writer.cache_control(cache_control);
+        }
+        writer
+    }
+}
+impl<F: Future<Output = opendal::Result<opendal::Writer>>> WithOpWrite for FutureWriter<F> {
+    //noinspection DuplicatedCode
+    fn with(self, options: OpWriteOptions) -> Self {
+        let mut writer = self;
+        if let Some(append) = options.append {
+            writer = writer.append(append);
+        }
+        if let Some(chunk) = options.chunk {
+            writer = writer.chunk(chunk.get_u64().1 as usize);
+        }
+        if let Some(ref content_type) = options.content_type {
+            writer = writer.content_type(content_type);
+        }
+        if let Some(ref content_disposition) = options.content_disposition {
+            writer = writer.content_disposition(content_disposition);
+        }
+        if let Some(ref cache_control) = options.cache_control {
+            writer = writer.cache_control(cache_control);
+        }
+        writer
+    }
+}
+impl WithOpWrite for FunctionWrite {
+    //noinspection DuplicatedCode
+    fn with(self, options: OpWriteOptions) -> Self {
+        let mut writer = self;
+        if let Some(append) = options.append {
+            writer = writer.append(append);
+        }
+        if let Some(chunk) = options.chunk {
+            writer = writer.chunk(chunk.get_u64().1 as usize);
+        }
+        if let Some(ref content_type) = options.content_type {
+            writer = writer.content_type(content_type);
+        }
+        if let Some(ref content_disposition) = options.content_disposition {
+            writer = writer.content_disposition(content_disposition);
+        }
+        if let Some(ref cache_control) = options.cache_control {
+            writer = writer.cache_control(cache_control);
+        }
+        writer
+    }
+}
+impl WithOpWrite for FunctionWriter {
+    //noinspection DuplicatedCode
+    fn with(self, options: OpWriteOptions) -> Self {
+        let mut writer = self;
+        if let Some(append) = options.append {
+            writer = writer.append(append);
+        }
+        if let Some(chunk) = options.chunk {
+            writer = writer.buffer(chunk.get_u64().1 as usize);
+        }
+        if let Some(ref content_type) = options.content_type {
+            writer = writer.content_type(content_type);
+        }
+        if let Some(ref content_disposition) = options.content_disposition {
+            writer = writer.content_disposition(content_disposition);
+        }
+        if let Some(ref cache_control) = options.cache_control {
+            writer = writer.cache_control(cache_control);
+        }
+        writer
     }
 }
 

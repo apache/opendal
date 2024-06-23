@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.11.1/.schema/devbox.schema.json",
+  "packages": ["nodejs@18", "nodePackages.pnpm@8.14.0", "libiconv"],
+  "env": {
+    "OPENDAL_TEST": "memory"
+  },
+  "shell": {
+    "init_hook": ["pnpm install"],
+    "scripts": {
+      "test": "pnpm test",
+      "build": "pnpm build",
+      "dev": "pnpm build:debug"
+    }
+  }
+}

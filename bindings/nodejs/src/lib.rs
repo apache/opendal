@@ -854,11 +854,11 @@ pub struct OpWriteOptions {
     pub cache_control: Option<String>,
 }
 
-trait WithOpWrite {
+trait OpWriteWithOptions {
     fn with(self, options: OpWriteOptions) -> Self;
 }
 
-impl<F: Future<Output = opendal::Result<()>>> WithOpWrite for FutureWrite<F> {
+impl<F: Future<Output = opendal::Result<()>>> OpWriteWithOptions for FutureWrite<F> {
     //noinspection DuplicatedCode
     fn with(self, options: OpWriteOptions) -> Self {
         let mut writer = self;
@@ -880,7 +880,7 @@ impl<F: Future<Output = opendal::Result<()>>> WithOpWrite for FutureWrite<F> {
         writer
     }
 }
-impl<F: Future<Output = opendal::Result<opendal::Writer>>> WithOpWrite for FutureWriter<F> {
+impl<F: Future<Output = opendal::Result<opendal::Writer>>> OpWriteWithOptions for FutureWriter<F> {
     //noinspection DuplicatedCode
     fn with(self, options: OpWriteOptions) -> Self {
         let mut writer = self;
@@ -902,7 +902,7 @@ impl<F: Future<Output = opendal::Result<opendal::Writer>>> WithOpWrite for Futur
         writer
     }
 }
-impl WithOpWrite for FunctionWrite {
+impl OpWriteWithOptions for FunctionWrite {
     //noinspection DuplicatedCode
     fn with(self, options: OpWriteOptions) -> Self {
         let mut writer = self;
@@ -924,7 +924,7 @@ impl WithOpWrite for FunctionWrite {
         writer
     }
 }
-impl WithOpWrite for FunctionWriter {
+impl OpWriteWithOptions for FunctionWriter {
     //noinspection DuplicatedCode
     fn with(self, options: OpWriteOptions) -> Self {
         let mut writer = self;

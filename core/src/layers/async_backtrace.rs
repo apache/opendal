@@ -81,9 +81,10 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
 
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args)
-        .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
-        .await
+        self.inner
+            .write(path, args)
+            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
+            .await
     }
 
     #[async_backtrace::framed]
@@ -108,9 +109,10 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
 
     #[async_backtrace::framed]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args)
-        .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
-        .await
+        self.inner
+            .list(path, args)
+            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
+            .await
     }
 
     #[async_backtrace::framed]
@@ -124,15 +126,21 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args).map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+        self.inner
+            .blocking_list(path, args)
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 }
 

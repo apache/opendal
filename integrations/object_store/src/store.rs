@@ -174,7 +174,7 @@ impl ObjectStore for OpendalStore {
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-        let upload = OpendalUpload::new(writer, location.clone());
+        let upload = OpendalMultipartUpload::new(writer, location.clone());
 
         Ok(Box::new(upload))
     }
@@ -418,7 +418,7 @@ impl ObjectStore for OpendalStore {
 }
 
 /// `MultipartUpload`'s impl based on `Writer` in opendal
-struct OpendalUpload {
+struct OpendalMultipartUpload {
     // Refer to the fs impl in `object_store`:
     // https://github.com/apache/arrow-rs/blob/a35214f92ad7c3bce19875bb091cb776447aa49e/object_store/src/local.rs#L715
     // IO exists during locking, so use tokio::sync::Mutex here
@@ -427,7 +427,7 @@ struct OpendalUpload {
     location: Path,
 }
 
-impl OpendalUpload {
+impl OpendalMultipartUpload {
     fn new(writer: Writer, location: Path) -> Self {
         Self {
             writer: Arc::new(Mutex::new(writer)),
@@ -437,7 +437,7 @@ impl OpendalUpload {
 }
 
 #[async_trait]
-impl MultipartUpload for OpendalUpload {
+impl MultipartUpload for OpendalMultipartUpload {
     fn put_part(&mut self, data: PutPayload) -> UploadPart {
         let writer = self.writer.clone();
         let location = self.location.clone();
@@ -477,7 +477,7 @@ impl MultipartUpload for OpendalUpload {
     }
 }
 
-impl fmt::Debug for OpendalUpload {
+impl Debug for OpendalMultipartUpload {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("OpendalMultipartUpload")
             .field("location", &self.location)

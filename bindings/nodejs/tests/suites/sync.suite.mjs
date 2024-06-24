@@ -80,5 +80,36 @@ export function run(op) {
         op.deleteSync(filename)
       })
     })
+
+    test.runIf(op.capability().read && op.capability().write)('blocking write with behavior', () => {
+      let c = Buffer.from('hello world')
+      const filename = `random_file_${randomUUID()}`
+
+      const options = { chunk: 1024n * 1024n }
+      if (op.capability().writeCanAppend) {
+        options.append = true
+      }
+      if (op.capability().writeWithContentType) {
+        options.contentType = 'text/plain'
+      }
+      if (op.capability().writeWithContentDisposition) {
+        options.contentDisposition = 'attachment;filename=test.txt'
+      }
+      if (op.capability().writeWithCacheControl) {
+        options.cacheControl = 'public, max-age=31536000, immutable'
+      }
+
+      op.writeSync(filename, c, options)
+
+      if (op.capability().writeCanMulti) {
+        const w = op.writerSync(filename, options)
+        w.write(c)
+        w.close()
+      }
+
+      if (op.capability().delete) {
+        op.deleteSync(filename)
+      }
+    })
   })
 }

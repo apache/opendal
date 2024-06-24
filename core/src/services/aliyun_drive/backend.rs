@@ -43,25 +43,31 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct AliyunDriveConfig {
-    /// root of this backend.
+    /// The Root of this backend.
     ///
     /// All operations will happen under this root.
     ///
-    /// default to `/` if not set.
+    /// Default to `/` if not set.
     pub root: Option<String>,
-    /// client_id of this backend.
+    /// The access_token of this backend.
     ///
-    /// required.
-    pub client_id: String,
-    /// client_secret of this backend.
+    /// Solution for client-only purpose. #4733
     ///
-    /// required.
-    pub client_secret: String,
-    /// refresh_token of this backend.
+    /// Required if no client_id, client_secret and refresh_token are provided.
+    pub access_token: Option<String>,
+    /// The client_id of this backend.
     ///
-    /// required.
-    pub refresh_token: String,
-    /// drive_type of this backend.
+    /// Required if no access_token is provided.
+    pub client_id: Option<String>,
+    /// The client_secret of this backend.
+    ///
+    /// Required if no access_token is provided.
+    pub client_secret: Option<String>,
+    /// The refresh_token of this backend.
+    ///
+    /// Required if no access_token is provided.
+    pub refresh_token: Option<String>,
+    /// The drive_type of this backend.
     ///
     /// All operations will happen under this type of drive.
     ///
@@ -69,12 +75,6 @@ pub struct AliyunDriveConfig {
     ///
     /// Fallback to default if not set or no other drives can be found.
     pub drive_type: String,
-    /// rapid_upload of this backend.
-    ///
-    /// Skip uploading files that are already in the drive by hashing their content.
-    ///
-    /// Only works under the write_once operation.
-    pub rapid_upload: bool,
 }
 
 impl Debug for AliyunDriveConfig {
@@ -106,7 +106,7 @@ impl Debug for AliyunDriveBuilder {
 }
 
 impl AliyunDriveBuilder {
-    /// Set root of this backend.
+    /// Set the root of this backend.
     ///
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
@@ -119,23 +119,30 @@ impl AliyunDriveBuilder {
         self
     }
 
+    /// Set access_token of this backend.
+    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+        self.config.access_token = Some(access_token.to_string());
+
+        self
+    }
+
     /// Set client_id of this backend.
     pub fn client_id(&mut self, client_id: &str) -> &mut Self {
-        self.config.client_id = client_id.to_string();
+        self.config.client_id = Some(client_id.to_string());
 
         self
     }
 
     /// Set client_secret of this backend.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
-        self.config.client_secret = client_secret.to_string();
+        self.config.client_secret = Some(client_secret.to_string());
 
         self
     }
 
     /// Set refresh_token of this backend.
     pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
-        self.config.refresh_token = refresh_token.to_string();
+        self.config.refresh_token = Some(refresh_token.to_string());
 
         self
     }
@@ -143,13 +150,6 @@ impl AliyunDriveBuilder {
     /// Set drive_type of this backend.
     pub fn drive_type(&mut self, drive_type: &str) -> &mut Self {
         self.config.drive_type = drive_type.to_string();
-
-        self
-    }
-
-    /// Set rapid_upload of this backend.
-    pub fn rapid_upload(&mut self, rapid_upload: bool) -> &mut Self {
-        self.config.rapid_upload = rapid_upload;
 
         self
     }
@@ -196,32 +196,26 @@ impl Builder for AliyunDriveBuilder {
             })?
         };
 
-        let client_id = self.config.client_id.clone();
-        if client_id.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "client_id is missing.")
+        let sign = match self.config.access_token.clone() {
+            Some(access_token) if !access_token.is_empty() => {
+                AliyunDriveSign::Access(access_token)
+            }
+            _ => match (
+                self.config.client_id.clone(),
+                self.config.client_secret.clone(),
+                self.config.refresh_token.clone(),
+            ) {
+                (Some(client_id), Some(client_secret), Some(refresh_token)) if
+                    !client_id.is_empty() && !client_secret.is_empty() && !refresh_token.is_empty() => {
+                    AliyunDriveSign::Refresh(client_id, client_secret, refresh_token, None, 0)
+                }
+                _ => return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
-
-        let client_secret = self.config.client_secret.clone();
-        if client_secret.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "client_secret is missing.")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
-
-        let refresh_token = self.config.refresh_token.clone();
-        if refresh_token.is_empty() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "refresh_token is missing.")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive),
-            );
-        }
+                    .with_context("service", Scheme::AliyunDrive)),
+            },
+        };
 
         let drive_type = match self.config.drive_type.as_str() {
             "" | "default" => DriveType::Default,
@@ -236,24 +230,17 @@ impl Builder for AliyunDriveBuilder {
         };
         debug!("backend use drive_type {:?}", drive_type);
 
-        let rapid_upload = self.config.rapid_upload;
-        debug!("backend use rapid_upload {}", rapid_upload);
-
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
-                client_id,
-                client_secret,
                 drive_type,
-                rapid_upload,
                 signer: Arc::new(Mutex::new(AliyunDriveSigner {
                     drive_id: None,
-                    access_token: None,
-                    refresh_token,
-                    expire_at: 0,
+                    sign,
                 })),
                 client,
+                dir_lock: Arc::new(Mutex::new(())),
             }),
         })
     }
@@ -356,8 +343,8 @@ impl Access for AliyunDriveBackend {
         let parent_path = get_parent(to);
         let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
 
-        // if from and to are going to be placed in the same folder
-        // copy_path will fail as we cannot change name during this action.
+        // if from and to are going to be placed in the same folder,
+        // copy_path will fail as we cannot change the name during this action.
         // it has to be auto renamed.
         let auto_rename = file.parent_file_id == parent_file_id;
         let res = self
@@ -459,8 +446,10 @@ impl Access for AliyunDriveBackend {
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
                 Some(AliyunDriveParent {
-                    parent_path: path.to_string(),
-                    parent_file_id: file.file_id,
+                    file_id: file.file_id,
+                    name: file.name,
+                    path: path.to_string(),
+                    updated_at: file.updated_at,
                 })
             }
         };
@@ -473,6 +462,17 @@ impl Access for AliyunDriveBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let parent_path = get_parent(path);
         let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
+
+        // write can overwrite
+        match self.core.get_by_path(path).await {
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+            Ok(res) => {
+                let file: AliyunDriveFile =
+                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                self.core.delete_path(&file.file_id).await?;
+            }
+        };
 
         let executor = args.executor().cloned();
 

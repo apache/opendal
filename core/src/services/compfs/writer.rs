@@ -14,3 +14,49 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
+use std::{io::Cursor, sync::Arc};
+
+use compio::{buf::buf_try, fs::File, io::AsyncWrite};
+
+use super::core::CompfsCore;
+use crate::raw::*;
+use crate::*;
+
+#[derive(Debug)]
+pub struct CompfsWriter {
+    core: Arc<CompfsCore>,
+    file: Cursor<File>,
+}
+
+impl CompfsWriter {
+    pub(super) fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
+        Self { core, file }
+    }
+}
+
+impl oio::Write for CompfsWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        let mut file = self.file.clone();
+
+        let n = self
+            .core
+            .exec(move || async move {
+                let (n, _) = buf_try!(@try file.write(bs).await);
+                Ok(n)
+            })
+            .await?;
+        Ok(n)
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let f = self.file.clone();
+        self.core
+            .exec(move || async move { f.get_ref().sync_all().await })
+            .await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
+    }
+}

@@ -88,10 +88,10 @@ impl PcloudCore {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
                 }
                 if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
                 if let Some(hosts) = resp.hosts {
@@ -137,14 +137,14 @@ impl PcloudCore {
                         serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                     let result = resp.result;
                     if result == 2010 || result == 2055 || result == 2002 {
-                        return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
                     }
                     if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
 
                     if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
                 }
                 _ => return Err(parse_error(resp).await?),
@@ -413,11 +413,9 @@ pub struct StatResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct StatMetadata {
-    pub name: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -428,11 +426,9 @@ pub struct ListFolderResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListMetadata {
-    pub name: String,
     pub path: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
     pub contents: Option<Vec<ListMetadata>>,
 }

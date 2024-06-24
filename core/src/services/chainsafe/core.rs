@@ -247,11 +247,8 @@ impl ChainsafeCore {
 #[derive(Debug, Deserialize)]
 pub struct Info {
     pub name: String,
-    pub cid: String,
     pub content_type: String,
     pub size: u64,
-    pub version: i64,
-    pub created_at: i64,
 }
 
 #[derive(Deserialize)]

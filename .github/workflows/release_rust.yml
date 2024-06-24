@@ -36,15 +36,19 @@ jobs:
     strategy:
       # Publish package one by one instead of flooding the registry
       max-parallel: 1
+      fail-fast: false
       matrix:
         # Order here is sensitive, as it will be used to determine the order of publishing
         package:
           - "core"
-          - "integrations/dav-server"
           - "integrations/object_store"
+          - "integrations/dav-server"
+          - "integrations/fuse3"
+          - "integrations/unftp-sbe"
+          - "integrations/virtiofs"
           - "bin/oay" # depends on integrations/dav-server
           - "bin/oli"
-          - "bin/ofs"
+          - "bin/ofs" # depends on integrations/fuse3
     steps:
       - uses: actions/checkout@v4
       - name: Checkout python env

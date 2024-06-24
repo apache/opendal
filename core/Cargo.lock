@@ -1652,11 +1652,12 @@ dependencies = [
 
 [[package]]
 name = "compio"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76871d1ab0619ccb72372cf8d87951ac2bf112e6e1ede1085f2f50ace4436ad3"
+checksum = "1704a939a6548e001b8502663fa4d90a87675569662ee4746d608c5ee62246ac"
 dependencies = [
  "compio-buf",
+ "compio-dispatcher",
  "compio-driver",
  "compio-fs",
  "compio-io",
@@ -1667,9 +1668,9 @@ dependencies = [
 
 [[package]]
 name = "compio-buf"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24d9ae28226834dc0f8cd9af2a129488528bcaa4426baaba16072e13cff8440b"
+checksum = "69e280904a879019a48c3a9b0bbf6e158c097b9c21555be0608602c5b101755b"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1677,10 +1678,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "compio-driver"
+name = "compio-dispatcher"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7b23ddd21203f5d4bee6e5a9f53e4f09f98229590a903ee1b5b4c88047a440d"
+checksum = "409f0680497022856f64e342ec9e0fd7384ed56bdaf82b3ef24ccab03eecd768"
+dependencies = [
+ "compio-driver",
+ "compio-runtime",
+ "flume",
+ "futures-channel",
+]
+
+[[package]]
+name = "compio-driver"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ef034f0dafcead1e4738b1a18da070ff26abaf53ec9d9c4ba4b217b5f7a7c4a"
 dependencies = [
  "aligned-array",
  "cfg-if",
@@ -1688,22 +1701,22 @@ dependencies = [
  "compio-log",
  "crossbeam-channel",
  "crossbeam-queue",
+ "futures-util",
  "io-uring",
  "libc",
  "once_cell",
  "os_pipe",
  "paste",
  "polling 3.7.1",
- "slab",
  "socket2 0.5.7",
  "windows-sys 0.52.0",
 ]
 
 [[package]]
 name = "compio-fs"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "770d9c79a1174adc527b6ce880aa6a50d9f5fb630339024069785ebbd6848c2f"
+checksum = "a51ed24575379a16f8aa23e04378b0fc291d7f608ba2b9928d0fffe24fb3100c"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -1718,9 +1731,9 @@ dependencies = [
 
 [[package]]
 name = "compio-io"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed6f47ce0edef794248555268b9e0cfbbbaaacaa3634fca4acc199818272a415"
+checksum = "c5c6b524ae8226c007c41342a5803381f544f4f4066808d4c4ff146e75869ebb"
 dependencies = [
  "compio-buf",
  "futures-util",
@@ -1738,9 +1751,9 @@ dependencies = [
 
 [[package]]
 name = "compio-net"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae469c47794087f9110a8858394b6c8112317b66c5d41d44d874ebf4218bc3ee"
+checksum = "1c6c4fcf2d8c86ac0f13b54c57d35ce351b81b2221a75f3cee286514634eef6e"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -1756,9 +1769,9 @@ dependencies = [
 
 [[package]]
 name = "compio-runtime"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c314b56ebb29d21e6f0dc3749ebbc83ddcb7d7a150f86b0c6d0e5b6ca228bae7"
+checksum = "8181cc373318910ccc4610dd54683d63d7933a96d21c6c69e61e750c01cd2016"
 dependencies = [
  "async-task",
  "cfg-if",
@@ -1770,6 +1783,8 @@ dependencies = [
  "libc",
  "once_cell",
  "os_pipe",
+ "scoped-tls",
+ "slab",
  "smallvec",
  "socket2 0.5.7",
  "windows-sys 0.52.0",
@@ -2421,7 +2436,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_aws_s3_assume_role_with_web_identity"
-version = "0.0.0"
+version = "0.47.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -2430,7 +2445,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_file_write_on_full_disk"
-version = "0.0.0"
+version = "0.47.1"
 dependencies = [
  "futures",
  "opendal",
@@ -2440,7 +2455,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_s3_read_on_wasm"
-version = "0.0.0"
+version = "0.47.1"
 dependencies = [
  "opendal",
  "wasm-bindgen",
@@ -4750,7 +4765,7 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "opendal"
-version = "0.47.0"
+version = "0.47.1"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -4852,6 +4867,33 @@ dependencies = [
  "tokio",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "opendal-examples-basic"
+version = "0.47.1"
+dependencies = [
+ "futures",
+ "opendal",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-examples-concurrent-upload"
+version = "0.47.1"
+dependencies = [
+ "futures",
+ "opendal",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-examples-multipart-upload"
+version = "0.47.1"
+dependencies = [
+ "futures",
+ "opendal",
+ "tokio",
 ]
 
 [[package]]

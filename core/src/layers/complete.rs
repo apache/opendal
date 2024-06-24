@@ -135,7 +135,7 @@ impl<A: Access> CompleteAccessor<A> {
         let op = op.into();
         Error::new(
             ErrorKind::Unsupported,
-            &format!("service {scheme} doesn't support operation {op}"),
+            format!("service {scheme} doesn't support operation {op}"),
         )
         .with_operation(op)
     }
@@ -415,7 +415,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if args.append() && !capability.write_can_append {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                &format!(
+                format!(
                     "service {} doesn't support operation write with append",
                     self.info().scheme()
                 ),
@@ -540,7 +540,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if args.append() && !capability.write_can_append {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                &format!(
+                format!(
                     "service {} doesn't support operation write with append",
                     self.info().scheme()
                 ),

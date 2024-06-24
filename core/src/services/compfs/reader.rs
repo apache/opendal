@@ -14,3 +14,45 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
+use std::sync::Arc;
+
+use compio::{buf::buf_try, io::AsyncReadAt};
+
+use super::core::CompfsCore;
+use crate::raw::*;
+use crate::*;
+
+#[derive(Debug)]
+pub struct CompfsReader {
+    core: Arc<CompfsCore>,
+    file: compio::fs::File,
+    range: BytesRange,
+}
+
+impl CompfsReader {
+    pub(super) fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
+        Self { core, file, range }
+    }
+}
+
+impl oio::Read for CompfsReader {
+    async fn read(&mut self) -> Result<Buffer> {
+        let mut bs = self.core.buf_pool.get();
+
+        let pos = self.range.offset();
+        let len = self.range.size().expect("range size is always Some");
+        bs.reserve(len as _);
+        let f = self.file.clone();
+        let mut bs = self
+            .core
+            .exec(move || async move {
+                let (_, bs) = buf_try!(@try f.read_at(bs, pos).await);
+                Ok(bs)
+            })
+            .await?;
+        let frozen = bs.split().freeze();
+        self.core.buf_pool.put(bs);
+        Ok(Buffer::from(frozen))
+    }
+}

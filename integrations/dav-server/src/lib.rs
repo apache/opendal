@@ -15,9 +15,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod dir_entry;
+//! dav-server-opendalfs is an dav-server implementation using opendal.
+//!
+//! This crate can help you to access ANY storage services with the same webdav API.
+//!
+//! ```
+//! use anyhow::Result;
+//! use dav_server::davpath::DavPath;
+//! use dav_server::fs::DavFileSystem;
+//! use dav_server_opendalfs::OpendalFs;
+//! use opendal::services::Memory;
+//! use opendal::Operator;
+//!
+//! #[tokio::test]
+//! async fn test() -> Result<()> {
+//!     let op = Operator::new(Memory::default())?.finish();
+//!
+//!     let webdavfs = OpendalFs::new(op);
+//!
+//!     let metadata = webdavfs
+//!         .metadata(&DavPath::new("/").unwrap())
+//!         .await
+//!         .unwrap();
+//!     println!("{}", metadata.is_dir());
+//!
+//!     Ok(())
+//! }
+//! ```
+
+mod dir;
 mod file;
 mod metadata;
-mod opendalfs;
+mod utils;
 
-pub use opendalfs::OpendalFs;
+mod fs;
+pub use fs::OpendalFs;

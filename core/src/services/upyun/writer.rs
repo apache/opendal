@@ -69,7 +69,7 @@ impl oio::MultipartWrite for UpyunWriter {
                 let id =
                     parse_header_to_str(resp.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
                         ErrorKind::Unexpected,
-                        &format!("{} header is missing", X_UPYUN_MULTI_UUID),
+                        format!("{} header is missing", X_UPYUN_MULTI_UUID),
                     ))?;
 
                 Ok(id.to_string())

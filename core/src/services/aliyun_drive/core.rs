@@ -40,31 +40,33 @@ pub enum DriveType {
     Default,
     /// Use the backup type of Aliyun Drive.
     ///
-    /// fallback to the default type if no backup drive found.
+    /// Fallback to the default type if no backup drive is found.
     Backup,
     /// Use the resource type of Aliyun Drive.
     ///
-    /// fallback to the default type if no resource drive found.
+    /// Fallback to the default type if no resource drive is found.
     Resource,
+}
+
+/// Available Aliyun Drive Signer Set
+pub enum AliyunDriveSign {
+    Refresh(String, String, String, Option<String>, i64),
+    Access(String),
 }
 
 pub struct AliyunDriveSigner {
     pub drive_id: Option<String>,
-    pub access_token: Option<String>,
-    pub refresh_token: String,
-    pub expire_at: i64,
+    pub sign: AliyunDriveSign,
 }
 
 pub struct AliyunDriveCore {
     pub endpoint: String,
     pub root: String,
-    pub client_id: String,
-    pub client_secret: String,
     pub drive_type: DriveType,
-    pub rapid_upload: bool,
 
     pub signer: Arc<Mutex<AliyunDriveSigner>>,
     pub client: HttpClient,
+    pub dir_lock: Arc<Mutex<()>>,
 }
 
 impl Debug for AliyunDriveCore {
@@ -78,6 +80,12 @@ impl Debug for AliyunDriveCore {
 
 impl AliyunDriveCore {
     async fn send(&self, mut req: Request<Buffer>, token: Option<&str>) -> Result<Buffer> {
+        // AliyunDrive raise NullPointerException if you haven't set a user-agent.
+        req.headers_mut().insert(
+            header::USER_AGENT,
+            HeaderValue::from_str(&format!("opendal/{}", VERSION))
+                .expect("user agent must be valid header value"),
+        );
         if req.method() == Method::POST {
             req.headers_mut().insert(
                 header::CONTENT_TYPE,
@@ -98,12 +106,17 @@ impl AliyunDriveCore {
         Ok(res.into_body())
     }
 
-    async fn get_access_token(&self, refresh_token: &str) -> Result<Buffer> {
+    async fn get_access_token(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+        refresh_token: &str,
+    ) -> Result<Buffer> {
         let body = serde_json::to_vec(&AccessTokenRequest {
             refresh_token,
             grant_type: "refresh_token",
-            client_id: &self.client_id,
-            client_secret: &self.client_secret,
+            client_id,
+            client_secret,
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/oauth/access_token", self.endpoint))
@@ -120,17 +133,31 @@ impl AliyunDriveCore {
     }
 
     pub async fn get_token_and_drive(&self) -> Result<(Option<String>, String)> {
-        let mut tokener = self.signer.lock().await;
-        if tokener.expire_at < Utc::now().timestamp() || tokener.access_token.is_none() {
-            let res = self.get_access_token(&tokener.refresh_token).await?;
-            let output: RefresTokenResponse =
-                serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
-            tokener.access_token = Some(output.access_token);
-            tokener.expire_at = output.expires_in + Utc::now().timestamp();
-            tokener.refresh_token = output.refresh_token;
-        }
-        let Some(drive_id) = &tokener.drive_id else {
-            let res = self.get_drive_id(tokener.access_token.as_deref()).await?;
+        let mut signer = self.signer.lock().await;
+        let token = match &mut signer.sign {
+            AliyunDriveSign::Access(access_token) => Some(access_token.clone()),
+            AliyunDriveSign::Refresh(
+                client_id,
+                client_secret,
+                refresh_token,
+                access_token,
+                expire_at,
+            ) => {
+                if *expire_at < Utc::now().timestamp() || access_token.is_none() {
+                    let res = self
+                        .get_access_token(client_id, client_secret, refresh_token)
+                        .await?;
+                    let output: RefreshTokenResponse = serde_json::from_reader(res.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    *access_token = Some(output.access_token);
+                    *expire_at = output.expires_in + Utc::now().timestamp();
+                    *refresh_token = output.refresh_token;
+                }
+                access_token.clone()
+            }
+        };
+        let Some(drive_id) = &signer.drive_id else {
+            let res = self.get_drive_id(token.as_deref()).await?;
             let output: DriveInfoResponse =
                 serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
             let drive_id = match self.drive_type {
@@ -138,15 +165,27 @@ impl AliyunDriveCore {
                 DriveType::Backup => output.backup_drive_id.unwrap_or(output.default_drive_id),
                 DriveType::Resource => output.resource_drive_id.unwrap_or(output.default_drive_id),
             };
-            tokener.drive_id = Some(drive_id.clone());
-            return Ok((tokener.access_token.clone(), drive_id));
+            signer.drive_id = Some(drive_id.clone());
+            return Ok((token, drive_id));
         };
-        Ok((tokener.access_token.clone(), drive_id.clone()))
+        Ok((token, drive_id.clone()))
+    }
+
+    pub fn build_path(&self, path: &str, rooted: bool) -> String {
+        let file_path = if rooted {
+            build_rooted_abs_path(&self.root, path)
+        } else {
+            build_abs_path(&self.root, path)
+        };
+        let file_path = file_path.strip_suffix('/').unwrap_or(&file_path);
+        if file_path.is_empty() {
+            return "/".to_string();
+        }
+        file_path.to_string()
     }
 
     pub async fn get_by_path(&self, path: &str) -> Result<Buffer> {
-        let file_path = build_rooted_abs_path(&self.root, path);
-        let file_path = file_path.strip_suffix('/').unwrap_or(&file_path);
+        let file_path = self.build_path(path, true);
         let req = Request::post(format!(
             "{}/adrive/v1.0/openFile/get_by_path",
             self.endpoint
@@ -154,7 +193,7 @@ impl AliyunDriveCore {
         let (token, drive_id) = self.get_token_and_drive().await?;
         let body = serde_json::to_vec(&GetByPathRequest {
             drive_id: &drive_id,
-            file_path,
+            file_path: &file_path,
         })
         .map_err(new_json_serialize_error)?;
         let req = req
@@ -164,7 +203,7 @@ impl AliyunDriveCore {
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<String> {
-        let file_path = build_abs_path(&self.root, path.strip_suffix('/').unwrap_or(path));
+        let file_path = self.build_path(path, false);
         if file_path == "/" {
             return Ok("root".to_string());
         }
@@ -172,6 +211,7 @@ impl AliyunDriveCore {
         let paths = file_path.split('/').collect::<Vec<&str>>();
         let mut parent: Option<String> = None;
         for path in paths {
+            let _guard = self.dir_lock.lock().await;
             let res = self
                 .create(
                     parent.as_deref(),
@@ -412,7 +452,7 @@ pub struct RapidUpload {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RefresTokenResponse {
+pub struct RefreshTokenResponse {
     pub access_token: String,
     pub expires_in: i64,
     pub refresh_token: String,
@@ -420,9 +460,6 @@ pub struct RefresTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct DriveInfoResponse {
-    pub user_id: String,
-    pub name: String,
-    pub avatar: String,
     pub default_drive_id: String,
     pub resource_drive_id: Option<String>,
     pub backup_drive_id: Option<String>,
@@ -444,24 +481,15 @@ pub enum CheckNameMode {
 
 #[derive(Deserialize)]
 pub struct UploadUrlResponse {
-    pub drive_id: String,
-    pub file_id: String,
-    pub upload_id: Option<String>,
     pub part_info_list: Option<Vec<PartInfo>>,
 }
 
 #[derive(Deserialize)]
 pub struct CreateResponse {
-    pub drive_id: String,
     pub file_id: String,
-    pub status: Option<String>,
-    pub parent_file_id: String,
     pub upload_id: Option<String>,
-    pub file_name: String,
-    pub available: Option<bool>,
-    pub exist: Option<bool>,
-    pub rapid_upload: Option<bool>,
     pub part_info_list: Option<Vec<PartInfo>>,
+    pub exist: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -481,32 +509,24 @@ pub struct AliyunDriveFileList {
 
 #[derive(Deserialize)]
 pub struct CopyResponse {
-    pub drive_id: String,
     pub file_id: String,
 }
 
 #[derive(Deserialize)]
 pub struct AliyunDriveFile {
-    pub drive_id: String,
     pub file_id: String,
     pub parent_file_id: String,
     pub name: String,
     pub size: Option<u64>,
-    pub file_extension: Option<String>,
-    pub content_hash: Option<String>,
     pub content_type: Option<String>,
-    pub category: Option<String>,
     #[serde(rename = "type")]
     pub path_type: String,
-    pub created_at: String,
     pub updated_at: String,
 }
 
 #[derive(Deserialize)]
 pub struct GetDownloadUrlResponse {
     pub url: String,
-    pub expiration: String,
-    pub method: String,
 }
 
 #[derive(Serialize)]

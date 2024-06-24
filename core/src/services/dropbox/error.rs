@@ -54,7 +54,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
             parse_dropbox_error_summary(&dropbox_err.error_summary).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

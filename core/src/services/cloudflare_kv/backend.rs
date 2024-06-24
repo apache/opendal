@@ -286,7 +286,7 @@ impl kv::Adapter for Adapter {
                     serde_json::from_reader(body.reader()).map_err(|e| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            &format!("failed to parse error response: {}", e),
+                            format!("failed to parse error response: {}", e),
                         )
                     })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())

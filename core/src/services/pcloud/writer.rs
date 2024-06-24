@@ -55,7 +55,7 @@ impl oio::OneShotWrite for PcloudWriter {
                 let result = resp.result;
 
                 if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
                 Ok(())

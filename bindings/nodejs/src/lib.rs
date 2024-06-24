@@ -20,7 +20,6 @@ extern crate napi_derive;
 
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::future::Future;
 use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
@@ -28,9 +27,6 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-
-use opendal::operator_functions::{FunctionWrite, FunctionWriter};
-use opendal::operator_futures::{FutureWrite, FutureWriter};
 
 mod capability;
 
@@ -230,6 +226,7 @@ impl Operator {
         })
     }
 
+    //noinspection DuplicatedCode
     /// Write bytes into path.
     ///
     /// ### Example
@@ -245,7 +242,7 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<OpWriteOptions>,
+        options: Option<WriteOptions>,
     ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
@@ -253,19 +250,48 @@ impl Operator {
         };
         let mut writer = self.0.write_with(&path, c);
         if let Some(options) = options {
-            writer = writer.with(options);
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
         }
         writer.await.map_err(format_napi_error)
     }
 
+    //noinspection DuplicatedCode
     /// Write multiple bytes into path.
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String, options: Option<OpWriteOptions>) -> Result<Writer> {
+    pub async fn writer(&self, path: String, options: Option<WriterOptions>) -> Result<Writer> {
         let mut writer = self.0.writer_with(&path);
         if let Some(options) = options {
-            writer = writer.with(options);
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
         }
         let w = writer.await.map_err(format_napi_error)?;
         Ok(Writer(w))
@@ -278,16 +304,31 @@ impl Operator {
     pub fn writer_sync(
         &self,
         path: String,
-        options: Option<OpWriteOptions>,
+        options: Option<WriterOptions>,
     ) -> Result<BlockingWriter> {
         let mut writer = self.0.blocking().writer_with(&path);
         if let Some(options) = options {
-            writer = writer.with(options);
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.buffer(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
         }
         let w = writer.call().map_err(format_napi_error)?;
         Ok(BlockingWriter(w))
     }
 
+    //noinspection DuplicatedCode
     /// Write bytes into path synchronously.
     ///
     /// ### Example
@@ -303,7 +344,7 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<OpWriteOptions>,
+        options: Option<WriteOptions>,
     ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
@@ -311,7 +352,21 @@ impl Operator {
         };
         let mut writer = self.0.blocking().write_with(&path, c);
         if let Some(options) = options {
-            writer = writer.with(options);
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
         }
         writer.call().map_err(format_napi_error)
     }
@@ -334,7 +389,7 @@ impl Operator {
         self.write(
             path,
             content,
-            Some(OpWriteOptions {
+            Some(WriteOptions {
                 append: Some(true),
                 ..Default::default()
             }),
@@ -829,7 +884,7 @@ impl Writer {
 
 #[napi(object)]
 #[derive(Default)]
-pub struct OpWriteOptions {
+pub struct WriteOptions {
     /// Append bytes into path.
     ///
     /// ### Notes
@@ -859,97 +914,36 @@ pub struct OpWriteOptions {
     pub cache_control: Option<String>,
 }
 
-trait OpWriteWithOptions {
-    fn with(self, options: OpWriteOptions) -> Self;
-}
+#[napi(object)]
+#[derive(Default)]
+pub struct WriterOptions {
+    /// Append bytes into path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path not exists.
+    pub append: Option<bool>,
 
-impl<F: Future<Output = opendal::Result<()>>> OpWriteWithOptions for FutureWrite<F> {
-    //noinspection DuplicatedCode
-    fn with(self, options: OpWriteOptions) -> Self {
-        let mut writer = self;
-        if let Some(append) = options.append {
-            writer = writer.append(append);
-        }
-        if let Some(chunk) = options.chunk {
-            writer = writer.chunk(chunk.get_u64().1 as usize);
-        }
-        if let Some(ref content_type) = options.content_type {
-            writer = writer.content_type(content_type);
-        }
-        if let Some(ref content_disposition) = options.content_disposition {
-            writer = writer.content_disposition(content_disposition);
-        }
-        if let Some(ref cache_control) = options.cache_control {
-            writer = writer.cache_control(cache_control);
-        }
-        writer
-    }
-}
-impl<F: Future<Output = opendal::Result<opendal::Writer>>> OpWriteWithOptions for FutureWriter<F> {
-    //noinspection DuplicatedCode
-    fn with(self, options: OpWriteOptions) -> Self {
-        let mut writer = self;
-        if let Some(append) = options.append {
-            writer = writer.append(append);
-        }
-        if let Some(chunk) = options.chunk {
-            writer = writer.chunk(chunk.get_u64().1 as usize);
-        }
-        if let Some(ref content_type) = options.content_type {
-            writer = writer.content_type(content_type);
-        }
-        if let Some(ref content_disposition) = options.content_disposition {
-            writer = writer.content_disposition(content_disposition);
-        }
-        if let Some(ref cache_control) = options.cache_control {
-            writer = writer.cache_control(cache_control);
-        }
-        writer
-    }
-}
-impl OpWriteWithOptions for FunctionWrite {
-    //noinspection DuplicatedCode
-    fn with(self, options: OpWriteOptions) -> Self {
-        let mut writer = self;
-        if let Some(append) = options.append {
-            writer = writer.append(append);
-        }
-        if let Some(chunk) = options.chunk {
-            writer = writer.chunk(chunk.get_u64().1 as usize);
-        }
-        if let Some(ref content_type) = options.content_type {
-            writer = writer.content_type(content_type);
-        }
-        if let Some(ref content_disposition) = options.content_disposition {
-            writer = writer.content_disposition(content_disposition);
-        }
-        if let Some(ref cache_control) = options.cache_control {
-            writer = writer.cache_control(cache_control);
-        }
-        writer
-    }
-}
-impl OpWriteWithOptions for FunctionWriter {
-    //noinspection DuplicatedCode
-    fn with(self, options: OpWriteOptions) -> Self {
-        let mut writer = self;
-        if let Some(append) = options.append {
-            writer = writer.append(append);
-        }
-        if let Some(chunk) = options.chunk {
-            writer = writer.buffer(chunk.get_u64().1 as usize);
-        }
-        if let Some(ref content_type) = options.content_type {
-            writer = writer.content_type(content_type);
-        }
-        if let Some(ref content_disposition) = options.content_disposition {
-            writer = writer.content_disposition(content_disposition);
-        }
-        if let Some(ref cache_control) = options.cache_control {
-            writer = writer.cache_control(cache_control);
-        }
-        writer
-    }
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub chunk: Option<BigInt>,
+
+    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
+    pub content_type: Option<String>,
+
+    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
+    pub content_disposition: Option<String>,
+
+    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
+    pub cache_control: Option<String>,
 }
 
 /// Lister is designed to list entries at given path in an asynchronous

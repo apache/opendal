@@ -33,7 +33,14 @@ export interface ListOptions {
   recursive?: boolean
 }
 export interface OpWriteOptions {
-  /** Append bytes into file. */
+  /**
+   * Append bytes into path.
+   *
+   * ### Notes
+   *
+   * - It always appends content to the end of the file.
+   * - It will create file if the path not exists.
+   */
   append?: boolean
   /**
    * Set the chunk of op.

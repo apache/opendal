@@ -830,7 +830,12 @@ impl Writer {
 #[napi(object)]
 #[derive(Default)]
 pub struct OpWriteOptions {
-    /// Append bytes into file.
+    /// Append bytes into path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path not exists.
     pub append: Option<bool>,
 
     /// Set the chunk of op.

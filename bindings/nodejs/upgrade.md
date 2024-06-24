@@ -1,3 +1,15 @@
+# Unreleased
+
+## Breaking change
+
+### Public API
+
+Now, the `append` operation has been removed. You can use below code instead.
+
+```js
+op.write("path/to/file", Buffer.from("hello world"), { append: true });
+```
+
 # Upgrade to v0.44
 
 ## Breaking change

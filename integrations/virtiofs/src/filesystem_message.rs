@@ -17,6 +17,8 @@
 
 use vm_memory::ByteValued;
 
+use crate::error::*;
+
 /// Opcode represents the filesystem call that needs to be executed by VMs message.
 /// The corresponding value needs to be aligned with the specification.
 #[non_exhaustive]
@@ -25,12 +27,12 @@ pub enum Opcode {
 }
 
 impl TryFrom<u32> for Opcode {
-    type Error = ();
+    type Error = Error;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
             26 => Ok(Opcode::Init),
-            _ => Err(()),
+            _ => Err(new_vhost_user_fs_error("failed to decode opcode", None)),
         }
     }
 }

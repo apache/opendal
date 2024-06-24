@@ -371,32 +371,6 @@ impl Operator {
         writer.call().map_err(format_napi_error)
     }
 
-    /// Append bytes into path.
-    ///
-    /// ### Notes
-    ///
-    /// - It always appends content to the end of the file.
-    /// - It will create file if the path not exists.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// await op.append("path/to/file", Buffer.from("hello world"));
-    /// // or
-    /// await op.append("path/to/file", "hello world");
-    /// ```
-    #[napi]
-    pub async fn append(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
-        self.write(
-            path,
-            content,
-            Some(WriteOptions {
-                append: Some(true),
-                ..Default::default()
-            }),
-        )
-        .await
-    }
-
     /// Copy file according to given `from` and `to` path.
     ///
     /// ### Example

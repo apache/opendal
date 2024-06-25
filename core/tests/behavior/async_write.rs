@@ -300,28 +300,38 @@ pub async fn test_writer_write_with_concurrent(op: Operator) -> Result<()> {
     }
 
     let path = TEST_FIXTURE.new_file_path();
-    let size = 5 * 1024 * 1024; // write file with 5 MiB
-    let content_a = gen_fixed_bytes(size);
-    let content_b = gen_fixed_bytes(size);
+    // We need at least 3 part to make sure concurrent happened.
+    let (content_a, size_a) = gen_bytes_with_range(5 * 1024 * 1024..6 * 1024 * 1024);
+    let (content_b, size_b) = gen_bytes_with_range(5 * 1024 * 1024..6 * 1024 * 1024);
+    let (content_c, size_c) = gen_bytes_with_range(5 * 1024 * 1024..6 * 1024 * 1024);
 
-    let mut w = op.writer_with(&path).concurrent(2).await?;
+    let mut w = op.writer_with(&path).concurrent(3).await?;
     w.write(content_a.clone()).await?;
     w.write(content_b.clone()).await?;
+    w.write(content_c.clone()).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
-    assert_eq!(meta.content_length(), (size * 2) as u64);
+    assert_eq!(meta.content_length(), (size_a + size_b + size_c) as u64);
 
     let bs = op.read(&path).await?.to_bytes();
-    assert_eq!(bs.len(), size * 2, "read size");
+    assert_eq!(bs.len(), size_a + size_b + size_c, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(&bs[..size_a])),
         format!("{:x}", Sha256::digest(content_a)),
         "read content a"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
+        format!("{:x}", Sha256::digest(&bs[size_a..size_a + size_b])),
         format!("{:x}", Sha256::digest(content_b)),
+        "read content b"
+    );
+    assert_eq!(
+        format!(
+            "{:x}",
+            Sha256::digest(&bs[size_a + size_b..size_a + size_b + size_c])
+        ),
+        format!("{:x}", Sha256::digest(content_c)),
         "read content b"
     );
 

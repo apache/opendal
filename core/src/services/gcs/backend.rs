@@ -362,7 +362,7 @@ impl Access for GcsBackend {
                 // It's recommended that you use at least 8 MiB for the chunk size.
                 //
                 // Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-                write_multi_align_size: Some(256 * 1024 * 1024),
+                write_multi_align_size: Some(8 * 1024 * 1024),
 
                 delete: true,
                 copy: true,
@@ -433,10 +433,10 @@ impl Access for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
         let executor = args.executor().cloned();
         let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::RangeWriter::new(w, executor, concurrent);
+        // Gcs can't support concurrent write, always use concurrent=1 for now.
+        let w = oio::RangeWriter::new(w, executor, 1);
 
         Ok((RpWrite::default(), w))
     }

@@ -38,7 +38,7 @@ impl TryFrom<u32> for Opcode {
 }
 
 /// InHeader represents the incoming message header in the filesystem call.
-/// 
+///
 /// The fields of the struct need to conform to the specific format of the virtiofs message.
 /// Currently, we only need to align them exactly with vitrtiofsd.
 /// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L1155
@@ -57,7 +57,7 @@ pub struct InHeader {
 }
 
 /// OutHeader represents the message header returned in the filesystem call.
-/// 
+///
 /// The fields of the struct need to conform to the specific format of the virtiofs message.
 /// Currently, we only need to align them exactly with vitrtiofsd.
 /// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L1170
@@ -70,7 +70,7 @@ pub struct OutHeader {
 }
 
 /// InitIn is used to parse the parameters passed in the Init filesystem call.
-/// 
+///
 /// The fields of the struct need to conform to the specific format of the virtiofs message.
 /// Currently, we only need to align them exactly with vitrtiofsd.
 /// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L1030
@@ -84,7 +84,7 @@ pub struct InitIn {
 }
 
 /// InitOut is used to return the result of the Init filesystem call.
-/// 
+///
 /// The fields of the struct need to conform to the specific format of the virtiofs message.
 /// Currently, we only need to align them exactly with vitrtiofsd.
 /// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L1048

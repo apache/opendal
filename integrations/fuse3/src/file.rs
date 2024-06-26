@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fuse3::Errno;
-use opendal::Writer;
 use std::ffi::OsString;
 use std::sync::Arc;
+
+use fuse3::Errno;
+use opendal::Writer;
 use tokio::sync::Mutex;
 
 /// Opened file represents file that opened in memory.

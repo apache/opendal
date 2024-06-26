@@ -43,7 +43,45 @@ use super::file::OpenedFile;
 
 const TTL: Duration = Duration::from_secs(1); // 1 second
 
-/// Filesystem represents the filesystem that implements [`PathFilesystem`].
+/// `Filesystem` represents the filesystem that implements [`PathFilesystem`] by opendal.
+///
+/// `Filesystem` must be used along with `fuse3`'s `Session` like the following:
+///
+/// ```
+/// use fuse3::path::Session;
+/// use fuse3::MountOptions;
+/// use fuse3::Result;
+/// use fuse3_opendal::Filesystem;
+/// use opendal::services::Memory;
+/// use opendal::Operator;
+///
+/// #[tokio::test]
+/// async fn test() -> Result<()> {
+///     // Build opendal Operator.
+///     let op = Operator::new(Memory::default())?.finish();
+///
+///     // Build fuse3 file system.
+///     let fs = Filesystem::new(op, 1000, 1000);
+///
+///     // Configure mount options.
+///     let mount_options = MountOptions::default();
+///
+///     // Start a fuse3 session and mount it.
+///     let mut mount_handle = Session::new(mount_options)
+///         .mount_with_unprivileged(fs, "/tmp/mount_test")
+///         .await?;
+///     let handle = &mut mount_handle;
+///
+///     tokio::select! {
+///         res = handle => res?,
+///         _ = tokio::signal::ctrl_c() => {
+///             mount_handle.unmount().await?
+///         }
+///     }
+///
+///     Ok(())
+/// }
+/// ```
 pub struct Filesystem {
     op: Operator,
     gid: u32,

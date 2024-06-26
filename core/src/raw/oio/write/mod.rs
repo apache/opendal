@@ -45,3 +45,7 @@ pub use range_write::RangeWriter;
 mod block_write;
 pub use block_write::BlockWrite;
 pub use block_write::BlockWriter;
+
+mod position_write;
+pub use position_write::PositionWrite;
+pub use position_write::PositionWriter;

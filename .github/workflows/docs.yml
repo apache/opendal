@@ -37,6 +37,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+env:
+  # This same toolchain for rust 1.79.0 but nightly so we can use new features.
+  RUST_DOC_TOOLCHAIN: nightly-2024-06-13
+  # Enable cfg docs to make sure docs are built.
+  RUSTDOCFLAGS: "--cfg docs"
+
 jobs:
   build-rust-doc:
     runs-on: ubuntu-latest
@@ -51,10 +57,9 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-14
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
 
       - uses: actions/setup-java@v4
         with:
@@ -63,11 +68,9 @@ jobs:
 
       - name: Build OpenDAL doc
         working-directory: core
-        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          # Enable cfg docs to make sure docs are built.
-          RUSTDOCFLAGS: "--cfg docs"
 
       - name: Upload docs
         uses: actions/upload-artifact@v3
@@ -219,15 +222,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Restore haskell cache
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
-          path: |
-            ~/.cabal/store
-            bindings/haskell/dist-newstyle
-          restore-keys: ${{ runner.os }}-haskell-
-
       - name: Build Docs
         working-directory: "bindings/haskell"
         run: |
@@ -305,17 +299,13 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-14
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
 
       - name: Build object-store-opendal doc
         working-directory: "integrations/object_store"
-        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
-        env:
-          # Enable cfg docs to make sure docs are built.
-          RUSTDOCFLAGS: "--cfg docs"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
         uses: actions/upload-artifact@v3
@@ -335,20 +325,86 @@ jobs:
       # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
-          rustup toolchain install nightly-2024-04-14
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
 
       - name: Build dav-server-opendalfs doc
         working-directory: "integrations/dav-server"
-        run: cargo +nightly-2024-04-14 doc --lib --no-deps --all-features
-        env:
-          # Enable cfg docs to make sure docs are built.
-          RUSTDOCFLAGS: "--cfg docs"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
         uses: actions/upload-artifact@v3
         with:
           name: dav-server-opendalfs-docs
           path: ./integrations/dav-server/target/doc
+
+  build-fuse3-opendal-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build fuse3-opendal doc
+        working-directory: "integrations/fuse3"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuse3-opendal-docs
+          path: ./integrations/fuse3/target/doc
+
+  build-unftp-sbe-opendal-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build unftp-sbe-opendal doc
+        working-directory: "integrations/unftp-sbe"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: unftp-sbe-opendal-docs
+          path: ./integrations/unftp-sbe/target/doc
+
+  build-virtiofs-opendal-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build virtiofs-opendal doc
+        working-directory: "integrations/virtiofs"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: virtiofs-opendal-docs
+          path: ./integrations/virtiofs/target/doc
 
   build-website:
     runs-on: ubuntu-latest
@@ -364,6 +420,9 @@ jobs:
       - build-ocaml-doc
       - build-object-store-opendal-doc
       - build-dav-server-opendalfs-doc
+      - build-fuse3-opendal-doc
+      - build-unftp-sbe-opendal-doc
+      - build-virtiofs-opendal-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -450,6 +509,24 @@ jobs:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
+      - name: Download fuse3-opendal docs
+        uses: actions/download-artifact@v3
+        with:
+          name: fuse3-opendal-docs
+          path: ./website/static/docs/fuse3-opendal
+
+      - name: Download unftp-sbe-opendal docs
+        uses: actions/download-artifact@v3
+        with:
+          name: unftp-sbe-opendal-docs
+          path: ./website/static/docs/unftp-sbe-opendal
+
+      - name: Download virtiofs-opendal docs
+        uses: actions/download-artifact@v3
+        with:
+          name: virtiofs-opendal-docs
+          path: ./website/static/docs/virtiofs-opendal
+
       - name: Install Dependencies
         working-directory: website
         run: pnpm install --frozen-lockfile
@@ -477,7 +554,7 @@ jobs:
         working-directory: website
         run: pnpm build
         env:
-            OPENDAL_WEBSITE_STAGING: true
+          OPENDAL_WEBSITE_STAGING: true
 
       - name: Copy asf file
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}

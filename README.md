@@ -82,13 +82,13 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* integrations
 
-| Name                   | Description                                          | Release                                     | Docs                                                                              |
-|------------------------|------------------------------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------|
-| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.      | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
-| [object_store_opendal] | an [object_store] implementation using opendal.      | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
-| [fuse3_opendal]        | Access data via integrations to [fuse3]              | -                                           | -                                                                                 |
-| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend] | -                                           | -                                                                                 |
-| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal. | -                                           | -                                                                                 |
+| Name                   | Description                                              | Release                                     | Docs                                                                              |
+|------------------------|----------------------------------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------|
+| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.          | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
+| [object_store_opendal] | an [object_store] implementation using opendal.          | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
+| [fuse3_opendal]        | Access data via integrations to [fuse3]                  | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
+| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend]     | [![virtiofs image]][virtiofs crate]         | [![Docs Release]][virtiofs release docs] [![Docs Dev]][virtiofs dev docs]         |
+| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal. | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
 
 [dav-server-opendalfs]: integrations/dav-server/README.md
 [dav-server-rs]: https://github.com/messense/dav-server-rs
@@ -106,12 +106,24 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 [fuse3_opendal]: integrations/fuse3/README.md
 [fuse3]: https://docs.rs/fuse3
+[fuse3 image]: https://img.shields.io/crates/v/fuse3_opendal.svg
+[fuse3 crate]: https://crates.io/crates/fuse3_opendal
+[fuse3 release docs]: https://docs.rs/fuse3_opendal/
+[fuse3 dev docs]: https://opendal.apache.org/docs/fuse3-opendal/fuse3_opendal/
 
 [virtiofs_opendal]: integrations/virtiofs/README.md
 [vhost-user-backend]: https://docs.rs/vhost-user-backend
+[virtiofs image]: https://img.shields.io/crates/v/virtiofs_opendal.svg
+[virtiofs crate]: https://crates.io/crates/virtiofs_opendal
+[virtiofs release docs]: https://docs.rs/virtiofs_opendal/
+[virtiofs dev docs]: https://opendal.apache.org/docs/virtiofs-opendal/virtiofs_opendal/
 
 [unftp-sbe-opendal]: integrations/unftp-sbe/README.md
 [unftp]: https://crates.io/crates/unftp
+[unftp-sbe image]: https://img.shields.io/crates/v/unftp-sbe-opendal.svg
+[unftp-sbe crate]: https://crates.io/crates/unftp-sbe-opendal
+[unftp-sbe release docs]: https://docs.rs/unftp-sbe-opendal/
+[unftp-sbe dev docs]: https://opendal.apache.org/docs/unftp-sbe-opendal/unftp_sbe_opendal/
 
 ## For *ANY* services
 

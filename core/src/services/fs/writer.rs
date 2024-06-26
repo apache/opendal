@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io::Write;
+use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 
 use bytes::Buf;
@@ -23,6 +24,9 @@ use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;
 use crate::*;
+
+pub type FsWriters =
+    TwoWays<FsWriter<tokio::fs::File>, oio::PositionWriter<FsWriter<tokio::fs::File>>>;
 
 pub struct FsWriter<F> {
     target_path: PathBuf,
@@ -99,5 +103,25 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
         }
 
         Ok(())
+    }
+}
+
+impl oio::PositionWrite for FsWriter<tokio::fs::File> {
+    async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+        let f = self.f.as_ref().expect("FsWriter must be initialized");
+
+        let f = f
+            .try_clone()
+            .await
+            .map_err(new_std_io_error)?
+            .into_std()
+            .await;
+
+        tokio::task::spawn_blocking(move || {
+            f.write_all_at(buf.chunk(), offset)
+                .map_err(new_std_io_error)
+        })
+        .await
+        .map_err(new_task_join_error)?
     }
 }

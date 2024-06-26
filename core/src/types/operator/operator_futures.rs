@@ -300,7 +300,7 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
 
     /// Set the maximum concurrent write task amount.
     pub fn concurrent(self, v: usize) -> Self {
-        self.map(|(args, bs)| (args.with_chunk(v), bs))
+        self.map(|(args, bs)| (args.with_concurrent(v), bs))
     }
 
     /// Set the content type of option

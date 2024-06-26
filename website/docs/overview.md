@@ -1,5 +1,5 @@
 ---
-sidebar_label: About
+sidebar_label: Overview
 sidebar_position: 1
 ---
 
@@ -59,7 +59,7 @@ For example, we DO
 
 ### 4. Free of cost
 
-OpenDAL needs to implement features in a zero cost way which means:
+OpenDAL needs to implement features in a zero-cost way which means:
 
 - Users don't need to pay costs for unused features.
 - Users cannot write better implementation for used features.

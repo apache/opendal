@@ -124,7 +124,8 @@ dependencies {
 
 #### Classified library
 
-For details in specifying classified library, read the [dedicated explanation](https://github.com/apache/opendal/tree/main/bindings/java).
+For details on specifying a classified library,
+read the [dedicated explanation](https://github.com/apache/opendal/tree/main/bindings/java).
 
 ### Demo
 
@@ -174,7 +175,7 @@ asyncio.run(main())
 
 ## Node.js binding
 
-OpenDAL's Python binding is released to npm registry as [`opendal`](https://www.npmjs.com/package/opendal).
+OpenDAL's Node.js binding is released to NPM registry as [`opendal`](https://www.npmjs.com/package/opendal).
 
 ### Install
 

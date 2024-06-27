@@ -83,8 +83,6 @@ layers-metrics = ["dep:metrics"]
 layers-prometheus = ["dep:prometheus"]
 # Enable layers prometheus support, with prometheus-client crate
 layers-prometheus-client = ["dep:prometheus-client"]
-# Enable layers madsim support
-layers-madsim = ["dep:madsim"]
 # Enable layers minitrace support.
 layers-minitrace = ["dep:minitrace"]
 # Enable layers tracing support.
@@ -355,8 +353,6 @@ async-backtrace = { version = "0.2.6", optional = true }
 await-tree = { version = "0.1.1", optional = true }
 # for layers-throttle
 governor = { version = "0.6.0", optional = true, features = ["std"] }
-# for layers-madsim
-madsim = { version = "0.2.21", optional = true }
 # for layers-metrics
 metrics = { version = "0.20", optional = true }
 # for layers-minitrace

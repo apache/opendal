@@ -77,13 +77,6 @@ mod minitrace;
 #[cfg(feature = "layers-minitrace")]
 pub use self::minitrace::MinitraceLayer;
 
-#[cfg(feature = "layers-madsim")]
-mod madsim;
-#[cfg(feature = "layers-madsim")]
-pub use self::madsim::MadsimLayer;
-#[cfg(feature = "layers-madsim")]
-pub use self::madsim::MadsimServer;
-
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]

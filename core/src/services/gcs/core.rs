@@ -23,6 +23,7 @@ use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
+use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -37,7 +38,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::uri::percent_encode_path;
@@ -488,6 +489,20 @@ impl GcsCore {
         self.send(req).await
     }
 
+    pub async fn gcs_initiate_multipart_upload(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
+
+        let mut req = Request::post(&url)
+            .header(CONTENT_LENGTH, 0)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
@@ -500,6 +515,90 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub async fn gcs_upload_part(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub async fn gcs_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub async fn gcs_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -590,6 +689,29 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+}
+
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    pub upload_id: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String,
 }
 
 #[cfg(test)]

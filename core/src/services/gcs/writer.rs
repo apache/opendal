@@ -15,16 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
+use http::StatusCode;
 use std::sync::Arc;
 
-use http::StatusCode;
-
-use super::core::GcsCore;
+use super::core::{CompleteMultipartUploadRequestPart, GcsCore, InitiateMultipartUploadResult};
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type GcsWriters = oio::RangeWriter<GcsWriter>;
+pub type GcsWriters = oio::MultipartWriter<GcsWriter>;
 
 pub struct GcsWriter {
     core: Arc<GcsCore>,
@@ -42,8 +42,8 @@ impl GcsWriter {
     }
 }
 
-impl oio::RangeWrite for GcsWriter {
-    async fn write_once(&self, body: Buffer) -> Result<()> {
+impl oio::MultipartWrite for GcsWriter {
+    async fn write_once(&self, _: u64, body: Buffer) -> Result<()> {
         let size = body.len() as u64;
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
@@ -60,69 +60,90 @@ impl oio::RangeWrite for GcsWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
-    async fn initiate_range(&self) -> Result<String> {
-        let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = parse_location(resp.headers())?;
-                if let Some(location) = bs {
-                    Ok(location.to_string())
-                } else {
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "location is not in the response header",
-                    ))
-                }
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write_range(&self, location: &str, written: u64, body: Buffer) -> Result<()> {
-        let size = body.len() as u64;
-        let mut req = self
-            .core
-            .gcs_upload_in_resumable_upload(location, size, written, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn complete_range(&self, location: &str, written: u64, body: Buffer) -> Result<()> {
-        let size = body.len() as u64;
+    async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .gcs_complete_resumable_upload(location, written, size, body)
+            .gcs_initiate_multipart_upload(&percent_encode_path(&self.path))
             .await?;
 
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        if !resp.status().is_success() {
+            return Err(parse_error(resp));
         }
+
+        let buf = resp.into_body();
+        let upload_id: InitiateMultipartUploadResult =
+            quick_xml::de::from_reader(buf.reader()).map_err(new_xml_deserialize_error)?;
+        Ok(upload_id.upload_id)
     }
 
-    async fn abort_range(&self, location: &str) -> Result<()> {
-        let resp = self.core.gcs_abort_resumable_upload(location).await?;
+    async fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<oio::MultipartPart> {
+        // Gcs requires part number must between [1..=10000]
+        let part_number = part_number + 1;
 
-        match resp.status().as_u16() {
-            // gcs returns 499 if the upload aborted successfully
-            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
-            499 => Ok(()),
-            _ => Err(parse_error(resp).await?),
+        let resp = self
+            .core
+            .gcs_upload_part(&self.path, upload_id, part_number, size, body)
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(parse_error(resp));
+        }
+
+        let etag = parse_etag(resp.headers())?
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "ETag not present in returning response",
+                )
+            })?
+            .to_string();
+
+        Ok(oio::MultipartPart {
+            part_number,
+            etag,
+            checksum: None,
+        })
+    }
+
+    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
+        let parts = parts
+            .iter()
+            .map(|p| CompleteMultipartUploadRequestPart {
+                part_number: p.part_number,
+                etag: p.etag.clone(),
+            })
+            .collect();
+
+        let resp = self
+            .core
+            .gcs_complete_multipart_upload(&self.path, upload_id, parts)
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(parse_error(resp));
+        }
+        Ok(())
+    }
+
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        let resp = self
+            .core
+            .gcs_abort_multipart_upload(&self.path, upload_id)
+            .await?;
+        match resp.status() {
+            // gcs returns code 204 if abort succeeds.
+            StatusCode::NO_CONTENT => Ok(()),
+            _ => Err(parse_error(resp)),
         }
     }
 }

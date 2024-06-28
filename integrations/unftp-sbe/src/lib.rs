@@ -36,6 +36,7 @@ impl OpendalStorage {
 }
 
 /// A wrapper around [`opendal::Metadata`] to implement [`libunftp::storage::Metadata`].
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OpendalMetadata(opendal::Metadata);
 
 impl storage::Metadata for OpendalMetadata {

@@ -452,7 +452,7 @@ impl Access for SftpBackend {
         if op.append() {
             option.append(true);
         } else {
-            option.write(true);
+            option.write(true).truncate(true);
         }
 
         let file = option.open(path).await.map_err(parse_sftp_error)?;

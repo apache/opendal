@@ -43,6 +43,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_content_type,
             test_write_with_content_disposition,
             test_writer_write,
+            test_writer_write_with_overwrite,
             test_writer_write_with_concurrent,
             test_writer_sink,
             test_writer_sink_with_concurrent,
@@ -556,6 +557,37 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
         format!("{:x}", Sha256::digest(&bs[..size])),
         format!("{:x}", Sha256::digest(content)),
         "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content_one, _) = gen_bytes(op.info().full_capability());
+    let (content_two, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content_one.clone()).await?;
+    let bs = op.read(&path).await?.to_bytes();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content_one)),
+        "read content_one"
+    );
+    op.write(&path, content_two.clone())
+        .await
+        .expect("write overwrite must succeed");
+    let bs = op.read(&path).await?.to_bytes();
+    assert_ne!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content_one)),
+        "content_one must be overwrote"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content_two)),
+        "read content_two"
     );
 
     op.delete(&path).await.expect("delete must succeed");

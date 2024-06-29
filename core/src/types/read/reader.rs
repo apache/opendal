@@ -118,15 +118,15 @@ impl Reader {
     ///
     /// To avoid duplicated stat call, we will cache the size of the reader.
     async fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
+        let start = match range.start_bound().cloned() {
+            Bound::Included(v) => v,
             Bound::Excluded(v) => v + 1,
             Bound::Unbounded => 0,
         };
 
-        let end = match range.end_bound() {
+        let end = match range.end_bound().cloned() {
             Bound::Included(v) => v + 1,
-            Bound::Excluded(v) => *v,
+            Bound::Excluded(v) => v,
             Bound::Unbounded => match self.size.load() {
                 Some(v) => v,
                 None => {

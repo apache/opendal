@@ -198,9 +198,9 @@ impl IpmfsBackend {
         );
 
         write!(url, "&offset={}", range.offset()).expect("write into string must succeed");
-        if let Some(count) = range.size() {
-            write!(url, "&count={count}").expect("write into string must succeed")
-        }
+
+        let count = range.size();
+        write!(url, "&count={count}").expect("write into string must succeed");
 
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;

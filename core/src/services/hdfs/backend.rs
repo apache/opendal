@@ -324,10 +324,7 @@ impl Access for HdfsBackend {
                 .map_err(new_std_io_error)?;
         }
 
-        Ok((
-            RpRead::new(),
-            HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
-        ))
+        Ok((RpRead::new(), HdfsReader::new(f, args.range().size() as _)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -523,10 +520,7 @@ impl Access for HdfsBackend {
                 .map_err(new_std_io_error)?;
         }
 
-        Ok((
-            RpRead::new(),
-            HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
-        ))
+        Ok((RpRead::new(), HdfsReader::new(f, args.range().size() as _)))
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

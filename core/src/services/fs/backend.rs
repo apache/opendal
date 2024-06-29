@@ -262,11 +262,7 @@ impl Access for FsBackend {
                 .map_err(new_std_io_error)?;
         }
 
-        let r = FsReader::new(
-            self.core.clone(),
-            f,
-            args.range().size().unwrap_or(u64::MAX) as _,
-        );
+        let r = FsReader::new(self.core.clone(), f, args.range().size() as _);
         Ok((RpRead::new(), r))
     }
 
@@ -435,11 +431,7 @@ impl Access for FsBackend {
                 .map_err(new_std_io_error)?;
         }
 
-        let r = FsReader::new(
-            self.core.clone(),
-            f,
-            args.range().size().unwrap_or(u64::MAX) as _,
-        );
+        let r = FsReader::new(self.core.clone(), f, args.range().size() as _);
         Ok((RpRead::new(), r))
     }
 

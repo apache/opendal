@@ -402,9 +402,8 @@ impl WebhdfsBackend {
 
         if !range.is_full() {
             url += &format!("&offset={}", range.offset());
-            if let Some(size) = range.size() {
-                url += &format!("&length={size}")
-            }
+            let size = range.size();
+            url += &format!("&length={size}");
         }
 
         let req = Request::get(&url)

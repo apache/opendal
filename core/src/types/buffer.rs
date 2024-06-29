@@ -243,15 +243,15 @@ impl Buffer {
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Self {
         let len = self.len();
 
-        let begin = match range.start_bound() {
-            Bound::Included(&n) => n,
-            Bound::Excluded(&n) => n.checked_add(1).expect("out of range"),
+        let begin = match range.start_bound().cloned() {
+            Bound::Included(n) => n,
+            Bound::Excluded(n) => n + 1,
             Bound::Unbounded => 0,
         };
 
-        let end = match range.end_bound() {
-            Bound::Included(&n) => n.checked_add(1).expect("out of range"),
-            Bound::Excluded(&n) => n,
+        let end = match range.end_bound().cloned() {
+            Bound::Included(n) => n + 1,
+            Bound::Excluded(n) => n,
             Bound::Unbounded => len,
         };
 

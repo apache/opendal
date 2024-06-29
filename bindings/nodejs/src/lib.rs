@@ -35,11 +35,11 @@ pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {
-    #[napi(constructor)]
     /// @see For the full list of scheme, see https://docs.rs/opendal/latest/opendal/services/index.html
     /// And the options,
     /// please refer to the documentation of the corresponding service for the corresponding parameters.
     /// Note that the current options key is snake_case.
+    #[napi(constructor)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {

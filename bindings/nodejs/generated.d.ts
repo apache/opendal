@@ -34,12 +34,12 @@ export interface ListOptions {
 }
 export interface WriteOptions {
   /**
-   * Append bytes into path.
+   * Append bytes into a path.
    *
    * ### Notes
    *
    * - It always appends content to the end of the file.
-   * - It will create file if the path not exists.
+   * - It will create file if the path does not exist.
    */
   append?: boolean
   /**
@@ -49,7 +49,7 @@ export interface WriteOptions {
    *
    * ## NOTE
    *
-   * Service could have their own minimum chunk size while perform write
+   * A service could have their own minimum chunk size while perform write
    * operations like multipart uploads. So the chunk size may be larger than
    * the given buffer size.
    */
@@ -63,12 +63,12 @@ export interface WriteOptions {
 }
 export interface WriterOptions {
   /**
-   * Append bytes into path.
+   * Append bytes into a path.
    *
    * ### Notes
    *
    * - It always appends content to the end of the file.
-   * - It will create file if the path not exists.
+   * - It will create file if the path does not exist.
    */
   append?: boolean
   /**
@@ -78,7 +78,7 @@ export interface WriterOptions {
    *
    * ## NOTE
    *
-   * Service could have their own minimum chunk size while perform write
+   * A service could have their own minimum chunk size while perform write
    * operations like multipart uploads. So the chunk size may be larger than
    * the given buffer size.
    */
@@ -101,32 +101,32 @@ export interface PresignedRequest {
 }
 /**
  * Capability is used to describe what operations are supported
- * by current Operator.
+ *  by the current Operator.
  *
  * Via capability, we can know:
  *
- * - Whether current Operator supports read or not.
- * - Whether current Operator supports read with if match or not.
+ * - Whether current Operator supports `read` or not.
+ * - Whether current Operator supports `read` with if match or not.
  * - What's current Operator max supports batch operations count.
  *
- * Add fields of Capabilities with be public and can be accessed directly.
+ * Add fields of Capabilities to be public and can be accessed directly.
  */
 export class Capability {
   /** If operator supports stat. */
   get stat(): boolean
-  /** If operator supports stat with if match. */
+  /** If operator supports stat with if matched. */
   get statWithIfMatch(): boolean
-  /** If operator supports stat with if none match. */
+  /** If operator supports stat with if not match. */
   get statWithIfNoneMatch(): boolean
   /** If operator supports read. */
   get read(): boolean
-  /** If operator supports read with if match. */
+  /** If operator supports read with if matched. */
   get readWithIfMatch(): boolean
-  /** If operator supports read with if none match. */
+  /** If operator supports read with if not match. */
   get readWithIfNoneMatch(): boolean
   /** if operator supports read with override cache control. */
   get readWithOverrideCacheControl(): boolean
-  /** if operator supports read with override content disposition. */
+  /** if operator supports `read` with override content disposition. */
   get readWithOverrideContentDisposition(): boolean
   /** if operator supports read with override content type. */
   get readWithOverrideContentType(): boolean
@@ -202,7 +202,12 @@ export class Capability {
   get blocking(): boolean
 }
 export class Operator {
-  /** @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services */
+  /**
+   * @see For the full list of scheme, see https://docs.rs/opendal/latest/opendal/services/index.html
+   * And the options,
+   * please refer to the documentation of the corresponding service for the corresponding parameters.
+   * Note that the current options key is snake_case.
+   */
   constructor(scheme: string, options?: Record<string, string> | undefined | null)
   /** Get current operator(service)'s full capability. */
   capability(): Capability
@@ -212,7 +217,7 @@ export class Operator {
    * ### Notes
    * Use stat if you:
    *
-   * - Want detect the outside changes of path.
+   * - Want to detect the outside changes of a path.
    * - Don’t want to read from cached metadata.
    *
    * You may want to use `metadata` if you are working with entries returned by `Lister`. It’s highly possible that metadata you want has already been cached.
@@ -241,7 +246,7 @@ export class Operator {
   /**
    * Check if this operator can work correctly.
    *
-   * We will send a `list` request to path and return any errors we met.
+   * We will send a `list` request to the given path and return any errors we met.
    *
    * ### Example
    * ```javascript
@@ -268,7 +273,7 @@ export class Operator {
    */
   isExistSync(path: string): boolean
   /**
-   * Create dir with given path.
+   * Create dir with a given path.
    *
    * ### Example
    * ```javascript
@@ -277,7 +282,7 @@ export class Operator {
    */
   createDir(path: string): Promise<void>
   /**
-   * Create dir with given path synchronously.
+   * Create dir with a given path synchronously.
    *
    * ### Example
    * ```javascript
@@ -316,7 +321,7 @@ export class Operator {
    */
   readerSync(path: string): BlockingReader
   /**
-   * Write bytes into path.
+   * Write bytes into a path.
    *
    * ### Example
    * ```javascript
@@ -329,19 +334,19 @@ export class Operator {
    */
   write(path: string, content: Buffer | string, options?: WriteOptions | undefined | null): Promise<void>
   /**
-   * Write multiple bytes into path.
+   * Write multiple bytes into a path.
    *
    * It could be used to write large file in a streaming way.
    */
   writer(path: string, options?: WriterOptions | undefined | null): Promise<Writer>
   /**
-   * Write multiple bytes into path synchronously.
+   * Write multiple bytes into a path synchronously.
    *
    * It could be used to write large file in a streaming way.
    */
   writerSync(path: string, options?: WriterOptions | undefined | null): BlockingWriter
   /**
-   * Write bytes into path synchronously.
+   * Write bytes into a path synchronously.
    *
    * ### Example
    * ```javascript
@@ -439,7 +444,7 @@ export class Operator {
    */
   removeAll(path: string): Promise<void>
   /**
-   * List given path.
+   * List the given path.
    *
    * This function will return an array of entries.
    *
@@ -473,9 +478,9 @@ export class Operator {
    */
   list(path: string, options?: ListOptions | undefined | null): Promise<Array<Entry>>
   /**
-   * List given path synchronously.
+   * List the given path synchronously.
    *
-   * This function will return a array of entries.
+   * This function will return an array of entries.
    *
    * An error will be returned if given path doesn't end with `/`.
    *
@@ -509,7 +514,7 @@ export class Operator {
   /**
    * Get a presigned request for read.
    *
-   * Unit of expires is seconds.
+   * Unit of `expires` is seconds.
    *
    * ### Example
    *
@@ -523,9 +528,9 @@ export class Operator {
    */
   presignRead(path: string, expires: number): Promise<PresignedRequest>
   /**
-   * Get a presigned request for write.
+   * Get a presigned request for `write`.
    *
-   * Unit of expires is seconds.
+   * Unit of `expires` is seconds.
    *
    * ### Example
    *
@@ -541,7 +546,7 @@ export class Operator {
   /**
    * Get a presigned request for stat.
    *
-   * Unit of expires is seconds.
+   * Unit of `expires` is seconds.
    *
    * ### Example
    *
@@ -557,7 +562,7 @@ export class Operator {
   /** Add a layer to this operator. */
   layer(layer: ExternalObject<Layer>): this
 }
-/** Entry returned by Lister or BlockingLister to represent a path and it's relative metadata. */
+/** Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata. */
 export class Entry {
   /** Return the path of this entry. */
   path(): string
@@ -586,14 +591,14 @@ export class Metadata {
   get lastModified(): string | null
 }
 /**
- * BlockingReader is designed to read data from given path in an blocking
+ * BlockingReader is designed to read data from a given path in a blocking
  * manner.
  */
 export class BlockingReader {
   read(buf: Buffer): bigint
 }
 /**
- * Reader is designed to read data from given path in an asynchronous
+ * Reader is designed to read data from a given path in an asynchronous
  * manner.
  */
 export class Reader {
@@ -607,7 +612,7 @@ export class Reader {
   read(buf: Buffer): Promise<bigint>
 }
 /**
- * BlockingWriter is designed to write data into given path in an blocking
+ * BlockingWriter is designed to write data into a given path in a blocking
  * manner.
  */
 export class BlockingWriter {
@@ -644,7 +649,7 @@ export class BlockingWriter {
   close(): void
 }
 /**
- * Writer is designed to write data into given path in an asynchronous
+ * Writer is designed to write data into a given path in an asynchronous
  * manner.
  */
 export class Writer {
@@ -680,7 +685,7 @@ export class Writer {
   close(): Promise<void>
 }
 /**
- * Lister is designed to list entries at given path in an asynchronous
+ * Lister is designed to list entries at a given path in an asynchronous
  * manner.
  */
 export class Lister {
@@ -690,12 +695,12 @@ export class Lister {
    * > &mut self in async napi methods should be marked as unsafe
    *
    * napi will make sure the function is safe, and we didn't do unsafe
-   * thing internally.
+   * things internally.
    */
   next(): Promise<Entry | null>
 }
 /**
- * BlockingLister is designed to list entries at given path in a blocking
+ * BlockingLister is designed to list entries at a given path in a blocking
  * manner.
  */
 export class BlockingLister {
@@ -711,10 +716,12 @@ export class Layer { }
  * # Notes
  *
  * This layer will retry failed operations when [`Error::is_temporary`]
- * returns true. If operation still failed, this layer will set error to
+ * returns true.
+ * If the operation still failed, this layer will set error to
  * `Persistent` which means error has been retried.
  *
- * `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
+ * `write` and `blocking_write` don't support retry so far,
+ * visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
  *
  * # Examples
  *
@@ -733,14 +740,14 @@ export class RetryLayer {
   /**
    * Set jitter of current backoff.
    *
-   * If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
+   * If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)`
    * to current delay.
    */
   set jitter(v: boolean)
   /**
    * Set max_times of current backoff.
    *
-   * Backoff will return `None` if max times is reaching.
+   * Backoff will return `None` if max times are reached.
    */
   set maxTimes(v: number)
   /**
@@ -748,13 +755,13 @@ export class RetryLayer {
    *
    * # Panics
    *
-   * This function will panic if input factor smaller than `1.0`.
+   * This function will panic if the input factor is smaller than `1.0`.
    */
   set factor(v: number)
   /**
    * Set max_delay of current backoff.
    *
-   * Delay will not increasing if current delay is larger than max_delay.
+   * Delay will not increase if the current delay is larger than max_delay.
    *
    * # Notes
    *

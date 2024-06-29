@@ -16,15 +16,15 @@
 // under the License.
 
 /// Capability is used to describe what operations are supported
-/// by current Operator.
+///  by the current Operator.
 ///
 /// Via capability, we can know:
 ///
-/// - Whether current Operator supports read or not.
-/// - Whether current Operator supports read with if match or not.
+/// - Whether current Operator supports `read` or not.
+/// - Whether current Operator supports `read` with if match or not.
 /// - What's current Operator max supports batch operations count.
 ///
-/// Add fields of Capabilities with be public and can be accessed directly.
+/// Add fields of Capabilities to be public and can be accessed directly.
 #[napi]
 pub struct Capability(opendal::Capability);
 
@@ -42,13 +42,13 @@ impl Capability {
         self.0.stat
     }
 
-    /// If operator supports stat with if match.
+    /// If operator supports stat with if matched.
     #[napi(getter)]
     pub fn stat_with_if_match(&self) -> bool {
         self.0.stat_with_if_match
     }
 
-    /// If operator supports stat with if none match.
+    /// If operator supports stat with if not match.
     #[napi(getter)]
     pub fn stat_with_if_none_match(&self) -> bool {
         self.0.stat_with_if_none_match
@@ -60,13 +60,13 @@ impl Capability {
         self.0.read
     }
 
-    /// If operator supports read with if match.
+    /// If operator supports read with if matched.
     #[napi(getter)]
     pub fn read_with_if_match(&self) -> bool {
         self.0.read_with_if_match
     }
 
-    /// If operator supports read with if none match.
+    /// If operator supports read with if not match.
     #[napi(getter)]
     pub fn read_with_if_none_match(&self) -> bool {
         self.0.read_with_if_none_match
@@ -78,7 +78,7 @@ impl Capability {
         self.0.read_with_override_cache_control
     }
 
-    /// if operator supports read with override content disposition.
+    /// if operator supports `read` with override content disposition.
     #[napi(getter)]
     pub fn read_with_override_content_disposition(&self) -> bool {
         self.0.read_with_override_content_disposition

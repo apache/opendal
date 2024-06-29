@@ -564,6 +564,11 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
 }
 
 pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
+    // ghac does not support overwrite
+    if op.info().scheme() == Scheme::Ghac {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let (content_one, _) = gen_bytes(op.info().full_capability());
     let (content_two, _) = gen_bytes(op.info().full_capability());

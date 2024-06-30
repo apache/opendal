@@ -174,7 +174,7 @@ impl WriteGenerator<oio::Writer> {
         }
 
         // Condition
-        // - exact is ture.
+        // - exact is true.
         // - buffer size must lower than chunk_size.
         // Action:
         // - write bs to buffer with remaining size.

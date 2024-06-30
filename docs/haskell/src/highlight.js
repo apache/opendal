@@ -1,0 +1,1 @@
+var highlight=function(e){return function(){for(var h=document.getElementsByTagName("a"),t=0;t<h.length;t++){var o=h[t];this.href==o.href&&(e?o.classList.add("hover-highlight"):o.classList.remove("hover-highlight"))}}};window.onload=function(){for(var e=document.getElementsByTagName("a"),h=0;h<e.length;h++)e[h].onmouseover=highlight(!0),e[h].onmouseout=highlight(!1)};

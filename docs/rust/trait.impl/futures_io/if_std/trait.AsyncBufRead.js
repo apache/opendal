@@ -1,0 +1,1 @@
+!function(){var e={opendal:[['impl AsyncBufRead for <a class="struct" href="opendal/struct.FuturesAsyncReader.html" title="struct opendal::FuturesAsyncReader">FuturesAsyncReader</a>']]};window.register_implementors?window.register_implementors(e):window.pending_implementors=e}();

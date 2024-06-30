@@ -1,0 +1,1 @@
+!function(){var e={object_store_opendal:[['impl ObjectStore for <a class="struct" href="object_store_opendal/struct.OpendalStore.html" title="struct object_store_opendal::OpendalStore">OpendalStore</a>']]};window.register_implementors?window.register_implementors(e):window.pending_implementors=e}();

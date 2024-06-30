@@ -1,0 +1,1 @@
+!function(){var r={opendal:[['impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/error/trait.Error.html" title="trait core::error::Error">Error</a> for <a class="struct" href="opendal/struct.Error.html" title="struct opendal::Error">Error</a>']]};window.register_implementors?window.register_implementors(r):window.pending_implementors=r}();

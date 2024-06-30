@@ -16,8 +16,8 @@
 // under the License.
 
 use bytes::Buf;
+use std::sync::Arc;
 
-use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
 
@@ -97,26 +97,18 @@ use crate::*;
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
-    inner: oio::Writer,
+    /// Keep a reference to write context in writer.
+    _ctx: Arc<WriteContext>,
+    inner: WriteGenerator<oio::Writer>,
 }
 
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
-    pub(crate) fn new(w: oio::Writer) -> Self {
-        Writer { inner: w }
-    }
+    pub(crate) async fn new(ctx: WriteContext) -> Result<Self> {
+        let ctx = Arc::new(ctx);
+        let inner = WriteGenerator::create(ctx.clone()).await?;
 
-    /// Create a new writer.
-    ///
-    /// Create will use internal information to decide the most suitable
-    /// implementation for users.
-    ///
-    /// We don't want to expose those details to users so keep this function
-    /// in crate only.
-    pub(crate) async fn create(acc: Accessor, path: &str, op: OpWrite) -> Result<Self> {
-        let (_, w) = acc.write(path, op).await?;
-
-        Ok(Writer { inner: w })
+        Ok(Self { _ctx: ctx, inner })
     }
 
     /// Write [`Buffer`] into writer.
@@ -146,7 +138,7 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write_dyn(bs.clone()).await?;
+            let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
         Ok(())
@@ -163,7 +155,7 @@ impl Writer {
         let mut bs = bs;
         let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
         while !bs.is_empty() {
-            let n = self.inner.write_dyn(bs.clone()).await?;
+            let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
         Ok(())

@@ -15,34 +15,116 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-
+use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
+use bytes::Buf;
+use std::sync::Arc;
 
-/// ChunkedWriter is used to implement [`oio::Write`] based on chunk:
-/// flush the underlying storage at the `chunk`` size.
-///
-/// ChunkedWriter makes sure that the size of the data written to the
-/// underlying storage is
-/// - exactly `chunk` bytes if `exact` is true
-/// - at least `chunk` bytes if `exact` is false
-pub struct ChunkedWriter<W: oio::Write> {
-    inner: W,
+/// WriteContext holds the immutable context for give write operation.
+pub struct WriteContext {
+    /// The accessor to the storage services.
+    acc: Accessor,
+    /// Path to the file.
+    path: String,
+    /// Arguments for the write operation.
+    args: OpWrite,
+    /// Options for the writer.
+    options: OpWriter,
+}
+
+impl WriteContext {
+    /// Create a new WriteContext.
+    #[inline]
+    pub fn new(acc: Accessor, path: String, args: OpWrite, options: OpWriter) -> Self {
+        Self {
+            acc,
+            path,
+            args,
+            options,
+        }
+    }
+
+    /// Get the accessor.
+    #[inline]
+    pub fn accessor(&self) -> &Accessor {
+        &self.acc
+    }
+
+    /// Get the path.
+    #[inline]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Get the arguments.
+    #[inline]
+    pub fn args(&self) -> &OpWrite {
+        &self.args
+    }
+
+    /// Get the options.
+    #[inline]
+    pub fn options(&self) -> &OpWriter {
+        &self.options
+    }
+
+    /// Calculate the chunk size for this write process.
+    ///
+    /// Returns the chunk size and if the chunk size is exact.
+    fn calculate_chunk_size(&self) -> (Option<usize>, bool) {
+        let cap = self.accessor().info().full_capability();
+
+        let exact = self.options().chunk().is_some();
+        let chunk_size = self
+            .options()
+            .chunk()
+            .or(cap.write_multi_min_size)
+            .map(|mut size| {
+                if let Some(v) = cap.write_multi_max_size {
+                    size = size.min(v);
+                }
+                if let Some(v) = cap.write_multi_min_size {
+                    size = size.max(v);
+                }
+
+                size
+            });
+
+        (chunk_size, exact)
+    }
+}
+
+pub struct WriteGenerator<W> {
+    w: W,
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
-    chunk_size: usize,
+    chunk_size: Option<usize>,
     /// If `exact` is true, the size of the data written to the underlying storage is
     /// exactly `chunk_size` bytes.
     exact: bool,
     buffer: oio::QueueBuf,
 }
 
-impl<W: oio::Write> ChunkedWriter<W> {
+impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
-    pub fn new(inner: W, chunk_size: usize, exact: bool) -> Self {
+    pub async fn create(ctx: Arc<WriteContext>) -> Result<Self> {
+        let (chunk_size, exact) = ctx.calculate_chunk_size();
+        let (_, w) = ctx.acc.write(ctx.path(), ctx.args().clone()).await?;
+
+        Ok(Self {
+            w,
+            chunk_size,
+            exact,
+            buffer: oio::QueueBuf::new(),
+        })
+    }
+
+    /// Allow building from existing oio::Writer for easier testing.
+    #[cfg(test)]
+    fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
         Self {
-            inner,
+            w,
             chunk_size,
             exact,
             buffer: oio::QueueBuf::new(),
@@ -50,75 +132,84 @@ impl<W: oio::Write> ChunkedWriter<W> {
     }
 }
 
-impl<W: oio::Write> oio::Write for ChunkedWriter<W> {
-    async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
-        if self.exact {
-            if self.buffer.len() >= self.chunk_size {
-                let written = self.inner.write(self.buffer.clone().collect()).await?;
-                self.buffer.advance(written);
-            }
+impl WriteGenerator<oio::Writer> {
+    /// Write the entire buffer into writer.
+    pub async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
+        let Some(chunk_size) = self.chunk_size else {
+            return self.w.write_dyn(bs).await;
+        };
 
-            let remaining = self.chunk_size - self.buffer.len();
-            bs.truncate(remaining);
-            let n = bs.len();
+        if self.buffer.len() + bs.len() < chunk_size {
+            let size = bs.len();
             self.buffer.push(bs);
-            return Ok(n);
+            return Ok(size);
         }
-        // We are in inexact mode.
 
-        if self.buffer.len() + bs.len() < self.chunk_size {
-            // We haven't buffered enough data.
-            let n = bs.len();
+        // Condition:
+        // - exact is false
+        // - buffer + bs is larger than chunk_size.
+        // Action:
+        // - write buffer + bs directly.
+        if !self.exact {
+            let fill_size = bs.len();
             self.buffer.push(bs);
-            return Ok(n);
-        }
-        // We have enough data to send.
-
-        if self.buffer.is_empty() {
-            // Fast path: Sends the buffer directly if the buffer queue is empty.
-            return self.inner.write(bs).await;
+            let mut buf = self.buffer.take().collect();
+            let written = self.w.write_dyn(buf.clone()).await?;
+            buf.advance(written);
+            self.buffer.push(buf);
+            return Ok(fill_size);
         }
 
-        // If we always push `bs` to the buffer queue, the buffer queue may grow infinitely if inner
-        // doesn't fully consume the queue. So we clone the buffer queue and send it with `bs` first.
-        let mut buffer = self.buffer.clone();
-        buffer.push(bs.clone());
-        let written = self.inner.write(buffer.collect()).await?;
-        // The number of bytes in `self.buffer` that already written.
-        let queue_written = written.min(self.buffer.len());
-        self.buffer.advance(queue_written);
-        // The number of bytes in `bs` that already written.
-        let bs_written = written - queue_written;
-        // Skip bytes that already written.
-        bs.advance(bs_written);
-        // We already sent `written` bytes so we put more `written` bytes into the buffer queue.
-        bs.truncate(written);
-        let n = bs_written + bs.len();
+        // Condition:
+        // - exact is true: we need write buffer in exact chunk size.
+        // - buffer is larger than chunk_size
+        //   - in exact mode, the size must be chunk_size, use `>=` just for safe coding.
+        // Action:
+        // - write existing buffer in chunk_size to make more rooms for writing data.
+        if self.buffer.len() >= chunk_size {
+            let mut buf = self.buffer.take().collect();
+            let written = self.w.write_dyn(buf.clone()).await?;
+            buf.advance(written);
+            self.buffer.push(buf);
+        }
+
+        // Condition
+        // - exact is ture.
+        // - buffer size must lower than chunk_size.
+        // Action:
+        // - write bs to buffer with remaining size.
+        let remaining = chunk_size - self.buffer.len();
+        bs.truncate(remaining);
+        let n = bs.len();
         self.buffer.push(bs);
         Ok(n)
     }
 
-    async fn close(&mut self) -> Result<()> {
+    /// Finish the write process.
+    pub async fn close(&mut self) -> Result<()> {
         loop {
             if self.buffer.is_empty() {
                 break;
             }
 
-            let written = self.inner.write(self.buffer.clone().collect()).await?;
+            let written = self.w.write_dyn(self.buffer.clone().collect()).await?;
             self.buffer.advance(written);
         }
 
-        self.inner.close().await
+        self.w.close().await
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    /// Abort the write process.
+    pub async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
-        self.inner.abort().await
+        self.w.abort().await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::raw::oio::Write;
     use bytes::Buf;
     use bytes::Bytes;
     use log::debug;
@@ -128,12 +219,10 @@ mod tests {
     use rand::RngCore;
     use sha2::Digest;
     use sha2::Sha256;
-
-    use super::*;
-    use crate::raw::oio::Write;
+    use tokio::sync::Mutex;
 
     struct MockWriter {
-        buf: Vec<u8>,
+        buf: Arc<Mutex<Vec<u8>>>,
     }
 
     impl Write for MockWriter {
@@ -141,7 +230,8 @@ mod tests {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
             let chunk = bs.chunk();
-            self.buf.extend_from_slice(chunk);
+            let mut buf = self.buf.lock().await;
+            buf.extend_from_slice(chunk);
             Ok(chunk.len())
         }
 
@@ -166,7 +256,8 @@ mod tests {
         let mut expected = vec![0; 5];
         rng.fill_bytes(&mut expected);
 
-        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, true);
+        let buf = Arc::new(Mutex::new(vec![]));
+        let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), true);
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
@@ -176,9 +267,10 @@ mod tests {
 
         w.close().await?;
 
-        assert_eq!(w.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())
@@ -192,7 +284,8 @@ mod tests {
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .try_init();
 
-        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+        let buf = Arc::new(Mutex::new(vec![]));
+        let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), false);
 
         let mut rng = thread_rng();
         let mut expected = vec![0; 15];
@@ -205,9 +298,10 @@ mod tests {
 
         w.close().await?;
 
-        assert_eq!(w.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())
@@ -221,7 +315,8 @@ mod tests {
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .try_init();
 
-        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+        let buf = Arc::new(Mutex::new(vec![]));
+        let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), false);
 
         let mut rng = thread_rng();
         let mut expected = vec![];
@@ -240,19 +335,16 @@ mod tests {
         let content = new_content(5);
         assert_eq!(5, w.write(content.into()).await?);
         // content > chunk size, but 5 bytes in queue.
-        let mut content = new_content(15);
-        // The MockWriter can only send 5 bytes each time, so we can only advance 5 bytes.
-        assert_eq!(5, w.write(content.clone().into()).await?);
-        content.advance(5);
-        assert_eq!(5, w.write(content.clone().into()).await?);
-        content.advance(5);
-        assert_eq!(5, w.write(content.clone().into()).await?);
+        let content = new_content(15);
+        // The MockWriter can send all 15 bytes together, so we can only advance 5 bytes.
+        assert_eq!(15, w.write(content.clone().into()).await?);
 
         w.close().await?;
 
-        assert_eq!(w.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())
@@ -266,7 +358,8 @@ mod tests {
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .try_init();
 
-        let mut w = ChunkedWriter::new(MockWriter { buf: vec![] }, 10, false);
+        let buf = Arc::new(Mutex::new(vec![]));
+        let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), false);
 
         let mut rng = thread_rng();
         let mut expected = vec![];
@@ -287,51 +380,42 @@ mod tests {
         // content < chunk size.
         let content = new_content(3);
         assert_eq!(3, w.write(content.into()).await?);
-        // content > chunk size, but only sends the first chunk in the queue.
-        let mut content = new_content(15);
-        assert_eq!(5, w.write(content.clone().into()).await?);
-        // queue: 3, 5, bs: 10
-        content.advance(5);
-        assert_eq!(3, w.write(content.clone().into()).await?);
-        // queue: 5, 3, bs: 7
-        content.advance(3);
-        assert_eq!(5, w.write(content.clone().into()).await?);
-        // queue: 3, 5, bs: 2
-        content.advance(5);
-        assert_eq!(2, w.write(content.clone().into()).await?);
-        // queue: 5, 2, bs: empty.
-        content.advance(2);
-        assert!(content.is_empty());
+        // content > chunk size, but can send all chunks in the queue.
+        let content = new_content(15);
+        assert_eq!(15, w.write(content.clone().into()).await?);
 
         w.close().await?;
 
-        assert_eq!(w.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())
     }
 
     struct PartialWriter {
-        buf: Vec<u8>,
+        buf: Arc<Mutex<Vec<u8>>>,
     }
 
     impl Write for PartialWriter {
         async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
+            let mut buf = self.buf.lock().await;
+
             if Buffer::count(&bs) > 1 {
                 // Always leaves last buffer for non-contiguous buffer.
                 let mut written = 0;
                 while Buffer::count(&bs) > 1 {
                     let chunk = bs.chunk();
-                    self.buf.extend_from_slice(chunk);
+                    buf.extend_from_slice(chunk);
                     written += chunk.len();
                     bs.advance(chunk.len());
                 }
                 Ok(written)
             } else {
                 let chunk = bs.chunk();
-                self.buf.extend_from_slice(chunk);
+                buf.extend_from_slice(chunk);
                 Ok(chunk.len())
             }
         }
@@ -353,7 +437,12 @@ mod tests {
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .try_init();
 
-        let mut w = ChunkedWriter::new(PartialWriter { buf: vec![] }, 10, false);
+        let buf = Arc::new(Mutex::new(vec![]));
+        let mut w = WriteGenerator::new(
+            Box::new(PartialWriter { buf: buf.clone() }),
+            Some(10),
+            false,
+        );
 
         let mut rng = thread_rng();
         let mut expected = vec![];
@@ -374,9 +463,10 @@ mod tests {
 
         w.close().await?;
 
-        assert_eq!(w.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())
@@ -393,8 +483,13 @@ mod tests {
         let mut rng = thread_rng();
         let mut expected = vec![];
 
+        let buf = Arc::new(Mutex::new(vec![]));
         let buffer_size = rng.gen_range(1..10);
-        let mut writer = ChunkedWriter::new(MockWriter { buf: vec![] }, buffer_size, true);
+        let mut writer = WriteGenerator::new(
+            Box::new(MockWriter { buf: buf.clone() }),
+            Some(buffer_size),
+            true,
+        );
         debug!("test_fuzz_exact_buf_writer: buffer size: {buffer_size}");
 
         for _ in 0..1000 {
@@ -413,9 +508,10 @@ mod tests {
         }
         writer.close().await?;
 
-        assert_eq!(writer.inner.buf.len(), expected.len());
+        let buf = buf.lock().await;
+        assert_eq!(buf.len(), expected.len());
         assert_eq!(
-            format!("{:x}", Sha256::digest(&writer.inner.buf)),
+            format!("{:x}", Sha256::digest(&*buf)),
             format!("{:x}", Sha256::digest(&expected))
         );
         Ok(())

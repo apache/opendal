@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-
 use bytes::Buf;
+use std::collections::VecDeque;
+use std::mem;
 
 use crate::*;
 
@@ -44,6 +44,10 @@ impl QueueBuf {
     /// Push new [`Buffer`] into the queue.
     #[inline]
     pub fn push(&mut self, buf: Buffer) {
+        if buf.is_empty() {
+            return;
+        }
+
         self.0.push_back(buf);
     }
 
@@ -57,6 +61,12 @@ impl QueueBuf {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Take the entire buffer queue and leave `self` in empty states.
+    #[inline]
+    pub fn take(&mut self) -> QueueBuf {
+        mem::take(self)
     }
 
     /// Build a new [`Buffer`] from the queue.

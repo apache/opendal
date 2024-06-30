@@ -176,6 +176,6 @@ mod tests {
     /// This is used to make sure our public API implement Send + Sync
     #[test]
     fn test_trait() {
-        let _: Box<dyn AssertSendSync> = Box::new(Writer::new(Box::new(())));
+        let _: Box<dyn AssertSendSync> = Box::new(Capability::default());
     }
 }

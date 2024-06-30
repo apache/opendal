@@ -1,0 +1,1 @@
+var searchIndex=new Map(JSON.parse('[["virtiofs_opendal",{"t":"","n":[],"q":[],"i":[],"f":"","D":"`","p":[],"r":[],"b":[],"c":"OjAAAAAAAAA=","e":"OjAAAAEAAAAAAAAAEAAAAAAA"}]]'));"undefined"!=typeof exports?exports.searchIndex=searchIndex:window.initSearch&&window.initSearch(searchIndex);

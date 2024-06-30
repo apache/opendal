@@ -701,6 +701,40 @@ impl OpWrite {
     }
 }
 
+/// Args for `writer` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpWriter {
+    chunk: Option<usize>,
+}
+
+impl OpWriter {
+    /// Create a new `OpWriter`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get the chunk from op.
+    ///
+    /// The chunk is used by service to decide the chunk size of the underlying writer.
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
+    }
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk);
+        self
+    }
+}
+
 /// Args for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {}

@@ -25,10 +25,13 @@ ROOT_DIR = Path(__file__).parent.parent
 def list_packages():
     packages = ["core"]
 
-    for dir in ["bin", "bindings", "integrations"]:
+    for dir in ["integrations", "bin", "bindings"]:
+        cur = []
         for path in (ROOT_DIR / dir).iterdir():
             if path.is_dir():
-                packages.append(path.relative_to(ROOT_DIR))
+                cur.append(path.relative_to(ROOT_DIR))
+        cur.sort()
+        packages.extend(cur)
     return packages
 
 

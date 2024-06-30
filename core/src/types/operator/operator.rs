@@ -1250,6 +1250,7 @@ impl Operator {
                 let context = WriteContext::new(inner, path, args, options);
                 let mut w = Writer::new(context).await?;
                 w.write(bs).await?;
+                w.close().await?;
                 Ok(())
             },
         )

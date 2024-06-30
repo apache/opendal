@@ -1,4 +1,4 @@
-# Unreleased
+# Upgrade to v0.47
 
 ## Breaking change
 

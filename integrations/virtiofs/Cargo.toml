@@ -40,3 +40,4 @@ vm-memory = { version = "0.14.0", features = [
   "backend-atomic",
 ] }
 vmm-sys-util = "0.12.1"
+opendal = { version = "0.47.0", path = "../../core" }

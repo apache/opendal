@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(core): Gcs's RangeWrite doesn't support concurrent write by @Xuanwo in https://github.com/apache/opendal/pull/4806
 * fix(tests/behavior): skip test of write_with_overwrite for ghac by @yuchanns in https://github.com/apache/opendal/pull/4823
 * fix(docs): some typos in website and nodejs binding docs by @suyanhanx in https://github.com/apache/opendal/pull/4814
+* fix(core/aliyun_drive): Fix write_multi_max_size might overflow by @Xuanwo in https://github.com/apache/opendal/pull/4830
+
 ### Docs
 * doc(unftp-sbe): adds example and readme by @George-Miao in https://github.com/apache/opendal/pull/4777
 * doc(nodejs): update upgrade.md by @bxb100 in https://github.com/apache/opendal/pull/4799

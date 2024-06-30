@@ -146,7 +146,9 @@ if __name__ == "__main__":
                 print(
                     "Cargo is not found, please check if rust development has been setup correctly"
                 )
-                print("Visit https://www.rust-lang.org/tools/install for more information")
+                print(
+                    "Visit https://www.rust-lang.org/tools/install for more information"
+                )
                 sys.exit(1)
 
         if "java" in dir.name:

@@ -53,7 +53,7 @@ def print_directory_contents(directory, prefix=""):
 
 
 def print_index_contents(directory):
-    for sub_dir in directory.rglob('.index'):
+    for sub_dir in directory.rglob(".index"):
         with sub_dir.open("r") as file:
             print(file.read())
 

@@ -3173,7 +3173,7 @@ dependencies = [
  "no-std-compat",
  "nonzero_ext",
  "parking_lot 0.12.3",
- "portable-atomic 1.6.0",
+ "portable-atomic",
  "quanta",
  "rand 0.8.5",
  "smallvec",
@@ -4204,24 +4204,12 @@ dependencies = [
 
 [[package]]
 name = "metrics"
-version = "0.20.1"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b9b8653cec6897f73b519a43fba5ee3d50f62fe9af80b428accdcc093b4a849"
+checksum = "884adb57038347dfbaf2d5065887b6cf4312330dc8e94bc30a1a839bd79d3261"
 dependencies = [
- "ahash 0.7.8",
- "metrics-macros",
- "portable-atomic 0.3.20",
-]
-
-[[package]]
-name = "metrics-macros"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "731f8ecebd9f3a4aa847dfe75455e4757a45da40a7793d2f0b1f9b6ed18b23f3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
+ "ahash 0.8.11",
+ "portable-atomic",
 ]
 
 [[package]]
@@ -5425,15 +5413,6 @@ dependencies = [
  "rustix 0.38.34",
  "tracing",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "portable-atomic"
-version = "0.3.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e30165d31df606f5726b090ec7592c308a0eaf61721ff64c9a3018e344a8753e"
-dependencies = [
- "portable-atomic 1.6.0",
 ]
 
 [[package]]

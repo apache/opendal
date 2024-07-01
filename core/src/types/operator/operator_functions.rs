@@ -188,6 +188,12 @@ impl FunctionWriter {
         self
     }
 
+    /// Set the chunk size of op.
+    #[deprecated(note = "Please use `chunk` instead")]
+    pub fn buffer(self, v: usize) -> Self {
+        self.chunk(v)
+    }
+
     /// Set the content type of option
     pub fn content_type(mut self, v: &str) -> Self {
         self.0 = self

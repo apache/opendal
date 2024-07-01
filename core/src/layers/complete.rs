@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
-use crate::raw::TwoWays;
 use crate::raw::*;
 use crate::*;
 
@@ -372,7 +371,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type BlockingReader = CompleteReader<A::BlockingReader>;
-    type Writer = TwoWays<CompleteWriter<A::Writer>, oio::ChunkedWriter<CompleteWriter<A::Writer>>>;
+    type Writer = CompleteWriter<A::Writer>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
@@ -422,38 +421,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
             ));
         }
 
-        // Calculate buffer size.
-        // If `chunk` is not set, we use `write_multi_min_size` or `write_multi_align_size`
-        // as the default size.
-        let chunk_size = args
-            .chunk()
-            .or(capability.write_multi_min_size)
-            .or(capability.write_multi_align_size)
-            .map(|mut size| {
-                if let Some(v) = capability.write_multi_max_size {
-                    size = size.min(v);
-                }
-                if let Some(v) = capability.write_multi_min_size {
-                    size = size.max(v);
-                }
-                if let Some(v) = capability.write_multi_align_size {
-                    // Make sure size >= size first.
-                    size = size.max(v);
-                    size -= size % v;
-                }
-
-                size
-            });
-        let exact = args.chunk().is_some() || capability.write_multi_align_size.is_some();
-
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
-
-        let w = match chunk_size {
-            None => TwoWays::One(w),
-            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size, exact)),
-        };
-
         Ok((rp, w))
     }
 

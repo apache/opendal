@@ -575,7 +575,6 @@ impl OpStat {
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     append: bool,
-    chunk: Option<usize>,
     concurrent: usize,
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -607,27 +606,6 @@ impl OpWrite {
     /// Service could return `Unsupported` if the underlying storage does not support append.
     pub fn with_append(mut self, append: bool) -> Self {
         self.append = append;
-        self
-    }
-
-    /// Get the chunk from op.
-    ///
-    /// The chunk is used by service to decide the chunk size of the underlying writer.
-    pub fn chunk(&self) -> Option<usize> {
-        self.chunk
-    }
-
-    /// Set the chunk of op.
-    ///
-    /// If chunk is set, the data will be chunked by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// Service could have their own minimum chunk size while perform write
-    /// operations like multipart uploads. So the chunk size may be larger than
-    /// the given buffer size.
-    pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk);
         self
     }
 
@@ -697,6 +675,40 @@ impl OpWrite {
         if let Some(exec) = executor {
             return self.with_executor(exec);
         }
+        self
+    }
+}
+
+/// Args for `writer` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpWriter {
+    chunk: Option<usize>,
+}
+
+impl OpWriter {
+    /// Create a new `OpWriter`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get the chunk from op.
+    ///
+    /// The chunk is used by service to decide the chunk size of the underlying writer.
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
+    }
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk);
         self
     }
 }

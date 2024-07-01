@@ -38,7 +38,7 @@ pub struct FuturesBytesSink {
 impl FuturesBytesSink {
     /// Create a new sink from a [`oio::Writer`].
     #[inline]
-    pub(crate) fn new(w: oio::Writer) -> Self {
+    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
         FuturesBytesSink {
             sink: BufferSink::new(w),
         }
@@ -80,10 +80,23 @@ impl futures::Sink<Bytes> for FuturesBytesSink {
 mod tests {
     use super::*;
     use crate::raw::MaybeSend;
+    use std::collections::HashMap;
+    use std::sync::Arc;
 
-    #[test]
-    fn test_trait() {
-        let v = FuturesBytesSink::new(Box::new(()));
+    #[tokio::test]
+    async fn test_trait() {
+        let op = Operator::via_map(Scheme::Memory, HashMap::default()).unwrap();
+
+        let acc = op.into_inner();
+        let ctx = Arc::new(WriteContext::new(
+            acc,
+            "test".to_string(),
+            OpWrite::new(),
+            OpWriter::new().with_chunk(1),
+        ));
+        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+
+        let v = FuturesBytesSink::new(write_gen);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

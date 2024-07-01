@@ -35,9 +35,6 @@ mod one_shot_write;
 pub use one_shot_write::OneShotWrite;
 pub use one_shot_write::OneShotWriter;
 
-mod chunked_write;
-pub use chunked_write::ChunkedWriter;
-
 mod range_write;
 pub use range_write::RangeWrite;
 pub use range_write::RangeWriter;

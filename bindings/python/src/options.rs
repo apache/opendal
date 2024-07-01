@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod utils;
-mod write;
+use pyo3::{pyclass, FromPyObject};
 
-use criterion::criterion_group;
-use criterion::criterion_main;
-
-criterion_group!(benches, write::bench_exact_buf_write);
-criterion_main!(benches);
+#[pyclass(module = "opendal")]
+#[derive(FromPyObject, Default)]
+pub struct WriteOptions {
+    pub append: bool,
+    pub chunk: Option<usize>,
+    pub content_type: Option<String>,
+    pub content_disposition: Option<String>,
+    pub cache_control: Option<String>,
+}

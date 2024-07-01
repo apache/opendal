@@ -15,32 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
-use opendal::raw::oio;
-use opendal::*;
-use rand::prelude::ThreadRng;
-use rand::RngCore;
+mod read;
+pub use read::*;
 
-/// BlackHoleWriter will discard all data written to it so we can measure the buffer's cost.
-pub struct BlackHoleWriter;
-
-impl oio::Write for BlackHoleWriter {
-    async fn write(&mut self, bs: Buffer) -> opendal::Result<usize> {
-        Ok(bs.len())
-    }
-
-    async fn abort(&mut self) -> opendal::Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> opendal::Result<()> {
-        Ok(())
-    }
-}
-
-pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Bytes {
-    let mut content = vec![0; size];
-    rng.fill_bytes(&mut content);
-
-    content.into()
-}
+mod write;
+pub use write::*;

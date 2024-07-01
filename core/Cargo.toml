@@ -209,11 +209,6 @@ required-features = ["tests"]
 
 [[bench]]
 harness = false
-name = "oio"
-required-features = ["tests"]
-
-[[bench]]
-harness = false
 name = "types"
 required-features = ["tests"]
 
@@ -342,7 +337,12 @@ hdfs-native = { version = "0.9.4", optional = true }
 # for services-surrealdb
 surrealdb = { version = "1.3.0", optional = true, features = ["protocol-http"] }
 # for services-compfs
-compio = { version = "0.11.0", optional = true, features = ["runtime", "bytes", "polling", "dispatcher"] }
+compio = { version = "0.11.0", optional = true, features = [
+  "runtime",
+  "bytes",
+  "polling",
+  "dispatcher",
+] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
 

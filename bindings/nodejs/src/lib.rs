@@ -315,7 +315,7 @@ impl Operator {
                 writer = writer.append(append);
             }
             if let Some(chunk) = options.chunk {
-                writer = writer.buffer(chunk.get_u64().1 as usize);
+                writer = writer.chunk(chunk.get_u64().1 as usize);
             }
             if let Some(ref content_type) = options.content_type {
                 writer = writer.content_type(content_type);

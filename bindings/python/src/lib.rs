@@ -36,6 +36,8 @@ mod utils;
 pub use utils::*;
 mod errors;
 pub use errors::*;
+mod options;
+pub use options::*;
 
 /// Apache OpenDAL™ Python binding
 ///
@@ -81,6 +83,8 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Metadata>()?;
     m.add_class::<PresignedRequest>()?;
     m.add_class::<Capability>()?;
+
+    m.add_class::<WriteOptions>()?;
 
     // Layer module
     let layers_module = PyModule::new_bound(py, "layers")?;

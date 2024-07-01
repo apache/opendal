@@ -272,7 +272,11 @@ impl Access for AliyunDriveBackend {
                 // The min multipart size of AliyunDrive is 100 KiB.
                 write_multi_min_size: Some(100 * 1024),
                 // The max multipart size of AliyunDrive is 5 GiB.
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
                 delete: true,
                 copy: true,
                 rename: true,

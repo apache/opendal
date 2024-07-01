@@ -86,9 +86,13 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 ### Blockers
 
-> Blockers are the tasks that must be completed before the release.
+<!-- Blockers are the tasks that must be completed before the release. -->
 
 ### Build Release
+
+#### Relelase List
+
+<!-- Generate release list by `./scripts/version.py`, please adapt with the actual needs. -->
 
 #### GitHub Side
 
@@ -121,6 +125,17 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 For details of each step, please refer to: https://opendal.apache.org/community/release/
 ```
+
+## Release List
+
+Use `./script/version.py` to generate a release version list for review.
+
+This list bumps `patch` version by default, please adapt with the actual needs.
+
+For example:
+
+- If breaking change happened, we need to bump `minor` version instead of `patch`.
+- If this package is not ready for release, we can skip it.
 
 ## GitHub Side
 

@@ -25,10 +25,13 @@ ROOT_DIR = Path(__file__).parent.parent
 def list_packages():
     packages = ["core"]
 
-    for dir in ["bin", "bindings", "integrations"]:
+    for dir in ["integrations", "bin", "bindings"]:
+        cur = []
         for path in (ROOT_DIR / dir).iterdir():
             if path.is_dir():
-                packages.append(path.relative_to(ROOT_DIR))
+                cur.append(path.relative_to(ROOT_DIR))
+        cur.sort()
+        packages.extend(cur)
     return packages
 
 
@@ -61,7 +64,7 @@ def get_rust_package_version(path):
 #
 # For examples:
 # core: `0.45.0`
-# packages depends on core: `0.1.0+core.0.45.0`
+# packages depends on core: `0.1.0`
 def get_package_version(package):
     if package == "core":
         return get_rust_package_version("core")
@@ -78,10 +81,3 @@ def get_package_version(package):
     #
     # However, those packages are not mature enough, it's much easier for us to always return `0.0.0` instead.
     return f"0.0.0"
-
-
-if __name__ == "__main__":
-    for v in PACKAGES:
-        print(
-            f"{v}: version={get_package_version(v)}"
-        )

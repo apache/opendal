@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-description = "unftp Integration for Apache OpenDAL"
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-name = "unftp-sbe-opendal"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
-version = "0.0.1"
+from constants import PACKAGES, get_package_version
 
-[dependencies]
-async-trait = "0.1.80"
-libunftp = "0.20.0"
-opendal = { version = "0.47.0", path = "../../core" }
-tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
-tokio-util = { version = "0.7.11", features = ["compat"] }
 
-[dev-dependencies]
-tokio = { version = "1.38.0", default-features = false, features = ["io-util", "rt-multi-thread"] }
-anyhow = "1"
-opendal = { version = "0.47.0", path = "../../core", features = ["services-s3"] }
+def increment_patch_version(version):
+    parts = version.split(".")
+    parts[-1] = str(int(parts[-1]) + 1)
+    return ".".join(parts)
+
+
+if __name__ == "__main__":
+    print(f"| {'Name':<25} | {'Version':<7} | {'Next':<7} |")
+    print(f"| {'-':<25} | {'-':<7} | {'-':<7} |")
+    for v in PACKAGES:
+        cur = get_package_version(v)
+        next = increment_patch_version(cur)
+
+        print(f"| {str(v):<25} | {cur:<7} | {next:<7} |")

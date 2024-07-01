@@ -1,6 +1,14 @@
-# OpenDAL File System
+# Apache OpenDAL™ ofs
 
-OpenDAL File System (ofs) is a userspace filesystem backing by OpenDAL.
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci_bin_ofs.yml?branch=main
+[actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
+[latest version]: https://img.shields.io/crates/v/ofs.svg
+[crates.io]: https://crates.io/crates/ofs
+[crate downloads]: https://img.shields.io/crates/d/ofs.svg
+[chat]: https://img.shields.io/discord/1081052318650339399
+[discord]: https://opendal.apache.org/discord
+
+`ofs` is a userspace filesystem backing by OpenDAL.
 
 ## Status
 
@@ -42,6 +50,12 @@ ofs <mount-point> 'fs://?root=<directory>'
 ```shell
 ofs <mount-point> 's3://?root=<path>&bucket=<bucket>&endpoint=<endpoint>&region=<region>&access_key_id=<access-key-id>&secret_access_key=<secret-access-key>'
 ```
+
+## Branding
+
+The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.
+
+For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
 
 ## License and Trademarks
 

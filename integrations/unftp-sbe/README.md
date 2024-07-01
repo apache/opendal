@@ -1,32 +1,46 @@
 # Apache OpenDAL™ unftp Integration
 
+[![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
+
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci_integration_unftp_sbe.yml?branch=main
+[actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
+[latest version]: https://img.shields.io/crates/v/unftp-sbe-opendal.svg
+[crates.io]: https://crates.io/crates/unftp-sbe-opendal
+[crate downloads]: https://img.shields.io/crates/d/unftp-sbe-opendal.svg
+[chat]: https://img.shields.io/discord/1081052318650339399
+[discord]: https://opendal.apache.org/discord
+
 `unftp-sbe-opendal` is an [unftp](https://crates.io/crates/unftp) `StorageBackend` implementation using opendal.
 
 This crate can help you to access ANY storage services with the same ftp API.
+
+## Useful Links
+
+- Documentation: [release](https://docs.rs/unftp-sbe-opendal/) | [dev](https://opendal.apache.org/docs/unftp-sbe-opendal/unftp_sbe_opendal/)
 
 ## Examples
 
 ```rust
 use anyhow::Result;
 use opendal::Operator;
+use opendal::Scheme;
+use opendal::services;
 use unftp_sbe_opendal::OpendalStorage;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create any service desired
-    let service = opendal::services::S3::from_map(
+    let op = opendal::Operator::from_map::<services::S3>(
         [
+            ("bucket".to_string(), "my_bucket".to_string()),
             ("access_key".to_string(), "my_access_key".to_string()),
             ("secret_key".to_string(), "my_secret_key".to_string()),
             ("endpoint".to_string(), "my_endpoint".to_string()),
             ("region".to_string(), "my_region".to_string()),
         ]
-        .into_iter()
-        .collect(),
-    );
-
-    // Init an operator with the service created
-    let op = Operator::new(service)?.finish();
+            .into_iter()
+            .collect(),
+    )?.finish();
 
     // Wrap the operator with `OpendalStorage`
     let backend = OpendalStorage::new(op);

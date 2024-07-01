@@ -101,6 +101,16 @@ impl OpendalStore {
     pub fn new(op: Operator) -> Self {
         Self { inner: op }
     }
+
+    /// The metakey that requested by object_store, should align with it's meta.
+    #[inline]
+    fn metakey() -> flagset::FlagSet<Metakey> {
+        Metakey::Mode
+            | Metakey::LastModified
+            | Metakey::ContentLength
+            | Metakey::Etag
+            | Metakey::Version
+    }
 }
 
 impl Debug for OpendalStore {
@@ -293,7 +303,7 @@ impl ObjectStore for OpendalStore {
             let stream = self
                 .inner
                 .lister_with(&path)
-                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .metakey(Self::metakey())
                 .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
@@ -323,7 +333,7 @@ impl ObjectStore for OpendalStore {
                 self.inner
                     .lister_with(&path)
                     .start_after(offset.as_ref())
-                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -335,7 +345,7 @@ impl ObjectStore for OpendalStore {
             } else {
                 self.inner
                     .lister_with(&path)
-                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -357,7 +367,9 @@ impl ObjectStore for OpendalStore {
         let mut stream = self
             .inner
             .lister_with(&path)
-            .metakey(Metakey::Mode | Metakey::ContentLength | Metakey::LastModified)
+            .metakey(
+                Metakey::Mode | Metakey::ContentLength | Metakey::LastModified | Metakey::Version,
+            )
             .into_future()
             .into_send()
             .await

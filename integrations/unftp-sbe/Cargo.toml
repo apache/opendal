@@ -32,3 +32,8 @@ libunftp = "0.20.0"
 opendal = { version = "0.47.0", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
+
+[dev-dependencies]
+tokio = { version = "1.38.0", default-features = false, features = ["io-util", "rt-multi-thread"] }
+anyhow = "1"
+opendal = { version = "0.47.0", path = "../../core", features = ["services-s3"] }

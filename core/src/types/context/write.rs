@@ -206,6 +206,89 @@ impl WriteGenerator<oio::Writer> {
     }
 }
 
+impl WriteGenerator<oio::BlockingWriter> {
+    /// Create a new exact buf writer.
+    pub fn blocking_create(ctx: Arc<WriteContext>) -> Result<Self> {
+        let (chunk_size, exact) = ctx.calculate_chunk_size();
+        let (_, w) = ctx.acc.blocking_write(ctx.path(), ctx.args().clone())?;
+
+        Ok(Self {
+            w,
+            chunk_size,
+            exact,
+            buffer: oio::QueueBuf::new(),
+        })
+    }
+}
+
+impl WriteGenerator<oio::BlockingWriter> {
+    /// Write the entire buffer into writer.
+    pub fn write(&mut self, mut bs: Buffer) -> Result<usize> {
+        let Some(chunk_size) = self.chunk_size else {
+            return self.w.write(bs);
+        };
+
+        if self.buffer.len() + bs.len() < chunk_size {
+            let size = bs.len();
+            self.buffer.push(bs);
+            return Ok(size);
+        }
+
+        // Condition:
+        // - exact is false
+        // - buffer + bs is larger than chunk_size.
+        // Action:
+        // - write buffer + bs directly.
+        if !self.exact {
+            let fill_size = bs.len();
+            self.buffer.push(bs);
+            let mut buf = self.buffer.take().collect();
+            let written = self.w.write(buf.clone())?;
+            buf.advance(written);
+            self.buffer.push(buf);
+            return Ok(fill_size);
+        }
+
+        // Condition:
+        // - exact is true: we need write buffer in exact chunk size.
+        // - buffer is larger than chunk_size
+        //   - in exact mode, the size must be chunk_size, use `>=` just for safe coding.
+        // Action:
+        // - write existing buffer in chunk_size to make more rooms for writing data.
+        if self.buffer.len() >= chunk_size {
+            let mut buf = self.buffer.take().collect();
+            let written = self.w.write(buf.clone())?;
+            buf.advance(written);
+            self.buffer.push(buf);
+        }
+
+        // Condition
+        // - exact is true.
+        // - buffer size must lower than chunk_size.
+        // Action:
+        // - write bs to buffer with remaining size.
+        let remaining = chunk_size - self.buffer.len();
+        bs.truncate(remaining);
+        let n = bs.len();
+        self.buffer.push(bs);
+        Ok(n)
+    }
+
+    /// Finish the write process.
+    pub fn close(&mut self) -> Result<()> {
+        loop {
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            let written = self.w.write(self.buffer.clone().collect())?;
+            self.buffer.advance(written);
+        }
+
+        self.w.close()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

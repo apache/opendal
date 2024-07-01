@@ -1,8 +1,14 @@
-# oli
+# Apache OpenDAL™ Oli
 
-## What `oli` is
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci_bin_oli.yml?branch=main
+[actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
+[latest version]: https://img.shields.io/crates/v/oli.svg
+[crates.io]: https://crates.io/crates/oli
+[crate downloads]: https://img.shields.io/crates/d/oli.svg
+[chat]: https://img.shields.io/discord/1081052318650339399
+[discord]: https://opendal.apache.org/discord
 
-`oli` stands for OpenDAL Command Line Interface. It aims to provide a unified and user-friendly way to manipulate data stored in various storage services such as Object storage services(s3, azblob, gcs, minio, etc.), Key-Value services(Redis, etcd, TiKV, etc.), Filesystem-like service(HDFS, Azdls, etc.), and also [all the other supported services](https://opendal.apache.org/docs/category/services).
+`oli` stands for OpenDAL Command Line Interface. It aims to provide a unified and user-friendly way to manipulate data stored in various storage service.
 
 ## How to use `oli`
 
@@ -87,6 +93,12 @@ Contribution is not only about code, but also about documentation, examples, and
 If you have any questions or suggestions about `oli`, please feel free to open an issue on GitHub.
 
 As `oli` is a part of Apache OpenDAL, you should follow the [CONTRIBUTION](https://github.com/apache/opendal/blob/main/CONTRIBUTING.md) documentation. There are still lots works to do with `oli`, you could track them on this [GitHub Issue](https://github.com/apache/opendal/issues/422).
+
+## Branding
+
+The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.
+
+For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
 
 ## License and Trademarks
 

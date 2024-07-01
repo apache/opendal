@@ -39,7 +39,7 @@ use crate::*;
 /// A file-like object.
 /// Can be used as a context manager.
 #[pyclass(module = "opendal")]
-pub struct File(FileState, Capability);
+pub struct File(FileState);
 
 enum FileState {
     Reader(ocore::StdReader),
@@ -48,12 +48,12 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::StdReader, capability: Capability) -> Self {
-        Self(FileState::Reader(reader), capability)
+    pub fn new_reader(reader: ocore::StdReader) -> Self {
+        Self(FileState::Reader(reader))
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
-        Self(FileState::Writer(writer.into_std_write()), capability)
+    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
+        Self(FileState::Writer(writer.into_std_write()))
     }
 }
 
@@ -283,7 +283,7 @@ impl File {
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
+pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::FuturesAsyncReader),
@@ -292,18 +292,12 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::FuturesAsyncReader, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
-            capability,
-        )
+    pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
     }
 
-    pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
-            capability,
-        )
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
 

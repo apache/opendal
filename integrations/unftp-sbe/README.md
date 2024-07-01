@@ -4,29 +4,33 @@
 
 This crate can help you to access ANY storage services with the same ftp API.
 
+## Useful Links
+
+- Documentation: [release](https://docs.rs/unftp-sbe-opendal/) | [dev](https://opendal.apache.org/docs/unftp-sbe-opendal/unftp_sbe_opendal/)
+
 ## Examples
 
 ```rust
 use anyhow::Result;
 use opendal::Operator;
+use opendal::Scheme;
+use opendal::services;
 use unftp_sbe_opendal::OpendalStorage;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create any service desired
-    let service = opendal::services::S3::from_map(
+    let op = opendal::Operator::from_map::<services::S3>(
         [
+            ("bucket".to_string(), "my_bucket".to_string()),
             ("access_key".to_string(), "my_access_key".to_string()),
             ("secret_key".to_string(), "my_secret_key".to_string()),
             ("endpoint".to_string(), "my_endpoint".to_string()),
             ("region".to_string(), "my_region".to_string()),
         ]
-        .into_iter()
-        .collect(),
-    );
-
-    // Init an operator with the service created
-    let op = Operator::new(service)?.finish();
+            .into_iter()
+            .collect(),
+    )?.finish();
 
     // Wrap the operator with `OpendalStorage`
     let backend = OpendalStorage::new(op);

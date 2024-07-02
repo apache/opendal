@@ -18,6 +18,7 @@
 use std::io::Write;
 use std::mem::size_of;
 
+use opendal::Operator;
 use vm_memory::ByteValued;
 
 use crate::error::*;
@@ -37,12 +38,15 @@ const MAX_BUFFER_SIZE: u32 = 1 << 20;
 
 /// Filesystem is a filesystem implementation with opendal backend,
 /// and will decode and process messages from VMs.
-pub struct Filesystem {}
+pub struct Filesystem {
+    #[allow(dead_code)]
+    core: Operator,
+}
 
 #[allow(dead_code)]
 impl Filesystem {
-    pub fn new() -> Filesystem {
-        Filesystem {}
+    pub fn new(core: Operator) -> Filesystem {
+        Filesystem { core }
     }
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {

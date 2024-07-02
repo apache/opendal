@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -17,9 +18,13 @@
  * under the License.
  */
 
-#pragma once
+#include "entry.hpp"
 
-#include "lister.hpp"
-#include "metadata.hpp"
-#include "operator.hpp"
-#include "reader.hpp"
+// NOLINT
+#include "lib.rs.h"
+
+namespace opendal {
+
+Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
+
+}  // namespace opendal

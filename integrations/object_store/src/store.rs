@@ -102,7 +102,7 @@ impl OpendalStore {
         Self { inner: op }
     }
 
-    /// The metakey that requested by object_store, should align with it's meta.
+    /// The metakey that requested by object_store, should align with its meta.
     #[inline]
     fn metakey() -> flagset::FlagSet<Metakey> {
         Metakey::Mode
@@ -367,9 +367,7 @@ impl ObjectStore for OpendalStore {
         let mut stream = self
             .inner
             .lister_with(&path)
-            .metakey(
-                Metakey::Mode | Metakey::ContentLength | Metakey::LastModified | Metakey::Version,
-            )
+            .metakey(Self::metakey())
             .into_future()
             .into_send()
             .await

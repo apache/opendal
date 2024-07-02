@@ -15,10 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Display, Formatter};
-use std::future::IntoFuture;
-use std::ops::Range;
-
 use crate::utils::*;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -38,8 +34,12 @@ use object_store::PutMultipartOpts;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
-use opendal::Operator;
 use opendal::{Buffer, Metakey};
+use opendal::{Operator, OperatorInfo};
+use std::fmt::{Debug, Display, Formatter};
+use std::future::IntoFuture;
+use std::ops::Range;
+use std::sync::Arc;
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -93,24 +93,27 @@ use opendal::{Buffer, Metakey};
 /// }
 /// ```
 pub struct OpendalStore {
+    info: Arc<OperatorInfo>,
     inner: Operator,
 }
 
 impl OpendalStore {
     /// Create OpendalStore by given Operator.
     pub fn new(op: Operator) -> Self {
-        Self { inner: op }
+        Self {
+            info: op.info().into(),
+            inner: op,
+        }
     }
 }
 
 impl Debug for OpendalStore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let info = self.inner.info();
         f.debug_struct("OpendalStore")
-            .field("scheme", &info.scheme())
-            .field("name", &info.name())
-            .field("root", &info.root())
-            .field("capability", &info.full_capability())
+            .field("scheme", &self.info.scheme())
+            .field("name", &self.info.name())
+            .field("root", &self.info.root())
+            .field("capability", &self.info.full_capability())
             .finish()
     }
 }

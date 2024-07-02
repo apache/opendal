@@ -488,7 +488,6 @@ pub struct UploadUrlResponse {
 pub struct CreateResponse {
     pub file_id: String,
     pub upload_id: Option<String>,
-    pub part_info_list: Option<Vec<PartInfo>>,
     pub exist: Option<bool>,
 }
 

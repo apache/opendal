@@ -34,7 +34,6 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
-use super::writer::AliyunDriveWriters;
 use crate::raw::*;
 use crate::*;
 
@@ -253,7 +252,7 @@ pub struct AliyunDriveBackend {
 
 impl Access for AliyunDriveBackend {
     type Reader = HttpBody;
-    type Writer = AliyunDriveWriters;
+    type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -478,13 +477,9 @@ impl Access for AliyunDriveBackend {
             }
         };
 
-        let executor = args.executor().cloned();
-
         let writer =
             AliyunDriveWriter::new(self.core.clone(), &parent_file_id, get_basename(path), args);
 
-        let w = oio::MultipartWriter::new(writer, executor, 1);
-
-        Ok((RpWrite::default(), w))
+        Ok((RpWrite::default(), writer))
     }
 }

@@ -40,6 +40,7 @@ opendal = { version = "0.47.0", path = "../../core" }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
+flagset = "0.4"
 
 [dev-dependencies]
 opendal = { version = "0.47.0", path = "../../core", features = [

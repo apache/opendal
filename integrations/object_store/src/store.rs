@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::future::IntoFuture;
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::utils::*;
 use async_trait::async_trait;
@@ -27,7 +28,6 @@ use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use object_store::path::Path;
-use object_store::GetOptions;
 use object_store::GetResult;
 use object_store::GetResultPayload;
 use object_store::ListResult;
@@ -38,8 +38,10 @@ use object_store::PutMultipartOpts;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
-use opendal::Operator;
+use object_store::{GetOptions, UploadPart};
 use opendal::{Buffer, Metakey};
+use opendal::{Operator, Writer};
+use tokio::sync::Mutex;
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -164,14 +166,17 @@ impl ObjectStore for OpendalStore {
 
     async fn put_multipart(
         &self,
-        _location: &Path,
+        location: &Path,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "put_multipart is not implemented so far",
-            )),
-        })
+        let writer = self
+            .inner
+            .writer(location.as_ref())
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let upload = OpendalMultipartUpload::new(writer, location.clone());
+
+        Ok(Box::new(upload))
     }
 
     async fn put_multipart_opts(
@@ -412,6 +417,74 @@ impl ObjectStore for OpendalStore {
     }
 }
 
+/// `MultipartUpload`'s impl based on `Writer` in opendal
+struct OpendalMultipartUpload {
+    // Refer to the fs impl in `object_store`:
+    // https://github.com/apache/arrow-rs/blob/a35214f92ad7c3bce19875bb091cb776447aa49e/object_store/src/local.rs#L715
+    // IO exists during locking, so use tokio::sync::Mutex here
+    writer: Arc<Mutex<Writer>>,
+
+    location: Path,
+}
+
+impl OpendalMultipartUpload {
+    fn new(writer: Writer, location: Path) -> Self {
+        Self {
+            writer: Arc::new(Mutex::new(writer)),
+            location,
+        }
+    }
+}
+
+#[async_trait]
+impl MultipartUpload for OpendalMultipartUpload {
+    fn put_part(&mut self, data: PutPayload) -> UploadPart {
+        let writer = self.writer.clone();
+        let location = self.location.clone();
+
+        async move {
+            let mut writer = writer.lock().await;
+            writer
+                .write(Buffer::from_iter(data.into_iter()))
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))
+        }
+        .into_send()
+        .boxed()
+    }
+
+    async fn complete(&mut self) -> object_store::Result<PutResult> {
+        let mut writer = self.writer.lock().await;
+        writer
+            .close()
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
+
+        Ok(PutResult {
+            e_tag: None,
+            version: None,
+        })
+    }
+
+    async fn abort(&mut self) -> object_store::Result<()> {
+        let mut writer = self.writer.lock().await;
+        writer
+            .abort()
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, self.location.as_ref()))
+    }
+}
+
+impl Debug for OpendalMultipartUpload {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OpendalMultipartUpload")
+            .field("location", &self.location)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -462,6 +535,49 @@ mod tests {
                 .unwrap(),
             bytes
         );
+    }
+
+    #[tokio::test]
+    async fn test_put_multipart() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
+
+        let bytes = Bytes::from_static(b"hello, world!");
+        let part1 = Bytes::copy_from_slice(&bytes.slice(0..6));
+        let part2 = Bytes::copy_from_slice(&bytes.slice(6..));
+
+        // Case complete
+        let path: Path = "data/test_complete.txt".into();
+        let mut upload = object_store.put_multipart(&path).await.unwrap();
+        upload.put_part(part1.clone().into()).await.unwrap();
+        upload.put_part(part2.clone().into()).await.unwrap();
+        let _ = upload.complete().await.unwrap();
+
+        let meta = object_store.head(&path).await.unwrap();
+
+        assert_eq!(meta.size, 13);
+
+        assert_eq!(
+            object_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap(),
+            bytes
+        );
+
+        // Case abort
+        let path: Path = "data/test_abort.txt".into();
+        let mut upload = object_store.put_multipart(&path).await.unwrap();
+        upload.put_part(part1.clone().into()).await.unwrap();
+        upload.abort().await.unwrap();
+
+        let res = object_store.head(&path).await;
+        let err = res.unwrap_err();
+
+        assert!(matches!(err, object_store::Error::NotFound { .. }))
     }
 
     #[tokio::test]

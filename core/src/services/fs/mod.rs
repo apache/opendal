@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::FsBuilder as Fs;
+pub use backend::FsConfig;
 
 mod core;
 mod lister;

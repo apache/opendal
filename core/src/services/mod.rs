@@ -64,6 +64,8 @@ pub use self::etcd::EtcdConfig;
 mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::Fs;
+#[cfg(feature = "services-fs")]
+pub use fs::FsConfig;
 
 #[cfg(feature = "services-ftp")]
 mod ftp;

@@ -26,7 +26,7 @@ camino@1.1.7		X						X
 cargo-platform@0.1.8		X						X					
 cargo_metadata@0.14.2								X					
 cbc@0.1.2		X						X					
-cc@1.0.103		X						X					
+cc@1.0.104		X						X					
 cexpr@0.6.0		X						X					
 cfg-if@1.0.0		X						X					
 chrono@0.4.38		X						X					
@@ -83,9 +83,9 @@ http@1.1.0		X						X
 http-body@1.0.0								X					
 http-body-util@0.1.2								X					
 httparse@1.9.4		X						X					
-hyper@1.3.1								X					
+hyper@1.4.0								X					
 hyper-rustls@0.27.2		X					X	X					
-hyper-util@0.1.5								X					
+hyper-util@0.1.6								X					
 iana-time-zone@0.1.60		X						X					
 iana-time-zone-haiku@0.1.2		X						X					
 ident_case@1.0.1		X						X					
@@ -120,8 +120,8 @@ num-iter@0.1.45		X						X
 num-traits@0.2.19		X						X					
 object@0.36.1		X						X					
 once_cell@1.19.0		X						X					
-opendal@0.47.2		X											
-opendal-php@0.1.3		X											
+opendal@0.47.3		X											
+opendal-php@0.1.4		X											
 openssl@0.10.64		X											
 openssl-macros@0.1.1		X						X					
 openssl-probe@0.1.5		X						X					
@@ -182,7 +182,7 @@ security-framework-sys@2.11.0		X						X
 semver@1.0.23		X						X					
 serde@1.0.203		X						X					
 serde_derive@1.0.203		X						X					
-serde_json@1.0.118		X						X					
+serde_json@1.0.120		X						X					
 serde_urlencoded@0.7.1		X						X					
 sha1@0.10.6		X						X					
 sha2@0.10.8		X						X					

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.47.3] - 2024-07-03
+
+### Changed
+* refactor: Move ChunkedWrite logic into WriteContext by @Xuanwo in https://github.com/apache/opendal/pull/4826
+* refactor(services/aliyun-drive): directly implement `oio::Write`. by @yuchanns in https://github.com/apache/opendal/pull/4821
+### Fixed
+* fix(integration/object_store): Avoid calling  API inside debug by @Xuanwo in https://github.com/apache/opendal/pull/4846
+* fix(integration/object_store): Fix metakey requested is incomplete by @Xuanwo in https://github.com/apache/opendal/pull/4844
+### Docs
+* docs(integration/unftp-sbe): Polish docs for unftp-sbe by @Xuanwo in https://github.com/apache/opendal/pull/4838
+* docs(bin): Polish README for all bin by @Xuanwo in https://github.com/apache/opendal/pull/4839
+### Chore
+* chore(deps): bump crate-ci/typos from 1.22.7 to 1.22.9 by @dependabot in https://github.com/apache/opendal/pull/4836
+* chore(deps): bump quick-xml from 0.32.0 to 0.35.0 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4835
+* chore(deps): bump nix from 0.28.0 to 0.29.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4833
+* chore(deps): bump metrics from 0.20.1 to 0.23.0 in /core by @TennyZhuang in https://github.com/apache/opendal/pull/4843
+
 ## [v0.47.2] - 2024-06-30
 
 ### Added
@@ -3804,6 +3821,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.47.3]: https://github.com/apache/opendal/compare/v0.47.2...v0.47.3
 [v0.47.2]: https://github.com/apache/opendal/compare/v0.47.1...v0.47.2
 [v0.47.1]: https://github.com/apache/opendal/compare/v0.47.0...v0.47.1
 [v0.47.0]: https://github.com/apache/opendal/compare/v0.46.0...v0.47.0

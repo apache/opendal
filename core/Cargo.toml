@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.47.2"
+version = "0.47.3"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -42,7 +42,7 @@ members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.75"
-version = "0.47.2"
+version = "0.47.3"
 
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]

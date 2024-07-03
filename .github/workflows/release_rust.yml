@@ -45,7 +45,6 @@ jobs:
           - "integrations/dav-server"
           - "integrations/fuse3"
           - "integrations/unftp-sbe"
-          - "integrations/virtiofs"
           - "bin/oay" # depends on integrations/dav-server
           - "bin/oli"
           - "bin/ofs" # depends on integrations/fuse3

@@ -20,15 +20,18 @@ bitflags@2.6.0		X						X
 block-buffer@0.10.4		X						X						
 bumpalo@3.16.0		X						X						
 bytes@1.6.0								X						
-cc@1.0.103		X						X						
+cc@1.0.104		X						X						
 cexpr@0.6.0		X						X						
 cfg-if@1.0.0		X						X						
 cfg_aliases@0.2.1								X						
 chrono@0.4.38		X						X						
 clang-sys@1.8.1		X												
 cmake@0.1.50		X						X						
+const-oid@0.9.6		X						X						
 convert_case@0.4.0								X						
 core-foundation-sys@0.8.6		X						X						
+cpufeatures@0.2.12		X						X						
+crc32c@0.6.8		X						X						
 crossbeam-channel@0.5.13		X						X						
 crossbeam-epoch@0.9.18		X						X						
 crossbeam-utils@0.8.20		X						X						
@@ -62,14 +65,17 @@ getrandom@0.2.15		X						X
 gimli@0.29.0		X						X						
 glob@0.3.1		X						X						
 hashbrown@0.14.5		X						X						
+hermit-abi@0.3.9		X						X						
+hex@0.4.3		X						X						
+hmac@0.12.1		X						X						
 home@0.5.9		X						X						
 http@1.1.0		X						X						
 http-body@1.0.0								X						
 http-body-util@0.1.2								X						
 httparse@1.9.4		X						X						
-hyper@1.3.1								X						
+hyper@1.4.0								X						
 hyper-rustls@0.27.2		X					X	X						
-hyper-util@0.1.5								X						
+hyper-util@0.1.6								X						
 iana-time-zone@0.1.60		X						X						
 iana-time-zone-haiku@0.1.2		X						X						
 idna@0.5.0		X						X						
@@ -100,10 +106,11 @@ num-bigint@0.4.6		X						X
 num-conv@0.1.0		X						X						
 num-integer@0.1.46		X						X						
 num-traits@0.2.19		X						X						
+num_cpus@1.16.0		X						X						
 object@0.36.1		X						X						
 oid-registry@0.7.0		X						X						
 once_cell@1.19.0		X						X						
-opendal@0.47.2		X												
+opendal@0.47.3		X												
 parking_lot@0.12.3		X						X						
 parking_lot_core@0.9.10		X						X						
 paste@1.0.15		X						X						
@@ -113,16 +120,21 @@ pin-project-internal@1.1.5		X						X
 pin-project-lite@0.2.14		X						X						
 pin-utils@0.1.0		X						X						
 powerfmt@0.2.0		X						X						
+ppv-lite86@0.2.17		X						X						
 prettyplease@0.2.20		X						X						
 proc-macro2@1.0.86		X						X						
 prometheus@0.13.4		X												
 proxy-protocol@0.5.0		X						X						
 quick-xml@0.31.0								X						
 quote@1.0.36		X						X						
+rand@0.8.5		X						X						
+rand_chacha@0.3.1		X						X						
+rand_core@0.6.4		X						X						
 redox_syscall@0.5.2								X						
 regex@1.10.5		X						X						
 regex-automata@0.4.7		X						X						
 regex-syntax@0.8.4		X						X						
+reqsign@0.15.2		X												
 reqwest@0.12.5		X						X						
 ring@0.17.8											X			
 rustc-demangle@0.1.24		X						X						
@@ -139,8 +151,10 @@ scopeguard@1.2.0		X						X
 semver@1.0.23		X						X						
 serde@1.0.203		X						X						
 serde_derive@1.0.203		X						X						
-serde_json@1.0.118		X						X						
+serde_json@1.0.120		X						X						
 serde_urlencoded@0.7.1		X						X						
+sha1@0.10.6		X						X						
+sha2@0.10.8		X						X						
 shlex@1.3.0		X						X						
 signal-hook-registry@1.4.2		X						X						
 slab@0.4.9								X						
@@ -178,7 +192,7 @@ tracing-core@0.1.32								X
 triomphe@0.1.13		X						X						
 try-lock@0.2.5								X						
 typenum@1.17.0		X						X						
-unftp-sbe-opendal@0.0.1		X												
+unftp-sbe-opendal@0.0.2		X												
 unicode-bidi@0.3.15		X						X						
 unicode-ident@1.0.12		X						X				X		
 unicode-normalization@0.1.23		X						X						

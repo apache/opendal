@@ -155,7 +155,7 @@ impl Stream for Lister {
 
         // Trying to pull more tasks if there are more space.
         if self.tasks.has_remaining() {
-            // Building future is we have a lister available.
+            // Building future if we have a lister available.
             if let Some(mut lister) = self.lister.take() {
                 let fut = async move {
                     let res = lister.next_dyn().await;

@@ -166,7 +166,7 @@ pub enum Scheme {
     /// # NOTE
     ///
     /// - Custom must not overwrite any existing services name.
-    /// - Custom must be lowed cases.
+    /// - Custom must be in lower case.
     Custom(&'static str),
 }
 

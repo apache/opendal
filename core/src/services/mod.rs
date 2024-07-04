@@ -420,3 +420,10 @@ pub use surrealdb::SurrealdbConfig;
 mod compfs;
 #[cfg(feature = "services-compfs")]
 pub use compfs::Compfs;
+
+#[cfg(feature = "services-monoiofs")]
+mod monoiofs;
+#[cfg(feature = "services-monoiofs")]
+pub use monoiofs::Monoiofs;
+#[cfg(feature = "services-monoiofs")]
+pub use monoiofs::MonoiofsConfig;

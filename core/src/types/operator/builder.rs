@@ -222,6 +222,8 @@ impl Operator {
             Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs => Self::from_map::<services::Monoiofs>(map)?.finish(),
             #[cfg(feature = "services-mysql")]
             Scheme::Mysql => Self::from_map::<services::Mysql>(map)?.finish(),
             #[cfg(feature = "services-obs")]

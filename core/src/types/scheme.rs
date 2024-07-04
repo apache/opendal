@@ -105,6 +105,8 @@ pub enum Scheme {
     MiniMoka,
     /// [moka][crate::services::Moka]: moka backend support.
     Moka,
+    /// [monoiofs][crate::services::Monoiofs]: monoio fs services.
+    Monoiofs,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
     /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
@@ -251,6 +253,8 @@ impl Scheme {
             Scheme::MiniMoka,
             #[cfg(feature = "services-moka")]
             Scheme::Moka,
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs,
             #[cfg(feature = "services-mysql")]
             Scheme::Mysql,
             #[cfg(feature = "services-obs")]
@@ -370,6 +374,7 @@ impl FromStr for Scheme {
             "sqlite" => Ok(Scheme::Sqlite),
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
+            "monoiofs" => Ok(Scheme::Monoiofs),
             "obs" => Ok(Scheme::Obs),
             "onedrive" => Ok(Scheme::Onedrive),
             "persy" => Ok(Scheme::Persy),
@@ -436,6 +441,7 @@ impl From<Scheme> for &'static str {
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",
             Scheme::Moka => "moka",
+            Scheme::Monoiofs => "monoiofs",
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",

@@ -4772,7 +4772,7 @@ dependencies = [
  "prometheus",
  "prometheus-client",
  "prost 0.11.9",
- "quick-xml",
+ "quick-xml 0.31.0",
  "r2d2",
  "rand 0.8.5",
  "redb",
@@ -5788,6 +5788,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86e446ed58cef1bbfe847bc2fda0e2e4ea9f0e57b90c507d4781292590d72a4e"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quick_cache"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6116,9 +6126,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign"
-version = "0.15.2"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70fe66d4cd0b5ed9b1abbfe639bf6baeaaf509f7da2d51b31111ba945be59286"
+checksum = "03dd4ba7c3901dd43e6b8c7446a760d45bc1ea4301002e1a6fa48f97c3a796fa"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6134,7 +6144,7 @@ dependencies = [
  "log",
  "once_cell",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.35.0",
  "rand 0.8.5",
  "reqwest 0.12.4",
  "rsa",

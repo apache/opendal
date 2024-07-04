@@ -301,7 +301,7 @@ impl Builder for GcsBuilder {
             token_loader = token_loader.with_credentials(cred)
         }
         if let Some(loader) = self.customized_token_loader.take() {
-            token_loader = token_loader.with_customed_token_loader(loader)
+            token_loader = token_loader.with_customized_token_loader(loader)
         }
 
         let signer = GoogleSigner::new("storage");

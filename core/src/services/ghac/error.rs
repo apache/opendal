@@ -41,7 +41,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
     let bs = body.copy_to_bytes(body.remaining());
     let message = String::from_utf8_lossy(&bs);
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

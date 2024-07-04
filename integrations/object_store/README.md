@@ -1,12 +1,27 @@
-# OpenDAL object_store Binding
+# Apache OpenDAL™ object_store integration
 
-This crate intends to build an [object_store](https://crates.io/crates/object_store) binding.
+[![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
-The `OpendalStore` uses the `opendal` crate to interact with the underlying object storage system. The `Operator` is used to create a new `OpendalStore` instance. The `OpendalStore` uses the `Operator` to perform operations on the object storage system, such as `put`, `get`, `delete`, and `list`.
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci_integration_object_store.yml?branch=main
+[actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
+[latest version]: https://img.shields.io/crates/v/object_store_opendal.svg
+[crates.io]: https://crates.io/crates/object_store_opendal
+[crate downloads]: https://img.shields.io/crates/d/object_store_opendal.svg
+[chat]: https://img.shields.io/discord/1081052318650339399
+[discord]: https://opendal.apache.org/discord
+
+`object_store_opendal` is an [`object_store`](https://crates.io/crates/object_store) implementation using [`opendal`](https://github.com/apache/opendal).
+
+This crate can help you to access 30 more storage services with the same object_store API.
+
+    
+## Useful Links
+
+- Documentation: [release](https://docs.rs/object_store_opendal/) | [dev](https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/)
 
 ## Examples
 
-Firstly, you need to add the following dependencies to your `Cargo.toml`:
+Add the following dependencies to your `Cargo.toml` with correct version:
 
 ```toml
 [dependencies]
@@ -15,23 +30,62 @@ object_store_opendal = "0.44.0"
 opendal = { version = "0.47.0", features = ["services-s3"] }
 ```
 
-> [!NOTE]
-> 
-> The current version we support is object store 0.10.
+Build `OpendalStore` via `opendal::Operator`:
 
-Then you can use the `OpendalStore` as in the [example](examples/basic.rs).
+```rust
+use std::sync::Arc;
 
-## API
+use bytes::Bytes;
+use object_store::path::Path;
+use object_store::ObjectStore;
+use object_store_opendal::OpendalStore;
+use opendal::services::S3;
+use opendal::{Builder, Operator};
 
-The `OpendalStore` implements the `ObjectStore` trait, which provides the following methods:
+#[tokio::main]
+async fn main() {
+    let builder = S3::from_map(
+        vec![
+            ("access_key".to_string(), "my_access_key".to_string()),
+            ("secret_key".to_string(), "my_secret_key".to_string()),
+            ("endpoint".to_string(), "my_endpoint".to_string()),
+            ("region".to_string(), "my_region".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    );
 
-| Method                | Description                                       | link                                                                                                                       |
-|-----------------------|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `put`                 | Put an object into the store.                     | [put](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.put)                                 |
-| `get`                 | Get an object from the store.                     | [get](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.get)                                 |
-| `get_range`           | Get a range of bytes from an object in the store. | [get_range](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.get_range)                     |
-| `head`                | Get the metadata of an object in the store.       | [head](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.head)                               |
-| `delete`              | Delete an object from the store.                  | [delete](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.delete)                           |
-| `list`                | List objects in the store.                        | [list](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.list)                               |
-| `list_with_offset`    | List objects in the store with an offset.         | [list_with_offset](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.list_with_offset)       |
-| `list_with_delimiter` | List objects in the store with a delimiter.       | [list_with_delimiter](https://docs.rs/object_store/0.9.0/object_store/trait.ObjectStore.html#tymethod.list_with_delimiter) |
+    // Create a new operator
+    let operator = Operator::new(builder).unwrap().finish();
+
+    // Create a new object store
+    let object_store = Arc::new(OpendalStore::new(operator));
+
+    let path = Path::from("data/nested/test.txt");
+    let bytes = Bytes::from_static(b"hello, world! I am nested.");
+
+    object_store.put(&path, bytes.clone().into()).await.unwrap();
+
+    let content = object_store
+        .get(&path)
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+
+    assert_eq!(content, bytes);
+}
+```
+
+## Branding
+
+The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.
+
+For more details, see the [Apache Product Name Usage Guide](https://www.apache.org/foundation/marks/guide).
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

@@ -80,8 +80,15 @@ jobs:
         run: cargo test --no-fail-fast
 
   linux:
+    name: linux - ${{ matrix.settings.target }}
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+    env:
+      NAPI_FEATURES: services-all
     strategy:
       matrix:
         settings:
@@ -127,13 +134,6 @@ jobs:
               # change owner to current user
               sudo chown -R 1001:121 *.node
 
-    # Notes: this defaults only apply on run tasks.
-    defaults:
-      run:
-        working-directory: "bindings/nodejs"
-
-    name: linux - ${{ matrix.settings.target }}
-
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -159,8 +159,15 @@ jobs:
           path: bindings/nodejs/*.node
 
   windows:
+    name: windows - ${{ matrix.settings.target }}
     runs-on: windows-latest
     if: "startsWith(github.ref, 'refs/tags/')"
+
+    # Windows built failed with services-all
+    # Wait for https://github.com/apache/opendal/issues/4761
+    # env:
+    #  NAPI_FEATURES: services-all
+
     strategy:
       matrix:
         settings:
@@ -175,8 +182,6 @@ jobs:
     defaults:
       run:
         working-directory: "bindings/nodejs"
-
-    name: windows - ${{ matrix.settings.target }}
 
     steps:
       - uses: actions/checkout@v4
@@ -202,13 +207,23 @@ jobs:
           path: bindings/nodejs/*.node
 
   macos:
+    name: macos - ${{ matrix.settings.target }}
     runs-on: macos-latest
     if: "startsWith(github.ref, 'refs/tags/')"
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+    env:
+      NAPI_FEATURES: services-all
     strategy:
       matrix:
         settings:
           - target: x86_64-apple-darwin
             build: |
+              rustup target add x86_64-apple-darwin;
+              export NAPI_TARGET=x86_64-apple-darwin;
+              
               pnpm build
               strip -x *.node
           - target: aarch64-apple-darwin
@@ -223,13 +238,6 @@ jobs:
               export NAPI_TARGET=aarch64-apple-darwin;
               pnpm build
               strip -x *.node
-
-    # Notes: this defaults only apply on run tasks.
-    defaults:
-      run:
-        working-directory: "bindings/nodejs"
-
-    name: macos - ${{ matrix.settings.target }}
 
     steps:
       - uses: actions/checkout@v4

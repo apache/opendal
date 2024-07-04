@@ -15,103 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::thread::JoinHandle;
+use compio::{buf::IoBuf, dispatcher::Dispatcher};
+use std::{future::Future, path::PathBuf};
 
-use compio::buf::IoBuf;
-use compio::runtime::RuntimeBuilder;
-use futures::channel::mpsc;
-use futures::channel::mpsc::SendError;
-use futures::channel::oneshot;
-use futures::future::LocalBoxFuture;
-use futures::SinkExt;
-use futures::StreamExt;
-
-use crate::Buffer;
-
-/// This is arbitrary, but since all tasks are spawned instantly, we shouldn't need a too big buffer.
-const CHANNEL_SIZE: usize = 4;
-
-fn task<F, Fut, T>(func: F) -> (Task<T>, SpawnTask)
-where
-    F: (FnOnce() -> Fut) + Send + 'static,
-    Fut: Future<Output = T>,
-    T: Send + 'static,
-{
-    let (tx, recv) = oneshot::channel();
-
-    let boxed = Box::new(|| {
-        Box::pin(async move {
-            let res = func().await;
-            tx.send(res).ok();
-        }) as _
-    });
-
-    (Task(recv), SpawnTask(boxed))
-}
-
-/// A task handle that can be used to retrieve result spawned into [`CompioThread`].
-pub struct Task<T>(oneshot::Receiver<T>);
-
-/// Type erased task that can be spawned into a [`CompioThread`].
-struct SpawnTask(Box<dyn (FnOnce() -> LocalBoxFuture<'static, ()>) + Send>);
-
-impl SpawnTask {
-    fn call(self) -> LocalBoxFuture<'static, ()> {
-        (self.0)()
-    }
-}
-
-#[derive(Debug)]
-pub struct CompioThread {
-    thread: JoinHandle<()>,
-    handle: SpawnHandle,
-}
-
-impl CompioThread {
-    pub fn new(builder: RuntimeBuilder) -> Self {
-        let (send, mut recv) = mpsc::channel(CHANNEL_SIZE);
-        let handle = SpawnHandle(send);
-        let thread = std::thread::spawn(move || {
-            let rt = builder.build().expect("failed to create runtime");
-            rt.block_on(async {
-                while let Some(task) = recv.next().await {
-                    rt.spawn(task.call()).detach();
-                }
-            });
-        });
-        Self { thread, handle }
-    }
-
-    pub async fn spawn<F, Fut, T>(&self, func: F) -> Result<Task<T>, SendError>
-    where
-        F: (FnOnce() -> Fut) + Send + 'static,
-        Fut: Future<Output = T>,
-        T: Send + 'static,
-    {
-        self.handle.clone().spawn(func).await
-    }
-
-    pub fn handle(&self) -> SpawnHandle {
-        self.handle.clone()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SpawnHandle(mpsc::Sender<SpawnTask>);
-
-impl SpawnHandle {
-    pub async fn spawn<F, Fut, T>(&mut self, func: F) -> Result<Task<T>, SendError>
-    where
-        F: (FnOnce() -> Fut) + Send + 'static,
-        Fut: Future<Output = T>,
-        T: Send + 'static,
-    {
-        let (task, spawn) = task(func);
-        self.0.send(spawn).await?;
-        Ok(task)
-    }
-}
+use crate::raw::*;
+use crate::*;
 
 unsafe impl IoBuf for Buffer {
     fn as_buf_ptr(&self) -> *const u8 {
@@ -125,6 +33,45 @@ unsafe impl IoBuf for Buffer {
     fn buf_capacity(&self) -> usize {
         // `Bytes` doesn't expose uninitialized capacity, so treat it as the same as `len`
         self.current().len()
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct CompfsCore {
+    pub root: PathBuf,
+    pub dispatcher: Dispatcher,
+    pub buf_pool: oio::PooledBuf,
+}
+
+impl CompfsCore {
+    pub fn prepare_path(&self, path: &str) -> PathBuf {
+        self.root.join(path.trim_end_matches('/'))
+    }
+
+    pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> crate::Result<R>
+    where
+        Fn: FnOnce() -> Fut + Send + 'static,
+        Fut: Future<Output = std::io::Result<R>> + 'static,
+        R: Send + 'static,
+    {
+        self.dispatcher
+            .dispatch(f)
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "compio spawn io task failed"))?
+            .await
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "compio task cancelled"))?
+            .map_err(new_std_io_error)
+    }
+
+    pub async fn exec_blocking<Fn, R>(&self, f: Fn) -> Result<R>
+    where
+        Fn: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.dispatcher
+            .dispatch_blocking(f)
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "compio spawn blocking task failed"))?
+            .await
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "compio task cancelled"))
     }
 }
 

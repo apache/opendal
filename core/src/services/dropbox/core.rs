@@ -261,7 +261,7 @@ impl DropboxCore {
             }
             _ => Err(Error::new(
                 ErrorKind::Unexpected,
-                &format!(
+                format!(
                     "delete batch check failed with unexpected tag {}",
                     decoded_response.tag
                 ),

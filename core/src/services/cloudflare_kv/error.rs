@@ -51,7 +51,7 @@ pub(crate) async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         (kind, retryable) = parse_cfkv_error_code(err.errors).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

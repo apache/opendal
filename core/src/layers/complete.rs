@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
-use crate::raw::TwoWays;
 use crate::raw::*;
 use crate::*;
 
@@ -135,7 +134,7 @@ impl<A: Access> CompleteAccessor<A> {
         let op = op.into();
         Error::new(
             ErrorKind::Unsupported,
-            &format!("service {scheme} doesn't support operation {op}"),
+            format!("service {scheme} doesn't support operation {op}"),
         )
         .with_operation(op)
     }
@@ -372,7 +371,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type BlockingReader = CompleteReader<A::BlockingReader>;
-    type Writer = TwoWays<CompleteWriter<A::Writer>, oio::ChunkedWriter<CompleteWriter<A::Writer>>>;
+    type Writer = CompleteWriter<A::Writer>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
@@ -415,38 +414,15 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if args.append() && !capability.write_can_append {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                &format!(
+                format!(
                     "service {} doesn't support operation write with append",
                     self.info().scheme()
                 ),
             ));
         }
 
-        // Calculate buffer size.
-        let chunk_size = args.chunk().map(|mut size| {
-            if let Some(v) = capability.write_multi_max_size {
-                size = size.min(v);
-            }
-            if let Some(v) = capability.write_multi_min_size {
-                size = size.max(v);
-            }
-            if let Some(v) = capability.write_multi_align_size {
-                // Make sure size >= size first.
-                size = size.max(v);
-                size -= size % v;
-            }
-
-            size
-        });
-
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
-
-        let w = match chunk_size {
-            None => TwoWays::One(w),
-            Some(size) => TwoWays::Two(oio::ChunkedWriter::new(w, size)),
-        };
-
         Ok((rp, w))
     }
 
@@ -533,7 +509,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if args.append() && !capability.write_can_append {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                &format!(
+                format!(
                     "service {} doesn't support operation write with append",
                     self.info().scheme()
                 ),

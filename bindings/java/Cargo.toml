@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.46.0"
+version = "0.46.3"
 
 [lib]
 crate-type = ["cdylib"]
@@ -51,6 +51,7 @@ default = [
 
 services-all = [
   "default",
+  "services-aliyun-drive",
   "services-cacache",
   "services-chainsafe",
   "services-dashmap",
@@ -95,6 +96,7 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-chainsafe = ["opendal/services-chainsafe"]

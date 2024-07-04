@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
@@ -52,7 +51,7 @@ pub struct Operator(ocore::BlockingOperator);
 impl Operator {
     #[new]
     #[pyo3(signature = (scheme, *, **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -78,17 +77,16 @@ impl Operator {
     /// Open a file-like reader for the given path.
     pub fn open(&self, path: String, mode: String) -> PyResult<File> {
         let this = self.0.clone();
-        let capability = self.capability()?;
         if mode == "rb" {
             let r = this
                 .reader(&path)
                 .map_err(format_pyerr)?
                 .into_std_read(..)
                 .map_err(format_pyerr)?;
-            Ok(File::new_reader(r, capability))
+            Ok(File::new_reader(r))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w, capability))
+            Ok(File::new_writer(w))
         } else {
             Err(UnsupportedError::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
@@ -97,26 +95,26 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<PyAny>> {
         let buffer = self.0.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
-        let opwrite = build_opwrite(kwargs)?;
-        let mut write = self.0.write_with(path, bs).append(opwrite.append());
-        if let Some(chunk) = opwrite.chunk() {
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+        let kwargs = kwargs.unwrap_or_default();
+        let mut write = self.0.write_with(path, bs).append(kwargs.append);
+        if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
         }
-        if let Some(content_type) = opwrite.content_type() {
+        if let Some(content_type) = &kwargs.content_type {
             write = write.content_type(content_type);
         }
-        if let Some(content_disposition) = opwrite.content_disposition() {
+        if let Some(content_disposition) = &kwargs.content_disposition {
             write = write.content_disposition(content_disposition);
         }
-        if let Some(cache_control) = opwrite.cache_control() {
+        if let Some(cache_control) = &kwargs.cache_control {
             write = write.cache_control(cache_control);
         }
 
@@ -218,7 +216,7 @@ pub struct AsyncOperator(ocore::Operator);
 impl AsyncOperator {
     #[new]
     #[pyo3(signature = (scheme, *,  **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -242,9 +240,13 @@ impl AsyncOperator {
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open<'p>(&'p self, py: Python<'p>, path: String, mode: String) -> PyResult<&'p PyAny> {
+    pub fn open<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        mode: String,
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
-        let capability = self.capability()?;
 
         future_into_py(py, async move {
             if mode == "rb" {
@@ -255,10 +257,10 @@ impl AsyncOperator {
                     .into_futures_async_read(..)
                     .await
                     .map_err(format_pyerr)?;
-                Ok(AsyncFile::new_reader(r, capability))
+                Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_writer(w, capability))
+                Ok(AsyncFile::new_writer(w))
             } else {
                 Err(UnsupportedError::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"
@@ -268,7 +270,7 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
@@ -282,24 +284,24 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: String,
-        bs: &PyBytes,
-        kwargs: Option<&PyDict>,
-    ) -> PyResult<&'p PyAny> {
-        let opwrite = build_opwrite(kwargs)?;
+        bs: &Bound<PyBytes>,
+        kwargs: Option<WriteOptions>,
+    ) -> PyResult<Bound<PyAny>> {
+        let kwargs = kwargs.unwrap_or_default();
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs).append(opwrite.append());
-            if let Some(buffer) = opwrite.chunk() {
+            let mut write = this.write_with(&path, bs).append(kwargs.append);
+            if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }
-            if let Some(content_type) = opwrite.content_type() {
+            if let Some(content_type) = &kwargs.content_type {
                 write = write.content_type(content_type);
             }
-            if let Some(content_disposition) = opwrite.content_disposition() {
+            if let Some(content_disposition) = &kwargs.content_disposition {
                 write = write.content_disposition(content_disposition);
             }
-            if let Some(cache_control) = opwrite.cache_control() {
+            if let Some(cache_control) = &kwargs.cache_control {
                 write = write.cache_control(cache_control);
             }
             write.await.map_err(format_pyerr)
@@ -307,7 +309,7 @@ impl AsyncOperator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Metadata = this
@@ -326,7 +328,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
@@ -339,7 +341,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
@@ -347,7 +349,7 @@ impl AsyncOperator {
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.remove_all(&path).await.map_err(format_pyerr)
@@ -366,7 +368,7 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
@@ -378,7 +380,7 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(
             py,
@@ -387,7 +389,7 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
@@ -397,7 +399,7 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let lister = this
@@ -416,7 +418,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -435,7 +437,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -454,7 +456,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
+    ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
@@ -492,55 +494,6 @@ impl AsyncOperator {
             )
         }
     }
-}
-
-/// recognize OpWrite-equivalent options passed as python dict
-pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpWrite> {
-    use ocore::raw::OpWrite;
-    let mut op = OpWrite::new();
-
-    let dict = if let Some(kwargs) = kwargs {
-        kwargs
-    } else {
-        return Ok(op);
-    };
-
-    if let Some(append) = dict.get_item("append")? {
-        let v = append
-            .extract::<bool>()
-            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
-        op = op.with_append(v);
-    }
-
-    if let Some(chunk) = dict.get_item("chunk")? {
-        let v = chunk
-            .extract::<usize>()
-            .map_err(|err| PyValueError::new_err(format!("chunk must be usize, got {}", err)))?;
-        op = op.with_chunk(v);
-    }
-
-    if let Some(content_type) = dict.get_item("content_type")? {
-        let v = content_type.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_type must be str, got {}", err))
-        })?;
-        op = op.with_content_type(v.as_str());
-    }
-
-    if let Some(content_disposition) = dict.get_item("content_disposition")? {
-        let v = content_disposition.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
-        })?;
-        op = op.with_content_disposition(v.as_str());
-    }
-
-    if let Some(cache_control) = dict.get_item("cache_control")? {
-        let v = cache_control.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("cache_control must be str, got {}", err))
-        })?;
-        op = op.with_cache_control(v.as_str());
-    }
-
-    Ok(op)
 }
 
 #[pyclass(module = "opendal")]

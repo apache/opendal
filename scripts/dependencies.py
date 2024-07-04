@@ -21,6 +21,7 @@ from pathlib import Path
 import subprocess
 from constants import PACKAGES
 
+
 def check_deps():
     cargo_dirs = PACKAGES
     for root in cargo_dirs:
@@ -50,18 +51,16 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers()
 
     parser_check = subparsers.add_parser(
-        'check',
-        description="Check dependencies",
-        help="Check dependencies")
+        "check", description="Check dependencies", help="Check dependencies"
+    )
     parser_check.set_defaults(func=check_deps)
 
     parser_generate = subparsers.add_parser(
-        'generate',
-        description="Generate dependencies",
-        help="Generate dependencies")
+        "generate", description="Generate dependencies", help="Generate dependencies"
+    )
     parser_generate.set_defaults(func=generate_deps)
 
     args = parser.parse_args()
     arg_dict = dict(vars(args))
-    del arg_dict['func']
+    del arg_dict["func"]
     args.func(**arg_dict)

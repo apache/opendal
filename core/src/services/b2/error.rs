@@ -55,7 +55,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         (kind, retryable) = parse_b2_error_code(b2_err.code.as_str()).unwrap_or((kind, retryable));
     };
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

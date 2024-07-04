@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.45.3"
+version = "0.45.6"
 
 [features]
 default = [
@@ -47,6 +47,7 @@ default = [
 
 services-all = [
   "default",
+  "services-aliyun-drive",
   "services-azfile",
   "services-cacache",
   "services-chainsafe",
@@ -92,6 +93,7 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-chainsafe = ["opendal/services-chainsafe"]
@@ -157,8 +159,10 @@ futures = "0.3.28"
 opendal = { version = "0.47.0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.20.1", features = ["abi3", "abi3-py311"] }
-pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+pyo3 = { version = "0.21.2", features = ["abi3", "abi3-py311"] }
+pyo3-asyncio = { package = "pyo3-asyncio-0-21", version = "0.21", features = [
+  "tokio-runtime",
+] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

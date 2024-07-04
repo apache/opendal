@@ -41,13 +41,14 @@ pub async fn parse_error(res: Response<Buffer>) -> Result<Error> {
             Some(code) if code == "PreHashMatched" => (ErrorKind::IsSameFile, false),
             _ => (ErrorKind::Unexpected, false),
         },
+        409 => (ErrorKind::AlreadyExists, false),
         429 => match code {
             Some(code) if code == "TooManyRequests" => (ErrorKind::RateLimited, true),
             _ => (ErrorKind::Unexpected, false),
         },
         _ => (ErrorKind::Unexpected, false),
     };
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
     if retryable {
         err = err.set_temporary();
     }

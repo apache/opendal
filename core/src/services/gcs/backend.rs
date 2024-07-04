@@ -357,12 +357,18 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
-                // The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
-                // Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
-                // It's recommended that you use at least 8 MiB for the chunk size.
+                // The min multipart size of Gcs is 5 MiB.
                 //
-                // Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-                write_multi_align_size: Some(256 * 1024 * 1024),
+                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of Gcs is 5 GiB.
+                //
+                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 copy: true,
@@ -388,7 +394,7 @@ impl Access for GcsBackend {
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let slc = resp.into_body();
@@ -427,7 +433,7 @@ impl Access for GcsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -436,7 +442,7 @@ impl Access for GcsBackend {
         let concurrent = args.concurrent();
         let executor = args.executor().cloned();
         let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::RangeWriter::new(w, executor, concurrent);
+        let w = oio::MultipartWriter::new(w, executor, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -448,7 +454,7 @@ impl Access for GcsBackend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 
@@ -470,7 +476,7 @@ impl Access for GcsBackend {
         if resp.status().is_success() {
             Ok(RpCopy::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 
@@ -544,7 +550,7 @@ impl Access for GcsBackend {
                 if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
                     batched_result.push((path, Ok(RpDelete::default().into())));
                 } else {
-                    batched_result.push((path, Err(parse_error(resp).await?)));
+                    batched_result.push((path, Err(parse_error(resp))));
                 }
             }
 
@@ -552,7 +558,7 @@ impl Access for GcsBackend {
         } else {
             // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
             // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 }

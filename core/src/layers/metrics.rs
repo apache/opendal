@@ -23,9 +23,8 @@ use std::time::Instant;
 use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
-use metrics::increment_counter;
-use metrics::register_counter;
-use metrics::register_histogram;
+use metrics::counter;
+use metrics::histogram;
 use metrics::Counter;
 use metrics::Histogram;
 
@@ -188,186 +187,186 @@ impl MetricsHandler {
         Self {
             service,
 
-            requests_total_metadata: register_counter!(
+            requests_total_metadata: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Info.into_static(),
             ),
-            requests_duration_seconds_metadata: register_histogram!(
+            requests_duration_seconds_metadata: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Info.into_static(),
             ),
 
-            requests_total_create: register_counter!(
+            requests_total_create: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::CreateDir.into_static(),
             ),
-            requests_duration_seconds_create: register_histogram!(
+            requests_duration_seconds_create: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::CreateDir.into_static(),
             ),
 
-            requests_total_read: register_counter!(
+            requests_total_read: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Read.into_static(),
             ),
-            requests_duration_seconds_read: register_histogram!(
+            requests_duration_seconds_read: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Read.into_static(),
             ),
-            bytes_total_read: register_counter!(
+            bytes_total_read: counter!(
                 METRIC_BYTES_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Read.into_static(),
             ),
 
-            requests_total_write: register_counter!(
+            requests_total_write: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Write.into_static(),
             ),
-            requests_duration_seconds_write: register_histogram!(
+            requests_duration_seconds_write: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Write.into_static(),
             ),
-            bytes_total_write: register_counter!(
+            bytes_total_write: counter!(
                 METRIC_BYTES_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Write.into_static(),
             ),
 
-            requests_total_stat: register_counter!(
+            requests_total_stat: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Stat.into_static(),
             ),
-            requests_duration_seconds_stat: register_histogram!(
+            requests_duration_seconds_stat: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Stat.into_static(),
             ),
 
-            requests_total_delete: register_counter!(
+            requests_total_delete: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Delete.into_static(),
             ),
-            requests_duration_seconds_delete: register_histogram!(
+            requests_duration_seconds_delete: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Delete.into_static(),
             ),
 
-            requests_total_list: register_counter!(
+            requests_total_list: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::List.into_static(),
             ),
-            requests_duration_seconds_list: register_histogram!(
+            requests_duration_seconds_list: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::List.into_static(),
             ),
 
-            requests_total_presign: register_counter!(
+            requests_total_presign: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Presign.into_static(),
             ),
-            requests_duration_seconds_presign: register_histogram!(
+            requests_duration_seconds_presign: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Presign.into_static(),
             ),
 
-            requests_total_batch: register_counter!(
+            requests_total_batch: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Batch.into_static(),
             ),
-            requests_duration_seconds_batch: register_histogram!(
+            requests_duration_seconds_batch: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Batch.into_static(),
             ),
 
-            requests_total_blocking_create: register_counter!(
+            requests_total_blocking_create: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingCreateDir.into_static(),
             ),
-            requests_duration_seconds_blocking_create: register_histogram!(
+            requests_duration_seconds_blocking_create: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingCreateDir.into_static(),
             ),
 
-            requests_total_blocking_read: register_counter!(
+            requests_total_blocking_read: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingRead.into_static(),
             ),
-            requests_duration_seconds_blocking_read: register_histogram!(
+            requests_duration_seconds_blocking_read: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingRead.into_static(),
             ),
-            bytes_total_blocking_read: register_counter!(
+            bytes_total_blocking_read: counter!(
                 METRIC_BYTES_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingRead.into_static(),
             ),
 
-            requests_total_blocking_write: register_counter!(
+            requests_total_blocking_write: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingWrite.into_static(),
             ),
-            requests_duration_seconds_blocking_write: register_histogram!(
+            requests_duration_seconds_blocking_write: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingWrite.into_static(),
             ),
-            bytes_total_blocking_write: register_counter!(
+            bytes_total_blocking_write: counter!(
                 METRIC_BYTES_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingWrite.into_static(),
             ),
 
-            requests_total_blocking_stat: register_counter!(
+            requests_total_blocking_stat: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingStat.into_static(),
             ),
-            requests_duration_seconds_blocking_stat: register_histogram!(
+            requests_duration_seconds_blocking_stat: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingStat.into_static(),
             ),
 
-            requests_total_blocking_delete: register_counter!(
+            requests_total_blocking_delete: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingDelete.into_static(),
             ),
-            requests_duration_seconds_blocking_delete: register_histogram!(
+            requests_duration_seconds_blocking_delete: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingDelete.into_static(),
             ),
 
-            requests_total_blocking_list: register_counter!(
+            requests_total_blocking_list: counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingList.into_static(),
             ),
-            requests_duration_seconds_blocking_list: register_histogram!(
+            requests_duration_seconds_blocking_list: histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingList.into_static(),
@@ -379,11 +378,12 @@ impl MetricsHandler {
     /// in advance.
     #[inline]
     fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {
-        increment_counter!(METRICS_ERRORS_TOTAL,
+        counter!(METRICS_ERRORS_TOTAL,
             LABEL_SERVICE => self.service,
             LABEL_OPERATION => op.into_static(),
             LABEL_ERROR => kind.into_static(),
         )
+        .increment(1)
     }
 }
 

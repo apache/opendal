@@ -39,7 +39,7 @@ use crate::*;
 /// A file-like object.
 /// Can be used as a context manager.
 #[pyclass(module = "opendal")]
-pub struct File(FileState, Capability);
+pub struct File(FileState);
 
 enum FileState {
     Reader(ocore::StdReader),
@@ -48,12 +48,12 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::StdReader, capability: Capability) -> Self {
-        Self(FileState::Reader(reader), capability)
+    pub fn new_reader(reader: ocore::StdReader) -> Self {
+        Self(FileState::Reader(reader))
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
-        Self(FileState::Writer(writer.into_std_write()), capability)
+    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
+        Self(FileState::Writer(writer.into_std_write()))
     }
 }
 
@@ -61,7 +61,7 @@ impl File {
 impl File {
     /// Read and return at most size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None,))]
-    pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<PyAny>> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -243,15 +243,13 @@ impl File {
     pub fn flush(&mut self) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
-        } else {
-            if let FileState::Writer(w) = &mut self.0 {
-                match w.flush() {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
-                }
-            } else {
-                Ok(())
+        } else if let FileState::Writer(w) = &mut self.0 {
+            match w.flush() {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into()),
             }
+        } else {
+            Ok(())
         }
     }
 
@@ -285,7 +283,7 @@ impl File {
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
+pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::FuturesAsyncReader),
@@ -294,25 +292,19 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::FuturesAsyncReader, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
-            capability,
-        )
+    pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
     }
 
-    pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
-            capability,
-        )
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
 
 #[pymethods]
 impl AsyncFile {
     /// Read and return at most size bytes, or if size is not given, until EOF.
-    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -357,7 +349,7 @@ impl AsyncFile {
     }
 
     /// Write bytes into the file.
-    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<&'p PyAny> {
+    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
 
         // FIXME: can we avoid this clone?
@@ -398,7 +390,7 @@ impl AsyncFile {
     ///
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
-    pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<&'p PyAny> {
+    pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
 
         let whence = match whence {
@@ -433,7 +425,7 @@ impl AsyncFile {
     }
 
     /// Return the current stream position.
-    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -460,7 +452,7 @@ impl AsyncFile {
         })
     }
 
-    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
@@ -474,7 +466,7 @@ impl AsyncFile {
         })
     }
 
-    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<&'a PyAny> {
+    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py(py);
         future_into_py(py, async move { Ok(slf) })
     }
@@ -482,15 +474,15 @@ impl AsyncFile {
     fn __aexit__<'a>(
         &'a mut self,
         py: Python<'a>,
-        _exc_type: &'a PyAny,
-        _exc_value: &'a PyAny,
-        _traceback: &'a PyAny,
-    ) -> PyResult<&'a PyAny> {
+        _exc_type: &Bound<'a, PyAny>,
+        _exc_value: &Bound<'a, PyAny>,
+        _traceback: &Bound<'a, PyAny>,
+    ) -> PyResult<Bound<'a, PyAny>> {
         self.close(py)
     }
 
     /// Check if the stream may be read from.
-    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -499,7 +491,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream may be written to.
-    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -508,7 +500,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream reader may be re-located.
-    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         if true {
             self.readable(py)
         } else {
@@ -518,7 +510,7 @@ impl AsyncFile {
 
     /// Check if the stream is closed.
     #[getter]
-    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;

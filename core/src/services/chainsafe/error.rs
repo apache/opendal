@@ -60,7 +60,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
             .map(|chainsafe_err| (format!("{chainsafe_err:?}"), Some(chainsafe_err)))
             .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 

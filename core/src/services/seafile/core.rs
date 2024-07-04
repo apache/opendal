@@ -143,7 +143,7 @@ impl SeafileCore {
                     if signer.auth_info.repo_id.is_empty() {
                         return Err(Error::new(
                             ErrorKind::NotFound,
-                            &format!("repo {} not found", self.repo_name),
+                            format!("repo {} not found", self.repo_name),
                         ));
                     }
                 }

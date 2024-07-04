@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.47.3] - 2024-07-03
+
+### Changed
+* refactor: Move ChunkedWrite logic into WriteContext by @Xuanwo in https://github.com/apache/opendal/pull/4826
+* refactor(services/aliyun-drive): directly implement `oio::Write`. by @yuchanns in https://github.com/apache/opendal/pull/4821
+### Fixed
+* fix(integration/object_store): Avoid calling  API inside debug by @Xuanwo in https://github.com/apache/opendal/pull/4846
+* fix(integration/object_store): Fix metakey requested is incomplete by @Xuanwo in https://github.com/apache/opendal/pull/4844
+### Docs
+* docs(integration/unftp-sbe): Polish docs for unftp-sbe by @Xuanwo in https://github.com/apache/opendal/pull/4838
+* docs(bin): Polish README for all bin by @Xuanwo in https://github.com/apache/opendal/pull/4839
+### Chore
+* chore(deps): bump crate-ci/typos from 1.22.7 to 1.22.9 by @dependabot in https://github.com/apache/opendal/pull/4836
+* chore(deps): bump quick-xml from 0.32.0 to 0.35.0 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4835
+* chore(deps): bump nix from 0.28.0 to 0.29.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4833
+* chore(deps): bump metrics from 0.20.1 to 0.23.0 in /core by @TennyZhuang in https://github.com/apache/opendal/pull/4843
+
+## [v0.47.2] - 2024-06-30
+
+### Added
+* feat(services/compfs): basic `Access` impl by @George-Miao in https://github.com/apache/opendal/pull/4693
+* feat(unftp-sbe): impl `OpendalStorage` by @George-Miao in https://github.com/apache/opendal/pull/4765
+* feat(services/compfs): implement auxiliary functions by @George-Miao in https://github.com/apache/opendal/pull/4778
+* feat: make AwaitTreeLayer covers oio::Read and oio::Write by @PsiACE in https://github.com/apache/opendal/pull/4787
+* feat: Nodejs add devbox by @bxb100 in https://github.com/apache/opendal/pull/4791
+* feat: make AsyncBacktraceLayer covers oio::Read and oio::Write by @PsiACE in https://github.com/apache/opendal/pull/4789
+* feat(nodejs): add `WriteOptions` for write methods by @bxb100 in https://github.com/apache/opendal/pull/4785
+* feat: setup cloud filter integration by @ho-229 in https://github.com/apache/opendal/pull/4779
+* feat: add position write by @hoslo in https://github.com/apache/opendal/pull/4795
+* fix(core): write concurrent doesn't set correctly by @hoslo in https://github.com/apache/opendal/pull/4816
+* feat(ovfs): add filesystem to handle message by @zjregee in https://github.com/apache/opendal/pull/4720
+* feat(unftp-sbe): add derives for `OpendalMetadata` by @George-Miao in https://github.com/apache/opendal/pull/4819
+* feat(core/gcs): Add concurrent write for gcs back by @Xuanwo in https://github.com/apache/opendal/pull/4820
+### Changed
+* refactor(nodejs)!: Remove append api by @bxb100 in https://github.com/apache/opendal/pull/4796
+* refactor(core): Remove unused layer `MadsimLayer` by @zzzk1 in https://github.com/apache/opendal/pull/4788
+### Fixed
+* fix(services/aliyun-drive): list dir without trailing slash by @yuchanns in https://github.com/apache/opendal/pull/4766
+* fix(unftp-sbe): remove buffer for get by @George-Miao in https://github.com/apache/opendal/pull/4775
+* fix(services/aliyun-drive): write op cannot overwrite existing files by @yuchanns in https://github.com/apache/opendal/pull/4781
+* fix(core/services/onedrive): remove @odata.count for onedrive list op by @imWildCat in https://github.com/apache/opendal/pull/4803
+* fix(core): Gcs's RangeWrite doesn't support concurrent write by @Xuanwo in https://github.com/apache/opendal/pull/4806
+* fix(tests/behavior): skip test of write_with_overwrite for ghac by @yuchanns in https://github.com/apache/opendal/pull/4823
+* fix(docs): some typos in website and nodejs binding docs by @suyanhanx in https://github.com/apache/opendal/pull/4814
+* fix(core/aliyun_drive): Fix write_multi_max_size might overflow by @Xuanwo in https://github.com/apache/opendal/pull/4830
+
+### Docs
+* doc(unftp-sbe): adds example and readme by @George-Miao in https://github.com/apache/opendal/pull/4777
+* doc(nodejs): update upgrade.md by @bxb100 in https://github.com/apache/opendal/pull/4799
+* docs: Add README and rustdoc for fuse3_opendal by @Xuanwo in https://github.com/apache/opendal/pull/4813
+* docs: use version variable in gradle, same to maven by @shoothzj in https://github.com/apache/opendal/pull/4824
+### CI
+* ci: set behavior test ci for aliyun drive by @suyanhanx in https://github.com/apache/opendal/pull/4657
+* ci: Fix lib-darwin-x64 no released by @Xuanwo in https://github.com/apache/opendal/pull/4798
+* ci(unftp-sbe): init by @George-Miao in https://github.com/apache/opendal/pull/4809
+* ci: Build docs for all integrations by @Xuanwo in https://github.com/apache/opendal/pull/4811
+* ci(scripts): Add a script to generate version list by @Xuanwo in https://github.com/apache/opendal/pull/4827
+### Chore
+* chore(ci): disable aliyun_drive for bindings test by @suyanhanx in https://github.com/apache/opendal/pull/4770
+* chore(unftp-sbe): remove Cargo.lock by @George-Miao in https://github.com/apache/opendal/pull/4805
+
+## [v0.47.1] - 2024-06-18
+
+### Added
+* feat(core): sets default chunk_size and sends buffer > chunk_size directly by @evenyag in https://github.com/apache/opendal/pull/4710
+* feat(services): add optional access_token for AliyunDrive by @yuchanns in https://github.com/apache/opendal/pull/4740
+* feat(unftp-sbe): Add integration for unftp-sbe by @George-Miao in https://github.com/apache/opendal/pull/4753
+### Changed
+* refactor(ofs): Split fuse3 impl into fuse3_opendal  by @Xuanwo in https://github.com/apache/opendal/pull/4721
+* refactor(ovfs): Split ovfs impl into virtiofs_opendal by @zjregee in https://github.com/apache/opendal/pull/4723
+* refactor(*): tiny refactor to the Error type by @waynexia in https://github.com/apache/opendal/pull/4737
+* refactor(aliyun-drive): rewrite writer part by @yuchanns in https://github.com/apache/opendal/pull/4744
+* refactor(object_store): Polish implementation details of object_store by @Xuanwo in https://github.com/apache/opendal/pull/4749
+* refactor(dav-server): Polish dav-server integration details by @Xuanwo in https://github.com/apache/opendal/pull/4751
+* refactor(core): Remove unused `size` for `RangeWrite`. by @reswqa in https://github.com/apache/opendal/pull/4755
+### Fixed
+* fix(s3): parse MultipartUploadResponse to check error in body by @waynexia in https://github.com/apache/opendal/pull/4735
+* fix(services/aliyun-drive): unable to list `/` by @yuchanns in https://github.com/apache/opendal/pull/4754
+### Docs
+* docs: keep docs updated and tidy by @tisonkun in https://github.com/apache/opendal/pull/4709
+* docs: fixup broken links by @tisonkun in https://github.com/apache/opendal/pull/4711
+* docs(website): update release/verify docs by @suyanhanx in https://github.com/apache/opendal/pull/4714
+* docs: Update release.md link correspondingly by @tisonkun in https://github.com/apache/opendal/pull/4717
+* docs: update readme for fuse3_opendal & virtiofs_opendal by @zjregee in https://github.com/apache/opendal/pull/4730
+* docs: Polish README and links to docs by @Xuanwo in https://github.com/apache/opendal/pull/4741
+* docs: Enhance maintainability of the service section by @Xuanwo in https://github.com/apache/opendal/pull/4742
+* docs: Polish opendal rust core README by @Xuanwo in https://github.com/apache/opendal/pull/4745
+* docs: Refactor rust core examples by @Xuanwo in https://github.com/apache/opendal/pull/4757
+### CI
+* ci: verify build website on site content changes by @tisonkun in https://github.com/apache/opendal/pull/4712
+* ci: Fix cert for redis and add docs for key maintenance by @Xuanwo in https://github.com/apache/opendal/pull/4718
+* ci(nodejs): Disable services-all on windows by @Xuanwo in https://github.com/apache/opendal/pull/4762
+
+### Chore
+* chore: use more portable binutils  by @tisonkun in https://github.com/apache/opendal/pull/4713
+* chore(deps): bump clap from 4.5.6 to 4.5.7 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4728
+* chore(deps): bump url from 2.5.0 to 2.5.1 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4729
+* chore(binding/python): Upgrade pyo3 to 0.21 by @reswqa in https://github.com/apache/opendal/pull/4734
+* chore: Make 1.79 clippy happy by @Xuanwo in https://github.com/apache/opendal/pull/4731
+* chore(docs): Add new line in lone services by @Xuanwo in https://github.com/apache/opendal/pull/4743
+* chore: Bump versions to prepare v0.47.1 release by @Xuanwo in https://github.com/apache/opendal/pull/4759
+
 ## [v0.47.0] - 2024-06-07
 
 ### Added
@@ -3719,6 +3821,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.47.3]: https://github.com/apache/opendal/compare/v0.47.2...v0.47.3
+[v0.47.2]: https://github.com/apache/opendal/compare/v0.47.1...v0.47.2
+[v0.47.1]: https://github.com/apache/opendal/compare/v0.47.0...v0.47.1
 [v0.47.0]: https://github.com/apache/opendal/compare/v0.46.0...v0.47.0
 [v0.46.0]: https://github.com/apache/opendal/compare/v0.45.1...v0.46.0
 [v0.45.1]: https://github.com/apache/opendal/compare/v0.45.0...v0.45.1

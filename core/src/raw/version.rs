@@ -17,14 +17,3 @@
 
 /// VERSION is the compiled version of OpenDAL.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_version() {
-        println!("opendal version: {VERSION}");
-        assert!(!VERSION.is_empty())
-    }
-}

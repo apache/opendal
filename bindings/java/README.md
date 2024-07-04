@@ -79,8 +79,8 @@ Then add the dependency to `opendal-java` as following:
 
 ```groovy
 dependencies {
-    implementation "org.apache.opendal:opendal-java:0.40.0"
-    implementation "org.apache.opendal:opendal-java:0.40.0:$osdetector.classifier"
+    implementation "org.apache.opendal:opendal-java:$opendalVersion"
+    implementation "org.apache.opendal:opendal-java:$opendalVersion:$osdetector.classifier"
 }
 ```
 

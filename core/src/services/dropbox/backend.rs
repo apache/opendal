@@ -86,7 +86,7 @@ impl Access for DropboxBackend {
             if "file" == decoded_response.tag {
                 return Err(Error::new(
                     ErrorKind::NotADirectory,
-                    &format!("it's not a directory {}", path),
+                    format!("it's not a directory {}", path),
                 ));
             }
         }
@@ -132,7 +132,7 @@ impl Access for DropboxBackend {
                     } else {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
-                            &format!("no size found for file {}", path),
+                            format!("no size found for file {}", path),
                         ));
                     }
                 }
@@ -272,7 +272,7 @@ impl Access for DropboxBackend {
             }
             _ => Err(Error::new(
                 ErrorKind::Unexpected,
-                &format!(
+                format!(
                     "delete batch failed with unexpected tag {}",
                     decoded_response.tag
                 ),

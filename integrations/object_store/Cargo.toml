@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.44.0"
+version = "0.44.3"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
@@ -40,6 +40,7 @@ opendal = { version = "0.47.0", path = "../../core" }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
+flagset = "0.4"
 
 [dev-dependencies]
 opendal = { version = "0.47.0", path = "../../core", features = [

@@ -55,9 +55,10 @@ impl WebdavService {
 
         let app = Router::new().route("/*path", any_service(webdav_service));
 
-        axum::Server::bind(&webdav_cfg.addr.parse().unwrap())
-            .serve(app.into_make_service())
-            .await?;
+        let listener = tokio::net::TcpListener::bind(&webdav_cfg.addr)
+            .await
+            .unwrap();
+        axum::serve(listener, app.into_make_service()).await?;
 
         Ok(())
     }

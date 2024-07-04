@@ -54,6 +54,27 @@ To verify that everything is working properly, run `pnpm --version`:
 8.11.0
 ```
 
+### Using [devbox](https://www.jetify.com/devbox/docs/)
+
+Launch Development Environment
+
+```shell
+devbox shell
+```
+
+Contains the following tools:
+
+- `node`: `18`
+- `pnpm`: `8.14.0`
+- `libiconv`: fix nix `ld` missing issue
+
+[Running Scripts](https://www.jetify.com/devbox/docs/guides/scripts/)
+
+- `devbox run format`
+- `devbox run test`
+- `devbox run build`
+- `devbox run dev`
+
 ## Build
 
 ```bash

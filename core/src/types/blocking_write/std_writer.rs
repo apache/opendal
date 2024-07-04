@@ -17,7 +17,6 @@
 
 use std::io::Write;
 
-use crate::raw::oio::BlockingWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -30,14 +29,14 @@ use crate::*;
 /// Files are automatically closed when they go out of scope. Errors detected on closing are ignored
 /// by the implementation of Drop. Use the method `close` if these errors must be manually handled.
 pub struct StdWriter {
-    w: Option<oio::BlockingWriter>,
+    w: Option<WriteGenerator<oio::BlockingWriter>>,
     buf: oio::FlexBuf,
 }
 
 impl StdWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
-    pub(crate) fn new(w: oio::BlockingWriter) -> Self {
+    pub(crate) fn new(w: WriteGenerator<oio::BlockingWriter>) -> Self {
         StdWriter {
             w: Some(w),
             buf: oio::FlexBuf::new(256 * 1024),

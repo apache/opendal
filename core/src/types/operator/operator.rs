@@ -858,12 +858,14 @@ impl Operator {
     ///
     /// ## Chunk
     ///
-    /// OpenDAL is designed to write files directly without chunking by default, giving users
-    /// control over the exact size of their writes and helping avoid unnecessary costs.
+    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
+    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
+    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
+    /// more money if we write data in small chunks.
     ///
-    /// This is not efficient for cases when users write small chunks of data. Some storage services
-    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
-    /// will cost more money if we write data in small chunks.
+    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
+    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
+    /// to the storage service.
     ///
     /// Users can use [`Operator::writer_with`] to set a good chunk size might improve the performance,
     ///
@@ -919,12 +921,14 @@ impl Operator {
     ///
     /// Set `chunk` for the writer.
     ///
-    /// OpenDAL is designed to write files directly without chunking by default, giving users
-    /// control over the exact size of their writes and helping avoid unnecessary costs.
+    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
+    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
+    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
+    /// more money if we write data in small chunks.
     ///
-    /// This is not efficient for cases when users write small chunks of data. Some storage services
-    /// like `s3` could even return hard errors like `EntityTooSmall`. Besides, cloud storage services
-    /// will cost more money if we write data in small chunks.
+    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
+    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
+    /// to the storage service.
     ///
     /// Set a good chunk size might improve the performance, reduce the API calls and save money.
     ///
@@ -1079,8 +1083,11 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpWrite::default().merge_executor(self.default_executor.clone()),
-            |inner, path, args| async move {
+            (
+                OpWrite::default().merge_executor(self.default_executor.clone()),
+                OpWriter::default(),
+            ),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -1090,7 +1097,9 @@ impl Operator {
                     );
                 }
 
-                Writer::create(inner, &path, args).await
+                let context = WriteContext::new(inner, path, args, options);
+                let w = Writer::new(context).await?;
+                Ok(w)
             },
         )
     }
@@ -1225,9 +1234,10 @@ impl Operator {
             path,
             (
                 OpWrite::default().merge_executor(self.default_executor.clone()),
+                OpWriter::default(),
                 bs,
             ),
-            |inner, path, (args, bs)| async move {
+            |inner, path, (args, options, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -1237,11 +1247,10 @@ impl Operator {
                     );
                 }
 
-                let (_, w) = inner.write(&path, args).await?;
-                let mut w = Writer::new(w);
-                w.write(bs.clone()).await?;
+                let context = WriteContext::new(inner, path, args, options);
+                let mut w = Writer::new(context).await?;
+                w.write(bs).await?;
                 w.close().await?;
-
                 Ok(())
             },
         )

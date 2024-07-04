@@ -650,16 +650,6 @@ pub struct CompleteMultipartUploadRequest {
 }
 
 #[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadResult {
-    pub location: String,
-    pub bucket: String,
-    pub key: String,
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct ListObjectsOutput {
     pub prefix: String,
@@ -820,30 +810,6 @@ mod tests {
 </CompleteMultipartUpload>"#
                 .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
         )
-    }
-
-    #[test]
-    fn test_deserialize_complete_oss_multipart_result() {
-        let bytes = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<CompleteMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
-    <EncodingType>url</EncodingType>
-    <Location>http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data</Location>
-    <Bucket>oss-example</Bucket>
-    <Key>multipart.data</Key>
-    <ETag>"B864DB6A936D376F9F8D3ED3BBE540****"</ETag>
-</CompleteMultipartUploadResult>"#,
-        );
-
-        let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(bytes.reader()).unwrap();
-        assert_eq!("\"B864DB6A936D376F9F8D3ED3BBE540****\"", result.etag);
-        assert_eq!(
-            "http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data",
-            result.location
-        );
-        assert_eq!("oss-example", result.bucket);
-        assert_eq!("multipart.data", result.key);
     }
 
     #[test]

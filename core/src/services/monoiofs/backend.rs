@@ -23,7 +23,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for monoiofs services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Deserialize, Debug)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MonoiofsConfig {
@@ -33,14 +33,6 @@ pub struct MonoiofsConfig {
     ///
     /// Default to `/` if not set.
     pub root: Option<String>,
-}
-
-impl Debug for MonoiofsConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MonoiofsConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
 }
 
 /// File system support via [`monoio`].

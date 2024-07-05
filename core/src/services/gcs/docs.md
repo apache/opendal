@@ -37,7 +37,7 @@ OpenDAL supports the following authentication options:
 4. Fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
     - Only works when running inside Google Cloud.
     - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
-5. A custom `TokenLoader` via `GcsBuilder.customed_token_loader()`
+5. A custom `TokenLoader` via `GcsBuilder.customized_token_loader()`
 
 Notes:
 

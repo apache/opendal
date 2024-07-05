@@ -86,7 +86,7 @@ pub struct GcsBuilder {
     config: GcsConfig,
 
     http_client: Option<HttpClient>,
-    customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl Debug for GcsBuilder {
@@ -189,9 +189,9 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the customed token loader used by this service.
-    pub fn customed_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
-        self.customed_token_loader = Some(token_load);
+    /// Specify the customized token loader used by this service.
+    pub fn customized_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
+        self.customized_token_loader = Some(token_load);
         self
     }
 
@@ -300,8 +300,8 @@ impl Builder for GcsBuilder {
         if let Ok(Some(cred)) = cred_loader.load() {
             token_loader = token_loader.with_credentials(cred)
         }
-        if let Some(loader) = self.customed_token_loader.take() {
-            token_loader = token_loader.with_customed_token_loader(loader)
+        if let Some(loader) = self.customized_token_loader.take() {
+            token_loader = token_loader.with_customized_token_loader(loader)
         }
 
         let signer = GoogleSigner::new("storage");

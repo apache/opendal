@@ -232,7 +232,7 @@ impl Debug for S3Config {
 pub struct S3Builder {
     config: S3Config,
 
-    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
     http_client: Option<HttpClient>,
 }
 
@@ -577,12 +577,12 @@ impl S3Builder {
         self
     }
 
-    /// Adding a customed credential load for service.
+    /// Adding a customized credential load for service.
     ///
-    /// If customed_credential_load has been set, we will ignore all other
+    /// If customized_credential_load has been set, we will ignore all other
     /// credential load methods.
-    pub fn customed_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
-        self.customed_credential_load = Some(cred);
+    pub fn customized_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
+        self.customized_credential_load = Some(cred);
         self
     }
 
@@ -805,7 +805,7 @@ impl Builder for S3Builder {
 
         S3Builder {
             config,
-            customed_credential_load: None,
+            customized_credential_load: None,
             http_client: None,
         }
     }
@@ -935,8 +935,8 @@ impl Builder for S3Builder {
         }
 
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
-        // If customed_credential_load is set, we will use it.
-        if let Some(v) = self.customed_credential_load.take() {
+        // If customized_credential_load is set, we will use it.
+        if let Some(v) = self.customized_credential_load.take() {
             loader = Some(v);
         }
 

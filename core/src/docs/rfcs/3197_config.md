@@ -180,7 +180,7 @@ pub struct S3Config {
 pub struct S3Builder {
     config: S3Config,
     
-    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
     http_client: Option<HttpClient>,
 }
 ```

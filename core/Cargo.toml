@@ -159,6 +159,7 @@ services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
 services-mongodb = ["dep:mongodb"]
+services-monoiofs = ["dep:monoio"]
 services-mysql = ["dep:mysql_async"]
 services-obs = [
   "dep:reqsign",
@@ -345,6 +346,8 @@ compio = { version = "0.11.0", optional = true, features = [
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
+# for services-monoiofs
+monoio = { version = "0.2.3", optional = true, features = ["sync"] }
 
 # Layers
 # for layers-async-backtrace

@@ -73,7 +73,7 @@ impl SyncFilter for CloudFilter {
 
         let mut reader = self
             .op
-            .reader_with(&remote_path.to_string_lossy().replace("\\", "/"))
+            .reader_with(&remote_path.to_string_lossy().replace('\\', "/"))
             .call()
             .map_err(|e| {
                 log::warn!("failed to open file: {}", e);
@@ -144,7 +144,7 @@ impl SyncFilter for CloudFilter {
         let now = FileTime::now();
         let mut entries = self
             .op
-            .lister_with(&remote_path.to_string_lossy().replace("\\", "/"))
+            .lister_with(&remote_path.to_string_lossy().replace('\\', "/"))
             .metakey(Metakey::LastModified | Metakey::ContentLength)
             .call()
             .map_err(|e| {
@@ -243,7 +243,7 @@ fn check_in_sync(entry: &Entry, root: &Path) -> bool {
                 ),
                 None,
             )
-            .inspect_err(|e| log::error!("failed to convert to placeholder: {e:?}"));
+            .map_err(|e| log::error!("failed to convert to placeholder: {e:?}"));
     }
 
     false

@@ -289,6 +289,17 @@ impl Buffer {
         ret.freeze()
     }
 
+    /// Combine all bytes together into one single [`Bytes`].
+    ///
+    /// Unlike [`to_bytes`](Self::to_bytes), this operation is zero copy if the underlying bytes are contiguous.
+    #[inline]
+    pub fn into_bytes(self) -> Bytes {
+        match self.0 {
+            Inner::Contiguous(bytes) => bytes,
+            Inner::NonContiguous { .. } => self.to_bytes(),
+        }
+    }
+
     /// Combine all bytes together into one single [`Vec<u8>`].
     ///
     /// This operation is not zero copy, it will copy all bytes into one single [`Vec<u8>`].
@@ -317,6 +328,12 @@ impl Buffer {
                 ret
             }
         }
+    }
+}
+
+impl From<Buffer> for Bytes {
+    fn from(buffer: Buffer) -> Self {
+        buffer.into_bytes()
     }
 }
 

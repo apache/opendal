@@ -48,7 +48,7 @@ mod constants {
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
-    pub const OBJECT_VERSIONING: &str = "versionId";
+    pub const OSS_QUERY_VERSION_ID: &str = "versionId";
 }
 
 pub struct OssCore {
@@ -258,7 +258,7 @@ impl OssCore {
         if let Some(version) = args.version() {
             query_args.push(format!(
                 "{}={}",
-                constants::OBJECT_VERSIONING,
+                constants::OSS_QUERY_VERSION_ID,
                 percent_encode_path(version)
             ))
         }
@@ -299,7 +299,7 @@ impl OssCore {
         if let Some(version) = args.version() {
             query_args.push(format!(
                 "{}={}",
-                constants::OBJECT_VERSIONING,
+                constants::OSS_QUERY_VERSION_ID,
                 percent_encode_path(version)
             ))
         }
@@ -330,7 +330,7 @@ impl OssCore {
         if let Some(version) = args.version() {
             query_args.push(format!(
                 "{}={}",
-                constants::OBJECT_VERSIONING,
+                constants::OSS_QUERY_VERSION_ID,
                 percent_encode_path(version)
             ))
         }

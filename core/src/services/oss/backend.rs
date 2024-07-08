@@ -445,7 +445,16 @@ impl Access for OssBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+
+                if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
+                    meta.set_version(v);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

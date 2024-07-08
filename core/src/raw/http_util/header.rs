@@ -108,16 +108,6 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CONTENT_DISPOSITION)
 }
 
-/// Parse version id for header map
-#[allow(unused_variables)]
-pub fn parse_version_id(headers: &HeaderMap) -> Result<Option<&str>> {
-    #[cfg(feature = "services-oss")]
-    return parse_header_to_str(headers, "x-oss-version-id");
-
-    #[cfg(not(feature = "services-oss"))]
-    return Ok(None);
-}
-
 /// Parse header value to string according to name.
 #[inline]
 pub fn parse_header_to_str<K>(headers: &HeaderMap, name: K) -> Result<Option<&str>>
@@ -194,10 +184,6 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_disposition(headers)? {
         m.set_content_disposition(v);
-    }
-
-    if let Some(v) = parse_version_id(headers)? {
-        m.set_version(v);
     }
 
     Ok(m)

@@ -130,10 +130,16 @@ impl Reader {
             Bound::Unbounded => match self.size.load() {
                 Some(v) => v,
                 None => {
+                    let mut op_stat = OpStat::new();
+
+                    if let Some(v) = self.ctx.args().version() {
+                        op_stat = op_stat.with_version(v);
+                    }
+
                     let size = self
                         .ctx
                         .accessor()
-                        .stat(self.ctx.path(), get_stat_op_from_read_op(self.ctx.args()))
+                        .stat(self.ctx.path(), op_stat)
                         .await?
                         .into_metadata()
                         .content_length();
@@ -369,31 +375,6 @@ impl Reader {
         let range = self.parse_range(range).await?;
         Ok(FuturesBytesStream::new(self.ctx, range))
     }
-}
-
-fn get_stat_op_from_read_op(read: &OpRead) -> OpStat {
-    let mut op_stat = OpStat::new();
-
-    if let Some(v) = read.if_match() {
-        op_stat = op_stat.with_if_match(v);
-    }
-    if let Some(v) = read.if_none_match() {
-        op_stat = op_stat.with_if_none_match(v);
-    }
-    if let Some(v) = read.override_cache_control() {
-        op_stat = op_stat.with_override_cache_control(v);
-    }
-    if let Some(v) = read.override_content_disposition() {
-        op_stat = op_stat.with_override_content_disposition(v);
-    }
-    if let Some(v) = read.override_content_type() {
-        op_stat = op_stat.with_override_content_type(v);
-    }
-    if let Some(v) = read.version() {
-        op_stat = op_stat.with_version(v);
-    }
-
-    op_stat
 }
 
 #[cfg(test)]

@@ -83,7 +83,7 @@ impl GithubCore {
 
 impl GithubCore {
     pub async fn get_file_sha(&self, path: &str) -> Result<Option<String>> {
-        // if the token is not set, we shhould not try to get the sha of the file.
+        // if the token is not set, we should not try to get the sha of the file.
         if self.token.is_none() {
             return Err(Error::new(
                 ErrorKind::PermissionDenied,

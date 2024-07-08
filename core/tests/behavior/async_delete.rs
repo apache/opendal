@@ -147,7 +147,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     let dir = uuid::Uuid::new_v4().to_string();
     op.create_dir(&format!("{dir}/"))
         .await
-        .expect("creat must succeed");
+        .expect("create must succeed");
 
     let expected: Vec<_> = (0..100).collect();
     for path in expected.iter() {

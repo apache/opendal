@@ -98,7 +98,7 @@ impl GridFsBuilder {
         self
     }
 
-    /// Set the buctet name of the MongoDB GridFs service to read/write.
+    /// Set the bucket name of the MongoDB GridFs service to read/write.
     ///
     /// Default to `fs` if not specified.
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {

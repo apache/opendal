@@ -41,3 +41,5 @@ vm-memory = { version = "0.14.0", features = [
 ] }
 vmm-sys-util = "0.12.1"
 opendal = { version = "0.47.0", path = "../../core" }
+sharded-slab = "0.1.7"
+tokio = { version = "1.37.0", features = ["rt-multi-thread"] }

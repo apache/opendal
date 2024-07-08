@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::mem::size_of;
+use std::sync::RwLock;
 
-use opendal::Operator;
+use opendal::{Buffer, Operator};
+use sharded_slab::Slab;
+use tokio::runtime::{Builder, Runtime};
 use vm_memory::ByteValued;
 
 use crate::error::*;
@@ -36,17 +40,94 @@ const BUFFER_HEADER_SIZE: u32 = 256;
 /// The maximum length of the data part of the message, used for read/write data.
 const MAX_BUFFER_SIZE: u32 = 1 << 20;
 
+/// FileType represents the type of the opened file.
+enum FileType {
+    DIR,
+    FILE,
+    Unknown,
+}
+
+/// FileKey represents the key assigned to the opened file.
+#[derive(Clone, Copy)]
+struct FileKey(usize);
+
+/// OpenedFile represents file that opened in memory.
+#[allow(dead_code)]
+#[derive(Clone)]
+struct OpenedFile {
+    path: String,
+    stat: libc::stat64,
+}
+
+impl OpenedFile {
+    fn new(file_type: FileType, path: &str) -> OpenedFile {
+        let mut stat: libc::stat64 = unsafe { std::mem::zeroed() };
+        stat.st_uid = 1000;
+        stat.st_gid = 1000;
+        match file_type {
+            FileType::DIR => {
+                stat.st_nlink = 2;
+                stat.st_mode = libc::S_IFDIR | 0o755;
+            }
+            FileType::FILE => {
+                stat.st_nlink = 1;
+                stat.st_mode = libc::S_IFREG | 0o755;
+            }
+            FileType::Unknown => (),
+        }
+        OpenedFile {
+            stat,
+            path: path.to_string(),
+        }
+    }
+}
+
+fn opendal_error2error(error: opendal::Error) -> Error {
+    match error.kind() {
+        opendal::ErrorKind::Unsupported => {
+            new_vhost_user_fs_error("unsupported error occurred in backend storage system", None)
+        }
+        opendal::ErrorKind::NotFound => {
+            new_vhost_user_fs_error("notfound error occurred in backend storage system", None)
+        }
+        _ => new_vhost_user_fs_error("unexpected error occurred in backend storage system", None),
+    }
+}
+
+fn opendal_metadata2opened_file(path: &str, metadata: &opendal::Metadata) -> OpenedFile {
+    let file_type = match metadata.mode() {
+        opendal::EntryMode::DIR => FileType::DIR,
+        opendal::EntryMode::FILE => FileType::FILE,
+        opendal::EntryMode::Unknown => FileType::Unknown,
+    };
+    OpenedFile::new(file_type, path)
+}
+
 /// Filesystem is a filesystem implementation with opendal backend,
 /// and will decode and process messages from VMs.
+#[allow(dead_code)]
 pub struct Filesystem {
-    #[allow(dead_code)]
+    rt: Runtime,
     core: Operator,
+    opened_inodes: Slab<RwLock<OpenedFile>>, // opened key -> opened file
+    opened_inodes_map: RwLock<HashMap<String, FileKey>>, // opened path -> opened key
 }
 
 #[allow(dead_code)]
 impl Filesystem {
     pub fn new(core: Operator) -> Filesystem {
-        Filesystem { core }
+        let rt = Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        Filesystem {
+            rt,
+            core,
+            opened_inodes: Slab::default(),
+            opened_inodes_map: RwLock::new(HashMap::default()),
+        }
     }
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
@@ -64,6 +145,69 @@ impl Filesystem {
         } else {
             Filesystem::reply_error(in_header.unique, w)
         }
+    }
+}
+
+#[allow(dead_code)]
+impl Filesystem {
+    fn get_opened(&self, path: &str) -> Option<FileKey> {
+        let map = self.opened_inodes_map.read().unwrap();
+        map.get(path).copied()
+    }
+
+    fn insert_opened(&self, path: &str, key: FileKey) {
+        let mut map = self.opened_inodes_map.write().unwrap();
+        map.insert(path.to_string(), key);
+    }
+
+    fn delete_opened(&self, path: &str) {
+        let mut map = self.opened_inodes_map.write().unwrap();
+        map.remove(path);
+    }
+
+    fn get_opened_inode(&self, key: FileKey) -> Result<OpenedFile> {
+        if let Some(opened_inode) = self.opened_inodes.get(key.0) {
+            let inode_data = opened_inode.read().unwrap().clone();
+            Ok(inode_data)
+        } else {
+            Err(new_unexpected_error("invalid inode", None))
+        }
+    }
+
+    fn insert_opened_inode(&self, value: OpenedFile) -> Result<FileKey> {
+        if let Some(key) = self.opened_inodes.insert(RwLock::new(value)) {
+            Ok(FileKey(key))
+        } else {
+            Err(new_unexpected_error("too many opened fiels", None))
+        }
+    }
+
+    fn delete_opened_inode(&self, key: FileKey) -> Result<()> {
+        if self.opened_inodes.remove(key.0) {
+            Ok(())
+        } else {
+            Err(new_unexpected_error("invalid inode", None))
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl Filesystem {
+    async fn do_get_stat(&self, path: &str) -> Result<OpenedFile> {
+        let metadata = self.core.stat(&path).await.map_err(opendal_error2error)?;
+
+        let attr = opendal_metadata2opened_file(path, &metadata);
+
+        Ok(attr)
+    }
+
+    async fn do_create_file(&self, path: &str) -> Result<()> {
+        self.core
+            .write(&path, Buffer::new())
+            .await
+            .map_err(opendal_error2error)?;
+
+        Ok(())
     }
 }
 

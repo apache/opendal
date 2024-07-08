@@ -110,7 +110,11 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 
 /// Parse version id for header map
 pub fn parse_version_id(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, "x-oss-version-id")
+    #[cfg(feature = "services-oss")]
+    return parse_header_to_str(headers, "x-oss-version-id");
+
+    #[cfg(not(feature = "services-oss"))]
+    return None;
 }
 
 /// Parse header value to string according to name.

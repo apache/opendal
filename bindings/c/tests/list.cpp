@@ -47,7 +47,7 @@ protected:
     void TearDown() override { opendal_operator_free(this->p); }
 };
 
-// Basic usecase of list
+// Basic use case of list
 TEST_F(OpendalListTest, ListDirTest)
 {
     std::string dname = "some_random_dir_name_152312";

@@ -227,7 +227,7 @@ impl VhostUserBackend for VhostUserFsBackend {
     ) -> io::Result<()> {
         if evset != EventSet::IN {
             return Err(new_unexpected_error(
-                "failed to handle handle event other than input event",
+                "failed to handle event other than input event",
                 None,
             )
             .into());

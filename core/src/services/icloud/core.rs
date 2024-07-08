@@ -194,7 +194,7 @@ impl IcloudSigner {
             return Err(parse_error(resp).await?);
         }
 
-        // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
+        // Update SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
         self.update(&resp)?;
 
         let bs = resp.into_body();

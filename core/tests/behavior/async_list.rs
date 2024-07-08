@@ -325,7 +325,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create_dir(&path).await.expect("creat must succeed");
+    op.create_dir(&path).await.expect("create must succeed");
 
     let mut obs = op.lister("/").await?;
     let mut found = false;
@@ -360,11 +360,11 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir_name = format!("{}/", uuid::Uuid::new_v4());
     let dir_path = format!("{dir}{dir_name}");
 
-    op.create_dir(&dir).await.expect("creat must succeed");
+    op.create_dir(&dir).await.expect("create must succeed");
     op.write(&file_path, "test_list_nested_dir")
         .await
-        .expect("creat must succeed");
-    op.create_dir(&dir_path).await.expect("creat must succeed");
+        .expect("create must succeed");
+    op.create_dir(&dir_path).await.expect("create must succeed");
 
     let obs = op.list(&parent).await?;
     assert_eq!(obs.len(), 1, "parent should only got 1 entry");

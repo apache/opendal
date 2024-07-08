@@ -109,8 +109,8 @@ fn opendal_metadata2opened_file(path: &str, metadata: &opendal::Metadata) -> Ope
 pub struct Filesystem {
     rt: Runtime,
     core: Operator,
-    opened_inodes: Slab<RwLock<OpenedFile>>, // opened key -> opened file
-    opened_inodes_map: RwLock<HashMap<String, FileKey>>, // opened path -> opened key
+    opened_files: Slab<RwLock<OpenedFile>>, // opened key -> opened file
+    opened_files_map: RwLock<HashMap<String, FileKey>>, // opened path -> opened key
 }
 
 #[allow(dead_code)]
@@ -125,8 +125,8 @@ impl Filesystem {
         Filesystem {
             rt,
             core,
-            opened_inodes: Slab::default(),
-            opened_inodes_map: RwLock::new(HashMap::default()),
+            opened_files: Slab::default(),
+            opened_files_map: RwLock::new(HashMap::default()),
         }
     }
 
@@ -151,31 +151,31 @@ impl Filesystem {
 #[allow(dead_code)]
 impl Filesystem {
     fn get_opened(&self, path: &str) -> Option<FileKey> {
-        let map = self.opened_inodes_map.read().unwrap();
+        let map = self.opened_files_map.read().unwrap();
         map.get(path).copied()
     }
 
     fn insert_opened(&self, path: &str, key: FileKey) {
-        let mut map = self.opened_inodes_map.write().unwrap();
+        let mut map = self.opened_files_map.write().unwrap();
         map.insert(path.to_string(), key);
     }
 
     fn delete_opened(&self, path: &str) {
-        let mut map = self.opened_inodes_map.write().unwrap();
+        let mut map = self.opened_files_map.write().unwrap();
         map.remove(path);
     }
 
     fn get_opened_inode(&self, key: FileKey) -> Result<OpenedFile> {
-        if let Some(opened_inode) = self.opened_inodes.get(key.0) {
+        if let Some(opened_inode) = self.opened_files.get(key.0) {
             let inode_data = opened_inode.read().unwrap().clone();
             Ok(inode_data)
         } else {
-            Err(new_unexpected_error("invalid inode", None))
+            Err(new_unexpected_error("invalid file", None))
         }
     }
 
     fn insert_opened_inode(&self, value: OpenedFile) -> Result<FileKey> {
-        if let Some(key) = self.opened_inodes.insert(RwLock::new(value)) {
+        if let Some(key) = self.opened_files.insert(RwLock::new(value)) {
             Ok(FileKey(key))
         } else {
             Err(new_unexpected_error("too many opened files", None))
@@ -183,10 +183,10 @@ impl Filesystem {
     }
 
     fn delete_opened_inode(&self, key: FileKey) -> Result<()> {
-        if self.opened_inodes.remove(key.0) {
+        if self.opened_files.remove(key.0) {
             Ok(())
         } else {
-            Err(new_unexpected_error("invalid inode", None))
+            Err(new_unexpected_error("invalid file", None))
         }
     }
 }
@@ -195,7 +195,6 @@ impl Filesystem {
 impl Filesystem {
     async fn do_get_stat(&self, path: &str) -> Result<OpenedFile> {
         let metadata = self.core.stat(path).await.map_err(opendal_error2error)?;
-
         let attr = opendal_metadata2opened_file(path, &metadata);
 
         Ok(attr)

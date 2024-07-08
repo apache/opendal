@@ -64,8 +64,7 @@ impl Builder for MonoiofsBuilder {
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
         let config = MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+            .expect("config deserialize must success");
         MonoiofsBuilder { config }
     }
 

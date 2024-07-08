@@ -130,10 +130,16 @@ impl Reader {
             Bound::Unbounded => match self.size.load() {
                 Some(v) => v,
                 None => {
+                    let mut op_stat = OpStat::new();
+
+                    if let Some(v) = self.ctx.args().version() {
+                        op_stat = op_stat.with_version(v);
+                    }
+
                     let size = self
                         .ctx
                         .accessor()
-                        .stat(self.ctx.path(), OpStat::new())
+                        .stat(self.ctx.path(), op_stat)
                         .await?
                         .into_metadata()
                         .content_length();

@@ -440,10 +440,7 @@ impl Access for OssBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self
-            .core
-            .oss_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.oss_head_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -454,7 +451,7 @@ impl Access for OssBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.oss_get_object(path, args.range(), &args).await?;
+        let resp = self.core.oss_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -486,8 +483,8 @@ impl Access for OssBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.oss_delete_object(path).await?;
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.oss_delete_object(path, &args).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
@@ -519,14 +516,8 @@ impl Access for OssBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .oss_head_object_request(path, true, v.if_match(), v.if_none_match())?
-            }
-            PresignOperation::Read(v) => {
-                self.core
-                    .oss_get_object_request(path, BytesRange::default(), true, v)?
-            }
+            PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v)?,
+            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v)?,
             PresignOperation::Write(v) => {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)?

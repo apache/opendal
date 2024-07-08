@@ -42,8 +42,8 @@ const MAX_BUFFER_SIZE: u32 = 1 << 20;
 
 /// FileType represents the type of the opened file.
 enum FileType {
-    DIR,
-    FILE,
+    Dir,
+    File,
     Unknown,
 }
 
@@ -65,11 +65,11 @@ impl OpenedFile {
         stat.st_uid = 1000;
         stat.st_gid = 1000;
         match file_type {
-            FileType::DIR => {
+            FileType::Dir => {
                 stat.st_nlink = 2;
                 stat.st_mode = libc::S_IFDIR | 0o755;
             }
-            FileType::FILE => {
+            FileType::File => {
                 stat.st_nlink = 1;
                 stat.st_mode = libc::S_IFREG | 0o755;
             }
@@ -96,8 +96,8 @@ fn opendal_error2error(error: opendal::Error) -> Error {
 
 fn opendal_metadata2opened_file(path: &str, metadata: &opendal::Metadata) -> OpenedFile {
     let file_type = match metadata.mode() {
-        opendal::EntryMode::DIR => FileType::DIR,
-        opendal::EntryMode::FILE => FileType::FILE,
+        opendal::EntryMode::DIR => FileType::Dir,
+        opendal::EntryMode::FILE => FileType::File,
         opendal::EntryMode::Unknown => FileType::Unknown,
     };
     OpenedFile::new(file_type, path)
@@ -178,7 +178,7 @@ impl Filesystem {
         if let Some(key) = self.opened_inodes.insert(RwLock::new(value)) {
             Ok(FileKey(key))
         } else {
-            Err(new_unexpected_error("too many opened fiels", None))
+            Err(new_unexpected_error("too many opened files", None))
         }
     }
 
@@ -194,7 +194,7 @@ impl Filesystem {
 #[allow(dead_code)]
 impl Filesystem {
     async fn do_get_stat(&self, path: &str) -> Result<OpenedFile> {
-        let metadata = self.core.stat(&path).await.map_err(opendal_error2error)?;
+        let metadata = self.core.stat(path).await.map_err(opendal_error2error)?;
 
         let attr = opendal_metadata2opened_file(path, &metadata);
 
@@ -203,7 +203,7 @@ impl Filesystem {
 
     async fn do_create_file(&self, path: &str) -> Result<()> {
         self.core
-            .write(&path, Buffer::new())
+            .write(path, Buffer::new())
             .await
             .map_err(opendal_error2error)?;
 

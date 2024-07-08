@@ -166,7 +166,7 @@ impl Builder for FsBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for posix alike fs.
+/// Backend is used to serve `Accessor` support for posix-like fs.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
     core: Arc<FsCore>,

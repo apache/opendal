@@ -1093,7 +1093,16 @@ impl Access for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+
+                if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
+                    meta.set_version(v);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -1124,13 +1133,13 @@ impl Access for S3Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         // This would delete the bucket, do not perform
         if self.core.root == "/" && path == "/" {
             return Ok(RpDelete::default());
         }
 
-        let resp = self.core.s3_delete_object(path).await?;
+        let resp = self.core.s3_delete_object(path, &args).await?;
 
         let status = resp.status();
 

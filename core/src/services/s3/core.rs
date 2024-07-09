@@ -71,6 +71,8 @@ mod constants {
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
+
+    pub const S3_QUERY_VERSION_ID: &str = "versionId";
 }
 
 pub struct S3Core {
@@ -312,6 +314,13 @@ impl S3Core {
                 percent_encode_path(override_cache_control)
             ))
         }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_decode_path(version)
+            ))
+        }
         if !query_args.is_empty() {
             url.push_str(&format!("?{}", query_args.join("&")));
         }
@@ -365,6 +374,13 @@ impl S3Core {
                 "{}={}",
                 constants::RESPONSE_CACHE_CONTROL,
                 percent_encode_path(override_cache_control)
+            ))
+        }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_decode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -463,10 +479,24 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::delete(&url)
             .body(Buffer::new())

@@ -33,7 +33,7 @@ let mut builder = services::S3::default();
 // Credential.
 builder.access_key_id(&cfg.access_key_id);
 builder.secret_access_key(&cfg.secret_access_key);
-builder.security_token(&cfg.security_token);
+builder.session_token(&cfg.session_token);
 builder.role_arn(&cfg.role_arn);
 builder.external_id(&cfg.external_id);
 

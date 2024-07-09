@@ -49,6 +49,12 @@ pub trait PositionWrite: Send + Sync + Unpin + 'static {
         offset: u64,
         buf: Buffer,
     ) -> impl Future<Output = Result<()>> + MaybeSend;
+
+    /// close is used to close the underlying file.
+    fn close(&self) -> impl Future<Output = Result<()>> + MaybeSend;
+
+    /// abort is used to abort the underlying abort.
+    fn abort(&self) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 struct WriteInput<W: PositionWrite> {
@@ -151,10 +157,14 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
             self.w.write_all_at(offset, buffer).await?;
             self.cache = None;
         }
+        self.w.close().await?;
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.tasks.clear();
+        self.cache = None;
+        self.w.abort().await?;
         Ok(())
     }
 }
@@ -214,6 +224,14 @@ mod tests {
             );
             test.bytes.extend(input);
 
+            Ok(())
+        }
+
+        async fn close(&self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn abort(&self) -> Result<()> {
             Ok(())
         }
     }

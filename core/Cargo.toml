@@ -134,7 +134,7 @@ services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
-services-fs = ["tokio/fs"]
+services-fs = ["tokio/fs", "internal-tokio-rt"]
 services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
   "dep:reqsign",

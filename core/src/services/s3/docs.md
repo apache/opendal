@@ -21,7 +21,7 @@ This service can be used to:
 - `region`: Set the region for backend.
 - `access_key_id`: Set the access_key_id for backend.
 - `secret_access_key`: Set the secret_access_key for backend.
-- `security_token`: Set the security_token for backend.
+- `session_token`: Set the session_token for backend.
 - `default_storage_class`: Set the default storage_class for backend.
 - `server_side_encryption`: Set the server_side_encryption for backend.
 - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
@@ -37,7 +37,7 @@ Refer to [`S3Builder`]'s public API docs for more information.
 
 OpenDAL now provides support for S3 temporary security credentials in IAM.
 
-The way to take advantage of this feature is to build your S3 backend with `Builder::security_token`.
+The way to take advantage of this feature is to build your S3 backend with `Builder::session_token`.
 
 But OpenDAL will not refresh the temporary security credentials, please keep in mind to refresh those credentials in time.
 

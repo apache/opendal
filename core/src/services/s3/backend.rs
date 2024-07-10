@@ -111,11 +111,11 @@ pub struct S3Config {
     /// - If secret_access_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
     pub secret_access_key: Option<String>,
-    /// security_token (aka, session token) of this backend.
+    /// session_token (aka, security token) of this backend.
     ///
-    /// This token will expire after sometime, it's recommended to set security_token
+    /// This token will expire after sometime, it's recommended to set session_token
     /// by hand.
-    pub security_token: Option<String>,
+    pub session_token: Option<String>,
     /// role_arn for this backend.
     ///
     /// If `role_arn` is set, we will use already known config as source
@@ -523,12 +523,18 @@ impl S3Builder {
     ///
     /// # Warning
     ///
-    /// security token's lifetime is short and requires users to refresh in time.
-    pub fn security_token(&mut self, token: &str) -> &mut Self {
+    /// session token's lifetime is short and requires users to refresh in time.
+    pub fn session_token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.config.security_token = Some(token.to_string());
+            self.config.session_token = Some(token.to_string());
         }
         self
+    }
+
+    /// Set temporary credential used in AWS S3 connections
+    #[deprecated(note = "Please use `session_token` instead")]
+    pub fn security_token(&mut self, token: &str) -> &mut Self {
+        self.session_token(token)
     }
 
     /// Disable config load so that opendal will not load config from
@@ -930,7 +936,7 @@ impl Builder for S3Builder {
         if let Some(v) = self.config.secret_access_key.take() {
             cfg.secret_access_key = Some(v)
         }
-        if let Some(v) = self.config.security_token.take() {
+        if let Some(v) = self.config.session_token.take() {
             cfg.session_token = Some(v)
         }
 

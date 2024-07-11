@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![allow(dead_code)] // TODO: Remove this after backend is implemented
-
 mod backend;
 mod core;
 mod lister;

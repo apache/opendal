@@ -156,6 +156,8 @@ impl Operator {
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
+            #[cfg(feature = "services-compfs")]
+            Scheme::Compfs => Self::from_map::<services::Compfs>(map)?.finish(),
             #[cfg(feature = "services-upyun")]
             Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
             #[cfg(feature = "services-koofr")]

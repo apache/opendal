@@ -64,7 +64,7 @@ impl Builder for CompfsBuilder {
             )),
         }?;
 
-        // If root dir is not exist, we must create it.
+        // If root dir does not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == std::io::ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {

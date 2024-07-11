@@ -164,11 +164,17 @@ impl Access for CompfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = self.core.prepare_path(path);
-
-        self.core
-            .exec(move || async move { compio::fs::remove_file(path).await })
-            .await?;
+        if path.ends_with("/") {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_dir(path).await })
+                .await?;
+        } else {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_file(path).await })
+                .await?;
+        }
 
         Ok(RpDelete::default())
     }

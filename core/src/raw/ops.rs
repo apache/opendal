@@ -19,6 +19,7 @@
 //!
 //! By using ops, users can add more context for operation.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use flagset::FlagSet;
@@ -537,24 +538,24 @@ impl OpStat {
         self.override_content_disposition.as_deref()
     }
 
-    /// Sets the cache-control header that should be send back by the remote read operation.
+    /// Sets the cache-control header that should be sent back by the remote read operation.
     pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
         self.override_cache_control = Some(cache_control.into());
         self
     }
 
-    /// Returns the cache-control header that should be send back by the remote read operation.
+    /// Returns the cache-control header that should be sent back by the remote read operation.
     pub fn override_cache_control(&self) -> Option<&str> {
         self.override_cache_control.as_deref()
     }
 
-    /// Sets the content-type header that should be send back by the remote read operation.
+    /// Sets the content-type header that should be sent back by the remote read operation.
     pub fn with_override_content_type(mut self, content_type: &str) -> Self {
         self.override_content_type = Some(content_type.into());
         self
     }
 
-    /// Returns the content-type header that should be send back by the remote read operation.
+    /// Returns the content-type header that should be sent back by the remote read operation.
     pub fn override_content_type(&self) -> Option<&str> {
         self.override_content_type.as_deref()
     }
@@ -580,6 +581,7 @@ pub struct OpWrite {
     content_disposition: Option<String>,
     cache_control: Option<String>,
     executor: Option<Executor>,
+    user_metadata: Option<HashMap<String, String>>,
 }
 
 impl OpWrite {
@@ -676,6 +678,17 @@ impl OpWrite {
             return self.with_executor(exec);
         }
         self
+    }
+
+    /// Set the user defined metadata of the op
+    pub fn with_user_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.user_metadata = Some(metadata);
+        self
+    }
+
+    /// Get the user defined metadata from the op
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.user_metadata.as_ref()
     }
 }
 

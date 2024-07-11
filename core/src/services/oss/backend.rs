@@ -107,7 +107,7 @@ impl OssBuilder {
         self
     }
 
-    /// Set a endpoint for generating presigned urls.
+    /// Set an endpoint for generating presigned urls.
     ///
     /// You can offer a public endpoint like <https://oss-cn-beijing.aliyuncs.com> to return a presinged url for
     /// public accessors, along with an internal endpoint like <https://oss-cn-beijing-internal.aliyuncs.com>
@@ -416,6 +416,7 @@ impl Access for OssBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -447,7 +448,7 @@ impl Access for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_metadata(path, constants::USER_METADATA_PREFIX, resp.headers())?;
 
                 if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
                     meta.set_version(v);

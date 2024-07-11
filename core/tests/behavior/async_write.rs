@@ -26,6 +26,7 @@ use futures::StreamExt;
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
+use std::collections::HashMap;
 
 use crate::*;
 
@@ -42,6 +43,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_cache_control,
             test_write_with_content_type,
             test_write_with_content_disposition,
+            test_write_with_user_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
             test_writer_write_with_concurrent,
@@ -70,6 +72,7 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
     op.write(&path, content).await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
+    println!("path: {}, meta: {:?}", path, meta);
     assert_eq!(meta.content_length(), size as u64);
 
     Ok(())
@@ -201,6 +204,29 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
         target_content_disposition
     );
     assert_eq!(meta.content_length(), size as u64);
+
+    Ok(())
+}
+
+/// write a single file with user defined metadata should succeed.
+pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_user_metadata {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let target_user_metadata: HashMap<String, String> =
+        [("location".to_string(), "everywhere".to_string())]
+            .into_iter()
+            .collect();
+    op.write_with(&path, content)
+        .user_metadata(target_user_metadata.clone())
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let resp_meta = meta.user_metadata().expect("meta data must exist");
+
+    assert_eq!(*resp_meta, target_user_metadata);
 
     Ok(())
 }

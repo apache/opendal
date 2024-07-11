@@ -32,6 +32,7 @@ use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
 use md5::Digest;
+use std::collections::HashMap;
 
 use crate::raw::*;
 use crate::EntryMode;
@@ -184,6 +185,45 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_disposition(headers)? {
         m.set_content_disposition(v);
+    }
+
+    Ok(m)
+}
+
+/// parse_metadata will parse http headers(including standards http headers
+/// and user defined metadata header) into Metadata.
+///
+/// # Arguments
+///
+/// * `user_metadata_prefix` is the prefix of user defined metadata key
+///
+/// # Notes
+///
+/// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+pub fn parse_metadata(
+    path: &str,
+    user_metadata_prefix: &str,
+    headers: &HeaderMap,
+) -> Result<Metadata> {
+    let mut m = parse_into_metadata(path, headers)?;
+
+    let data: HashMap<String, String> = headers
+        .iter()
+        .filter_map(|(key, _)| {
+            if key.as_str().starts_with(user_metadata_prefix) {
+                if let Ok(Some(value)) = parse_header_to_str(headers, key) {
+                    let key_str = key.to_string();
+                    let stripped_key = key_str
+                        .strip_prefix(user_metadata_prefix)
+                        .expect("strip prefix must succeed");
+                    return Some((stripped_key.to_string(), value.to_string()));
+                }
+            }
+            None
+        })
+        .collect();
+    if !data.is_empty() {
+        m.with_user_metadata(data);
     }
 
     Ok(m)

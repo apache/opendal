@@ -41,7 +41,7 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
 
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
@@ -49,6 +49,7 @@ mod constants {
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
+    pub const USER_METADATA_PREFIX: &str = "x-oss-meta-";
 }
 
 pub struct OssCore {
@@ -174,19 +175,7 @@ impl OssCore {
 
         let mut req = Request::put(&url);
 
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
+        req = self.insert_metadata_headers(req, size, args);
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -214,7 +203,22 @@ impl OssCore {
 
         let mut req = Request::post(&url);
 
-        req = req.header(CONTENT_LENGTH, size);
+        req = self.insert_metadata_headers(req, Some(size), args);
+
+        // set sse headers
+        req = self.insert_sse_headers(req);
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+        Ok(req)
+    }
+
+    fn insert_metadata_headers(
+        &self,
+        mut req: http::request::Builder,
+        size: Option<u64>,
+        args: &OpWrite,
+    ) -> http::request::Builder {
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
@@ -225,14 +229,17 @@ impl OssCore {
         }
 
         if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
+            req = req.header(CACHE_CONTROL, cache_control);
         }
 
-        // set sse headers
-        req = self.insert_sse_headers(req);
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                req = req.header(format!("{}{}", constants::USER_METADATA_PREFIX, key), value)
+            }
+        }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
-        Ok(req)
+        req
     }
 
     pub fn oss_get_object_request(
@@ -593,7 +600,7 @@ impl OssCore {
         self.send(req).await
     }
 
-    /// Abort an on-going multipart upload.
+    /// Abort an ongoing multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
     pub async fn oss_abort_multipart_upload(
         &self,

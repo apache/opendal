@@ -385,14 +385,13 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();
         self.inner
             .write(bs)
             .await
-            .map(|n| {
-                self.processed += n as u64;
-                n
+            .map(|_| {
+                self.processed += size as u64;
             })
             .map_err(|err| {
                 err.with_operation(WriteOperation::Write)
@@ -423,13 +422,12 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();
         self.inner
             .write(bs)
-            .map(|n| {
-                self.processed += n as u64;
-                n
+            .map(|_| {
+                self.processed += size as u64;
             })
             .map_err(|err| {
                 err.with_operation(WriteOperation::BlockingWrite)

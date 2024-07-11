@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -68,12 +67,7 @@ impl BlockingWriter {
     /// }
     /// ```
     pub fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone())?;
-            bs.advance(n);
-        }
-        Ok(())
+        self.inner.write(bs.into())
     }
 
     /// Close the writer and make sure all data have been committed.

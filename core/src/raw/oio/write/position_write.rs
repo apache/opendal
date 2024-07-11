@@ -124,10 +124,10 @@ impl<W: PositionWrite> PositionWriter<W> {
 }
 
 impl<W: PositionWrite> oio::Write for PositionWriter<W> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         if self.cache.is_none() {
-            let size = self.fill_cache(bs);
-            return Ok(size);
+            let _ = self.fill_cache(bs);
+            return Ok(());
         }
 
         let bytes = self.cache.clone().expect("pending write must exist");
@@ -144,8 +144,8 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
             .await?;
         self.cache = None;
         self.next_offset += length;
-        let size = self.fill_cache(bs);
-        Ok(size)
+        let _ = self.fill_cache(bs);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

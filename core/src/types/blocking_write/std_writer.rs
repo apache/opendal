@@ -81,10 +81,9 @@ impl Write for StdWriter {
             }
 
             let bs = self.buf.get().expect("frozen buffer must be valid");
-            let n = w
-                .write(Buffer::from(bs))
+            w.write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            self.buf.advance(n);
+            self.buf.clean();
         }
     }
 
@@ -103,10 +102,9 @@ impl Write for StdWriter {
                 return Ok(());
             };
 
-            let n = w
-                .write(Buffer::from(bs))
+            w.write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            self.buf.advance(n);
+            self.buf.clean();
         }
     }
 }

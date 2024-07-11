@@ -164,7 +164,7 @@ impl Access for CompfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        if path.ends_with("/") {
+        if path.ends_with('/') {
             let path = self.core.prepare_path(path);
             self.core
                 .exec(move || async move { compio::fs::remove_dir(path).await })

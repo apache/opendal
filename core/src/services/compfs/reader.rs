@@ -55,14 +55,14 @@ impl oio::Read for CompfsReader {
         // reserve 64KB buffer by default, we should allow user to configure this or make it adaptive.
         bs.reserve(64 * 1024);
         let f = self.file.clone();
-        let mut bs = self
+        let (n, mut bs) = self
             .core
             .exec(move || async move {
-                let (_, bs) = buf_try!(@try f.read_at(bs, pos).await);
-                Ok(bs)
+                let (n, bs) = buf_try!(@try f.read_at(bs, pos).await);
+                Ok((n, bs))
             })
             .await?;
-        let frozen = bs.split().freeze();
+        let frozen = bs.split_to(n).freeze();
         self.offset += frozen.len() as u64;
         self.core.buf_pool.put(bs);
         Ok(Buffer::from(frozen))

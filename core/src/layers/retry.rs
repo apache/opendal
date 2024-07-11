@@ -938,8 +938,8 @@ mod tests {
     struct MockWriter {}
 
     impl oio::Write for MockWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<usize> {
-            Ok(bs.len())
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
         }
 
         async fn close(&mut self) -> Result<()> {

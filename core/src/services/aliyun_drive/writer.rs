@@ -51,7 +51,7 @@ impl AliyunDriveWriter {
 }
 
 impl oio::Write for AliyunDriveWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let (upload_id, file_id) = match (self.upload_id.as_ref(), self.file_id.as_ref()) {
             (Some(upload_id), Some(file_id)) => (upload_id, file_id),
             _ => {
@@ -94,8 +94,6 @@ impl oio::Write for AliyunDriveWriter {
             return Err(Error::new(ErrorKind::Unexpected, "cannot find upload_url"));
         };
 
-        let size = bs.len();
-
         if let Err(err) = self.core.upload(upload_url, bs).await {
             if err.kind() != ErrorKind::AlreadyExists {
                 return Err(err);
@@ -104,7 +102,7 @@ impl oio::Write for AliyunDriveWriter {
 
         self.part_number += 1;
 
-        Ok(size)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

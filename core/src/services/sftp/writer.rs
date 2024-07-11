@@ -39,8 +39,17 @@ impl SftpWriter {
 }
 
 impl oio::Write for SftpWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        self.file.write(bs.chunk()).await.map_err(new_std_io_error)
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        while bs.has_remaining() {
+            let n = self
+                .file
+                .write(bs.chunk())
+                .await
+                .map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

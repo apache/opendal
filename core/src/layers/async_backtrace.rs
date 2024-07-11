@@ -169,7 +169,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for AsyncBacktraceWrapper<R> {
 
 impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).await
     }
 
@@ -185,7 +185,7 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for AsyncBacktraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 

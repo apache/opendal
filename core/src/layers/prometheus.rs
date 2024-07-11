@@ -742,7 +742,9 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len();
+
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             WriteOperation::Write.into_static(),
@@ -758,12 +760,12 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
         timer.observe_duration();
 
         match res {
-            Ok(n) => {
+            Ok(_) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(n as f64);
-                Ok(n)
+                    .observe(size as f64);
+                Ok(())
             }
             Err(err) => {
                 self.stats.increment_errors_total(self.op, err.kind());
@@ -822,7 +824,9 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len();
+
         let labels = self.stats.generate_metric_label(
             self.scheme.into_static(),
             Operation::BlockingWrite.into_static(),
@@ -838,12 +842,12 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
         timer.observe_duration();
 
         match res {
-            Ok(n) => {
+            Ok(_) => {
                 self.stats
                     .bytes_total
                     .with_label_values(&labels)
-                    .observe(n as f64);
-                Ok(n)
+                    .observe(size as f64);
+                Ok(())
             }
             Err(err) => {
                 self.stats.increment_errors_total(self.op, err.kind());

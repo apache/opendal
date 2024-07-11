@@ -379,15 +379,14 @@ impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
             .await
-            .map(|n| {
-                probe_lazy!(opendal, writer_write_ok, c_path.as_ptr(), n);
-                n
+            .map(|_| {
+                probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());
             })
             .map_err(|err| {
                 probe_lazy!(opendal, writer_write_error, c_path.as_ptr());
@@ -427,14 +426,13 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, blocking_writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
-            .map(|n| {
-                probe_lazy!(opendal, blocking_writer_write_ok, c_path.as_ptr(), n);
-                n
+            .map(|_| {
+                probe_lazy!(opendal, blocking_writer_write_ok, c_path.as_ptr());
             })
             .map_err(|err| {
                 probe_lazy!(opendal, blocking_writer_write_error, c_path.as_ptr());

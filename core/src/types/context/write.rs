@@ -278,7 +278,7 @@ impl WriteGenerator<oio::BlockingWriter> {
 mod tests {
     use super::*;
     use crate::raw::oio::Write;
-    use bytes::Buf;
+    use bytes::BufMut;
     use bytes::Bytes;
     use log::debug;
     use pretty_assertions::assert_eq;
@@ -294,13 +294,12 @@ mod tests {
     }
 
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
-            let chunk = bs.chunk();
             let mut buf = self.buf.lock().await;
-            buf.extend_from_slice(chunk);
-            Ok(chunk.len())
+            buf.put(bs);
+            Ok(())
         }
 
         async fn close(&mut self) -> Result<()> {
@@ -327,8 +326,8 @@ mod tests {
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), true);
 
-        let mut bs = Bytes::from(expected.clone());
-        w.write(bs.clone().into()).await?;
+        let bs = Bytes::from(expected.clone());
+        w.write(bs.into()).await?;
 
         w.close().await?;
 
@@ -456,83 +455,6 @@ mod tests {
         Ok(())
     }
 
-    struct PartialWriter {
-        buf: Arc<Mutex<Vec<u8>>>,
-    }
-
-    impl Write for PartialWriter {
-        async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
-            let mut buf = self.buf.lock().await;
-
-            if Buffer::count(&bs) > 1 {
-                // Always leaves last buffer for non-contiguous buffer.
-                let mut written = 0;
-                while Buffer::count(&bs) > 1 {
-                    let chunk = bs.chunk();
-                    buf.extend_from_slice(chunk);
-                    written += chunk.len();
-                    bs.advance(chunk.len());
-                }
-                Ok(written)
-            } else {
-                let chunk = bs.chunk();
-                buf.extend_from_slice(chunk);
-                Ok(chunk.len())
-            }
-        }
-
-        async fn close(&mut self) -> Result<()> {
-            Ok(())
-        }
-
-        async fn abort(&mut self) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_inexact_buf_writer_partial_send() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
-
-        let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
-            Box::new(PartialWriter { buf: buf.clone() }),
-            Some(10),
-            false,
-        );
-
-        let mut rng = thread_rng();
-        let mut expected = vec![];
-
-        let mut new_content = |size| {
-            let mut content = vec![0; size];
-            rng.fill_bytes(&mut content);
-            expected.extend_from_slice(&content);
-            Bytes::from(content)
-        };
-
-        // content < chunk size.
-        let content = new_content(5);
-        w.write(content.into()).await?;
-        // Non-contiguous buffer.
-        let content = Buffer::from(vec![new_content(3), new_content(2)]);
-        w.write(content).await?;
-
-        w.close().await?;
-
-        let buf = buf.lock().await;
-        assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
-        Ok(())
-    }
-
     #[tokio::test]
     async fn test_fuzz_exact_buf_writer() -> Result<()> {
         let _ = tracing_subscriber::fmt()
@@ -561,8 +483,8 @@ mod tests {
 
             expected.extend_from_slice(&content);
 
-            let mut bs = Bytes::from(content.clone());
-            writer.write(bs.clone().into()).await?;
+            let bs = Bytes::from(content.clone());
+            writer.write(bs.into()).await?;
         }
         writer.close().await?;
 

@@ -26,24 +26,18 @@ use crate::*;
 #[derive(Debug)]
 pub struct CompfsWriter {
     core: Arc<CompfsCore>,
-    file: Option<Cursor<File>>,
+    file: Cursor<File>,
 }
 
 impl CompfsWriter {
     pub(super) fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
-        Self {
-            core,
-            file: Some(file),
-        }
+        Self { core, file }
     }
 }
 
 impl oio::Write for CompfsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let mut file = self
-            .file
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "file has been closed"))?;
+        let mut file = self.file.clone();
 
         let n = self
             .core
@@ -56,18 +50,13 @@ impl oio::Write for CompfsWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let f = self
-            .file
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "file has been closed"))?;
+        let f = self.file.clone();
+
         self.core
             .exec(move || async move { f.get_ref().sync_all().await })
             .await?;
 
-        let f = self
-            .file
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "file has been closed"))?;
+        let f = self.file.clone();
         self.core
             .exec(move || async move { f.into_inner().close().await })
             .await

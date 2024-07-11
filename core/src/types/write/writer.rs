@@ -155,8 +155,7 @@ impl Writer {
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
         let bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
-        self.inner.write(bs).await?;
-        Ok(())
+        self.write(bs).await
     }
 
     /// Abort the writer and clean up all written data.

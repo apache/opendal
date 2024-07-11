@@ -81,9 +81,10 @@ impl Write for StdWriter {
             }
 
             let bs = self.buf.get().expect("frozen buffer must be valid");
-            w.write(Buffer::from(bs))
+            let n = w
+                .write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            self.buf.clean();
+            self.buf.advance(n);
         }
     }
 

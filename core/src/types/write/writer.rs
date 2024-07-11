@@ -136,7 +136,13 @@ impl Writer {
     /// }
     /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        self.inner.write(bs.into()).await
+        let mut bs = bs.into();
+        while !bs.is_empty() {
+            let n = self.inner.write(bs.clone()).await?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     /// Write [`bytes::Buf`] into inner writer.

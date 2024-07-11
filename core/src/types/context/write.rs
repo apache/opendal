@@ -133,14 +133,17 @@ impl WriteGenerator<oio::Writer> {
 
 impl WriteGenerator<oio::Writer> {
     /// Write the entire buffer into writer.
-    pub async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+    pub async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         let Some(chunk_size) = self.chunk_size else {
-            return self.w.write_dyn(bs).await;
+            let size = bs.len();
+            self.w.write_dyn(bs).await?;
+            return Ok(size);
         };
 
         if self.buffer.len() + bs.len() < chunk_size {
+            let size = bs.len();
             self.buffer.push(bs);
-            return Ok(());
+            return Ok(size);
         }
 
         // Condition:
@@ -149,10 +152,11 @@ impl WriteGenerator<oio::Writer> {
         // Action:
         // - write buffer + bs directly.
         if !self.exact {
+            let fill_size = bs.len();
             self.buffer.push(bs);
             let buf = self.buffer.take().collect();
             self.w.write_dyn(buf).await?;
-            return Ok(());
+            return Ok(fill_size);
         }
 
         // Condition:
@@ -173,8 +177,9 @@ impl WriteGenerator<oio::Writer> {
         // - write bs to buffer with remaining size.
         let remaining = chunk_size - self.buffer.len();
         bs.truncate(remaining);
+        let n = bs.len();
         self.buffer.push(bs);
-        Ok(())
+        Ok(n)
     }
 
     /// Finish the write process.
@@ -184,8 +189,8 @@ impl WriteGenerator<oio::Writer> {
                 break;
             }
 
-            self.w.write_dyn(self.buffer.clone().collect()).await?;
-            self.buffer.clear();
+            let buf = self.buffer.take().collect();
+            self.w.write_dyn(buf).await?;
         }
 
         self.w.close().await
@@ -215,14 +220,17 @@ impl WriteGenerator<oio::BlockingWriter> {
 
 impl WriteGenerator<oio::BlockingWriter> {
     /// Write the entire buffer into writer.
-    pub fn write(&mut self, mut bs: Buffer) -> Result<()> {
+    pub fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         let Some(chunk_size) = self.chunk_size else {
-            return self.w.write(bs);
+            let size = bs.len();
+            self.w.write(bs)?;
+            return Ok(size);
         };
 
         if self.buffer.len() + bs.len() < chunk_size {
+            let size = bs.len();
             self.buffer.push(bs);
-            return Ok(());
+            return Ok(size);
         }
 
         // Condition:
@@ -231,10 +239,11 @@ impl WriteGenerator<oio::BlockingWriter> {
         // Action:
         // - write buffer + bs directly.
         if !self.exact {
+            let fill_size = bs.len();
             self.buffer.push(bs);
             let buf = self.buffer.take().collect();
             self.w.write(buf)?;
-            return Ok(());
+            return Ok(fill_size);
         }
 
         // Condition:
@@ -255,8 +264,9 @@ impl WriteGenerator<oio::BlockingWriter> {
         // - write bs to buffer with remaining size.
         let remaining = chunk_size - self.buffer.len();
         bs.truncate(remaining);
+        let n = bs.len();
         self.buffer.push(bs);
-        Ok(())
+        Ok(n)
     }
 
     /// Finish the write process.
@@ -266,8 +276,8 @@ impl WriteGenerator<oio::BlockingWriter> {
                 break;
             }
 
-            self.w.write(self.buffer.clone().collect())?;
-            self.buffer.clear();
+            let buf = self.buffer.take().collect();
+            self.w.write(buf)?;
         }
 
         self.w.close()
@@ -278,8 +288,8 @@ impl WriteGenerator<oio::BlockingWriter> {
 mod tests {
     use super::*;
     use crate::raw::oio::Write;
-    use bytes::BufMut;
     use bytes::Bytes;
+    use bytes::{Buf, BufMut};
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -326,8 +336,11 @@ mod tests {
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(Box::new(MockWriter { buf: buf.clone() }), Some(10), true);
 
-        let bs = Bytes::from(expected.clone());
-        w.write(bs.into()).await?;
+        let mut bs = Bytes::from(expected.clone());
+        while !bs.is_empty() {
+            let n = w.write(bs.clone().into()).await?;
+            bs.advance(n);
+        }
 
         w.close().await?;
 
@@ -356,7 +369,10 @@ mod tests {
         rng.fill_bytes(&mut expected);
 
         let bs = Bytes::from(expected.clone());
-        w.write(bs.into()).await?;
+        // The MockWriter always returns the first chunk size.
+        let n = w.write(bs.into()).await?;
+        assert_eq!(expected.len(), n);
+
         w.close().await?;
 
         let buf = buf.lock().await;
@@ -391,13 +407,14 @@ mod tests {
 
         // content > chunk size.
         let content = new_content(15);
-        w.write(content.into()).await?;
+        assert_eq!(15, w.write(content.into()).await?);
         // content < chunk size.
         let content = new_content(5);
-        w.write(content.into()).await?;
+        assert_eq!(5, w.write(content.into()).await?);
         // content > chunk size, but 5 bytes in queue.
         let content = new_content(15);
-        w.write(content.clone().into()).await?;
+        // The MockWriter can send all 15 bytes together, so we can only advance 5 bytes.
+        assert_eq!(15, w.write(content.clone().into()).await?);
 
         w.close().await?;
 
@@ -433,16 +450,16 @@ mod tests {
 
         // content > chunk size.
         let content = new_content(15);
-        w.write(content.into()).await?;
+        assert_eq!(15, w.write(content.into()).await?);
         // content < chunk size.
         let content = new_content(5);
-        w.write(content.into()).await?;
+        assert_eq!(5, w.write(content.into()).await?);
         // content < chunk size.
         let content = new_content(3);
-        w.write(content.into()).await?;
+        assert_eq!(3, w.write(content.into()).await?);
         // content > chunk size, but can send all chunks in the queue.
         let content = new_content(15);
-        w.write(content.clone().into()).await?;
+        assert_eq!(15, w.write(content.clone().into()).await?);
 
         w.close().await?;
 
@@ -483,8 +500,11 @@ mod tests {
 
             expected.extend_from_slice(&content);
 
-            let bs = Bytes::from(content.clone());
-            writer.write(bs.into()).await?;
+            let mut bs = Bytes::from(content.clone());
+            while !bs.is_empty() {
+                let n = writer.write(bs.clone().into()).await?;
+                bs.advance(n);
+            }
         }
         writer.close().await?;
 

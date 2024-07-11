@@ -20,6 +20,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
+
 use crate::raw::*;
 use crate::*;
 
@@ -33,7 +35,7 @@ pub struct BufferSink {
 
 enum State {
     Idle(Option<WriteGenerator<oio::Writer>>),
-    Writing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<()>)>),
+    Writing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<usize>)>),
     Closing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<()>)>),
 }
 
@@ -90,8 +92,8 @@ impl futures::Sink<Buffer> for BufferSink {
                     let (w, res) = ready!(fut.as_mut().poll(cx));
                     this.state = State::Idle(Some(w));
                     match res {
-                        Ok(_) => {
-                            this.buf = Buffer::new();
+                        Ok(n) => {
+                            this.buf.advance(n);
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
@@ -137,8 +139,8 @@ impl futures::Sink<Buffer> for BufferSink {
                     let (w, res) = ready!(fut.as_mut().poll(cx));
                     this.state = State::Idle(Some(w));
                     match res {
-                        Ok(_) => {
-                            this.buf = Buffer::new();
+                        Ok(n) => {
+                            this.buf.advance(n);
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }

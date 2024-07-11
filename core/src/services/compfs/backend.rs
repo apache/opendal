@@ -63,6 +63,19 @@ impl Builder for CompfsBuilder {
                 "root is not specified",
             )),
         }?;
+
+        // If root dir is not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy())
+                        .set_source(e)
+                })?;
+            }
+        }
+
         let dispatcher = Dispatcher::new().map_err(|_| {
             Error::new(
                 ErrorKind::Unexpected,

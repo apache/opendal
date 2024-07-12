@@ -1,0 +1,60 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Feature Request
+description: Suggest an idea for this project
+title: "new feature: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for suggesting a new feature. Please fill out the details below to help us understand your idea better."
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: "A detailed description of the feature you would like to see."
+      placeholder: "Describe the feature you'd like..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-solution
+    attributes:
+      label: Problem and Solution
+      description: "Describe the problem that this feature would solve. Explain how you envision it working."
+      placeholder: "What problem does this feature solve? How do you envision it working?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: "Add any other context or screenshots about the feature request here."
+      placeholder: "Add any other context or screenshots about the feature request here."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: willing-to-contribute
+    attributes:
+      label: "Are you willing to contribute to the development of this feature?"
+      description: "Let us know if you are willing to help by contributing code or other resources."
+      options:
+        - label: "Yes, I am willing to contribute to the development of this feature."

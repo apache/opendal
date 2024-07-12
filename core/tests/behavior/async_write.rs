@@ -215,10 +215,7 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     }
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-    let target_user_metadata: HashMap<String, String> =
-        [("location".to_string(), "everywhere".to_string())]
-            .into_iter()
-            .collect();
+    let target_user_metadata = vec![("location".to_string(), "everywhere".to_string())];
     op.write_with(&path, content)
         .user_metadata(target_user_metadata.clone())
         .await?;
@@ -226,7 +223,10 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await.expect("stat must succeed");
     let resp_meta = meta.user_metadata().expect("meta data must exist");
 
-    assert_eq!(*resp_meta, target_user_metadata);
+    assert_eq!(
+        *resp_meta,
+        target_user_metadata.into_iter().collect::<HashMap<_, _>>()
+    );
 
     Ok(())
 }

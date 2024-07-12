@@ -330,8 +330,14 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
     ///
     /// we don't need to include the user defined metadata prefix in the key
     /// every service will handle it internally
-    pub fn user_metadata(self, data: HashMap<String, String>) -> Self {
-        self.map(|(args, options, bs)| (args.with_user_metadata(data), options, bs))
+    pub fn user_metadata(self, data: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.map(|(args, options, bs)| {
+            (
+                args.with_user_metadata(HashMap::from_iter(data)),
+                options,
+                bs,
+            )
+        })
     }
 }
 
@@ -402,8 +408,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     ///
     /// we don't need to include the user defined metadata prefix in the key
     /// every service will handle it internally
-    pub fn user_metadata(self, data: HashMap<String, String>) -> Self {
-        self.map(|(args, options)| (args.with_user_metadata(data), options))
+    pub fn user_metadata(self, data: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.map(|(args, options)| (args.with_user_metadata(HashMap::from_iter(data)), options))
     }
 }
 

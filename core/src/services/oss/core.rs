@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -28,10 +29,10 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
-use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::{HeaderMap, HeaderName};
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -49,7 +50,8 @@ pub mod constants {
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
-    pub const USER_METADATA_PREFIX: &str = "x-oss-meta-";
+
+    pub const X_OSS_META_PREFIX: &str = "x-oss-meta-";
 }
 
 pub struct OssCore {
@@ -157,6 +159,88 @@ impl OssCore {
         }
         req
     }
+
+    fn insert_metadata_headers(
+        &self,
+        mut req: http::request::Builder,
+        size: Option<u64>,
+        args: &OpWrite,
+    ) -> Result<http::request::Builder> {
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                if !self.check_user_metadata_key(key) {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "the format of the user metadata key is invalid, please refer the document",
+                    ));
+                }
+                req = req.header(format!("{}{}", constants::X_OSS_META_PREFIX, key), value)
+            }
+        }
+
+        Ok(req)
+    }
+
+    // According to https://help.aliyun.com/zh/oss/developer-reference/putobject
+    // there are some limits in user defined metadata key
+    fn check_user_metadata_key(&self, key: &str) -> bool {
+        key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    }
+
+    /// parse_metadata will parse http headers(including standards http headers
+    /// and user defined metadata header) into Metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_metadata_prefix` is the prefix of user defined metadata key
+    ///
+    /// # Notes
+    ///
+    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+    pub fn parse_metadata(
+        &self,
+        path: &str,
+        user_metadata_prefix: &str,
+        headers: &HeaderMap,
+    ) -> Result<Metadata> {
+        let mut m = parse_into_metadata(path, headers)?;
+
+        let data: HashMap<String, String> = headers
+            .iter()
+            .filter_map(|(key, _)| {
+                if key.as_str().starts_with(user_metadata_prefix) {
+                    if let Ok(Some(value)) = parse_header_to_str(headers, key) {
+                        let key_str = key.to_string();
+                        let stripped_key = key_str
+                            .strip_prefix(user_metadata_prefix)
+                            .expect("strip prefix must succeed");
+                        return Some((stripped_key.to_string(), value.to_string()));
+                    }
+                }
+                None
+            })
+            .collect();
+        if !data.is_empty() {
+            m.with_user_metadata(data);
+        }
+
+        Ok(m)
+    }
 }
 
 impl OssCore {
@@ -175,7 +259,7 @@ impl OssCore {
 
         let mut req = Request::put(&url);
 
-        req = self.insert_metadata_headers(req, size, args);
+        req = self.insert_metadata_headers(req, size, args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -203,43 +287,13 @@ impl OssCore {
 
         let mut req = Request::post(&url);
 
-        req = self.insert_metadata_headers(req, Some(size), args);
+        req = self.insert_metadata_headers(req, Some(size), args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
-    }
-
-    fn insert_metadata_headers(
-        &self,
-        mut req: http::request::Builder,
-        size: Option<u64>,
-        args: &OpWrite,
-    ) -> http::request::Builder {
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control);
-        }
-
-        if let Some(user_metadata) = args.user_metadata() {
-            for (key, value) in user_metadata {
-                // before insert user defined metadata header, add prefix to the header name
-                req = req.header(format!("{}{}", constants::USER_METADATA_PREFIX, key), value)
-            }
-        }
-
-        req
     }
 
     pub fn oss_get_object_request(

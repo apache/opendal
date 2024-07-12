@@ -15,34 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use hdfs_native::file::FileWriter;
+use serde::{Deserialize, Serialize};
 
-use crate::raw::oio;
-use crate::*;
-
-pub struct HdfsNativeWriter {
-    _f: FileWriter,
-}
-
-impl HdfsNativeWriter {
-    pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { _f: f }
-    }
-}
-
-impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, _bs: Buffer) -> Result<()> {
-        todo!()
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        todo!()
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "HdfsNativeWriter doesn't support abort",
-        ))
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FileBlob {
+    pub etag: Option<String>,
+    pub md5: Option<String>,
 }

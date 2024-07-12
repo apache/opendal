@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fs::File;
 use std::io::Write;
+
 use std::path::PathBuf;
 
 use bytes::Buf;
@@ -23,6 +25,9 @@ use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;
 use crate::*;
+
+pub type FsWriters =
+    TwoWays<FsWriter<tokio::fs::File>, oio::PositionWriter<FsWriter<tokio::fs::File>>>;
 
 pub struct FsWriter<F> {
     target_path: PathBuf,
@@ -48,11 +53,15 @@ impl<F> FsWriter<F> {
 unsafe impl<F> Sync for FsWriter<F> {}
 
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        // TODO: use write_vectored instead.
-        f.write(bs.chunk()).await.map_err(new_std_io_error)
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -83,10 +92,15 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, mut bs: Buffer) -> Result<()> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        f.write(bs.chunk()).map_err(new_std_io_error)
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
@@ -100,4 +114,80 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
 
         Ok(())
     }
+}
+
+impl oio::PositionWrite for FsWriter<tokio::fs::File> {
+    async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+        let f = self.f.as_ref().expect("FsWriter must be initialized");
+
+        let f = f
+            .try_clone()
+            .await
+            .map_err(new_std_io_error)?
+            .into_std()
+            .await;
+
+        tokio::task::spawn_blocking(move || {
+            let mut buf = buf;
+            let mut offset = offset;
+            while !buf.is_empty() {
+                match write_at(&f, buf.chunk(), offset) {
+                    Ok(n) => {
+                        buf.advance(n);
+                        offset += n as u64
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map_err(new_task_join_error)?
+    }
+
+    async fn close(&self) -> Result<()> {
+        let f = self.f.as_ref().expect("FsWriter must be initialized");
+
+        let mut f = f
+            .try_clone()
+            .await
+            .map_err(new_std_io_error)?
+            .into_std()
+            .await;
+
+        f.flush().map_err(new_std_io_error)?;
+        f.sync_all().map_err(new_std_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            tokio::fs::rename(tmp_path, &self.target_path)
+                .await
+                .map_err(new_std_io_error)?;
+        }
+        Ok(())
+    }
+
+    async fn abort(&self) -> Result<()> {
+        if let Some(tmp_path) = &self.tmp_path {
+            tokio::fs::remove_file(tmp_path)
+                .await
+                .map_err(new_std_io_error)
+        } else {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "Fs doesn't support abort if atomic_write_dir is not set",
+            ))
+        }
+    }
+}
+
+#[cfg(windows)]
+fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
+    use std::os::windows::fs::FileExt;
+    f.seek_write(buf, offset).map_err(new_std_io_error)
+}
+
+#[cfg(unix)]
+fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
+    use std::os::unix::fs::FileExt;
+    f.write_at(buf, offset).map_err(new_std_io_error)
 }

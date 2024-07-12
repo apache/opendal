@@ -74,7 +74,7 @@ pub enum Scheme {
     Foundationdb,
     /// [dbfs][crate::services::Dbfs]: DBFS backend support.
     Dbfs,
-    /// [fs][crate::services::Fs]: POSIX alike file system.
+    /// [fs][crate::services::Fs]: POSIX-like file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
     Ftp,
@@ -168,7 +168,7 @@ pub enum Scheme {
     /// # NOTE
     ///
     /// - Custom must not overwrite any existing services name.
-    /// - Custom must be lowed cases.
+    /// - Custom must be in lower case.
     Custom(&'static str),
 }
 

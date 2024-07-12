@@ -32,6 +32,7 @@ use super::core::*;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
+use super::writer::FsWriters;
 
 /// config for file system
 #[derive(Default, Deserialize, Debug)]
@@ -166,7 +167,7 @@ impl Builder for FsBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for posix alike fs.
+/// Backend is used to serve `Accessor` support for posix-like fs.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
     core: Arc<FsCore>,
@@ -174,7 +175,7 @@ pub struct FsBackend {
 
 impl Access for FsBackend {
     type Reader = FsReader<tokio::fs::File>;
-    type Writer = FsWriter<tokio::fs::File>;
+    type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type BlockingReader = FsReader<std::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
@@ -318,7 +319,19 @@ impl Access for FsBackend {
             .await
             .map_err(new_std_io_error)?;
 
-        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
+        let w = FsWriter::new(target_path, tmp_path, f);
+
+        let w = if op.append() {
+            FsWriters::One(w)
+        } else {
+            FsWriters::Two(oio::PositionWriter::new(
+                w,
+                op.executor().cloned(),
+                op.concurrent(),
+            ))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

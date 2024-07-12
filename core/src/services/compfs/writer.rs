@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{io::Cursor, sync::Arc};
-
-use compio::{buf::buf_try, fs::File, io::AsyncWrite};
-
 use super::core::CompfsCore;
 use crate::raw::*;
 use crate::*;
+use compio::io::AsyncWriteExt;
+use compio::{buf::buf_try, fs::File};
+use std::{io::Cursor, sync::Arc};
 
 #[derive(Debug)]
 pub struct CompfsWriter {
@@ -36,23 +35,34 @@ impl CompfsWriter {
 }
 
 impl oio::Write for CompfsWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    /// FIXME
+    ///
+    /// the write_all doesn't work correctly if `bs` is non-contiguous.
+    ///
+    /// The IoBuf::buf_len() only returns the length of the current buffer.
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let mut file = self.file.clone();
 
-        let n = self
-            .core
+        self.core
             .exec(move || async move {
-                let (n, _) = buf_try!(@try file.write(bs).await);
-                Ok(n)
+                buf_try!(@try file.write_all(bs).await);
+                Ok(())
             })
             .await?;
-        Ok(n)
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
         let f = self.file.clone();
+
         self.core
             .exec(move || async move { f.get_ref().sync_all().await })
+            .await?;
+
+        let f = self.file.clone();
+        self.core
+            .exec(move || async move { f.into_inner().close().await })
             .await
     }
 

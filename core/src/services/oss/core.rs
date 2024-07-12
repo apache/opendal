@@ -47,6 +47,8 @@ mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+
+    pub const OSS_QUERY_VERSION_ID: &str = "versionId";
 }
 
 pub struct OssCore {
@@ -236,12 +238,12 @@ impl OssCore {
     pub fn oss_get_object_request(
         &self,
         path: &str,
-        range: BytesRange,
         is_presign: bool,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
+        let range = args.range();
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         // Add query arguments to the URL based on response overrides
@@ -251,6 +253,13 @@ impl OssCore {
                 "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
             ))
         }
 
@@ -280,10 +289,25 @@ impl OssCore {
         Ok(req)
     }
 
-    fn oss_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
+    fn oss_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
+
         let req = Request::delete(&url);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -295,18 +319,31 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match)
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -358,24 +395,14 @@ impl OssCore {
         Ok(req)
     }
 
-    pub async fn oss_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-        args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
-        let mut req = self.oss_get_object_request(path, range, false, args)?;
+    pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
+        let mut req = self.oss_get_object_request(path, false, args)?;
         self.sign(&mut req).await?;
         self.client.fetch(req).await
     }
 
-    pub async fn oss_head_object(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_head_object_request(path, false, if_match, if_none_match)?;
+    pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+        let mut req = self.oss_head_object_request(path, false, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -431,8 +458,8 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.oss_delete_object_request(path)?;
+    pub async fn oss_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+        let mut req = self.oss_delete_object_request(path, args)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }

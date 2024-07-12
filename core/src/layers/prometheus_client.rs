@@ -627,24 +627,24 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let start = Instant::now();
+        let size = bs.len();
 
         self.inner
             .write(bs)
             .await
-            .map(|n| {
+            .map(|_| {
                 self.metrics.observe_bytes_total(
                     self.scheme,
                     WriteOperation::Write.into_static(),
-                    n,
+                    size,
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
                     WriteOperation::Write.into_static(),
                     start.elapsed(),
                 );
-                n
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(
@@ -704,23 +704,23 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let start = Instant::now();
+        let size = bs.len();
 
         self.inner
             .write(bs)
-            .map(|n| {
+            .map(|_| {
                 self.metrics.observe_bytes_total(
                     self.scheme,
                     WriteOperation::BlockingWrite.into_static(),
-                    n,
+                    size,
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
                     WriteOperation::BlockingWrite.into_static(),
                     start.elapsed(),
                 );
-                n
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(

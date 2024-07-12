@@ -141,6 +141,7 @@ impl Writer {
             let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
+
         Ok(())
     }
 
@@ -153,12 +154,8 @@ impl Writer {
     /// Optimize this function to avoid unnecessary copy.
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
-        let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-        Ok(())
+        let bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
+        self.write(bs).await
     }
 
     /// Abort the writer and clean up all written data.

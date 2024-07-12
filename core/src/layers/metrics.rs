@@ -785,17 +785,17 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let start = Instant::now();
+        let size = bs.len();
 
         self.inner
             .write(bs)
             .await
-            .map(|n| {
-                self.bytes_counter.increment(n as u64);
+            .map(|_| {
+                self.bytes_counter.increment(size as u64);
                 self.requests_duration_seconds
                     .record(start.elapsed().as_secs_f64());
-                n
             })
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());
@@ -819,12 +819,13 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len();
+
         self.inner
             .write(bs)
-            .map(|n| {
-                self.bytes_counter.increment(n as u64);
-                n
+            .map(|_| {
+                self.bytes_counter.increment(size as u64);
             })
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());

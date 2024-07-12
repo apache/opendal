@@ -53,7 +53,7 @@ impl FtpWriter {
 }
 
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
         let path = if let Some(tmp_path) = &self.tmp_path {
             tmp_path
         } else {
@@ -69,17 +69,20 @@ impl oio::Write for FtpWriter {
             ));
         }
 
-        let size = self
-            .data_stream
-            .as_mut()
-            .unwrap()
-            .write(bs.chunk())
-            .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-            })?;
+        while bs.has_remaining() {
+            let n = self
+                .data_stream
+                .as_mut()
+                .unwrap()
+                .write(bs.chunk())
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+                })?;
+            bs.advance(n);
+        }
 
-        Ok(size)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

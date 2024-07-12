@@ -2,59 +2,122 @@
 
 ![](https://img.shields.io/badge/status-unreleased-red)
 
-opendal-go requires opendal-c to be installed.
+opendal-go is a **Native** support Go binding without CGO enabled and is built on top of opendal-c.
 
-```shell
-cd bindings/c
-make build
+```bash
+go get github.com/apache/opendal/bindings/go@latest
 ```
 
-You will find `libopendal_c.so` under `{root}/target`.
+opendal-go requires **libffi** to be installed.
 
-Then, we need to add a `opendal_c.pc` files
+## Basic Usage
 
-```pc
-libdir=/path/to/opendal/target/debug/
-includedir=/path/to/opendal/bindings/c/include/
+```go
+package main
 
-Name: opendal_c
-Description: opendal c binding
-Version:
+import (
+	"fmt"
+	"os"
 
-Libs: -L${libdir} -lopendal_c
-Cflags: -I${includedir}
+	"github.com/yuchanns/opendal-go-services/memory"
+	"github.com/apache/opendal/bindings/go"
+)
+
+func main() {
+	// Initialize a new in-memory operator
+	op, err := opendal.NewOperator(memory.Scheme, opendal.OperatorOptions{})
+	if err != nil {
+		panic(err)
+	}
+	defer op.Close()
+
+	// Write data to a file named "test"
+	err = op.Write("test", []byte("Hello opendal go binding!"))
+	if err != nil {
+		panic(err)
+	}
+
+	// Read data from the file "test"
+	data, err := op.Read("test")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Read content: %s\n", data)
+
+	// List all entries under the root directory "/"
+	lister, err := op.List("/")
+	if err != nil {
+		panic(err)
+	}
+	defer lister.Close()
+
+	// Iterate through all entries
+	for lister.Next() {
+		entry := lister.Entry()
+
+		// Get entry name (not used in this example)
+		_ = entry.Name()
+
+		// Get metadata for the current entry
+		meta, _ := op.Stat(entry.Path())
+
+		// Print file size
+		fmt.Printf("Size: %d bytes\n", meta.ContentLength())
+
+		// Print last modified time
+		fmt.Printf("Last modified: %s\n", meta.LastModified())
+
+		// Check if the entry is a directory or a file
+		fmt.Printf("Is directory: %v, Is file: %v\n", meta.IsDir(), meta.IsFile())
+	}
+
+	// Check for any errors that occurred during iteration
+	if err := lister.Error(); err != nil {
+		panic(err)
+	}
+
+	// Copy a file
+	op.Copy("test", "test_copy")
+
+	// Rename a file
+	op.Rename("test", "test_rename")
+
+	// Delete a file
+	op.Delete("test_rename")
+}
 ```
 
-And set the `PKG_CONFIG_PATH` environment variable to the directory where `opendal_c.pc` is located.
+## Run Tests
 
-```shell
-export PKG_CONFIG_PATH=/dir/of/opendal_c.pc
+```bash
+# Run all tests
+CGO_ENABLE=0 go test -v -run TestBehavior
+# Run specific test
+CGO_ENABLE=0 go test -v -run TestBehavior/Write
+# Run synchronously
+CGO_ENABLE=0 GOMAXPROCS=1 go test -v -run TestBehavior
 ```
 
-Then, we can build the go binding.
+## Capabilities
 
-```shell
-cd bindings/go
-go build -tags dynamic .
-```
+- [x] OperatorInfo
+- [x] Stat
+    - [x] Metadata
+- [x] IsExist
+- [x] Read
+    - [x] Read
+    - [x] Reader -- implement as `io.ReadCloser`
+- [ ] Write
+    - [x] Write
+    - [ ] Writer -- Need support from the C binding
+- [x] Delete
+- [x] CreateDir
+- [ ] Lister
+    - [x] Entry
+    - [ ] Metadata -- Need support from the C binding
+- [x] Copy
+- [x] Rename
 
-To running the go binding tests, we need to tell the linker where to find the `libopendal_c.so` file.
-
-```shell
-expose LD_LIBRARY_PATH=/path/to/opendal/bindings/c/target/debug/
-```
-
-Then, we can run the tests.
-
-```shell
-go test -tags dynamic .
-```
-
-For benchmark
-
-```shell
-go test -bench=. -tags dynamic .
-```
 
 ## License and Trademarks
 

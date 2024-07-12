@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::FutureExt;
 use minitrace::prelude::*;
@@ -139,7 +140,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
     }
 
     #[trace]
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 

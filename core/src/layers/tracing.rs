@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::FutureExt;
 use tracing::Span;
@@ -140,7 +141,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug")]
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 

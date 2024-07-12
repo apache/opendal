@@ -414,7 +414,7 @@ impl<A: Access> LayeredAccess for MetricsAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.handle.requests_total_metadata.increment(1);
 
         let start = Instant::now();

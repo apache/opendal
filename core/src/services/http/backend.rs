@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use http::header;
 use http::header::IF_MATCH;
@@ -228,7 +229,7 @@ impl Access for HttpBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
@@ -245,7 +246,7 @@ impl Access for HttpBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

@@ -17,6 +17,7 @@
 
 use core::fmt::Debug;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use bytes::Buf;
 use http::header::CONTENT_LENGTH;
@@ -536,7 +537,7 @@ impl Access for WebhdfsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
@@ -556,7 +557,7 @@ impl Access for WebhdfsBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     /// Create a file or directory

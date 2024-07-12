@@ -118,7 +118,7 @@ impl<A: Access> Layer<A> for CompleteLayer {
 
 /// Provide complete wrapper for backend.
 pub struct CompleteAccessor<A: Access> {
-    meta: AccessorInfo,
+    meta: Arc<AccessorInfo>,
     inner: Arc<A>,
 }
 
@@ -380,13 +380,14 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.meta.clone();
+    // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
+    fn metadata(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.meta).clone();
         let cap = meta.full_capability_mut();
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
-        meta
+        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -730,11 +731,11 @@ mod tests {
         type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut info = AccessorInfo::default();
             info.set_native_capability(self.capability);
 
-            info
+            info.into()
         }
 
         async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {

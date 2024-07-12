@@ -16,9 +16,14 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::io;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::Deserialize;
 
+use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
 
@@ -31,8 +36,16 @@ pub struct MonoiofsConfig {
     ///
     /// All operations will happen under this root.
     ///
-    /// Default to `/` if not set.
+    /// Builder::build will return error if not set.
     pub root: Option<String>,
+    /// Count of worker threads that each runs a monoio runtime.
+    ///
+    /// Default to 1.
+    pub worker_threads: Option<NonZeroUsize>,
+    /// Size of io_uring queue entries for monoio runtime.
+    ///
+    /// Default to 1024, must be at least 256.
+    pub io_uring_entries: Option<u32>,
 }
 
 /// File system support via [`monoio`].
@@ -52,7 +65,18 @@ impl MonoiofsBuilder {
         } else {
             Some(root.to_string())
         };
+        self
+    }
 
+    /// Set count of worker threads that each runs a monoio runtime.
+    pub fn worker_threads(&mut self, worker_threads: NonZeroUsize) -> &mut Self {
+        self.config.worker_threads = Some(worker_threads);
+        self
+    }
+
+    /// Set size of io_uring queue entries for monoio runtime.
+    pub fn io_uring_entries(&mut self, io_uring_entries: u32) -> &mut Self {
+        self.config.io_uring_entries = Some(io_uring_entries);
         self
     }
 }
@@ -64,17 +88,51 @@ impl Builder for MonoiofsBuilder {
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
         let config = MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must success");
+            .expect("config deserialize should success");
         MonoiofsBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        todo!()
+        let root = self.config.root.take().map(PathBuf::from).ok_or(
+            Error::new(ErrorKind::ConfigInvalid, "root is not specified")
+                .with_operation("Builder::build"),
+        )?;
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy())
+                        .set_source(e)
+                })?;
+            }
+        }
+        let root = root.canonicalize().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "canonicalize of root directory failed",
+            )
+            .with_operation("Builder::build")
+            .with_context("root", root.to_string_lossy())
+            .set_source(e)
+        })?;
+        let worker_threads = self.config.worker_threads.map_or(1, |n| n.get());
+        let io_uring_entries = self.config.io_uring_entries.unwrap_or(1024);
+        let io_uring_entries = if io_uring_entries < 256 {
+            256
+        } else {
+            io_uring_entries
+        };
+        Ok(MonoiofsBackend {
+            core: Arc::new(MonoiofsCore::new(root, worker_threads, io_uring_entries)),
+        })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct MonoiofsBackend {}
+pub struct MonoiofsBackend {
+    core: Arc<MonoiofsCore>,
+}
 
 impl Access for MonoiofsBackend {
     type Reader = ();
@@ -85,6 +143,12 @@ impl Access for MonoiofsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> AccessorInfo {
-        todo!()
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::Monoiofs)
+            .set_root(&self.core.root().to_string_lossy())
+            .set_native_capability(Capability {
+                ..Default::default()
+            });
+        am
     }
 }

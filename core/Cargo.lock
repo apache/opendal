@@ -4798,6 +4798,7 @@ dependencies = [
  "dotenvy",
  "etcd-client",
  "flagset",
+ "flume",
  "foundationdb",
  "futures",
  "getrandom 0.2.15",

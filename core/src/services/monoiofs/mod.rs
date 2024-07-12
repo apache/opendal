@@ -18,3 +18,5 @@
 mod backend;
 pub use backend::MonoiofsBuilder as Monoiofs;
 pub use backend::MonoiofsConfig;
+
+mod core;

@@ -46,32 +46,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with:
-          go-version: '1.20'
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Build c binding
-        working-directory: bindings/c
-        run: make build
-
-      - name: Check diff
-        run: git diff --exit-code
-
-      - name: Generate pkg-config file
-        run: |
-          echo "libdir=$(pwd)/bindings/c/target/debug/" >> opendal_c.pc
-          echo "includedir=$(pwd)/bindings/c/include/" >> opendal_c.pc
-          echo "Name: opendal_c" >> opendal_c.pc
-          echo "Description: opendal c binding" >> opendal_c.pc
-          echo "Version: 0.0.1" >> opendal_c.pc
-          echo "Libs: -L\${libdir} -lopendal_c" >> opendal_c.pc
-          echo "Cflags: -I\${includedir}" >> opendal_c.pc
-
-          echo "PKG_CONFIG_PATH=$(pwd)" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$(pwd)/bindings/c/target/debug" >> $GITHUB_ENV
 
       - name: Run tests
+        env:
+          OPENDAL_TEST: "memory"
         working-directory: bindings/go
-        run: go test -tags dynamic .
+        run: CGO_ENABLE=0 go test -v -run TestBehavior

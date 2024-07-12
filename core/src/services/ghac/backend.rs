@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -233,7 +234,7 @@ impl Access for GhacBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ghac)
             .set_root(&self.root)
@@ -249,7 +250,7 @@ impl Access for GhacBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     /// Some self-hosted GHES instances are backed by AWS S3 services which only returns

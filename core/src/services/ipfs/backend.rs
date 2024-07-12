@@ -166,7 +166,7 @@ impl Access for IpfsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
@@ -180,7 +180,7 @@ impl Access for IpfsBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     /// IPFS's stat behavior highly depends on its implementation.

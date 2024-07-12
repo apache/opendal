@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use async_tls::TlsConnector;
 use bb8::PooledConnection;
@@ -289,7 +290,7 @@ impl Access for FtpBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
@@ -310,7 +311,7 @@ impl Access for FtpBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

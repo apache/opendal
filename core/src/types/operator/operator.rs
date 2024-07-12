@@ -16,14 +16,12 @@
 // under the License.
 
 use std::future::Future;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use once_cell::sync::OnceCell;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
@@ -66,8 +64,6 @@ use crate::*;
 pub struct Operator {
     // accessor is what Operator delegates for
     accessor: Accessor,
-    // info stores the metadata for operator, users can use this metadata to get information of operator.
-    info: OnceCell<Arc<OperatorInfo>>,
 
     // limit is usually the maximum size of data that operator will handle in one operation
     limit: usize,
@@ -89,7 +85,6 @@ impl Operator {
             .unwrap_or(1000);
         Self {
             accessor,
-            info: OnceCell::new(),
             limit,
             default_executor: None,
         }
@@ -140,9 +135,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn info(&self) -> &OperatorInfo {
-        self.info
-            .get_or_init(|| Arc::new(OperatorInfo::new(self.accessor.info())))
+    pub fn info(&self) -> OperatorInfo {
+        OperatorInfo::new(self.accessor.info())
     }
 
     /// Create a new blocking operator.

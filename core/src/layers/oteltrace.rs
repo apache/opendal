@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::FutureExt;
 use opentelemetry::global;
@@ -75,7 +76,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         let tracer = global::tracer("opendal");
         tracer.in_span("metadata", |_cx| self.inner.info())
     }

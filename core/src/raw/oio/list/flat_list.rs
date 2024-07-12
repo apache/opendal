@@ -176,6 +176,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
     use std::vec;
     use std::vec::IntoIter;
 
@@ -216,11 +217,11 @@ mod tests {
         type Lister = ();
         type BlockingLister = MockLister;
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.full_capability_mut().list = true;
 
-            am
+            am.into()
         }
 
         fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {

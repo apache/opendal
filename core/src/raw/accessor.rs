@@ -80,7 +80,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
-    fn info(&self) -> AccessorInfo;
+    fn info(&self) -> Arc<AccessorInfo>;
 
     /// Invoke the `create` operation on the specified path
     ///
@@ -399,7 +399,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
 /// `Box<dyn AccessDyn>`.
 pub trait AccessDyn: Send + Sync + Debug + Unpin {
     /// Dyn version of [`Accessor::info`]
-    fn info_dyn(&self) -> AccessorInfo;
+    fn info_dyn(&self) -> Arc<AccessorInfo>;
     /// Dyn version of [`Accessor::create_dir`]
     fn create_dir_dyn<'a>(
         &'a self,
@@ -484,7 +484,7 @@ where
         BlockingLister = oio::BlockingLister,
     >,
 {
-    fn info_dyn(&self) -> AccessorInfo {
+    fn info_dyn(&self) -> Arc<AccessorInfo> {
         self.info()
     }
 
@@ -607,7 +607,7 @@ impl Access for dyn AccessDyn {
     type Lister = oio::Lister;
     type BlockingLister = oio::BlockingLister;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.info_dyn()
     }
 
@@ -693,7 +693,7 @@ impl Access for () {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo {
             scheme: Scheme::Custom("dummy"),
             root: "".to_string(),
@@ -701,6 +701,7 @@ impl Access for () {
             native_capability: Capability::default(),
             full_capability: Capability::default(),
         }
+        .into()
     }
 }
 
@@ -717,7 +718,7 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     type BlockingWriter = T::BlockingWriter;
     type BlockingLister = T::BlockingLister;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.as_ref().info()
     }
 

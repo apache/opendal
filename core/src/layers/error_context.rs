@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use futures::TryFutureExt;
 
@@ -56,7 +57,7 @@ impl<A: Access> Layer<A> for ErrorContextLayer {
 
 /// Provide error context wrapper for backend.
 pub struct ErrorContextAccessor<A: Access> {
-    meta: AccessorInfo,
+    meta: Arc<AccessorInfo>,
     inner: A,
 }
 
@@ -79,7 +80,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.meta.clone()
     }
 

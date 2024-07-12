@@ -1032,7 +1032,7 @@ impl Access for S3Backend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::S3)
             .set_root(&self.core.root)
@@ -1090,7 +1090,7 @@ impl Access for S3Backend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

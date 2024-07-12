@@ -59,7 +59,7 @@ impl<S: Adapter> Access for Backend<S> {
     type Lister = HierarchyLister<KvLister>;
     type BlockingLister = HierarchyLister<KvLister>;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();
         let mut am: AccessorInfo = AccessorInfo::default();
         am.set_root(&self.root);
@@ -91,7 +91,7 @@ impl<S: Adapter> Access for Backend<S> {
 
         am.set_native_capability(cap);
 
-        am
+        am.into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

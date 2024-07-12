@@ -63,6 +63,19 @@ impl Builder for CompfsBuilder {
                 "root is not specified",
             )),
         }?;
+
+        // If root dir does not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy())
+                        .set_source(e)
+                })?;
+            }
+        }
+
         let dispatcher = Dispatcher::new().map_err(|_| {
             Error::new(
                 ErrorKind::Unexpected,
@@ -151,11 +164,17 @@ impl Access for CompfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = self.core.prepare_path(path);
-
-        self.core
-            .exec(move || async move { compio::fs::remove_file(path).await })
-            .await?;
+        if path.ends_with('/') {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_dir(path).await })
+                .await?;
+        } else {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_file(path).await })
+                .await?;
+        }
 
         Ok(RpDelete::default())
     }

@@ -51,8 +51,14 @@ impl oio::Write for CompfsWriter {
 
     async fn close(&mut self) -> Result<()> {
         let f = self.file.clone();
+
         self.core
             .exec(move || async move { f.get_ref().sync_all().await })
+            .await?;
+
+        let f = self.file.clone();
+        self.core
+            .exec(move || async move { f.into_inner().close().await })
             .await
     }
 

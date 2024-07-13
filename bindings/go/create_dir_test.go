@@ -1,6 +1,3 @@
-//go:build dynamic
-// +build dynamic
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -20,11 +17,40 @@
  * under the License.
  */
 
-package opendal
+package opendal_test
 
-/*
-#cgo pkg-config: opendal_c
-*/
-import "C"
+import (
+	"github.com/apache/opendal/bindings/go"
+	"github.com/stretchr/testify/require"
+)
 
-const LibopendalLinkInfo = "dynamically linked to libopendal_c"
+func testsCreateDir(cap *opendal.Capability) []behaviorTest {
+	if !cap.CreateDir() || !cap.Stat() {
+		return nil
+	}
+	return []behaviorTest{
+		testCreateDir,
+		testCreateDirExisting,
+	}
+}
+
+func testCreateDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path := fixture.NewDirPath()
+
+	assert.Nil(op.CreateDir(path))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err)
+	assert.True(meta.IsDir())
+}
+
+func testCreateDirExisting(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path := fixture.NewDirPath()
+
+	assert.Nil(op.CreateDir(path))
+	assert.Nil(op.CreateDir(path))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err)
+	assert.True(meta.IsDir())
+}

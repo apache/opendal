@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg(any(target_os = "linux", target_os = "freebsd"))]
+
 mod common;
 
 use std::fs::File;

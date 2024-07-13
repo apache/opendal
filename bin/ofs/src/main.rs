@@ -17,8 +17,6 @@
 
 use anyhow::Result;
 use clap::Parser;
-use fuse3::path::Session;
-use fuse3::MountOptions;
 use url::Url;
 
 #[derive(Parser, Debug)]
@@ -50,6 +48,8 @@ async fn execute(cfg: Config) -> Result<()> {
     use std::str::FromStr;
 
     use anyhow::anyhow;
+    use fuse3::path::Session;
+    use fuse3::MountOptions;
     use opendal::Operator;
     use opendal::Scheme;
 

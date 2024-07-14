@@ -72,7 +72,6 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
     op.write(&path, content).await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
-    println!("path: {}, meta: {:?}", path, meta);
     assert_eq!(meta.content_length(), size as u64);
 
     Ok(())

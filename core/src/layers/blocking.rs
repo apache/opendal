@@ -151,7 +151,7 @@ impl<A: Access> Layer<A> for BlockingLayer {
 
         BlockingAccessor {
             inner,
-            meta: meta.into(),
+            meta: Arc::new(meta),
             handle: self.handle.clone(),
         }
     }

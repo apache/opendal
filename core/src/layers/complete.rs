@@ -117,7 +117,7 @@ impl<A: Access> Layer<A> for CompleteLayer {
         }
 
         CompleteAccessor {
-            meta: meta.into(),
+            meta: Arc::new(meta),
             inner: Arc::new(inner),
         }
     }

@@ -82,7 +82,7 @@ impl<A: Access> Layer<A> for ImmutableIndexLayer {
 
         ImmutableIndexAccessor {
             vec: self.vec.clone(),
-            meta: meta.into(),
+            meta: Arc::new(meta),
             inner,
         }
     }

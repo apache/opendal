@@ -20,8 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use quick_xml::se;
-
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
 use crate::raw::*;
@@ -111,8 +109,15 @@ impl<A: Access> Layer<A> for CompleteLayer {
     type LayeredAccess = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let mut meta = inner.info().as_ref().clone();
+        let cap = meta.full_capability_mut();
+
+        if cap.list && cap.write_can_empty {
+            cap.create_dir = true;
+        }
+
         CompleteAccessor {
-            meta: inner.info(),
+            meta: meta.into(),
             inner: Arc::new(inner),
         }
     }

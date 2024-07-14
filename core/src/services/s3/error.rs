@@ -87,6 +87,11 @@ pub(crate) fn from_s3_error(s3_error: S3Error, parts: Parts) -> Error {
 /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
 pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
+        // > The specified bucket does not exist.
+        //
+        // Although the status code is 404, NoSuchBucket is
+        // a config invalid error, and it's not retryable from OpenDAL.
+        "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
         //
@@ -147,7 +152,7 @@ mod tests {
 <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Location>http://Example-Bucket.s3.ap-southeast-1.amazonaws.com/Example-Object</Location>
   <Bucket>Example-Bucket</Bucket>
-  <Key>Example-Object</Key> 
+  <Key>Example-Object</Key>
   <ETag>"3858f62230ac3c915f300c664312c11f-9"</ETag>
 </CompleteMultipartUploadResult>
 "#,

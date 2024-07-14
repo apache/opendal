@@ -188,7 +188,7 @@ impl Fixture {
         let op = op.into();
         let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
         for path in paths.iter() {
-            // We try our best to cleanup fixtures, but won't panic if failed.
+            // We try our best to clean up fixtures, but won't panic if failed.
             let _ = op.delete(path).await.map_err(|err| {
                 log::error!("fixture cleanup path {path} failed: {:?}", err);
             });

@@ -23,7 +23,7 @@
 //!   access raw APIs.
 //! - Raw APIs should only be accessed via `opendal::raw::Xxxx`, any public
 //!   API should never expose raw API directly.
-//! - Raw APIs are far more less stable than public API, please don't rely on
+//! - Raw APIs are far less stable than public API, please don't rely on
 //!   them whenever possible.
 
 mod accessor;

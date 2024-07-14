@@ -18,6 +18,7 @@
 use chrono::prelude::*;
 use flagset::flags;
 use flagset::FlagSet;
+use std::collections::HashMap;
 
 use crate::raw::*;
 use crate::*;
@@ -45,6 +46,7 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
+    user_metadata: Option<HashMap<String, String>>,
 }
 
 impl Metadata {
@@ -71,6 +73,7 @@ impl Metadata {
             etag: None,
             content_disposition: None,
             version: None,
+            user_metadata: None,
         }
     }
 
@@ -87,7 +90,7 @@ impl Metadata {
         self
     }
 
-    /// Check if there metadata already contains given metakey.
+    /// Check if the metadata already contains given metakey.
     pub(crate) fn contains_metakey(&self, metakey: impl Into<FlagSet<Metakey>>) -> bool {
         let input_metakey = metakey.into();
 
@@ -507,6 +510,21 @@ impl Metadata {
         self.metakey |= Metakey::Version;
         self
     }
+
+    /// User defined metadata of this entry
+    ///
+    /// The prefix of the user defined metadata key(for example: in oss, it's x-oss-meta-)
+    /// is remove from the key
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.user_metadata.as_ref()
+    }
+
+    /// Set user defined metadata of this entry
+    pub fn with_user_metadata(&mut self, data: HashMap<String, String>) -> &mut Self {
+        self.user_metadata = Some(data);
+        self.metakey |= Metakey::UserMetaData;
+        self
+    }
 }
 
 flags! {
@@ -548,5 +566,7 @@ flags! {
         LastModified,
         /// Key for version.
         Version,
+        /// Key for user metadata
+        UserMetaData,
     }
 }

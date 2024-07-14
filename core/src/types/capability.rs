@@ -95,6 +95,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// If operator supports write with cache control.
     pub write_with_cache_control: bool,
+    /// If operator supports write with user defined metadata
+    pub write_with_user_metadata: bool,
     /// write_multi_max_size is the max size that services support in write_multi.
     ///
     /// For example, AWS S3 supports 5GiB as max in write_multi.

@@ -30,7 +30,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yuchanns/opendal-go-services/aliyun_drive"
@@ -43,13 +43,26 @@ var schemes = []opendal.Scheme{
 	memory.Scheme,
 }
 
+var op *opendal.Operator
+
+func TestMain(m *testing.M) {
+	var (
+		closeFunc func()
+		err       error
+	)
+	op, closeFunc, err = newOperator()
+	if err != nil {
+		panic(err)
+	}
+	defer closeFunc()
+
+	m.Run()
+}
+
 type behaviorTest = func(assert *require.Assertions, op *opendal.Operator, fixture *fixture)
 
 func TestBehavior(t *testing.T) {
 	assert := require.New(t)
-
-	op, closeFunc, err := newOperator()
-	assert.Nil(err)
 
 	cap := op.Info().GetFullCapability()
 
@@ -68,11 +81,6 @@ func TestBehavior(t *testing.T) {
 
 	t.Cleanup(func() {
 		fixture.Cleanup(assert)
-		op.Close()
-
-		if closeFunc != nil {
-			closeFunc()
-		}
 	})
 
 	for i := range tests {
@@ -104,9 +112,6 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 		if err != nil {
 			return
 		}
-		closeFunc = func() {
-			os.Remove(s.Path())
-		}
 		scheme = s
 		break
 	}
@@ -134,6 +139,12 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 	op, err = opendal.NewOperator(scheme, opts)
 	if err != nil {
 		err = fmt.Errorf("create operator must succeed: %s", err)
+	}
+
+	closeFunc = func() {
+		op.Close()
+
+		os.Remove(scheme.Path())
 	}
 
 	return

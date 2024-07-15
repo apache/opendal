@@ -174,7 +174,11 @@ impl OssBuilder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = format!("{bucket}.{host}");
+                let full_host = if let Some(port) = uri.port_u16() {
+                    format!("{bucket}.{host}:{port}")
+                } else {
+                    format!("{bucket}.{host}")
+                };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
                         "http" | "https" => format!("{scheme_str}://{full_host}"),

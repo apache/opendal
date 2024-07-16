@@ -72,10 +72,10 @@ mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
 
-#[cfg(feature = "layers-minitrace")]
-mod minitrace;
-#[cfg(feature = "layers-minitrace")]
-pub use self::minitrace::MinitraceLayer;
+#[cfg(feature = "layers-fastrace")]
+mod fastrace;
+#[cfg(feature = "layers-fastrace")]
+pub use self::fastrace::FastraceLayer;
 
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;

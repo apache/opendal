@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -38,14 +37,6 @@ pub struct MonoiofsConfig {
     ///
     /// Builder::build will return error if not set.
     pub root: Option<String>,
-    /// Count of worker threads that each runs a monoio runtime.
-    ///
-    /// Default to 1.
-    pub worker_threads: Option<NonZeroUsize>,
-    /// Size of io_uring queue entries for monoio runtime.
-    ///
-    /// Default to 1024, must be at least 256.
-    pub io_uring_entries: Option<u32>,
 }
 
 /// File system support via [`monoio`].
@@ -65,18 +56,6 @@ impl MonoiofsBuilder {
         } else {
             Some(root.to_string())
         };
-        self
-    }
-
-    /// Set count of worker threads that each runs a monoio runtime.
-    pub fn worker_threads(&mut self, worker_threads: NonZeroUsize) -> &mut Self {
-        self.config.worker_threads = Some(worker_threads);
-        self
-    }
-
-    /// Set size of io_uring queue entries for monoio runtime.
-    pub fn io_uring_entries(&mut self, io_uring_entries: u32) -> &mut Self {
-        self.config.io_uring_entries = Some(io_uring_entries);
         self
     }
 }
@@ -116,13 +95,8 @@ impl Builder for MonoiofsBuilder {
             .with_context("root", root.to_string_lossy())
             .set_source(e)
         })?;
-        let worker_threads = self.config.worker_threads.map_or(1, |n| n.get());
-        let io_uring_entries = self.config.io_uring_entries.unwrap_or(1024);
-        let io_uring_entries = if io_uring_entries < 256 {
-            256
-        } else {
-            io_uring_entries
-        };
+        let worker_threads = 1; // TODO: test concurrency and default to available_parallelism and bind cpu
+        let io_uring_entries = 1024;
         Ok(MonoiofsBackend {
             core: Arc::new(MonoiofsCore::new(root, worker_threads, io_uring_entries)),
         })

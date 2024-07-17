@@ -81,7 +81,7 @@ use crate::*;
 /// ```
 #[derive(Debug, Clone)]
 pub struct PrometheusClientLayer {
-    metrics: PrometheusClientMetrics,
+    metrics: PrometheusClientMetricDefinitions,
 }
 
 impl PrometheusClientLayer {
@@ -89,7 +89,7 @@ impl PrometheusClientLayer {
     /// that do NOT call this method multiple times with a same registry. If you want initialize multiple
     /// [`PrometheusClientLayer`] with a single registry, you should use [`Arc::clone`] instead.
     pub fn new(registry: &mut Registry) -> Self {
-        let metrics = PrometheusClientMetrics::register(registry);
+        let metrics = PrometheusClientMetricDefinitions::register(registry);
         Self { metrics }
     }
 }
@@ -101,7 +101,7 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
         let meta = inner.info();
         let scheme = meta.scheme();
 
-        let metrics = Arc::new(self.metrics.clone());
+        let metrics = PrometheusClientMetrics::new(Arc::new(self.metrics.clone()), scheme);
         PrometheusAccessor {
             inner,
             metrics,
@@ -115,7 +115,7 @@ type ErrorLabels = [(&'static str, String); 3];
 
 /// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
-struct PrometheusClientMetrics {
+struct PrometheusClientMetricDefinitions {
     /// Total counter of the specific operation be called.
     requests_total: Family<OperationLabels, Counter>,
     /// Total counter of the errors.
@@ -128,7 +128,7 @@ struct PrometheusClientMetrics {
     bytes_total: Family<OperationLabels, Counter>,
 }
 
-impl PrometheusClientMetrics {
+impl PrometheusClientMetricDefinitions {
     pub fn register(registry: &mut Registry) -> Self {
         let requests_total = Family::default();
         let errors_total = Family::default();
@@ -159,6 +159,18 @@ impl PrometheusClientMetrics {
             bytes_total,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct PrometheusClientMetrics {
+    metrics: Arc<PrometheusClientMetricDefinitions>,
+    scheme: Scheme,
+}
+
+impl PrometheusClientMetrics {
+    fn new(metrics: Arc<PrometheusClientMetricDefinitions>, scheme: Scheme) -> Self {
+        Self { metrics, scheme }
+    }
 
     fn increment_errors_total(&self, scheme: Scheme, op: &'static str, err: ErrorKind) {
         let labels = [
@@ -166,25 +178,30 @@ impl PrometheusClientMetrics {
             ("op", op.to_string()),
             ("err", err.to_string()),
         ];
-        self.errors_total.get_or_create(&labels).inc();
+        self.metrics.errors_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: Scheme, op: &'static str) {
         let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
-        self.requests_total.get_or_create(&labels).inc();
+        self.metrics.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: Scheme, op: &'static str, bytes: usize) {
         let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
-        self.bytes_histogram
+        self.metrics
+            .bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
-        self.bytes_total.get_or_create(&labels).inc_by(bytes as u64);
+        self.metrics
+            .bytes_total
+            .get_or_create(&labels)
+            .inc_by(bytes as u64);
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: &'static str, duration: Duration) {
         let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
-        self.request_duration_seconds
+        self.metrics
+            .request_duration_seconds
             .get_or_create(&labels)
             .observe(duration.as_secs_f64());
     }
@@ -193,7 +210,7 @@ impl PrometheusClientMetrics {
 #[derive(Clone)]
 pub struct PrometheusAccessor<A: Access> {
     inner: A,
-    metrics: Arc<PrometheusClientMetrics>,
+    metrics: PrometheusClientMetrics,
     scheme: Scheme,
 }
 
@@ -553,12 +570,12 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
 pub struct PrometheusMetricWrapper<R> {
     inner: R,
 
-    metrics: Arc<PrometheusClientMetrics>,
+    metrics: PrometheusClientMetrics,
     scheme: Scheme,
 }
 
 impl<R> PrometheusMetricWrapper<R> {
-    fn new(inner: R, metrics: Arc<PrometheusClientMetrics>, scheme: Scheme) -> Self {
+    fn new(inner: R, metrics: PrometheusClientMetrics, scheme: Scheme) -> Self {
         Self {
             inner,
             metrics,

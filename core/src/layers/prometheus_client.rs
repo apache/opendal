@@ -110,8 +110,8 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     }
 }
 
-type OperationLabels = [(&'static str, &'static str); 2];
-type ErrorLabels = [(&'static str, &'static str); 3];
+type OperationLabels = [(&'static str, String); 2];
+type ErrorLabels = [(&'static str, String); 3];
 
 /// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -162,20 +162,20 @@ impl PrometheusClientMetrics {
 
     fn increment_errors_total(&self, scheme: Scheme, op: &'static str, err: ErrorKind) {
         let labels = [
-            ("scheme", scheme.into_static()),
-            ("op", op),
-            ("err", err.into_static()),
+            ("scheme", scheme.to_string()),
+            ("op", op.to_string()),
+            ("err", err.to_string()),
         ];
         self.errors_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: Scheme, op: &'static str) {
-        let labels = [("scheme", scheme.into_static()), ("op", op)];
+        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
         self.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: Scheme, op: &'static str, bytes: usize) {
-        let labels = [("scheme", scheme.into_static()), ("op", op)];
+        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
@@ -183,7 +183,7 @@ impl PrometheusClientMetrics {
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: &'static str, duration: Duration) {
-        let labels = [("scheme", scheme.into_static()), ("op", op)];
+        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
         self.request_duration_seconds
             .get_or_create(&labels)
             .observe(duration.as_secs_f64());

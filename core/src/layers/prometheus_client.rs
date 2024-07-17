@@ -113,7 +113,7 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
 type OperationLabels = [(&'static str, String); 2];
 type ErrorLabels = [(&'static str, String); 3];
 
-/// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
+/// [`PrometheusClientMetricDefinitions`] provide the definition about RED(Rate/Error/Duration) metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
 struct PrometheusClientMetricDefinitions {
     /// Total counter of the specific operation be called.
@@ -172,9 +172,9 @@ impl PrometheusClientMetrics {
         Self { metrics, scheme }
     }
 
-    fn increment_errors_total(&self, scheme: Scheme, op: &'static str, err: ErrorKind) {
+    fn increment_errors_total(&self, op: &'static str, err: ErrorKind) {
         let labels = [
-            ("scheme", scheme.to_string()),
+            ("scheme", self.scheme.to_string()),
             ("op", op.to_string()),
             ("err", err.to_string()),
         ];
@@ -248,11 +248,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         create_res.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::CreateDir.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::CreateDir.into_static(), e.kind());
             e
         })
     }
@@ -275,11 +272,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
                 PrometheusMetricWrapper::new(r, self.metrics.clone(), self.scheme),
             )),
             Err(err) => {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    Operation::Read.into_static(),
-                    err.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(Operation::Read.into_static(), err.kind());
                 Err(err)
             }
         }
@@ -306,11 +300,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
                 PrometheusMetricWrapper::new(w, self.metrics.clone(), self.scheme),
             )),
             Err(err) => {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    Operation::Write.into_static(),
-                    err.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(Operation::Write.into_static(), err.kind());
                 Err(err)
             }
         }
@@ -325,11 +316,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             .inner
             .stat(path, args)
             .inspect_err(|e| {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    Operation::Stat.into_static(),
-                    e.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(Operation::Stat.into_static(), e.kind());
             })
             .await;
 
@@ -339,11 +327,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         stat_res.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::Stat.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::Stat.into_static(), e.kind());
             e
         })
     }
@@ -361,11 +346,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         delete_res.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::Delete.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::Delete.into_static(), e.kind());
             e
         })
     }
@@ -383,11 +365,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         list_res.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::List.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::List.into_static(), e.kind());
             e
         })
     }
@@ -405,11 +384,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::Batch.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::Batch.into_static(), e.kind());
             e
         })
     }
@@ -427,11 +403,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::Presign.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::Presign.into_static(), e.kind());
             e
         })
     }
@@ -449,11 +422,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingCreateDir.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingCreateDir.into_static(), e.kind());
             e
         })
     }
@@ -470,11 +440,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
         });
 
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingRead.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingRead.into_static(), e.kind());
             e
         })
     }
@@ -491,11 +458,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
         });
 
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingWrite.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingWrite.into_static(), e.kind());
             e
         })
     }
@@ -513,11 +477,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
         );
 
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingStat.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingStat.into_static(), e.kind());
             e
         })
     }
@@ -535,11 +496,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingDelete.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingDelete.into_static(), e.kind());
             e
         })
     }
@@ -557,11 +515,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics.increment_errors_total(
-                self.scheme,
-                Operation::BlockingList.into_static(),
-                e.kind(),
-            );
+            self.metrics
+                .increment_errors_total(Operation::BlockingList.into_static(), e.kind());
             e
         })
     }
@@ -603,11 +558,8 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
                 Ok(bs)
             }
             Err(e) => {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    ReadOperation::Read.into_static(),
-                    e.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(ReadOperation::Read.into_static(), e.kind());
                 Err(e)
             }
         }
@@ -633,11 +585,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
                 bs
             })
             .map_err(|e| {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    ReadOperation::BlockingRead.into_static(),
-                    e.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(ReadOperation::BlockingRead.into_static(), e.kind());
                 e
             })
     }
@@ -664,11 +613,8 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
                 );
             })
             .map_err(|err| {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    WriteOperation::Write.into_static(),
-                    err.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(WriteOperation::Write.into_static(), err.kind());
                 err
             })
     }
@@ -687,11 +633,8 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
                 );
             })
             .map_err(|err| {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    WriteOperation::Abort.into_static(),
-                    err.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(WriteOperation::Abort.into_static(), err.kind());
                 err
             })
     }
@@ -710,11 +653,8 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
                 );
             })
             .map_err(|err| {
-                self.metrics.increment_errors_total(
-                    self.scheme,
-                    WriteOperation::Close.into_static(),
-                    err.kind(),
-                );
+                self.metrics
+                    .increment_errors_total(WriteOperation::Close.into_static(), err.kind());
                 err
             })
     }
@@ -741,7 +681,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(
-                    self.scheme,
                     WriteOperation::BlockingWrite.into_static(),
                     err.kind(),
                 );
@@ -763,7 +702,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(
-                    self.scheme,
                     WriteOperation::BlockingClose.into_static(),
                     err.kind(),
                 );

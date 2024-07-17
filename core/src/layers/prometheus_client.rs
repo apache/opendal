@@ -100,8 +100,9 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
         let scheme = meta.scheme();
+        let root = meta.root().to_string();
 
-        let metrics = PrometheusClientMetrics::new(Arc::new(self.metrics.clone()), scheme);
+        let metrics = PrometheusClientMetrics::new(Arc::new(self.metrics.clone()), scheme, root);
         PrometheusAccessor {
             inner,
             metrics,
@@ -110,8 +111,8 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     }
 }
 
-type OperationLabels = [(&'static str, String); 2];
-type ErrorLabels = [(&'static str, String); 3];
+type OperationLabels = [(&'static str, String); 3];
+type ErrorLabels = [(&'static str, String); 4];
 
 /// [`PrometheusClientMetricDefinitions`] provide the definition about RED(Rate/Error/Duration) metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -165,29 +166,43 @@ impl PrometheusClientMetricDefinitions {
 struct PrometheusClientMetrics {
     metrics: Arc<PrometheusClientMetricDefinitions>,
     scheme: Scheme,
+    root: String,
 }
 
 impl PrometheusClientMetrics {
-    fn new(metrics: Arc<PrometheusClientMetricDefinitions>, scheme: Scheme) -> Self {
-        Self { metrics, scheme }
+    fn new(metrics: Arc<PrometheusClientMetricDefinitions>, scheme: Scheme, root: String) -> Self {
+        Self {
+            metrics,
+            scheme,
+            root,
+        }
     }
 
     fn increment_errors_total(&self, op: &'static str, err: ErrorKind) {
         let labels = [
             ("scheme", self.scheme.to_string()),
             ("op", op.to_string()),
+            ("root", self.root.to_string()),
             ("err", err.to_string()),
         ];
         self.metrics.errors_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: Scheme, op: &'static str) {
-        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
+        let labels = [
+            ("scheme", scheme.to_string()),
+            ("op", op.to_string()),
+            ("root", self.root.to_string()),
+        ];
         self.metrics.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: Scheme, op: &'static str, bytes: usize) {
-        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
+        let labels = [
+            ("scheme", scheme.to_string()),
+            ("op", op.to_string()),
+            ("root", self.root.to_string()),
+        ];
         self.metrics
             .bytes_histogram
             .get_or_create(&labels)
@@ -199,7 +214,11 @@ impl PrometheusClientMetrics {
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: &'static str, duration: Duration) {
-        let labels = [("scheme", scheme.to_string()), ("op", op.to_string())];
+        let labels = [
+            ("scheme", scheme.to_string()),
+            ("op", op.to_string()),
+            ("root", self.root.to_string()),
+        ];
         self.metrics
             .request_duration_seconds
             .get_or_create(&labels)

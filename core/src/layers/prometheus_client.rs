@@ -101,8 +101,10 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
         let meta = inner.info();
         let scheme = meta.scheme();
         let root = meta.root().to_string();
+        let name = meta.name().to_string();
 
-        let metrics = PrometheusClientMetrics::new(Arc::new(self.metrics.clone()), scheme, root);
+        let metrics =
+            PrometheusClientMetrics::new(Arc::new(self.metrics.clone()), scheme, root, name);
         PrometheusAccessor {
             inner,
             metrics,
@@ -111,8 +113,8 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     }
 }
 
-type OperationLabels = [(&'static str, String); 3];
-type ErrorLabels = [(&'static str, String); 4];
+type OperationLabels = [(&'static str, String); 4];
+type ErrorLabels = [(&'static str, String); 5];
 
 /// [`PrometheusClientMetricDefinitions`] provide the definition about RED(Rate/Error/Duration) metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -167,14 +169,21 @@ struct PrometheusClientMetrics {
     metrics: Arc<PrometheusClientMetricDefinitions>,
     scheme: Scheme,
     root: String,
+    name: String,
 }
 
 impl PrometheusClientMetrics {
-    fn new(metrics: Arc<PrometheusClientMetricDefinitions>, scheme: Scheme, root: String) -> Self {
+    fn new(
+        metrics: Arc<PrometheusClientMetricDefinitions>,
+        scheme: Scheme,
+        root: String,
+        name: String,
+    ) -> Self {
         Self {
             metrics,
             scheme,
             root,
+            name,
         }
     }
 
@@ -182,6 +191,7 @@ impl PrometheusClientMetrics {
         let labels = [
             ("scheme", self.scheme.to_string()),
             ("op", op.to_string()),
+            ("namespace", self.name.to_string()),
             ("root", self.root.to_string()),
             ("err", err.to_string()),
         ];
@@ -192,6 +202,7 @@ impl PrometheusClientMetrics {
         let labels = [
             ("scheme", scheme.to_string()),
             ("op", op.to_string()),
+            ("namespace", self.name.to_string()),
             ("root", self.root.to_string()),
         ];
         self.metrics.requests_total.get_or_create(&labels).inc();
@@ -201,6 +212,7 @@ impl PrometheusClientMetrics {
         let labels = [
             ("scheme", scheme.to_string()),
             ("op", op.to_string()),
+            ("namespace", self.name.to_string()),
             ("root", self.root.to_string()),
         ];
         self.metrics
@@ -217,6 +229,7 @@ impl PrometheusClientMetrics {
         let labels = [
             ("scheme", scheme.to_string()),
             ("op", op.to_string()),
+            ("namespace", self.name.to_string()),
             ("root", self.root.to_string()),
         ];
         self.metrics

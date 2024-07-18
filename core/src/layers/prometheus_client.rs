@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,6 +23,8 @@ use std::time::Instant;
 
 use bytes::Buf;
 use futures::TryFutureExt;
+use prometheus_client::encoding::EncodeLabel;
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram;
@@ -114,8 +115,49 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     }
 }
 
-type OperationLabels = [(&'static str, Cow<'static, str>); 4];
-type ErrorLabels = [(&'static str, Cow<'static, str>); 5];
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct OperationLabels {
+    op: &'static str,
+    scheme: &'static str,
+    root: Arc<String>,
+    namespace: Arc<String>,
+}
+
+impl EncodeLabelSet for OperationLabels {
+    fn encode(
+        &self,
+        mut encoder: prometheus_client::encoding::LabelSetEncoder,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        ("op", self.op).encode(encoder.encode_label())?;
+        ("scheme", self.scheme).encode(encoder.encode_label())?;
+        ("namespace", self.namespace.as_str()).encode(encoder.encode_label())?;
+        ("root", self.root.as_str()).encode(encoder.encode_label())?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct ErrorLabels {
+    op: &'static str,
+    scheme: &'static str,
+    err: &'static str,
+    root: Arc<String>,
+    namespace: Arc<String>,
+}
+
+impl EncodeLabelSet for ErrorLabels {
+    fn encode(
+        &self,
+        mut encoder: prometheus_client::encoding::LabelSetEncoder,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        ("op", self.op).encode(encoder.encode_label())?;
+        ("scheme", self.scheme).encode(encoder.encode_label())?;
+        ("error", self.err).encode(encoder.encode_label())?;
+        ("namespace", self.namespace.as_str()).encode(encoder.encode_label())?;
+        ("root", self.root.as_str()).encode(encoder.encode_label())?;
+        Ok(())
+    }
+}
 
 /// [`PrometheusClientMetricDefinitions`] provide the definition about RED(Rate/Error/Duration) metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -169,8 +211,8 @@ impl PrometheusClientMetricDefinitions {
 struct PrometheusClientMetrics {
     metrics: Arc<PrometheusClientMetricDefinitions>,
     scheme: Scheme,
-    root: String,
-    name: String,
+    root: Arc<String>,
+    name: Arc<String>,
 }
 
 impl PrometheusClientMetrics {
@@ -183,39 +225,39 @@ impl PrometheusClientMetrics {
         Self {
             metrics,
             scheme,
-            root,
-            name,
+            root: Arc::new(root),
+            name: Arc::new(name),
         }
     }
 
     fn increment_errors_total(&self, op: &'static str, err: ErrorKind) {
-        let labels = [
-            ("scheme", self.scheme.into_static().into()),
-            ("op", op.into()),
-            ("error", err.into_static().into()),
-            ("namespace", self.name.clone().into()),
-            ("root", self.root.clone().into()),
-        ];
+        let labels = ErrorLabels {
+            op,
+            scheme: self.scheme.into_static(),
+            err: err.into_static(),
+            root: self.root.clone(),
+            namespace: self.name.clone(),
+        };
         self.metrics.errors_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: Scheme, op: &'static str) {
-        let labels = [
-            ("scheme", scheme.into_static().into()),
-            ("op", op.into()),
-            ("namespace", self.name.clone().into()),
-            ("root", self.root.clone().into()),
-        ];
+        let labels = OperationLabels {
+            op,
+            scheme: scheme.into_static(),
+            root: self.root.clone(),
+            namespace: self.name.clone(),
+        };
         self.metrics.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: Scheme, op: &'static str, bytes: usize) {
-        let labels = [
-            ("scheme", scheme.into_static().into()),
-            ("op", op.into()),
-            ("namespace", self.name.clone().into()),
-            ("root", self.root.clone().into()),
-        ];
+        let labels = OperationLabels {
+            op,
+            scheme: scheme.into_static(),
+            root: self.root.clone(),
+            namespace: self.name.clone(),
+        };
         self.metrics
             .bytes_histogram
             .get_or_create(&labels)
@@ -227,12 +269,12 @@ impl PrometheusClientMetrics {
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: &'static str, duration: Duration) {
-        let labels = [
-            ("scheme", scheme.into_static().into()),
-            ("op", op.into()),
-            ("namespace", self.name.clone().into()),
-            ("root", self.root.clone().into()),
-        ];
+        let labels = OperationLabels {
+            op,
+            scheme: scheme.into_static(),
+            root: self.root.clone(),
+            namespace: self.name.clone(),
+        };
         self.metrics
             .request_duration_seconds
             .get_or_create(&labels)

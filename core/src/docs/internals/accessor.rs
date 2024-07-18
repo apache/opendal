@@ -132,7 +132,7 @@
 //!                 ..Default::default()
 //!         });
 //!
-//!         am
+//!         am.into()
 //!     }
 //! }
 //! ```
@@ -302,7 +302,7 @@
 //!                     ..Default::default()
 //!             });
 //!
-//!         am
+//!         am.into()
 //!     }
 //!
 //!     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -178,10 +180,10 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.inner.info();
+    fn metadata(&self) -> Arc<AccessorInfo> {
+        let mut meta = self.inner.info().as_ref().clone();
         meta.full_capability_mut().blocking = true;
-        meta
+        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

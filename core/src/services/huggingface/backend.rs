@@ -250,7 +250,7 @@ impl Access for HuggingfaceBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
@@ -263,7 +263,7 @@ impl Access for HuggingfaceBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

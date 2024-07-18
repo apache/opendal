@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
+use fastrace::prelude::*;
 use futures::FutureExt;
-use minitrace::prelude::*;
 
 use crate::raw::oio::ListOperation;
 use crate::raw::oio::ReadOperation;
@@ -27,7 +28,7 @@ use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add [minitrace](https://docs.rs/minitrace/) for every operations.
+/// Add [fastrace](https://docs.rs/fastrace/) for every operations.
 ///
 /// # Examples
 ///
@@ -35,13 +36,13 @@ use crate::*;
 ///
 /// ```no_build
 /// use anyhow::Result;
-/// use opendal::layers::MinitraceLayer;
+/// use opendal::layers::FastraceLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(MinitraceLayer)
+///     .layer(FastraceLayer)
 ///     .finish();
 /// ```
 ///
@@ -52,17 +53,17 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use futures::executor::block_on;
-/// use minitrace::collector::Config;
-/// use minitrace::prelude::*;
-/// use opendal::layers::MinitraceLayer;
+/// use fastrace::collector::Config;
+/// use fastrace::prelude::*;
+/// use opendal::layers::FastraceLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
 /// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
 ///     let reporter =
-///         minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
+///         fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
 ///             .unwrap();
-///     minitrace::set_reporter(reporter, Config::default());
+///     fastrace::set_reporter(reporter, Config::default());
 ///
 ///     {
 ///         let root = Span::root("op", SpanContext::random());
@@ -72,7 +73,7 @@ use crate::*;
 ///                 let _ = dotenvy::dotenv();
 ///                 let op = Operator::new(services::Memory::default())
 ///                     .expect("init operator must succeed")
-///                     .layer(MinitraceLayer)
+///                     .layer(FastraceLayer)
 ///                     .finish();
 ///                 op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
 ///                     .await
@@ -84,7 +85,7 @@ use crate::*;
 ///         );
 ///     }
 ///
-///     minitrace::flush();
+///     fastrace::flush();
 ///
 ///     Ok(())
 /// }
@@ -92,54 +93,54 @@ use crate::*;
 ///
 /// # Output
 ///
-/// OpenDAL is using [`minitrace`](https://docs.rs/minitrace/latest/minitrace/) for tracing internally.
+/// OpenDAL is using [`fastrace`](https://docs.rs/fastrace/latest/fastrace/) for tracing internally.
 ///
-/// To enable minitrace output, please init one of the reporter that `minitrace` supports.
+/// To enable fastrace output, please init one of the reporter that `fastrace` supports.
 ///
 /// For example:
 ///
 /// ```no_build
-/// extern crate minitrace_jaeger;
+/// extern crate fastrace_jaeger;
 ///
-/// use minitrace::collector::Config;
+/// use fastrace::collector::Config;
 ///
 /// let reporter =
-///     minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
+///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
 ///         .unwrap();
-/// minitrace::set_reporter(reporter, Config::default());
+/// fastrace::set_reporter(reporter, Config::default());
 /// ```
 ///
-/// For real-world usage, please take a look at [`minitrace-datadog`](https://crates.io/crates/minitrace-datadog) or [`minitrace-jaeger`](https://crates.io/crates/minitrace-jaeger) .
-pub struct MinitraceLayer;
+/// For real-world usage, please take a look at [`fastrace-datadog`](https://crates.io/crates/fastrace-datadog) or [`fastrace-jaeger`](https://crates.io/crates/fastrace-jaeger) .
+pub struct FastraceLayer;
 
-impl<A: Access> Layer<A> for MinitraceLayer {
-    type LayeredAccess = MinitraceAccessor<A>;
+impl<A: Access> Layer<A> for FastraceLayer {
+    type LayeredAccess = FastraceAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        MinitraceAccessor { inner }
+        FastraceAccessor { inner }
     }
 }
 
 #[derive(Debug)]
-pub struct MinitraceAccessor<A> {
+pub struct FastraceAccessor<A> {
     inner: A,
 }
 
-impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
+impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     type Inner = A;
-    type Reader = MinitraceWrapper<A::Reader>;
-    type BlockingReader = MinitraceWrapper<A::BlockingReader>;
-    type Writer = MinitraceWrapper<A::Writer>;
-    type BlockingWriter = MinitraceWrapper<A::BlockingWriter>;
-    type Lister = MinitraceWrapper<A::Lister>;
-    type BlockingLister = MinitraceWrapper<A::BlockingLister>;
+    type Reader = FastraceWrapper<A::Reader>;
+    type BlockingReader = FastraceWrapper<A::BlockingReader>;
+    type Writer = FastraceWrapper<A::Writer>;
+    type BlockingWriter = FastraceWrapper<A::BlockingWriter>;
+    type Lister = FastraceWrapper<A::Lister>;
+    type BlockingLister = FastraceWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     #[trace]
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 
@@ -156,7 +157,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+                        FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
                     )
                 })
             })
@@ -171,7 +172,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+                        FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
                     )
                 })
             })
@@ -206,7 +207,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
                 v.map(|(rp, s)| {
                     (
                         rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
+                        FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
                     )
                 })
             })
@@ -233,7 +234,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+                FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
             )
         })
     }
@@ -243,7 +244,7 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
         self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+                FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
             )
         })
     }
@@ -273,31 +274,31 @@ impl<A: Access> LayeredAccess for MinitraceAccessor<A> {
         self.inner.blocking_list(path, args).map(|(rp, it)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_local_parent("PageOperation"), it),
+                FastraceWrapper::new(Span::enter_with_local_parent("PageOperation"), it),
             )
         })
     }
 }
 
-pub struct MinitraceWrapper<R> {
+pub struct FastraceWrapper<R> {
     span: Span,
     inner: R,
 }
 
-impl<R> MinitraceWrapper<R> {
+impl<R> FastraceWrapper<R> {
     fn new(span: Span, inner: R) -> Self {
         Self { span, inner }
     }
 }
 
-impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
+impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
     fn read(&mut self) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
@@ -305,7 +306,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     }
 }
 
-impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
+impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
@@ -325,7 +326,7 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
+impl<R: oio::BlockingWrite> oio::BlockingWrite for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
@@ -339,14 +340,14 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
     }
 }
 
-impl<R: oio::List> oio::List for MinitraceWrapper<R> {
+impl<R: oio::List> oio::List for FastraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().await
     }
 }
 
-impl<R: oio::BlockingList> oio::BlockingList for MinitraceWrapper<R> {
+impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(ListOperation::BlockingNext.into_static());

@@ -273,7 +273,7 @@ impl Access for IcloudBackend {
     type Lister = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Icloud)
             .set_root(&self.core.root)
@@ -282,7 +282,7 @@ impl Access for IcloudBackend {
                 read: true,
                 ..Default::default()
             });
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

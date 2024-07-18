@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::raw::*;
 use crate::*;
 
 /// Metadata for operator, users can use this metadata to get information of operator.
 #[derive(Clone, Debug, Default)]
-pub struct OperatorInfo(AccessorInfo);
+pub struct OperatorInfo(Arc<AccessorInfo>);
 
 impl OperatorInfo {
-    pub(super) fn new(acc: AccessorInfo) -> Self {
+    pub(super) fn new(acc: Arc<AccessorInfo>) -> Self {
         OperatorInfo(acc)
     }
 

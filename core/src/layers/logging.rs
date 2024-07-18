@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use bytes::Buf;
 use futures::FutureExt;
@@ -221,7 +222,7 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> started",

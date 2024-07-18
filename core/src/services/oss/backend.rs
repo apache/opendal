@@ -107,7 +107,7 @@ impl OssBuilder {
         self
     }
 
-    /// Set a endpoint for generating presigned urls.
+    /// Set an endpoint for generating presigned urls.
     ///
     /// You can offer a public endpoint like <https://oss-cn-beijing.aliyuncs.com> to return a presinged url for
     /// public accessors, along with an internal endpoint like <https://oss-cn-beijing-internal.aliyuncs.com>
@@ -174,7 +174,11 @@ impl OssBuilder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = format!("{bucket}.{host}");
+                let full_host = if let Some(port) = uri.port_u16() {
+                    format!("{bucket}.{host}:{port}")
+                } else {
+                    format!("{bucket}.{host}")
+                };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
                         "http" | "https" => format!("{scheme_str}://{full_host}"),
@@ -382,7 +386,7 @@ impl Access for OssBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.core.root)
@@ -416,6 +420,7 @@ impl Access for OssBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -436,7 +441,7 @@ impl Access for OssBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -447,7 +452,9 @@ impl Access for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta =
+                    self.core
+                        .parse_metadata(path, constants::X_OSS_META_PREFIX, resp.headers())?;
 
                 if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
                     meta.set_version(v);

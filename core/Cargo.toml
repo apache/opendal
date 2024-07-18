@@ -83,8 +83,8 @@ layers-metrics = ["dep:metrics"]
 layers-prometheus = ["dep:prometheus"]
 # Enable layers prometheus support, with prometheus-client crate
 layers-prometheus-client = ["dep:prometheus-client"]
-# Enable layers minitrace support.
-layers-minitrace = ["dep:minitrace"]
+# Enable layers fastrace support.
+layers-fastrace = ["dep:fastrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 # Enable layers oteltrace support.
@@ -359,8 +359,8 @@ await-tree = { version = "0.1.1", optional = true }
 governor = { version = "0.6.0", optional = true, features = ["std"] }
 # for layers-metrics
 metrics = { version = "0.23", optional = true }
-# for layers-minitrace
-minitrace = { version = "0.6", optional = true }
+# for layers-fastrace
+fastrace = { version = "0.6", optional = true }
 # for layers-opentelemetry
 opentelemetry = { version = "0.21.0", optional = true }
 # for layers-prometheus
@@ -378,8 +378,8 @@ getrandom = { version = "0.2", features = ["js"] }
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
+fastrace = { version = "0.6", features = ["enable"] }
 libtest-mimic = "0.6"
-minitrace = { version = "0.6", features = ["enable"] }
 opentelemetry = { version = "0.21", default-features = false, features = [
   "trace",
 ] }

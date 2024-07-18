@@ -47,7 +47,7 @@ impl Access for GdriveBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
@@ -67,7 +67,7 @@ impl Access for GdriveBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

@@ -23,6 +23,8 @@ use std::time::Instant;
 
 use bytes::Buf;
 use futures::TryFutureExt;
+use prometheus_client::encoding::EncodeLabel;
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram;
@@ -114,7 +116,30 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
 }
 
 type OperationLabels = [(&'static str, String); 4];
-type ErrorLabels = [(&'static str, String); 5];
+// type ErrorLabels = [(&'static str, String); 5];
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct ErrorLabels {
+    scheme: &'static str,
+    op: &'static str,
+    namespace: String,
+    root: String,
+    err: &'static str,
+}
+
+impl<'a> EncodeLabelSet for ErrorLabels {
+    fn encode(
+        &self,
+        mut encoder: prometheus_client::encoding::LabelSetEncoder,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        ("scheme", self.scheme).encode(encoder.encode_label())?;
+        ("op", self.op).encode(encoder.encode_label())?;
+        ("namespace", self.namespace.as_str()).encode(encoder.encode_label())?;
+        ("root", self.root.as_str()).encode(encoder.encode_label())?;
+        ("err", self.err).encode(encoder.encode_label())?;
+        Ok(())
+    }
+}
 
 /// [`PrometheusClientMetricDefinitions`] provide the definition about RED(Rate/Error/Duration) metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -188,13 +213,13 @@ impl PrometheusClientMetrics {
     }
 
     fn increment_errors_total(&self, op: &'static str, err: ErrorKind) {
-        let labels = [
-            ("scheme", self.scheme.to_string()),
-            ("op", op.to_string()),
-            ("namespace", self.name.to_string()),
-            ("root", self.root.to_string()),
-            ("err", err.to_string()),
-        ];
+        let labels = ErrorLabels {
+            op: op,
+            err: err.into_static(),
+            scheme: self.scheme.into_static(),
+            root: self.root.clone(),
+            namespace: self.name.clone(),
+        };
         self.metrics.errors_total.get_or_create(&labels).inc();
     }
 

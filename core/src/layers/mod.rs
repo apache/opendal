@@ -53,6 +53,11 @@ mod metrics;
 #[cfg(feature = "layers-metrics")]
 pub use self::metrics::MetricsLayer;
 
+#[cfg(feature = "layers-mime-guess")]
+mod mime_guess;
+#[cfg(feature = "layers-mime-guess")]
+pub use self::mime_guess::MimeGuessLayer;
+
 #[cfg(feature = "layers-prometheus")]
 mod prometheus;
 #[cfg(feature = "layers-prometheus")]

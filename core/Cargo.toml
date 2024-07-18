@@ -79,6 +79,8 @@ executors-tokio = ["tokio/rt"]
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
+# Enable layers mime_guess support
+layers-mime-guess = ["dep:mime_guess"]
 # Enable layers prometheus support, with tikv/prometheus-rs crate
 layers-prometheus = ["dep:prometheus"]
 # Enable layers prometheus support, with prometheus-client crate
@@ -359,6 +361,8 @@ await-tree = { version = "0.1.1", optional = true }
 governor = { version = "0.6.0", optional = true, features = ["std"] }
 # for layers-metrics
 metrics = { version = "0.23", optional = true }
+# for layers-mime-guess
+mime_guess = { version = "2.0.5", optional = true }
 # for layers-fastrace
 fastrace = { version = "0.6", optional = true }
 # for layers-opentelemetry

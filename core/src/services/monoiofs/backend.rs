@@ -16,10 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::Deserialize;
 
+use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
 
@@ -32,7 +35,7 @@ pub struct MonoiofsConfig {
     ///
     /// All operations will happen under this root.
     ///
-    /// Default to `/` if not set.
+    /// Builder::build will return error if not set.
     pub root: Option<String>,
 }
 
@@ -53,7 +56,6 @@ impl MonoiofsBuilder {
         } else {
             Some(root.to_string())
         };
-
         self
     }
 }
@@ -65,18 +67,46 @@ impl Builder for MonoiofsBuilder {
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
         let config = MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+            .expect("config deserialize should success");
         MonoiofsBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        todo!()
+        let root = self.config.root.take().map(PathBuf::from).ok_or(
+            Error::new(ErrorKind::ConfigInvalid, "root is not specified")
+                .with_operation("Builder::build"),
+        )?;
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy())
+                        .set_source(e)
+                })?;
+            }
+        }
+        let root = root.canonicalize().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "canonicalize of root directory failed",
+            )
+            .with_operation("Builder::build")
+            .with_context("root", root.to_string_lossy())
+            .set_source(e)
+        })?;
+        let worker_threads = 1; // TODO: test concurrency and default to available_parallelism and bind cpu
+        let io_uring_entries = 1024;
+        Ok(MonoiofsBackend {
+            core: Arc::new(MonoiofsCore::new(root, worker_threads, io_uring_entries)),
+        })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct MonoiofsBackend {}
+pub struct MonoiofsBackend {
+    core: Arc<MonoiofsCore>,
+}
 
 impl Access for MonoiofsBackend {
     type Reader = ();
@@ -87,6 +117,12 @@ impl Access for MonoiofsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        todo!()
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::Monoiofs)
+            .set_root(&self.core.root().to_string_lossy())
+            .set_native_capability(Capability {
+                ..Default::default()
+            });
+        am.into()
     }
 }

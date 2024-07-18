@@ -4799,6 +4799,7 @@ dependencies = [
  "etcd-client",
  "fastrace",
  "flagset",
+ "flume",
  "foundationdb",
  "futures",
  "getrandom 0.2.15",

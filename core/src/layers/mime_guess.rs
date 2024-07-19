@@ -185,43 +185,33 @@ mod tests {
 
     #[tokio::test]
     async fn test_async() {
-        let op_guess = Operator::new(Memory::default())
+        let op = Operator::new(Memory::default())
             .unwrap()
             .layer(MimeGuessLayer::default())
             .finish();
 
-        op_guess.write("test0.html", DATA).await.unwrap();
+        op.write("test0.html", DATA).await.unwrap();
         assert_eq!(
-            op_guess.stat("test0.html").await.unwrap().content_type(),
+            op.stat("test0.html").await.unwrap().content_type(),
             Some(HTML)
         );
 
-        op_guess.write("test1.asdfghjkl", DATA).await.unwrap();
+        op.write("test1.asdfghjkl", DATA).await.unwrap();
         assert_eq!(
-            op_guess
-                .stat("test1.asdfghjkl")
-                .await
-                .unwrap()
-                .content_type(),
+            op.stat("test1.asdfghjkl").await.unwrap().content_type(),
             None
         );
 
-        op_guess
-            .write_with("test2.html", DATA)
+        op.write_with("test2.html", DATA)
             .content_type(CUSTOM)
             .await
             .unwrap();
-
         assert_eq!(
-            op_guess.stat("test2.html").await.unwrap().content_type(),
+            op.stat("test2.html").await.unwrap().content_type(),
             Some(CUSTOM)
         );
 
-        let entries = op_guess
-            .list_with("")
-            .metakey(Metakey::Complete)
-            .await
-            .unwrap();
+        let entries = op.list_with("").metakey(Metakey::Complete).await.unwrap();
         assert_eq!(entries[0].metadata().content_type(), Some(HTML));
         assert_eq!(entries[1].metadata().content_type(), None);
         assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));
@@ -229,40 +219,25 @@ mod tests {
 
     #[test]
     fn test_blocking() {
-        let op_guess = Operator::new(Memory::default())
+        let op = Operator::new(Memory::default())
             .unwrap()
             .layer(MimeGuessLayer::default())
             .finish()
             .blocking();
 
-        op_guess.write("test0.html", DATA).unwrap();
-        assert_eq!(
-            op_guess.stat("test0.html").unwrap().content_type(),
-            Some(HTML)
-        );
+        op.write("test0.html", DATA).unwrap();
+        assert_eq!(op.stat("test0.html").unwrap().content_type(), Some(HTML));
 
-        op_guess.write("test1.asdfghjkl", DATA).unwrap();
-        assert_eq!(
-            op_guess.stat("test1.asdfghjkl").unwrap().content_type(),
-            None
-        );
+        op.write("test1.asdfghjkl", DATA).unwrap();
+        assert_eq!(op.stat("test1.asdfghjkl").unwrap().content_type(), None);
 
-        op_guess
-            .write_with("test2.html", DATA)
+        op.write_with("test2.html", DATA)
             .content_type(CUSTOM)
             .call()
             .unwrap();
+        assert_eq!(op.stat("test2.html").unwrap().content_type(), Some(CUSTOM));
 
-        assert_eq!(
-            op_guess.stat("test2.html").unwrap().content_type(),
-            Some(CUSTOM)
-        );
-
-        let entries = op_guess
-            .list_with("")
-            .metakey(Metakey::Complete)
-            .call()
-            .unwrap();
+        let entries = op.list_with("").metakey(Metakey::Complete).call().unwrap();
         assert_eq!(entries[0].metadata().content_type(), Some(HTML));
         assert_eq!(entries[1].metadata().content_type(), None);
         assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));

@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 use tokio_postgres::Config;
 
@@ -32,7 +32,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for PostgreSQL services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct PostgresqlConfig {
@@ -43,13 +43,13 @@ pub struct PostgresqlConfig {
     /// Default to `/` if not set.
     pub root: Option<String>,
     /// the connection string of postgres server
-    connection_string: Option<String>,
+    pub connection_string: Option<String>,
     /// the table of postgresql
-    table: Option<String>,
+    pub table: Option<String>,
     /// the key field of postgresql
-    key_field: Option<String>,
+    pub key_field: Option<String>,
     /// the value field of postgresql
-    value_field: Option<String>,
+    pub value_field: Option<String>,
 }
 
 impl Debug for PostgresqlConfig {

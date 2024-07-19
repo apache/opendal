@@ -26,7 +26,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::*;
 use super::error::parse_error;
@@ -37,7 +37,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for backblaze YandexDisk services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct YandexDiskConfig {

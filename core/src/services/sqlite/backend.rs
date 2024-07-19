@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 
 use rusqlite::params;
 use rusqlite::Connection;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -29,7 +29,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Sqlite support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SqliteConfig {

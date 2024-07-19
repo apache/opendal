@@ -28,7 +28,7 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -38,7 +38,7 @@ use crate::*;
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
 /// Config for Etcd services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct EtcdConfig {

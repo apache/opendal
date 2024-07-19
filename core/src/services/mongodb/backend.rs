@@ -23,7 +23,7 @@ use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
 use mongodb::options::UpdateOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -31,7 +31,7 @@ use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// Config for Mongodb service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MongodbConfig {

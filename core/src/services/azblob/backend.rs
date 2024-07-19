@@ -30,7 +30,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -55,7 +55,7 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzblobConfig {
     /// The root of Azblob service backend.
     ///

@@ -23,14 +23,14 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// Config for Mokaservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MokaConfig {

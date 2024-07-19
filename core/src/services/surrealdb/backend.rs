@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
@@ -37,19 +37,19 @@ use crate::ErrorKind;
 use crate::Scheme;
 
 /// Config for Surrealdb services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SurrealdbConfig {
-    connection_string: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    namespace: Option<String>,
-    database: Option<String>,
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    pub connection_string: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub namespace: Option<String>,
+    pub database: Option<String>,
+    pub table: Option<String>,
+    pub key_field: Option<String>,
+    pub value_field: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for SurrealdbConfig {

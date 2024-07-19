@@ -23,7 +23,7 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;
@@ -38,7 +38,7 @@ use crate::services::seafile::core::SeafileSigner;
 use crate::*;
 
 /// Config for backblaze seafile services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SeafileConfig {

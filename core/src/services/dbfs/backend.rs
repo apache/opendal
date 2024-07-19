@@ -23,7 +23,7 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::DbfsCore;
 use super::error::parse_error;
@@ -33,11 +33,11 @@ use crate::raw::*;
 use crate::*;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DbfsConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    token: Option<String>,
+    pub root: Option<String>,
+    pub endpoint: Option<String>,
+    pub token: Option<String>,
 }
 
 impl Debug for DbfsConfig {

@@ -21,23 +21,23 @@ use std::fmt::Debug;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
 /// Config for Mysql services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MysqlConfig {
-    connection_string: Option<String>,
+    pub connection_string: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    pub table: Option<String>,
+    pub key_field: Option<String>,
+    pub value_field: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for MysqlConfig {

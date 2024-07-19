@@ -27,7 +27,7 @@ use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
@@ -47,7 +47,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Ftpservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FtpConfig {

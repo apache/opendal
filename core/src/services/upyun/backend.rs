@@ -23,7 +23,7 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::parse_info;
 use super::core::UpyunCore;
@@ -36,7 +36,7 @@ use crate::services::upyun::core::UpyunSigner;
 use crate::*;
 
 /// Config for backblaze upyun services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct UpyunConfig {

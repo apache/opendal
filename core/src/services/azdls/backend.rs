@@ -26,7 +26,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -47,13 +47,13 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 /// Azure Data Lake Storage Gen2 Support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzdlsConfig {
-    root: Option<String>,
-    filesystem: String,
-    endpoint: Option<String>,
-    account_name: Option<String>,
-    account_key: Option<String>,
+    pub root: Option<String>,
+    pub filesystem: String,
+    pub endpoint: Option<String>,
+    pub account_name: Option<String>,
+    pub account_key: Option<String>,
 }
 
 impl Debug for AzdlsConfig {

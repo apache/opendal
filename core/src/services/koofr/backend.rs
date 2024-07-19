@@ -24,7 +24,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -39,7 +39,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for backblaze Koofr services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct KoofrConfig {

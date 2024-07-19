@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::core::*;
@@ -30,7 +30,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for icloud services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct IcloudConfig {

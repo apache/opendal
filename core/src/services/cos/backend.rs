@@ -26,7 +26,7 @@ use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::*;
 use super::error::parse_error;
@@ -37,15 +37,15 @@ use crate::services::cos::writer::CosWriters;
 use crate::*;
 
 /// Tencent-Cloud COS services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct CosConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    secret_id: Option<String>,
-    secret_key: Option<String>,
-    bucket: Option<String>,
-    disable_config_load: bool,
+    pub root: Option<String>,
+    pub endpoint: Option<String>,
+    pub secret_id: Option<String>,
+    pub secret_key: Option<String>,
+    pub bucket: Option<String>,
+    pub disable_config_load: bool,
 }
 
 impl Debug for CosConfig {

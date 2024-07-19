@@ -23,7 +23,7 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::error::parse_error;
@@ -34,7 +34,7 @@ use crate::ErrorKind;
 use crate::*;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct D1Config {

@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use http::Response;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AlluxioCore;
 use super::error::parse_error;
@@ -33,7 +33,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for alluxio services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AlluxioConfig {

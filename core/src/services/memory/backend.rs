@@ -21,18 +21,18 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use self::raw::ConfigDeserializer;
 use crate::raw::adapters::typed_kv;
 use crate::*;
 
 ///Config for memory.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemoryConfig {
-    ///root of the backend.
+    /// root of the backend.
     pub root: Option<String>,
 }
 

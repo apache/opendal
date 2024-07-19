@@ -24,7 +24,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
@@ -34,7 +34,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Configuration for Huggingface service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HuggingfaceConfig {

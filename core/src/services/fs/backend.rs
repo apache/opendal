@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::*;
 use crate::*;
@@ -35,7 +35,7 @@ use super::writer::FsWriter;
 use super::writer::FsWriters;
 
 /// config for file system
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FsConfig {

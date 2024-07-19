@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -34,7 +34,7 @@ use crate::*;
 
 /// [foundationdb](https://www.foundationdb.org/) service support.
 ///Config for FoundationDB.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FoundationConfig {

@@ -26,7 +26,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AzfileCore;
 use super::error::parse_error;
@@ -40,14 +40,14 @@ use crate::*;
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 /// Azure File services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzfileConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    share_name: String,
-    account_name: Option<String>,
-    account_key: Option<String>,
-    sas_token: Option<String>,
+    pub root: Option<String>,
+    pub endpoint: Option<String>,
+    pub share_name: String,
+    pub account_name: Option<String>,
+    pub account_key: Option<String>,
+    pub sas_token: Option<String>,
 }
 
 impl Debug for AzfileConfig {

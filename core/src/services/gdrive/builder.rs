@@ -23,7 +23,7 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
@@ -38,7 +38,7 @@ use crate::Scheme;
 use crate::*;
 
 /// [GoogleDrive](https://drive.google.com/) configuration.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GdriveConfig {

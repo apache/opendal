@@ -26,7 +26,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::core::*;
@@ -38,7 +38,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Aliyun Drive services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AliyunDriveConfig {

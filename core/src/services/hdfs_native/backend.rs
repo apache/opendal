@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // use uuid::Uuid;
 use super::error::parse_hdfs_error;
@@ -36,7 +36,7 @@ use crate::*;
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 
 /// Config for HdfsNative services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsNativeConfig {

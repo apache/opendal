@@ -25,7 +25,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -41,7 +41,7 @@ use crate::services::b2::core::ListFileNamesResponse;
 use crate::*;
 
 /// Config for backblaze b2 services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct B2Config {

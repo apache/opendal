@@ -20,14 +20,14 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
 
 /// Config for monoiofs services support.
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MonoiofsConfig {

@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
@@ -34,7 +34,7 @@ use crate::Scheme;
 use crate::*;
 
 /// Config for Tikv services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct TikvConfig {

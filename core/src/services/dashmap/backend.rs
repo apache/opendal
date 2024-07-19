@@ -20,16 +20,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-#[derive(Default, Deserialize, Clone, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DashmapConfig {
-    root: Option<String>,
+    pub root: Option<String>,
 }
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.

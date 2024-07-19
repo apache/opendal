@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -35,14 +35,14 @@ use crate::*;
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
 /// Config for Sled services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SledConfig {
     /// That path to the sled data directory.
-    datadir: Option<String>,
-    root: Option<String>,
-    tree: Option<String>,
+    pub datadir: Option<String>,
+    pub root: Option<String>,
+    pub tree: Option<String>,
 }
 
 impl Debug for SledConfig {

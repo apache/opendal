@@ -24,7 +24,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::parse_blob;
 use super::core::Blob;
@@ -37,7 +37,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for backblaze VercelBlob services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct VercelBlobConfig {

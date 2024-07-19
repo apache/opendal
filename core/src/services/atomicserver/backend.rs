@@ -36,7 +36,7 @@ use crate::*;
 /// Atomicserver service support.
 
 /// Config for Atomicserver services support
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AtomicserverConfig {

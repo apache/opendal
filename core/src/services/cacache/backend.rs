@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::str;
 
 use cacache;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
 use crate::raw::ConfigDeserializer;
@@ -32,10 +32,10 @@ use crate::Scheme;
 use crate::*;
 
 /// cacache service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
-    datadir: Option<String>,
+    pub datadir: Option<String>,
 }
 
 /// cacache service support.

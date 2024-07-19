@@ -30,7 +30,7 @@ use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
@@ -45,7 +45,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Sftp Service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SftpConfig {

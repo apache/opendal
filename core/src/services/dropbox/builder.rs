@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::backend::DropboxBackend;
@@ -32,7 +32,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for [Dropbox](https://www.dropbox.com/) backend support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct DropboxConfig {

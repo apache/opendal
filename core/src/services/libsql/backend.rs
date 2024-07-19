@@ -36,7 +36,7 @@ use hrana_client_proto::StmtResult;
 use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
@@ -44,17 +44,17 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Libsqlservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LibsqlConfig {
-    connection_string: Option<String>,
-    auth_token: Option<String>,
+    pub connection_string: Option<String>,
+    pub auth_token: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    pub table: Option<String>,
+    pub key_field: Option<String>,
+    pub value_field: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for LibsqlConfig {

@@ -24,7 +24,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::Entry;
 use super::core::GithubCore;
@@ -35,8 +35,8 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Github services support.
-#[derive(Default, Deserialize)]
+/// Config for backblaze GitHub services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GithubConfig {
@@ -44,17 +44,17 @@ pub struct GithubConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
-    /// Github access_token.
+    /// GitHub access_token.
     ///
     /// optional.
     /// If not provided, the backend will only support read operations for public repositories.
     /// And rate limit will be limited to 60 requests per hour.
     pub token: Option<String>,
-    /// Github repo owner.
+    /// GitHub repo owner.
     ///
     /// required.
     pub owner: String,
-    /// Github repo name.
+    /// GitHub repo name.
     ///
     /// required.
     pub repo: String,

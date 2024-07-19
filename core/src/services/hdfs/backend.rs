@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use futures::AsyncWriteExt;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::lister::HdfsLister;
@@ -37,7 +37,7 @@ use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
 /// Config for Hdfs services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsConfig {

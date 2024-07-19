@@ -75,7 +75,7 @@ use crate::{raw::*, Result};
 ///     .layer(MimeGuessLayer::default())
 ///     .finish();
 /// ```
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 // Developer note:
 // The inclusion of a private unit tuple inside the struct here is to force users to
 // use `MimeGuessLayer::default()` instead of directly using `MimeGuessLayer` to

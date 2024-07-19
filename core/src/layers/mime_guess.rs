@@ -24,26 +24,6 @@ use crate::{raw::*, Result};
 /// This layer uses [mime_guess](https://crates.io/crates/mime_guess) to automatically
 /// set `Content-Type` based on the file extension in the operation path.
 ///
-/// Specifically, when you call the following methods:
-/// - [Operator::write](../struct.Operator.html#method.write)
-/// - [Operator::write_with](../struct.Operator.html#method.write_with)
-/// - [Operator::writer](../struct.Operator.html#method.writer)
-/// - [Operator::writer_with](../struct.Operator.html#method.writer_with)
-/// - [Operator::stat](../struct.Operator.html#method.stat)
-/// - [Operator::stat_with](../struct.Operator.html#method.stat_with)
-/// - [Operator::list_with](../struct.Operator.html#method.list_with)
-/// - [Operator::lister_with](../struct.Operator.html#method.lister_with)
-/// - [BlockingOperator::write](../struct.BlockingOperator.html#method.write)
-/// - [BlockingOperator::write_with](../struct.BlockingOperator.html#method.write_with)
-/// - [BlockingOperator::writer](../struct.BlockingOperator.html#method.writer)
-/// - [BlockingOperator::writer_with](../struct.BlockingOperator.html#method.writer_with)
-/// - [BlockingOperator::stat](../struct.BlockingOperator.html#method.stat)
-/// - [BlockingOperator::stat_with](../struct.BlockingOperator.html#method.stat_with)
-/// - [BlockingOperator::list_with](../struct.BlockingOperator.html#method.list_with)
-/// - [BlockingOperator::lister_with](../struct.BlockingOperator.html#method.lister_with)
-///
-/// Your operation will automatically carry `Content-Type` information.
-///
 /// However, please note that this layer will not overwrite the `content_type` you manually set,
 /// nor will it overwrite the `content_type` provided by backend services.
 ///

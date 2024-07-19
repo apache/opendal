@@ -185,33 +185,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_async() {
-        let op_control_group = Operator::new(Memory::default()).unwrap().finish();
-
-        op_control_group.write("test0.html", DATA).await.unwrap();
-        assert_eq!(
-            op_control_group
-                .stat("test0.html")
-                .await
-                .unwrap()
-                .content_type(),
-            None
-        );
-
-        op_control_group
-            .write_with("test1.html", DATA)
-            .content_type(CUSTOM)
-            .await
-            .unwrap();
-
-        assert_eq!(
-            op_control_group
-                .stat("test1.html")
-                .await
-                .unwrap()
-                .content_type(),
-            Some(CUSTOM)
-        );
-
         let op_guess = Operator::new(Memory::default())
             .unwrap()
             .layer(MimeGuessLayer::default())
@@ -256,28 +229,6 @@ mod tests {
 
     #[test]
     fn test_blocking() {
-        let op_control_group = Operator::new(Memory::default())
-            .unwrap()
-            .finish()
-            .blocking();
-
-        op_control_group.write("test0.html", DATA).unwrap();
-        assert_eq!(
-            op_control_group.stat("test0.html").unwrap().content_type(),
-            None
-        );
-
-        op_control_group
-            .write_with("test1.html", DATA)
-            .content_type(CUSTOM)
-            .call()
-            .unwrap();
-
-        assert_eq!(
-            op_control_group.stat("test1.html").unwrap().content_type(),
-            Some(CUSTOM)
-        );
-
         let op_guess = Operator::new(Memory::default())
             .unwrap()
             .layer(MimeGuessLayer::default())

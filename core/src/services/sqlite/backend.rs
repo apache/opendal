@@ -152,12 +152,16 @@ impl SqliteBuilder {
 impl Builder for SqliteBuilder {
     const SCHEME: Scheme = Scheme::Sqlite;
     type Accessor = SqliteBackend;
+    type Config = SqliteConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SqliteBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = SqliteConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        SqliteBuilder { config }
+        SqliteConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

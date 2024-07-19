@@ -81,11 +81,16 @@ impl FsBuilder {
 impl Builder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
     type Accessor = FsBackend;
+    type Config = FsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = FsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        FsBuilder { config }
+        FsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

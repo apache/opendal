@@ -159,13 +159,19 @@ impl D1Builder {
 impl Builder for D1Builder {
     const SCHEME: Scheme = Scheme::D1;
     type Accessor = D1Backend;
+    type Config = D1Config;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self {
+            config,
+            http_client: None,
+        }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        Self {
-            config: D1Config::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-            ..Default::default()
-        }
+        D1Config::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

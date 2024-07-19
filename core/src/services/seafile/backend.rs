@@ -166,6 +166,14 @@ impl SeafileBuilder {
 impl Builder for SeafileBuilder {
     const SCHEME: Scheme = Scheme::Seafile;
     type Accessor = SeafileBackend;
+    type Config = SeafileConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SeafileBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an SeafileBuilder instance.
     ///
@@ -177,15 +185,9 @@ impl Builder for SeafileBuilder {
     ///
     /// Returns an instance of SeafileBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = SeafileConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an SeafileBuilder instance with the deserialized config.
-        SeafileBuilder {
-            config,
-            http_client: None,
-        }
+        SeafileConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of SeafileBackend.

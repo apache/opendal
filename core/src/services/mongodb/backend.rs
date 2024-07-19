@@ -152,13 +152,17 @@ impl MongodbBuilder {
 
 impl Builder for MongodbBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
-
     type Accessor = MongodbBackend;
+    type Config = MongodbConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MongodbBuilder { config }
+    }
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = MongodbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        MongodbBuilder { config }
+        MongodbConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

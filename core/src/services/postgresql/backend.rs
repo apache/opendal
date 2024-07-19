@@ -164,12 +164,16 @@ impl PostgresqlBuilder {
 impl Builder for PostgresqlBuilder {
     const SCHEME: Scheme = Scheme::Postgresql;
     type Accessor = PostgresqlBackend;
+    type Config = PostgresqlConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        PostgresqlBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = PostgresqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        PostgresqlBuilder { config }
+        PostgresqlConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

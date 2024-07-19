@@ -142,6 +142,14 @@ impl GithubBuilder {
 impl Builder for GithubBuilder {
     const SCHEME: Scheme = Scheme::Github;
     type Accessor = GithubBackend;
+    type Config = GithubConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        GithubBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an GithubBuilder instance.
     ///
@@ -153,15 +161,9 @@ impl Builder for GithubBuilder {
     ///
     /// Returns an instance of GithubBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = GithubConfig::deserialize(ConfigDeserializer::new(map))
+        GithubConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
             .expect("config deserialize must succeed");
-
-        // Create an GithubBuilder instance with the deserialized config.
-        GithubBuilder {
-            config,
-            http_client: None,
-        }
     }
 
     /// Builds the backend and returns the result of GithubBackend.

@@ -99,11 +99,16 @@ impl MemcachedBuilder {
 impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
     type Accessor = MemcachedBackend;
+    type Config = MemcachedConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MemcachedBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MemcachedConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        MemcachedBuilder { config }
+        MemcachedConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

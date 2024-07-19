@@ -396,15 +396,19 @@ impl AzblobBuilder {
 impl Builder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
     type Accessor = AzblobBackend;
+    type Config = AzblobConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzblobConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzblobBuilder {
+    fn from_config(config: Self::Config) -> Self {
+        Self {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        AzblobConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

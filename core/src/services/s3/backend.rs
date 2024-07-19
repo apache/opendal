@@ -804,16 +804,20 @@ impl S3Builder {
 impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Accessor = S3Backend;
+    type Config = S3Config;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = S3Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         S3Builder {
             config,
             customized_credential_load: None,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        S3Config::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

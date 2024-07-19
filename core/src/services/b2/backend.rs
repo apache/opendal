@@ -167,6 +167,14 @@ impl B2Builder {
 impl Builder for B2Builder {
     const SCHEME: Scheme = Scheme::B2;
     type Accessor = B2Backend;
+    type Config = B2Config;
+
+    fn from_config(config: Self::Config) -> Self {
+        B2Builder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an B2Builder instance.
     ///
@@ -178,15 +186,9 @@ impl Builder for B2Builder {
     ///
     /// Returns an instance of B2Builder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = B2Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an B2Builder instance with the deserialized config.
-        B2Builder {
-            config,
-            http_client: None,
-        }
+        B2Config::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of B2Backend.

@@ -172,12 +172,16 @@ impl HuggingfaceBuilder {
 impl Builder for HuggingfaceBuilder {
     const SCHEME: Scheme = Scheme::Huggingface;
     type Accessor = HuggingfaceBackend;
+    type Config = HuggingfaceConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        HuggingfaceBuilder { config }
+        HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Build a HuggingfaceBackend.

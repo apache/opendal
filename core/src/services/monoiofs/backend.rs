@@ -62,13 +62,17 @@ impl MonoiofsBuilder {
 
 impl Builder for MonoiofsBuilder {
     const SCHEME: Scheme = Scheme::Monoiofs;
-
     type Accessor = MonoiofsBackend;
+    type Config = MonoiofsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MonoiofsBuilder { config }
+    }
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize should success");
-        MonoiofsBuilder { config }
+        MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize should success")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

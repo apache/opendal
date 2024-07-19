@@ -194,12 +194,16 @@ impl RedisBuilder {
 impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
     type Accessor = RedisBackend;
+    type Config = RedisConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        RedisBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RedisConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        RedisBuilder { config }
+        RedisConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

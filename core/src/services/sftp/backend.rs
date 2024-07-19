@@ -169,6 +169,17 @@ impl SftpBuilder {
 impl Builder for SftpBuilder {
     const SCHEME: Scheme = Scheme::Sftp;
     type Accessor = SftpBackend;
+    type Config = SftpConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SftpBuilder { config }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        SftpConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("sftp backend build started: {:?}", &self);
@@ -217,13 +228,6 @@ impl Builder for SftpBuilder {
 
             client: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SftpBuilder {
-            config: SftpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 

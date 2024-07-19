@@ -141,18 +141,20 @@ impl GdriveBuilder {
 
 impl Builder for GdriveBuilder {
     const SCHEME: Scheme = Scheme::Gdrive;
-
     type Accessor = GdriveBackend;
+    type Config = GdriveConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = GdriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self {
             config,
-
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        GdriveConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

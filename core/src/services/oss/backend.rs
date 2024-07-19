@@ -271,17 +271,19 @@ impl OssBuilder {
 impl Builder for OssBuilder {
     const SCHEME: Scheme = Scheme::Oss;
     type Accessor = OssBackend;
+    type Config = OssConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = OssConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an OssBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         OssBuilder {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        OssConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

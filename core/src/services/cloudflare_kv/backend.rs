@@ -116,15 +116,19 @@ impl Builder for CloudflareKvBuilder {
     const SCHEME: Scheme = Scheme::CloudflareKv;
 
     type Accessor = CloudflareKvBackend;
+    type Config = CloudflareKvConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

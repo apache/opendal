@@ -22,21 +22,31 @@ use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer
 use crate::raw::*;
 use crate::*;
 
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, io::Cursor, sync::Arc};
+
+/// compio-based file system support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct CompfsConfig {
+    /// root of this backend.
+    ///
+    /// All operations will happen under this root.
+    pub root: Option<String>,
+}
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
 pub struct CompfsBuilder {
-    root: Option<PathBuf>,
+    config: CompfsConfig,
 }
 
 impl CompfsBuilder {
     /// Set root for Compfs
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
-            Some(PathBuf::from(root))
+            Some(root.to_string())
         };
 
         self
@@ -46,17 +56,20 @@ impl CompfsBuilder {
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
     type Accessor = CompfsBackend;
+    type Config = CompfsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CompfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-
-        builder
+        CompfsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = match self.root.take() {
+        let root = match self.config.root.take() {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,

@@ -70,11 +70,16 @@ impl RocksdbBuilder {
 impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
     type Accessor = RocksdbBackend;
+    type Config = RocksdbConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        RocksdbBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RocksdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        RocksdbBuilder { config }
+        RocksdbConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

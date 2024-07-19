@@ -134,6 +134,17 @@ impl FtpBuilder {
 impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
     type Accessor = FtpBackend;
+    type Config = FtpConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        FtpBuilder { config }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        FtpConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
@@ -193,13 +204,6 @@ impl Builder for FtpBuilder {
             enable_secure,
             pool: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FtpBuilder {
-            config: FtpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 

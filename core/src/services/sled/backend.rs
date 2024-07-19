@@ -93,12 +93,16 @@ impl SledBuilder {
 impl Builder for SledBuilder {
     const SCHEME: Scheme = Scheme::Sled;
     type Accessor = SledBackend;
+    type Config = SledConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SledBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        SledBuilder {
-            config: SledConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+        SledConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

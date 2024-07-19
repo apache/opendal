@@ -93,19 +93,20 @@ impl OnedriveBuilder {
 
 impl Builder for OnedriveBuilder {
     const SCHEME: Scheme = Scheme::Onedrive;
-
     type Accessor = OnedriveBackend;
+    type Config = OnedriveConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = OnedriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an OnedriveBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         OnedriveBuilder {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        OnedriveConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

@@ -229,15 +229,20 @@ impl GcsBuilder {
 impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
     type Accessor = GcsBackend;
+    type Config = GcsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self {
+            config,
+            http_client: None,
+            customized_token_loader: None,
+        }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = GcsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        GcsBuilder {
-            config,
-            ..GcsBuilder::default()
-        }
+        GcsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

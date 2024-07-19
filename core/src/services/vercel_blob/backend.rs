@@ -116,6 +116,11 @@ impl VercelBlobBuilder {
 impl Builder for VercelBlobBuilder {
     const SCHEME: Scheme = Scheme::VercelBlob;
     type Accessor = VercelBlobBackend;
+    type Config = VercelBlobConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        VercelBlobBuilder { config, http_client: None }
+    }
 
     /// Converts a HashMap into an VercelBlobBuilder instance.
     ///
@@ -127,15 +132,9 @@ impl Builder for VercelBlobBuilder {
     ///
     /// Returns an instance of VercelBlobBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = VercelBlobConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an VercelBlobBuilder instance with the deserialized config.
-        VercelBlobBuilder {
-            config,
-            http_client: None,
-        }
+        VercelBlobConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of VercelBlobBackend.

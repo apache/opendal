@@ -131,6 +131,14 @@ impl ChainsafeBuilder {
 impl Builder for ChainsafeBuilder {
     const SCHEME: Scheme = Scheme::Chainsafe;
     type Accessor = ChainsafeBackend;
+    type Config = ChainsafeConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        ChainsafeBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an ChainsafeBuilder instance.
     ///
@@ -142,15 +150,9 @@ impl Builder for ChainsafeBuilder {
     ///
     /// Returns an instance of ChainsafeBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = ChainsafeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an ChainsafeBuilder instance with the deserialized config.
-        ChainsafeBuilder {
-            config,
-            http_client: None,
-        }
+        ChainsafeConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of ChainsafeBackend.

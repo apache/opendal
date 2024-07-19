@@ -116,6 +116,14 @@ impl YandexDiskBuilder {
 impl Builder for YandexDiskBuilder {
     const SCHEME: Scheme = Scheme::YandexDisk;
     type Accessor = YandexDiskBackend;
+    type Config = YandexDiskConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        YandexDiskBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an YandexDiskBuilder instance.
     ///
@@ -127,15 +135,9 @@ impl Builder for YandexDiskBuilder {
     ///
     /// Returns an instance of YandexDiskBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an YandexDiskBuilder instance with the deserialized config.
-        YandexDiskBuilder {
-            config,
-            http_client: None,
-        }
+        YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of YandexDiskBackend.

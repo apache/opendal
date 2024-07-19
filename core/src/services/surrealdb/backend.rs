@@ -174,12 +174,16 @@ impl SurrealdbBuilder {
 impl Builder for SurrealdbBuilder {
     const SCHEME: Scheme = Scheme::Surrealdb;
     type Accessor = SurrealdbBackend;
+    type Config = SurrealdbConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SurrealdbBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = SurrealdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        SurrealdbBuilder { config }
+        SurrealdbConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> crate::Result<Self::Accessor> {

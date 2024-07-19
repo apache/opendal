@@ -148,6 +148,14 @@ impl PcloudBuilder {
 impl Builder for PcloudBuilder {
     const SCHEME: Scheme = Scheme::Pcloud;
     type Accessor = PcloudBackend;
+    type Config = PcloudConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        PcloudBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an PcloudBuilder instance.
     ///
@@ -159,15 +167,9 @@ impl Builder for PcloudBuilder {
     ///
     /// Returns an instance of PcloudBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = PcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an PcloudBuilder instance with the deserialized config.
-        PcloudBuilder {
-            config,
-            http_client: None,
-        }
+        PcloudConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of PcloudBackend.

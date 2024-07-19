@@ -163,15 +163,19 @@ impl AzfileBuilder {
 impl Builder for AzfileBuilder {
     const SCHEME: Scheme = Scheme::Azfile;
     type Accessor = AzfileBackend;
+    type Config = AzfileConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzfileConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzfileBuilder {
+    fn from_config(config: Self::Config) -> Self {
+        Self {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        AzfileConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

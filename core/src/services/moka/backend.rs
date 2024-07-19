@@ -125,12 +125,16 @@ impl MokaBuilder {
 impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
     type Accessor = MokaBackend;
+    type Config = MokaConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MokaBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        MokaBuilder {
-            config: MokaConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+        MokaConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

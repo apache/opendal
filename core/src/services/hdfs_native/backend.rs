@@ -113,14 +113,16 @@ impl HdfsNativeBuilder {
 impl Builder for HdfsNativeBuilder {
     const SCHEME: Scheme = Scheme::HdfsNative;
     type Accessor = HdfsNativeBackend;
+    type Config = HdfsNativeConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsNativeBuilder instance with the deserialized config.
-        HdfsNativeBuilder { config }
+        HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

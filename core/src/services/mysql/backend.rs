@@ -134,12 +134,16 @@ impl MysqlBuilder {
 impl Builder for MysqlBuilder {
     const SCHEME: Scheme = Scheme::Mysql;
     type Accessor = MySqlBackend;
+    type Config = MysqlConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MysqlBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MysqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        MysqlBuilder { config }
+        MysqlConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

@@ -111,12 +111,16 @@ impl DbfsBuilder {
 impl Builder for DbfsBuilder {
     const SCHEME: Scheme = Scheme::Dbfs;
     type Accessor = DbfsBackend;
+    type Config = DbfsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let config = DbfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self { config }
+        DbfsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Build a DbfsBackend.

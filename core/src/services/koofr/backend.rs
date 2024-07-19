@@ -151,6 +151,14 @@ impl KoofrBuilder {
 impl Builder for KoofrBuilder {
     const SCHEME: Scheme = Scheme::Koofr;
     type Accessor = KoofrBackend;
+    type Config = KoofrConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        KoofrBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an KoofrBuilder instance.
     ///
@@ -162,15 +170,9 @@ impl Builder for KoofrBuilder {
     ///
     /// Returns an instance of KoofrBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = KoofrConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an KoofrBuilder instance with the deserialized config.
-        KoofrBuilder {
-            config,
-            http_client: None,
-        }
+        KoofrConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of KoofrBackend.

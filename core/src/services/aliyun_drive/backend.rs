@@ -170,14 +170,19 @@ impl Builder for AliyunDriveBuilder {
 
     type Accessor = AliyunDriveBackend;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = AliyunDriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
+    type Config = AliyunDriveConfig;
+
+    fn from_config(config: Self::Config) -> Self {
         AliyunDriveBuilder {
             config,
-
             http_client: None,
         }
+    }
+
+    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
+        AliyunDriveConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

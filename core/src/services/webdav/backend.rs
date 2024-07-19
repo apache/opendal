@@ -152,15 +152,19 @@ impl WebdavBuilder {
 impl Builder for WebdavBuilder {
     const SCHEME: Scheme = Scheme::Webdav;
     type Accessor = WebdavBackend;
+    type Config = WebdavConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = WebdavConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         WebdavBuilder {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        WebdavConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

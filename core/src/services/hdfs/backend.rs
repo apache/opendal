@@ -159,14 +159,16 @@ impl HdfsBuilder {
 impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
     type Accessor = HdfsBackend;
+    type Config = HdfsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        HdfsBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsBuilder instance with the deserialized config.
-        HdfsBuilder { config }
+        HdfsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

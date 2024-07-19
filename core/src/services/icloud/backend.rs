@@ -184,14 +184,19 @@ impl IcloudBuilder {
 impl Builder for IcloudBuilder {
     const SCHEME: Scheme = Scheme::Icloud;
     type Accessor = IcloudBackend;
+    type Config = IcloudConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = IcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
+    fn from_config(config: Self::Config) -> Self {
         IcloudBuilder {
             config,
             http_client: None,
         }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        IcloudConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

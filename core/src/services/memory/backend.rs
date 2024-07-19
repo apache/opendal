@@ -54,12 +54,16 @@ impl MemoryBuilder {
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
     type Accessor = MemoryBackend;
+    type Config = MemoryConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        MemoryBuilder { config }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        MemoryBuilder {
-            config: MemoryConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+        MemoryConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

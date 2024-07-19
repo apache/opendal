@@ -121,7 +121,6 @@ impl GridFsBuilder {
 
 impl Builder for GridFsBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
-
     type Accessor = GridFsBackend;
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {

@@ -776,6 +776,12 @@ mod tests {
         const SCHEME: Scheme = Scheme::Custom("mock");
         type Accessor = MockService;
 
+        type Config = ();
+
+        fn from_config(_: Self::Config) -> Self {
+            Self::default()
+        }
+
         fn from_map(_: HashMap<String, String>) -> Self {
             Self::default()
         }

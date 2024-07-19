@@ -146,6 +146,14 @@ impl UpyunBuilder {
 impl Builder for UpyunBuilder {
     const SCHEME: Scheme = Scheme::Upyun;
     type Accessor = UpyunBackend;
+    type Config = UpyunConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        UpyunBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an UpyunBuilder instance.
     ///
@@ -157,15 +165,9 @@ impl Builder for UpyunBuilder {
     ///
     /// Returns an instance of UpyunBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = UpyunConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an UpyunBuilder instance with the deserialized config.
-        UpyunBuilder {
-            config,
-            http_client: None,
-        }
+        UpyunConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of UpyunBackend.

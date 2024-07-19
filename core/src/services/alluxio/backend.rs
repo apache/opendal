@@ -119,6 +119,14 @@ impl AlluxioBuilder {
 impl Builder for AlluxioBuilder {
     const SCHEME: Scheme = Scheme::Alluxio;
     type Accessor = AlluxioBackend;
+    type Config = AlluxioConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        AlluxioBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     /// Converts a HashMap into an AlluxioBuilder instance.
     ///
@@ -130,15 +138,9 @@ impl Builder for AlluxioBuilder {
     ///
     /// Returns an instance of AlluxioBuilder.
     fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = AlluxioConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an AlluxioBuilder instance with the deserialized config.
-        AlluxioBuilder {
-            config,
-            http_client: None,
-        }
+        AlluxioConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of AlluxioBackend.

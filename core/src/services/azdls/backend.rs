@@ -164,8 +164,22 @@ impl AzdlsBuilder {
 }
 
 impl Builder for AzdlsBuilder {
-    type Accessor = AzdlsBackend;
     const SCHEME: Scheme = Scheme::Azdls;
+    type Accessor = AzdlsBackend;
+    type Config = AzdlsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        AzdlsBuilder {
+            config,
+            http_client: None,
+        }
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        AzdlsConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -224,16 +238,6 @@ impl Builder for AzdlsBuilder {
                 signer,
             }),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzdlsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzdlsBuilder {
-            config,
-            http_client: None,
-        }
     }
 }
 

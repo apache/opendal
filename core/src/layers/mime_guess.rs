@@ -76,13 +76,8 @@ use crate::{raw::*, Result};
 ///     .finish();
 /// ```
 #[derive(Debug, Clone, Default)]
-// Developer note:
-// The inclusion of a private unit tuple inside the struct here is to force users to
-// use `MimeGuessLayer::default()` instead of directly using `MimeGuessLayer` to
-// construct instances.
-// This way, when we add some optional config methods to this layer in the future,
-// the old code can still work perfectly without any breaking changes.
-pub struct MimeGuessLayer(());
+#[non_exhaustive]
+pub struct MimeGuessLayer {}
 
 impl<A: Access> Layer<A> for MimeGuessLayer {
     type LayeredAccess = MimeGuessAccessor<A>;

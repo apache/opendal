@@ -95,28 +95,28 @@ fn mime_from_path(path: &str) -> Option<&str> {
 }
 
 fn opwrite_with_mime(path: &str, op: OpWrite) -> OpWrite {
-    if op.content_type().is_none() {
-        if let Some(mime) = mime_from_path(path) {
-            op.with_content_type(mime)
-        } else {
-            op
-        }
-    } else {
-        op
+    if op.content_type().is_some() {
+        return op;
     }
+
+    if let Some(mime) = mime_from_path(path) {
+        return op.with_content_type(mime);
+    }
+
+    op
 }
 
 fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     rp.map_metadata(|metadata| {
-        if metadata.content_type().is_none() {
-            if let Some(mime) = mime_from_path(path) {
-                metadata.with_content_type(mime.into())
-            } else {
-                metadata
-            }
-        } else {
-            metadata
+        if metadata.content_type().is_some() {
+            return metadata;
         }
+
+        if let Some(mime) = mime_from_path(path) {
+            return metadata.with_content_type(mime.into());
+        }
+
+        metadata
     })
 }
 

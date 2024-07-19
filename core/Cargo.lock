@@ -4813,6 +4813,7 @@ dependencies = [
  "log",
  "md-5",
  "metrics",
+ "mime_guess",
  "mini-moka",
  "moka",
  "mongodb",

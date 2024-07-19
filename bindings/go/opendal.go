@@ -33,7 +33,7 @@
 //
 //	import (
 //		"github.com/apache/opendal/bindings/go
-//		"github.com/yuchanns/opendal-go-services/memory
+//		"github.com/apache/opendal-go-services/memory
 //	)
 //
 //	func main() {

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yuchanns/opendal-go-services/memory"
+	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
 )
 
@@ -92,6 +92,7 @@ func main() {
 ### Behavior Tests
 
 ```bash
+cd tests/behavior_tests
 # Test a specific backend
 export OPENDAL_TEST=memory
 # Run all tests
@@ -105,6 +106,7 @@ CGO_ENABLE=0 GOMAXPROCS=1 go test -v -run TestBehavior
 ### Benchmark
 
 ```bash
+cd tests/behavior_tests
 # Benchmark a specific backend
 export OPENDAL_TEST=memory
 

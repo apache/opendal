@@ -41,14 +41,75 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  matrix:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - id: set-matrix
+        name: Setup Matrix
+        run: |
+          MATRIX=$(yq -o=json -I=0 "." .github/scripts/test_go_binding/matrix.yaml | sed 's/ //g')
+          echo "Matrix:"
+          echo "$MATRIX" | jq .
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+  test:
+    needs: [ matrix ]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+            repository: "apache/opendal-go-services"
+            path: "tools"
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Setup Target
+        env:
+          TARGET: ${{ matrix.build.target }}
+        run: rustup target add $TARGET
       - uses: actions/setup-go@v5
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Setup Service
+        env:
+          OPENDAL_FEATURES: "layers-blocking,services-${{ matrix.service }}"
+        run: |
+          python -m pip install toml
+          python tools/.github/scripts/setup_features.py
+      - name: Build C Binding
+        working-directory: bindings/c
+        env:
+          VERSION: "latest"
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.build.target }}
+          CC: ${{ matrix.build.cc }}
+        run: |
+          cargo build --target $TARGET  --release
+          sudo apt install zstd
+          DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
+          mkdir $DIR
+          zstd -22 ./target/$TARGET/release/libopendal_c.so -o $DIR/libopendal_c.$TARGET.so.zst
+      - name: Build Go Artifact
+        working-directory: tools/internal/generate
+        env:
+          MATRIX: ${{ needs.matrix.outputs.matrix }}
+          VERSION: "latest"
+        run: |
+          go run generate.go
+      - name: Setup Go Workspace
+        env:
+          SERVICE: ${{ matrix.service }}
+        working-directory: bindings/go/tests
+        run: |
+          go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
       - name: Run tests
         env:
-          OPENDAL_TEST: "memory"
-        working-directory: bindings/go
+          OPENDAL_TEST: ${{ matrix.service }}
+        working-directory: bindings/go/tests/behavior_tests
         run: CGO_ENABLE=0 go test -v -run TestBehavior

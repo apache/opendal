@@ -31,11 +31,16 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct MysqlConfig {
+    /// The connection string for mysql.
     pub connection_string: Option<String>,
 
+    /// The table name for mysql.
     pub table: Option<String>,
+    /// The key field name for mysql.
     pub key_field: Option<String>,
+    /// The value field name for mysql.
     pub value_field: Option<String>,
+    /// The root for mysql.
     pub root: Option<String>,
 }
 

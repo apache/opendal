@@ -44,19 +44,28 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 #[serde(default)]
 #[non_exhaustive]
 pub struct OssConfig {
+    /// Root for oss.
     pub root: Option<String>,
 
+    /// Endpoint for oss.
     pub endpoint: Option<String>,
+    /// Presign endpoint for oss.
     pub presign_endpoint: Option<String>,
+    /// Bucket for oss.
     pub bucket: String,
 
     // OSS features
+    /// Server side encryption for oss.
     pub server_side_encryption: Option<String>,
+    /// Server side encryption key id for oss.
     pub server_side_encryption_key_id: Option<String>,
+    /// Allow anonymous for oss.
     pub allow_anonymous: bool,
 
     // authenticate options
+    /// Access key id for oss.
     pub access_key_id: Option<String>,
+    /// Access key secret for oss.
     pub access_key_secret: Option<String>,
     /// batch_max_operations
     pub batch_max_operations: Option<usize>,

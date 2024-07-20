@@ -47,9 +47,13 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 #[serde(default)]
 #[non_exhaustive]
 pub struct WebhdfsConfig {
+    /// Root for webhdfs.
     pub root: Option<String>,
+    /// Endpoint for webhdfs.
     pub endpoint: Option<String>,
+    /// Delegation token for webhdfs.
     pub delegation: Option<String>,
+    /// Disable batch listing
     pub disable_list_batch: bool,
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,

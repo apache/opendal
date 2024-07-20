@@ -37,10 +37,15 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct GridFsConfig {
+    /// The connection string of the MongoDB service.
     pub connection_string: Option<String>,
+    /// The database name of the MongoDB GridFs service to read/write.
     pub database: Option<String>,
+    /// The bucket name of the MongoDB GridFs service to read/write.
     pub bucket: Option<String>,
+    /// The chunk size of the MongoDB GridFs service used to break the user file into chunks.
     pub chunk_size: Option<u32>,
+    /// The working directory, all operations will be performed under it.
     pub root: Option<String>,
 }
 

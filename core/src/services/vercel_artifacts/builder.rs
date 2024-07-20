@@ -30,6 +30,7 @@ use super::backend::VercelArtifactsBackend;
 #[serde(default)]
 #[non_exhaustive]
 pub struct VercelArtifactsConfig {
+    /// The access token for Vercel.
     pub access_token: Option<String>,
 }
 

@@ -38,7 +38,9 @@ use crate::*;
 pub struct RedbConfig {
     /// path to the redb data directory.
     pub datadir: Option<String>,
+    /// The root for redb.
     pub root: Option<String>,
+    /// The table name for redb.
     pub table: Option<String>,
 }
 

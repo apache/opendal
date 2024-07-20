@@ -40,7 +40,9 @@ const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 pub struct SledConfig {
     /// That path to the sled data directory.
     pub datadir: Option<String>,
+    /// The root for sled.
     pub root: Option<String>,
+    /// The tree for sled.
     pub tree: Option<String>,
 }
 

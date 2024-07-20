@@ -35,7 +35,9 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 #[non_exhaustive]
 pub struct IpfsConfig {
+    /// IPFS gateway endpoint.
     pub endpoint: Option<String>,
+    /// IPFS root.
     pub root: Option<String>,
 }
 

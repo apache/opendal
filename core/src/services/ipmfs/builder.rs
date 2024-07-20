@@ -26,7 +26,9 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 #[non_exhaustive]
 pub struct IpmfsConfig {
+    /// Root for ipfs.
     pub root: Option<String>,
+    /// Endpoint for ipfs.
     pub endpoint: Option<String>,
 }
 

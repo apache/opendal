@@ -34,8 +34,11 @@ use crate::*;
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DbfsConfig {
+    /// The root for dbfs.
     pub root: Option<String>,
+    /// The endpoint for dbfs.
     pub endpoint: Option<String>,
+    /// The token for dbfs.
     pub token: Option<String>,
 }
 

@@ -86,9 +86,13 @@ fn value_or_env(
 #[serde(default)]
 #[non_exhaustive]
 pub struct GhacConfig {
+    /// The root path for ghac.
     pub root: Option<String>,
+    /// The version that used by cache.
     pub version: Option<String>,
+    /// The endpoint for ghac service.
     pub endpoint: Option<String>,
+    /// The runtime token for ghac service.
     pub runtime_token: Option<String>,
 }
 

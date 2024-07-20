@@ -37,9 +37,13 @@ use super::writer::SwiftWriter;
 #[serde(default)]
 #[non_exhaustive]
 pub struct SwiftConfig {
+    /// The endpoint for Swift.
     pub endpoint: Option<String>,
+    /// The container for Swift.
     pub container: Option<String>,
+    /// The root for Swift.
     pub root: Option<String>,
+    /// The token for Swift.
     pub token: Option<String>,
 }
 

@@ -39,14 +39,23 @@ use crate::Scheme;
 #[serde(default)]
 #[non_exhaustive]
 pub struct SurrealdbConfig {
+    /// The connection string for surrealdb.
     pub connection_string: Option<String>,
+    /// The username for surrealdb.
     pub username: Option<String>,
+    /// The password for surrealdb.
     pub password: Option<String>,
+    /// The namespace for surrealdb.
     pub namespace: Option<String>,
+    /// The database for surrealdb.
     pub database: Option<String>,
+    /// The table for surrealdb.
     pub table: Option<String>,
+    /// The key field for surrealdb.
     pub key_field: Option<String>,
+    /// The value field for surrealdb.
     pub value_field: Option<String>,
+    /// The root for surrealdb.
     pub root: Option<String>,
 }
 

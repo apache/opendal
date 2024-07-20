@@ -39,10 +39,15 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 #[non_exhaustive]
 pub struct ObsConfig {
+    /// Root for obs.
     pub root: Option<String>,
+    /// Endpoint for obs.
     pub endpoint: Option<String>,
+    /// Access key id for obs.
     pub access_key_id: Option<String>,
+    /// Secret access key for obs.
     pub secret_access_key: Option<String>,
+    /// Bucket for obs.
     pub bucket: Option<String>,
 }
 

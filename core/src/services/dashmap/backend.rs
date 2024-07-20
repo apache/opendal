@@ -27,6 +27,7 @@ use crate::*;
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DashmapConfig {
+    /// The root path for dashmap.
     pub root: Option<String>,
 }
 

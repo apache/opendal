@@ -47,12 +47,18 @@ use crate::*;
 #[serde(default)]
 #[non_exhaustive]
 pub struct LibsqlConfig {
+    /// Connection string for libsql service.
     pub connection_string: Option<String>,
+    /// Authentication token for libsql service.
     pub auth_token: Option<String>,
 
+    /// Table name for libsql service.
     pub table: Option<String>,
+    /// Key field name for libsql service.
     pub key_field: Option<String>,
+    /// Value field name for libsql service.
     pub value_field: Option<String>,
+    /// Root for libsql service.
     pub root: Option<String>,
 }
 

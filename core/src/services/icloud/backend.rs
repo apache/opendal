@@ -52,6 +52,7 @@ pub struct IcloudConfig {
     ///
     /// token must be valid.
     pub trust_token: Option<String>,
+    /// ds_web_auth_token must be set in Session
     pub ds_web_auth_token: Option<String>,
     /// enable the china origin
     /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".

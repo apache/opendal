@@ -39,11 +39,17 @@ use crate::*;
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct CosConfig {
+    /// Root of this backend.
     pub root: Option<String>,
+    /// Endpoint of this backend.
     pub endpoint: Option<String>,
+    /// Secret ID of this backend.
     pub secret_id: Option<String>,
+    /// Secret key of this backend.
     pub secret_key: Option<String>,
+    /// Bucket of this backend.
     pub bucket: Option<String>,
+    /// Disable config load so that opendal will not load config from
     pub disable_config_load: bool,
 }
 

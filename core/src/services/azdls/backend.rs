@@ -48,10 +48,15 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzdlsConfig {
+    /// Root of this backend.
     pub root: Option<String>,
+    /// Filesystem name of this backend.
     pub filesystem: String,
+    /// Endpoint of this backend.
     pub endpoint: Option<String>,
+    /// Account name of this backend.
     pub account_name: Option<String>,
+    /// Account key of this backend.
     pub account_key: Option<String>,
 }
 

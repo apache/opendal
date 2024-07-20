@@ -41,11 +41,17 @@ const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 /// Azure File services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzfileConfig {
+    /// The root path for azfile.
     pub root: Option<String>,
+    /// The endpoint for azfile.
     pub endpoint: Option<String>,
+    /// The share name for azfile.
     pub share_name: String,
+    /// The account name for azfile.
     pub account_name: Option<String>,
+    /// The account key for azfile.
     pub account_key: Option<String>,
+    /// The sas token for azfile.
     pub sas_token: Option<String>,
 }
 

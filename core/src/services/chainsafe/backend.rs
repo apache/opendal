@@ -140,21 +140,6 @@ impl Builder for ChainsafeBuilder {
         }
     }
 
-    /// Converts a HashMap into an ChainsafeBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of ChainsafeBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        ChainsafeConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of ChainsafeBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

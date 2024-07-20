@@ -128,21 +128,6 @@ impl Builder for AlluxioBuilder {
         }
     }
 
-    /// Converts a HashMap into an AlluxioBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of AlluxioBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        AlluxioConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of AlluxioBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

@@ -175,12 +175,6 @@ impl Builder for AzdlsBuilder {
         }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        AzdlsConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 

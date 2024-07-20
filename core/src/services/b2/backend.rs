@@ -176,21 +176,6 @@ impl Builder for B2Builder {
         }
     }
 
-    /// Converts a HashMap into an B2Builder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of B2Builder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        B2Config::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of B2Backend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

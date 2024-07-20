@@ -62,12 +62,6 @@ impl Builder for CompfsBuilder {
         Self { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        CompfsConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = match self.config.root.take() {
             Some(root) => Ok(root),

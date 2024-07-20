@@ -125,12 +125,6 @@ impl Builder for CloudflareKvBuilder {
         }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let authorization = match &self.config.token {
             Some(token) => format_authorization_by_bearer(token)?,

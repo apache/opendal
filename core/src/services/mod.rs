@@ -99,9 +99,9 @@ pub use ghac::GhacConfig;
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
 #[cfg(feature = "services-gridfs")]
-pub use gridfs::Gridfs;
-#[cfg(feature = "services-gridfs")]
 pub use gridfs::GridFsConfig;
+#[cfg(feature = "services-gridfs")]
+pub use gridfs::Gridfs;
 
 #[cfg(feature = "services-hdfs")]
 mod hdfs;
@@ -225,9 +225,9 @@ pub use self::rocksdb::RocksdbConfig;
 #[cfg(feature = "services-s3")]
 mod s3;
 #[cfg(feature = "services-s3")]
-pub use s3::S3;
-#[cfg(feature = "services-s3")]
 pub use s3::S3Config;
+#[cfg(feature = "services-s3")]
+pub use s3::S3;
 
 #[cfg(feature = "services-sftp")]
 mod sftp;
@@ -351,9 +351,9 @@ pub use sqlite::SqliteConfig;
 #[cfg(feature = "services-d1")]
 mod d1;
 #[cfg(feature = "services-d1")]
-pub use self::d1::D1;
-#[cfg(feature = "services-d1")]
 pub use self::d1::D1Config;
+#[cfg(feature = "services-d1")]
+pub use self::d1::D1;
 
 #[cfg(feature = "services-azfile")]
 mod azfile;
@@ -393,9 +393,9 @@ pub use alluxio::AlluxioConfig;
 #[cfg(feature = "services-b2")]
 mod b2;
 #[cfg(feature = "services-b2")]
-pub use b2::B2;
-#[cfg(feature = "services-b2")]
 pub use b2::B2Config;
+#[cfg(feature = "services-b2")]
+pub use b2::B2;
 
 #[cfg(feature = "services-seafile")]
 mod seafile;

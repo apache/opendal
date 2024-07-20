@@ -32,7 +32,7 @@ use crate::Scheme;
 use crate::*;
 
 /// Config for persy service support.
-#[derive(Default, Debug, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct PersyConfig {

@@ -77,7 +77,6 @@ impl Debug for GithubConfig {
 #[derive(Default)]
 pub struct GithubBuilder {
     config: GithubConfig,
-
     http_client: Option<HttpClient>,
 }
 
@@ -149,21 +148,6 @@ impl Builder for GithubBuilder {
             config,
             http_client: None,
         }
-    }
-
-    /// Converts a HashMap into an GithubBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of GithubBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        GithubConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed");
     }
 
     /// Builds the backend and returns the result of GithubBackend.

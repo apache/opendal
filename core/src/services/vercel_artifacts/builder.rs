@@ -36,7 +36,7 @@ pub struct VercelArtifactsConfig {
 impl Debug for VercelArtifactsConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VercelArtifactsConfig")
-            .field("access_token", "<redacted>")
+            .field("access_token", &"<redacted>")
             .finish()
     }
 }

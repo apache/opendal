@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub use backend::DbfsConfig;
 pub use backend::DbfsBuilder as Dbfs;
+pub use backend::DbfsConfig;
 
 mod backend;
 mod core;

@@ -36,7 +36,7 @@ use reqsign::HuaweicloudObsSigner;
 use serde::{Deserialize, Serialize};
 
 /// Config for Huawei-Cloud Object Storage Service (OBS) support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct ObsConfig {

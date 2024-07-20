@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+use std::{io::Cursor, sync::Arc};
 
-use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+use serde::{Deserialize, Serialize};
 
 use crate::raw::*;
 use crate::*;
 
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io::Cursor, sync::Arc};
+use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
 
 /// compio-based file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -77,7 +77,7 @@ impl Builder for CompfsBuilder {
                 std::fs::create_dir_all(&root).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "create root dir failed")
                         .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy())
+                        .with_context("root", root.as_str())
                         .set_source(e)
                 })?;
             }
@@ -90,7 +90,7 @@ impl Builder for CompfsBuilder {
             )
         })?;
         let core = CompfsCore {
-            root,
+            root: root.into(),
             dispatcher,
             buf_pool: oio::PooledBuf::new(16),
         };

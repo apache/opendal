@@ -119,7 +119,10 @@ impl Builder for VercelBlobBuilder {
     type Config = VercelBlobConfig;
 
     fn from_config(config: Self::Config) -> Self {
-        VercelBlobBuilder { config, http_client: None }
+        VercelBlobBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     /// Converts a HashMap into an VercelBlobBuilder instance.

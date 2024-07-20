@@ -19,12 +19,12 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
+use crate::raw::adapters::typed_kv;
+use crate::*;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
 use serde::{Deserialize, Serialize};
-use crate::raw::adapters::typed_kv;
-use crate::*;
 
 /// Config for mini-moka support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -90,9 +90,7 @@ impl Builder for MiniMokaBuilder {
     type Config = MiniMokaConfig;
 
     fn from_config(config: Self::Config) -> Self {
-        Self {
-            config: config,
-        }
+        Self { config: config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

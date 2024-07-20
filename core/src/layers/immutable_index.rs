@@ -264,12 +264,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = Http::from_map({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::new)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -302,12 +302,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = Http::from_map({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::new)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -346,12 +346,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = Http::from_map({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::new)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -404,12 +404,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = Http::from_map({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::new)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();

@@ -51,7 +51,7 @@ pub struct GridFsConfig {
 
 impl Debug for GridFsConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GridFsBuilder")
+        f.debug_struct("GridFsConfig")
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)

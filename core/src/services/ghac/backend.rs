@@ -82,15 +82,22 @@ fn value_or_env(
     })
 }
 
+/// Config for GitHub Action Cache Services support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct GhacConfig {
+    pub root: Option<String>,
+    pub version: Option<String>,
+    pub endpoint: Option<String>,
+    pub runtime_token: Option<String>,
+}
+
 /// GitHub Action Cache Services support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct GhacBuilder {
-    root: Option<String>,
-    version: Option<String>,
-    endpoint: Option<String>,
-    runtime_token: Option<String>,
-
+    config: GhacConfig,
     http_client: Option<HttpClient>,
 }
 
@@ -98,7 +105,7 @@ impl GhacBuilder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -112,7 +119,7 @@ impl GhacBuilder {
     /// If not set, we will use `opendal` as default.
     pub fn version(&mut self, version: &str) -> &mut Self {
         if !version.is_empty() {
-            self.version = Some(version.to_string())
+            self.config.version = Some(version.to_string())
         }
 
         self
@@ -125,7 +132,7 @@ impl GhacBuilder {
     /// Default: the value of the `ACTIONS_CACHE_URL` environment variable.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_string())
+            self.config.endpoint = Some(endpoint.to_string())
         }
         self
     }
@@ -138,7 +145,7 @@ impl GhacBuilder {
     /// Default: the value of the `ACTIONS_RUNTIME_TOKEN` environment variable.
     pub fn runtime_token(&mut self, runtime_token: &str) -> &mut Self {
         if !runtime_token.is_empty() {
-            self.runtime_token = Some(runtime_token.to_string())
+            self.config.runtime_token = Some(runtime_token.to_string())
         }
         self
     }
@@ -158,20 +165,25 @@ impl GhacBuilder {
 impl Builder for GhacBuilder {
     const SCHEME: Scheme = Scheme::Ghac;
     type Accessor = GhacBackend;
+    type Config = GhacConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        GhacBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = GhacBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("version").map(|v| builder.version(v));
-
-        builder
+        GhacConfig::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -186,13 +198,18 @@ impl Builder for GhacBuilder {
         let backend = GhacBackend {
             root,
 
-            cache_url: value_or_env(self.endpoint.take(), ACTIONS_CACHE_URL, "Builder::build")?,
+            cache_url: value_or_env(
+                self.config.endpoint.take(),
+                ACTIONS_CACHE_URL,
+                "Builder::build",
+            )?,
             catch_token: value_or_env(
-                self.runtime_token.take(),
+                self.config.runtime_token.take(),
                 ACTIONS_RUNTIME_TOKEN,
                 "Builder::build",
             )?,
             version: self
+                .config
                 .version
                 .clone()
                 .unwrap_or_else(|| "opendal".to_string()),

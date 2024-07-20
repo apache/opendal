@@ -20,23 +20,31 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use super::error::parse_error;
+use super::ipld::PBNode;
+use crate::raw::*;
+use crate::*;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
+use serde::{Deserialize, Serialize};
 
-use super::error::parse_error;
-use super::ipld::PBNode;
-use crate::raw::*;
-use crate::*;
+/// Config for IPFS file system support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct IpfsConfig {
+    pub endpoint: Option<String>,
+    pub root: Option<String>,
+}
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
-    endpoint: Option<String>,
-    root: Option<String>,
+    config: IpfsConfig,
     http_client: Option<HttpClient>,
 }
 
@@ -50,7 +58,7 @@ impl IpfsBuilder {
     /// - `/ipns/opendal.apache.org/` (IPNS)
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -70,7 +78,7 @@ impl IpfsBuilder {
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -91,19 +99,19 @@ impl IpfsBuilder {
 impl Builder for IpfsBuilder {
     const SCHEME: Scheme = Scheme::Ipfs;
     type Accessor = IpfsBackend;
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = IpfsBuilder::default();
+    type Config = IpfsConfig;
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        IpfsBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -114,7 +122,7 @@ impl Builder for IpfsBuilder {
         }
         debug!("backend use root {}", root);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Ipfs)

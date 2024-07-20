@@ -23,29 +23,30 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use serde::{Deserialize, Serialize};
+
+use crate::raw::*;
+use crate::*;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
-use crate::raw::*;
-use crate::*;
 
-/// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
-/// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
-#[doc = include_str!("docs.md")]
-#[doc = include_str!("compatible_services.md")]
-#[derive(Default, Clone)]
-pub struct SwiftBuilder {
-    endpoint: Option<String>,
-    container: Option<String>,
-    root: Option<String>,
-    token: Option<String>,
+/// Config for OpenStack Swift support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct SwiftConfig {
+    pub endpoint: Option<String>,
+    pub container: Option<String>,
+    pub root: Option<String>,
+    pub token: Option<String>,
 }
 
-impl Debug for SwiftBuilder {
+impl Debug for SwiftConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
+        let mut ds = f.debug_struct("SwiftConfig");
 
         ds.field("root", &self.root);
         ds.field("endpoint", &self.endpoint);
@@ -56,6 +57,23 @@ impl Debug for SwiftBuilder {
         }
 
         ds.finish()
+    }
+}
+
+/// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
+/// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
+#[doc = include_str!("docs.md")]
+#[doc = include_str!("compatible_services.md")]
+#[derive(Default, Clone)]
+pub struct SwiftBuilder {
+    config: SwiftConfig,
+}
+
+impl Debug for SwiftBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("SwiftBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -71,7 +89,7 @@ impl SwiftBuilder {
     /// If user inputs endpoint without scheme, we will
     /// prepend `https://` to it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
@@ -83,7 +101,7 @@ impl SwiftBuilder {
     ///
     /// All operations will happen under this container. It is required. e.g. `snapshots`
     pub fn container(&mut self, container: &str) -> &mut Self {
-        self.container = if container.is_empty() {
+        self.config.container = if container.is_empty() {
             None
         } else {
             Some(container.trim_end_matches('/').to_string())
@@ -96,7 +114,7 @@ impl SwiftBuilder {
     /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -107,7 +125,7 @@ impl SwiftBuilder {
     /// Default to empty string.
     pub fn token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -116,25 +134,20 @@ impl SwiftBuilder {
 impl Builder for SwiftBuilder {
     const SCHEME: Scheme = Scheme::Swift;
     type Accessor = SwiftBackend;
+    type Config = SwiftConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = SwiftBuilder::default();
-
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("container").map(|v| builder.container(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        SwiftBuilder { config }
     }
 
     /// Build a SwiftBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match self.endpoint.take() {
+        let endpoint = match self.config.endpoint.take() {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint
@@ -151,7 +164,7 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        let container = match self.container.take() {
+        let container = match self.config.container.take() {
             Some(container) => container,
             None => {
                 return Err(Error::new(
@@ -162,7 +175,7 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use container: {}", &container);
 
-        let token = self.token.take().unwrap_or_default();
+        let token = self.config.token.take().unwrap_or_default();
 
         let client = HttpClient::new()?;
 

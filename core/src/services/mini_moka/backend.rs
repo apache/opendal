@@ -22,26 +22,34 @@ use std::time::Duration;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
-
+use serde::{Deserialize, Serialize};
 use crate::raw::adapters::typed_kv;
 use crate::*;
+
+/// Config for mini-moka support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct MiniMokaConfig {
+    /// Sets the max capacity of the cache.
+    ///
+    /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
+    pub max_capacity: Option<u64>,
+    /// Sets the time to live of the cache.
+    ///
+    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
+    pub time_to_live: Option<Duration>,
+    /// Sets the time to idle of the cache.
+    ///
+    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+    pub time_to_idle: Option<Duration>,
+}
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct MiniMokaBuilder {
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    time_to_idle: Option<Duration>,
+    config: MiniMokaConfig,
 }
 
 impl MiniMokaBuilder {
@@ -50,7 +58,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
     pub fn max_capacity(&mut self, v: u64) -> &mut Self {
         if v != 0 {
-            self.max_capacity = Some(v);
+            self.config.max_capacity = Some(v);
         }
         self
     }
@@ -60,7 +68,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
-            self.time_to_live = Some(v);
+            self.config.time_to_live = Some(v);
         }
         self
     }
@@ -70,7 +78,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
-            self.time_to_idle = Some(v);
+            self.config.time_to_idle = Some(v);
         }
         self
     }
@@ -79,21 +87,12 @@ impl MiniMokaBuilder {
 impl Builder for MiniMokaBuilder {
     const SCHEME: Scheme = Scheme::MiniMoka;
     type Accessor = MiniMokaBackend;
+    type Config = MiniMokaConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = MiniMokaBuilder::default();
-
-        map.get("max_capacity")
-            .map(|v| v.parse::<u64>().map(|v| builder.max_capacity(v)));
-        map.get("time_to_live").map(|v| {
-            v.parse::<u64>()
-                .map(|v| builder.time_to_live(Duration::from_secs(v)))
-        });
-        map.get("time_to_idle").map(|v| {
-            v.parse::<u64>()
-                .map(|v| builder.time_to_idle(Duration::from_secs(v)))
-        });
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        Self {
+            config: config,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -102,13 +101,13 @@ impl Builder for MiniMokaBuilder {
         let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
         // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
-        if let Some(v) = self.max_capacity {
+        if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v)
         }
-        if let Some(v) = self.time_to_live {
+        if let Some(v) = self.config.time_to_live {
             builder = builder.time_to_live(v)
         }
-        if let Some(v) = self.time_to_idle {
+        if let Some(v) = self.config.time_to_idle {
             builder = builder.time_to_idle(v)
         }
 

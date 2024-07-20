@@ -25,23 +25,26 @@ use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 use mongodb::options::GridFsFindOptions;
 use mongodb::GridFsBucket;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::new_std_io_error;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct GridFsBuilder {
-    connection_string: Option<String>,
-    database: Option<String>,
-    bucket: Option<String>,
-    chunk_size: Option<u32>,
-    root: Option<String>,
+/// Config for Grid file system support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct GridFsConfig {
+    pub connection_string: Option<String>,
+    pub database: Option<String>,
+    pub bucket: Option<String>,
+    pub chunk_size: Option<u32>,
+    pub root: Option<String>,
 }
 
-impl Debug for GridFsBuilder {
+impl Debug for GridFsConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GridFsBuilder")
             .field("database", &self.database)
@@ -49,6 +52,20 @@ impl Debug for GridFsBuilder {
             .field("chunk_size", &self.chunk_size)
             .field("root", &self.root)
             .finish()
+    }
+}
+
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct GridFsBuilder {
+    config: GridFsConfig,
+}
+
+impl Debug for GridFsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("GridFsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -75,7 +92,7 @@ impl GridFsBuilder {
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -85,7 +102,7 @@ impl GridFsBuilder {
     /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
-            self.root = Some(root.to_owned());
+            self.config.root = Some(root.to_owned());
         }
         self
     }
@@ -93,7 +110,7 @@ impl GridFsBuilder {
     /// Set the database name of the MongoDB GridFs service to read/write.
     pub fn database(&mut self, database: &str) -> &mut Self {
         if !database.is_empty() {
-            self.database = Some(database.to_string());
+            self.config.database = Some(database.to_string());
         }
         self
     }
@@ -103,7 +120,7 @@ impl GridFsBuilder {
     /// Default to `fs` if not specified.
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         if !bucket.is_empty() {
-            self.bucket = Some(bucket.to_string());
+            self.config.bucket = Some(bucket.to_string());
         }
         self
     }
@@ -113,7 +130,7 @@ impl GridFsBuilder {
     /// Default to `255 KiB` if not specified.
     pub fn chunk_size(&mut self, chunk_size: u32) -> &mut Self {
         if chunk_size > 0 {
-            self.chunk_size = Some(chunk_size);
+            self.config.chunk_size = Some(chunk_size);
         }
         self
     }
@@ -122,23 +139,14 @@ impl GridFsBuilder {
 impl Builder for GridFsBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
     type Accessor = GridFsBackend;
+    type Config = GridFsConfig;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("database").map(|v| builder.database(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("chunk_size")
-            .map(|v| builder.chunk_size(v.parse::<u32>().unwrap_or_default()));
-        map.get("root").map(|v| builder.root(v));
-
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        GridFsBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let conn = match &self.connection_string.clone() {
+        let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(
@@ -147,18 +155,18 @@ impl Builder for GridFsBuilder {
                 )
             }
         };
-        let database = match &self.database.clone() {
+        let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", Scheme::Gridfs))
             }
         };
-        let bucket = match &self.bucket.clone() {
+        let bucket = match &self.config.bucket.clone() {
             Some(v) => v.clone(),
             None => "fs".to_string(),
         };
-        let chunk_size = self.chunk_size.unwrap_or(255);
+        let chunk_size = self.config.chunk_size.unwrap_or(255);
 
         Ok(GridFsBackend::new(Adapter {
             connection_string: conn,

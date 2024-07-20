@@ -28,13 +28,14 @@ use http::StatusCode;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
+use crate::raw::*;
+use crate::*;
+
 use super::core::*;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
-use crate::raw::*;
-use crate::*;
 
 /// Config for backblaze YandexDisk services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -123,21 +124,6 @@ impl Builder for YandexDiskBuilder {
             config,
             http_client: None,
         }
-    }
-
-    /// Converts a HashMap into an YandexDiskBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of YandexDiskBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
     }
 
     /// Builds the backend and returns the result of YandexDiskBackend.

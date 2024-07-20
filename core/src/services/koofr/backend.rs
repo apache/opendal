@@ -160,21 +160,6 @@ impl Builder for KoofrBuilder {
         }
     }
 
-    /// Converts a HashMap into an KoofrBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of KoofrBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        KoofrConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of KoofrBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

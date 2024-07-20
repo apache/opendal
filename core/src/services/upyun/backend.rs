@@ -155,21 +155,6 @@ impl Builder for UpyunBuilder {
         }
     }
 
-    /// Converts a HashMap into an UpyunBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of UpyunBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        UpyunConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of UpyunBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

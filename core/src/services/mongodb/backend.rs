@@ -159,12 +159,6 @@ impl Builder for MongodbBuilder {
         MongodbBuilder { config }
     }
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        MongodbConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),

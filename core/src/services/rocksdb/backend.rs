@@ -76,12 +76,6 @@ impl Builder for RocksdbBuilder {
         RocksdbBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        RocksdbConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let path = self.config.datadir.take().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")

@@ -125,21 +125,6 @@ impl Builder for VercelBlobBuilder {
         }
     }
 
-    /// Converts a HashMap into an VercelBlobBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of VercelBlobBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        VercelBlobConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of VercelBlobBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

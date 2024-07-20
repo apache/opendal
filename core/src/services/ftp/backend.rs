@@ -140,12 +140,6 @@ impl Builder for FtpBuilder {
         FtpBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FtpConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.config.endpoint {

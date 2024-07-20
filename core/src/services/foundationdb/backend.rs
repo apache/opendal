@@ -84,12 +84,6 @@ impl Builder for FoundationdbBuilder {
         Self { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FoundationConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let _network = Arc::new(unsafe { foundationdb::boot() });
         let db;

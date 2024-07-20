@@ -200,12 +200,6 @@ impl Builder for RedisBuilder {
         RedisBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        RedisConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(
             self.config

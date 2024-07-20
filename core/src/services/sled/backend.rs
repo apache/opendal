@@ -99,12 +99,6 @@ impl Builder for SledBuilder {
         SledBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SledConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let datadir_path = self.config.datadir.take().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")

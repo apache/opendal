@@ -157,21 +157,6 @@ impl Builder for PcloudBuilder {
         }
     }
 
-    /// Converts a HashMap into an PcloudBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of PcloudBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        PcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of PcloudBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

@@ -814,12 +814,6 @@ impl Builder for S3Builder {
         }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        S3Config::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 

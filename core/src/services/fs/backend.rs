@@ -87,12 +87,6 @@ impl Builder for FsBuilder {
         Self { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FsConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 

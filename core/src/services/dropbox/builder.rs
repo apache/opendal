@@ -143,12 +143,6 @@ impl Builder for DropboxBuilder {
         }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        DropboxConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         let client = if let Some(client) = self.http_client.take() {

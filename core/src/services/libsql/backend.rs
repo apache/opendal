@@ -168,12 +168,6 @@ impl Builder for LibsqlBuilder {
         LibsqlBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        LibsqlConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let conn = self.get_connection_string()?;
 

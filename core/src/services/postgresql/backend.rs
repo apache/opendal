@@ -170,12 +170,6 @@ impl Builder for PostgresqlBuilder {
         PostgresqlBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        PostgresqlConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,

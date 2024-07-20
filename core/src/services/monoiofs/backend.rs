@@ -69,12 +69,6 @@ impl Builder for MonoiofsBuilder {
         MonoiofsBuilder { config }
     }
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize should success")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = self.config.root.take().map(PathBuf::from).ok_or(
             Error::new(ErrorKind::ConfigInvalid, "root is not specified")

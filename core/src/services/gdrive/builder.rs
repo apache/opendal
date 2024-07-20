@@ -151,12 +151,6 @@ impl Builder for GdriveBuilder {
         }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        GdriveConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);

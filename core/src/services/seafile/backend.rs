@@ -175,21 +175,6 @@ impl Builder for SeafileBuilder {
         }
     }
 
-    /// Converts a HashMap into an SeafileBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of SeafileBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SeafileConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Builds the backend and returns the result of SeafileBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

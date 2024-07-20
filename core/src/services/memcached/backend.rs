@@ -105,12 +105,6 @@ impl Builder for MemcachedBuilder {
         MemcachedBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        MemcachedConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")

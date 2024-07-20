@@ -128,12 +128,6 @@ impl Builder for TikvBuilder {
         TikvBuilder { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        TikvConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     fn build(&mut self) -> Result<Self::Accessor> {
         let endpoints = self.config.endpoints.take().ok_or_else(|| {
             Error::new(

@@ -117,12 +117,6 @@ impl Builder for DbfsBuilder {
         Self { config }
     }
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        DbfsConfig::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
-    }
-
     /// Build a DbfsBackend.
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

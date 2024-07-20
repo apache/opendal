@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -25,7 +24,6 @@ use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;

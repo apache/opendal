@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
@@ -26,7 +25,6 @@ use moka::sync::SegmentedCache;
 use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
-use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// Config for Mokaservices support.

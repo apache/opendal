@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -23,7 +22,6 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
-use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.

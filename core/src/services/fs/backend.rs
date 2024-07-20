@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;

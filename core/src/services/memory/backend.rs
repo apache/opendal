@@ -16,14 +16,12 @@
 // under the License.
 
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use self::raw::ConfigDeserializer;
 use crate::raw::adapters::typed_kv;
 use crate::*;
 

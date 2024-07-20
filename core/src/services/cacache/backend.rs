@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -24,7 +23,6 @@ use cacache;
 use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
-use crate::raw::ConfigDeserializer;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;

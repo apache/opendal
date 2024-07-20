@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// Config for Mongodb service support.

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -24,7 +23,6 @@ use serde::{Deserialize, Serialize};
 
 use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -28,7 +27,6 @@ use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
 use crate::services::gdrive::core::GdriveCore;

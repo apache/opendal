@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
@@ -90,7 +89,7 @@ impl Builder for MiniMokaBuilder {
     type Config = MiniMokaConfig;
 
     fn from_config(config: Self::Config) -> Self {
-        Self { config: config }
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

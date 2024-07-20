@@ -30,16 +30,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/yuchanns/opendal-go-services/aliyun_drive"
-	"github.com/yuchanns/opendal-go-services/memory"
 )
 
 // Add more schemes for behavior tests here.
 var schemes = []opendal.Scheme{
-	aliyun_drive.Scheme,
 	memory.Scheme,
 }
 

@@ -15,14 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-module github.com/apache/opendal/bindings/go
+module opendal_test
 
-go 1.22.4
-
-toolchain go1.22.5
+go 1.22.5
 
 require (
-	github.com/ebitengine/purego v0.7.1
-	github.com/jupiterrider/ffi v0.1.0-beta.9
-	golang.org/x/sys v0.22.0
+	github.com/apache/opendal-go-services/memory v0.0.0-20240719030108-74ff217cfef9
+	github.com/apache/opendal/bindings/go v0.0.0-20240719044908-d9d4279b3a24
+	github.com/google/uuid v1.6.0
+	github.com/stretchr/testify v1.9.0
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/ebitengine/purego v0.7.1 // indirect
+	github.com/jupiterrider/ffi v0.1.0-beta.9 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

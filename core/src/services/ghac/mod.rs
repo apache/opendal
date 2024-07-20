@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::GhacBuilder as Ghac;
+pub use backend::GhacConfig;
 
 mod error;
 mod writer;

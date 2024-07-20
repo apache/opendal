@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::GridFsBuilder as Gridfs;
+pub use backend::GridFsConfig;

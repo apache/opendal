@@ -20,14 +20,14 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
 
 /// Config for monoiofs services support.
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MonoiofsConfig {
@@ -62,12 +62,10 @@ impl MonoiofsBuilder {
 
 impl Builder for MonoiofsBuilder {
     const SCHEME: Scheme = Scheme::Monoiofs;
-
     type Accessor = MonoiofsBackend;
+    type Config = MonoiofsConfig;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = MonoiofsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize should success");
+    fn from_config(config: Self::Config) -> Self {
         MonoiofsBuilder { config }
     }
 

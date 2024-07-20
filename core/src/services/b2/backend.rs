@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,7 +24,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -41,7 +40,7 @@ use crate::services::b2::core::ListFileNamesResponse;
 use crate::*;
 
 /// Config for backblaze b2 services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct B2Config {
@@ -167,22 +166,9 @@ impl B2Builder {
 impl Builder for B2Builder {
     const SCHEME: Scheme = Scheme::B2;
     type Accessor = B2Backend;
+    type Config = B2Config;
 
-    /// Converts a HashMap into an B2Builder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of B2Builder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = B2Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an B2Builder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         B2Builder {
             config,
             http_client: None,

@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::backend::DropboxBackend;
@@ -32,7 +31,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for [Dropbox](https://www.dropbox.com/) backend support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct DropboxConfig {
@@ -134,12 +133,12 @@ impl DropboxBuilder {
 impl Builder for DropboxBuilder {
     const SCHEME: Scheme = Scheme::Dropbox;
     type Accessor = DropboxBackend;
+    type Config = DropboxConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
+    fn from_config(config: Self::Config) -> Self {
         Self {
-            config: DropboxConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-            ..Default::default()
+            config,
+            http_client: None,
         }
     }
 

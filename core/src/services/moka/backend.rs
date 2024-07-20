@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
@@ -23,14 +22,13 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
-use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// Config for Mokaservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MokaConfig {
@@ -125,12 +123,10 @@ impl MokaBuilder {
 impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
     type Accessor = MokaBackend;
+    type Config = MokaConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        MokaBuilder {
-            config: MokaConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+    fn from_config(config: Self::Config) -> Self {
+        MokaBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

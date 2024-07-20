@@ -15,17 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;
@@ -34,7 +32,7 @@ use crate::Scheme;
 use crate::*;
 
 /// Config for Tikv services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct TikvConfig {
@@ -122,11 +120,9 @@ impl TikvBuilder {
 impl Builder for TikvBuilder {
     const SCHEME: Scheme = Scheme::Tikv;
     type Accessor = TikvBackend;
+    type Config = TikvConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = TikvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         TikvBuilder { config }
     }
 

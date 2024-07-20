@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AlluxioCore;
 use super::error::parse_error;
@@ -33,7 +32,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for alluxio services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AlluxioConfig {
@@ -119,22 +118,9 @@ impl AlluxioBuilder {
 impl Builder for AlluxioBuilder {
     const SCHEME: Scheme = Scheme::Alluxio;
     type Accessor = AlluxioBackend;
+    type Config = AlluxioConfig;
 
-    /// Converts a HashMap into an AlluxioBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of AlluxioBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = AlluxioConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an AlluxioBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         AlluxioBuilder {
             config,
             http_client: None,
@@ -265,6 +251,7 @@ impl Access for AlluxioBackend {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_builder_from_map() {

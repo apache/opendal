@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -23,7 +22,7 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::error::parse_error;
@@ -34,7 +33,7 @@ use crate::ErrorKind;
 use crate::*;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct D1Config {
@@ -159,12 +158,12 @@ impl D1Builder {
 impl Builder for D1Builder {
     const SCHEME: Scheme = Scheme::D1;
     type Accessor = D1Backend;
+    type Config = D1Config;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
+    fn from_config(config: Self::Config) -> Self {
         Self {
-            config: D1Config::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-            ..Default::default()
+            config,
+            http_client: None,
         }
     }
 

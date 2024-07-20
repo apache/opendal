@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -39,7 +38,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for backblaze Koofr services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct KoofrConfig {
@@ -151,22 +150,9 @@ impl KoofrBuilder {
 impl Builder for KoofrBuilder {
     const SCHEME: Scheme = Scheme::Koofr;
     type Accessor = KoofrBackend;
+    type Config = KoofrConfig;
 
-    /// Converts a HashMap into an KoofrBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of KoofrBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = KoofrConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an KoofrBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         KoofrBuilder {
             config,
             http_client: None,

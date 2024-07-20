@@ -15,22 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct OnedriveConfig {
@@ -93,15 +91,10 @@ impl OnedriveBuilder {
 
 impl Builder for OnedriveBuilder {
     const SCHEME: Scheme = Scheme::Onedrive;
-
     type Accessor = OnedriveBackend;
+    type Config = OnedriveConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = OnedriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an OnedriveBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         OnedriveBuilder {
             config,
             http_client: None,

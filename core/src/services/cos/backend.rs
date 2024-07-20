@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -26,7 +25,7 @@ use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::*;
 use super::error::parse_error;
@@ -37,15 +36,21 @@ use crate::services::cos::writer::CosWriters;
 use crate::*;
 
 /// Tencent-Cloud COS services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct CosConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    secret_id: Option<String>,
-    secret_key: Option<String>,
-    bucket: Option<String>,
-    disable_config_load: bool,
+    /// Root of this backend.
+    pub root: Option<String>,
+    /// Endpoint of this backend.
+    pub endpoint: Option<String>,
+    /// Secret ID of this backend.
+    pub secret_id: Option<String>,
+    /// Secret key of this backend.
+    pub secret_key: Option<String>,
+    /// Bucket of this backend.
+    pub bucket: Option<String>,
+    /// Disable config load so that opendal will not load config from
+    pub disable_config_load: bool,
 }
 
 impl Debug for CosConfig {
@@ -161,11 +166,9 @@ impl CosBuilder {
 impl Builder for CosBuilder {
     const SCHEME: Scheme = Scheme::Cos;
     type Accessor = CosBackend;
+    type Config = CosConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CosConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self {
             config,
             http_client: None,

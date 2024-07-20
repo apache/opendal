@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,7 +22,7 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::DbfsCore;
 use super::error::parse_error;
@@ -33,11 +32,14 @@ use crate::raw::*;
 use crate::*;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DbfsConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    token: Option<String>,
+    /// The root for dbfs.
+    pub root: Option<String>,
+    /// The endpoint for dbfs.
+    pub endpoint: Option<String>,
+    /// The token for dbfs.
+    pub token: Option<String>,
 }
 
 impl Debug for DbfsConfig {
@@ -111,11 +113,9 @@ impl DbfsBuilder {
 impl Builder for DbfsBuilder {
     const SCHEME: Scheme = Scheme::Dbfs;
     type Accessor = DbfsBackend;
+    type Config = DbfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = DbfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self { config }
     }
 

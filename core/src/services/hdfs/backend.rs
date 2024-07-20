@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
@@ -25,7 +24,7 @@ use std::sync::Arc;
 
 use futures::AsyncWriteExt;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::lister::HdfsLister;
@@ -37,7 +36,7 @@ use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
 /// Config for Hdfs services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsConfig {
@@ -159,13 +158,9 @@ impl HdfsBuilder {
 impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
     type Accessor = HdfsBackend;
+    type Config = HdfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         HdfsBuilder { config }
     }
 

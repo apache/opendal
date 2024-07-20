@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,7 +22,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::*;
 use crate::*;
@@ -35,7 +34,7 @@ use super::writer::FsWriter;
 use super::writer::FsWriters;
 
 /// config for file system
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FsConfig {
@@ -81,11 +80,10 @@ impl FsBuilder {
 impl Builder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
     type Accessor = FsBackend;
+    type Config = FsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = FsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        FsBuilder { config }
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

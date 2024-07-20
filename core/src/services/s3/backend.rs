@@ -39,7 +39,7 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::*;
 use super::error::parse_error;
@@ -64,7 +64,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct S3Config {
@@ -804,11 +804,9 @@ impl S3Builder {
 impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Accessor = S3Backend;
+    type Config = S3Config;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = S3Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         S3Builder {
             config,
             customized_credential_load: None,

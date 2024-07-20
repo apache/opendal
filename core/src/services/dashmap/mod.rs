@@ -17,3 +17,4 @@
 
 mod backend;
 pub use backend::DashmapBuilder as Dashmap;
+pub use backend::DashmapConfig;

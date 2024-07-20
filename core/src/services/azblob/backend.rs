@@ -30,7 +30,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -55,7 +55,7 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzblobConfig {
     /// The root of Azblob service backend.
     ///
@@ -396,12 +396,10 @@ impl AzblobBuilder {
 impl Builder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
     type Accessor = AzblobBackend;
+    type Config = AzblobConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzblobConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzblobBuilder {
+    fn from_config(config: Self::Config) -> Self {
+        Self {
             config,
             http_client: None,
         }

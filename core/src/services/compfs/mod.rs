@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+pub use backend::CompfsBuilder as Compfs;
+pub use backend::CompfsConfig;
+
 mod backend;
 mod core;
 mod lister;
 mod reader;
 mod writer;
-
-pub use backend::CompfsBuilder as Compfs;

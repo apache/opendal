@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::IpfsBuilder as Ipfs;
+pub use backend::IpfsConfig;
 
 mod error;
 mod ipld;

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -27,7 +26,7 @@ use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
@@ -47,7 +46,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Ftpservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FtpConfig {
@@ -134,6 +133,11 @@ impl FtpBuilder {
 impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
     type Accessor = FtpBackend;
+    type Config = FtpConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        FtpBuilder { config }
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
@@ -193,13 +197,6 @@ impl Builder for FtpBuilder {
             enable_secure,
             pool: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FtpBuilder {
-            config: FtpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 

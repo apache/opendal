@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,12 +22,11 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
 use crate::services::gdrive::core::GdriveCore;
@@ -38,7 +36,7 @@ use crate::Scheme;
 use crate::*;
 
 /// [GoogleDrive](https://drive.google.com/) configuration.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GdriveConfig {
@@ -141,16 +139,12 @@ impl GdriveBuilder {
 
 impl Builder for GdriveBuilder {
     const SCHEME: Scheme = Scheme::Gdrive;
-
     type Accessor = GdriveBackend;
+    type Config = GdriveConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = GdriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self {
             config,
-
             http_client: None,
         }
     }

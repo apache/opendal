@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
@@ -32,7 +31,7 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -43,36 +42,36 @@ const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// Config for Redis services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct RedisConfig {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
     ///
     /// default is "tcp://127.0.0.1:6379"
-    endpoint: Option<String>,
+    pub endpoint: Option<String>,
     /// network address of the Redis cluster service. Can be "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381", e.g.
     ///
     /// default is None
-    cluster_endpoints: Option<String>,
+    pub cluster_endpoints: Option<String>,
     /// the username to connect redis service.
     ///
     /// default is None
-    username: Option<String>,
+    pub username: Option<String>,
     /// the password for authentication
     ///
     /// default is None
-    password: Option<String>,
+    pub password: Option<String>,
     /// the working directory of the Redis service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
     /// the number of DBs redis can take is unlimited
     ///
     /// default is db 0
-    db: i64,
+    pub db: i64,
     /// The default ttl for put operations.
-    default_ttl: Option<Duration>,
+    pub default_ttl: Option<Duration>,
 }
 
 impl Debug for RedisConfig {
@@ -194,11 +193,9 @@ impl RedisBuilder {
 impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
     type Accessor = RedisBackend;
+    type Config = RedisConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RedisConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         RedisBuilder { config }
     }
 

@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -34,7 +33,7 @@ use crate::*;
 
 /// [foundationdb](https://www.foundationdb.org/) service support.
 ///Config for FoundationDB.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FoundationConfig {
@@ -78,11 +77,9 @@ impl FoundationdbBuilder {
 impl Builder for FoundationdbBuilder {
     const SCHEME: Scheme = Scheme::Foundationdb;
     type Accessor = FoundationdbBackend;
+    type Config = FoundationConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = FoundationConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self { config }
     }
 

@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -29,17 +28,17 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 /// Config for Rocksdb Service.
 pub struct RocksdbConfig {
     /// The path to the rocksdb data directory.
-    datadir: Option<String>,
+    pub datadir: Option<String>,
     /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
 }
 
 /// RocksDB service support.
@@ -70,10 +69,9 @@ impl RocksdbBuilder {
 impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
     type Accessor = RocksdbBackend;
+    type Config = RocksdbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RocksdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
+    fn from_config(config: Self::Config) -> Self {
         RocksdbBuilder { config }
     }
 

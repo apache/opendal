@@ -15,28 +15,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+use std::{io::Cursor, sync::Arc};
 
-use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+use serde::{Deserialize, Serialize};
 
 use crate::raw::*;
 use crate::*;
 
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
+use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+
+/// compio-based file system support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct CompfsConfig {
+    /// root of this backend.
+    ///
+    /// All operations will happen under this root.
+    pub root: Option<String>,
+}
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
 pub struct CompfsBuilder {
-    root: Option<PathBuf>,
+    config: CompfsConfig,
 }
 
 impl CompfsBuilder {
     /// Set root for Compfs
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
-            Some(PathBuf::from(root))
+            Some(root.to_string())
         };
 
         self
@@ -46,17 +56,14 @@ impl CompfsBuilder {
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
     type Accessor = CompfsBackend;
+    type Config = CompfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CompfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = match self.root.take() {
+        let root = match self.config.root.take() {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -70,7 +77,7 @@ impl Builder for CompfsBuilder {
                 std::fs::create_dir_all(&root).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "create root dir failed")
                         .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy())
+                        .with_context("root", root.as_str())
                         .set_source(e)
                 })?;
             }
@@ -83,7 +90,7 @@ impl Builder for CompfsBuilder {
             )
         })?;
         let core = CompfsCore {
-            root,
+            root: root.into(),
             dispatcher,
             buf_pool: oio::PooledBuf::new(16),
         };

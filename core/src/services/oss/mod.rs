@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::OssBuilder as Oss;
+pub use backend::OssConfig;
 
 mod core;
 mod error;

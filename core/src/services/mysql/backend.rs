@@ -15,29 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
 /// Config for Mysql services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MysqlConfig {
-    connection_string: Option<String>,
+    /// The connection string for mysql.
+    pub connection_string: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    /// The table name for mysql.
+    pub table: Option<String>,
+    /// The key field name for mysql.
+    pub key_field: Option<String>,
+    /// The value field name for mysql.
+    pub value_field: Option<String>,
+    /// The root for mysql.
+    pub root: Option<String>,
 }
 
 impl Debug for MysqlConfig {
@@ -134,11 +138,9 @@ impl MysqlBuilder {
 impl Builder for MysqlBuilder {
     const SCHEME: Scheme = Scheme::Mysql;
     type Accessor = MySqlBackend;
+    type Config = MysqlConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MysqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         MysqlBuilder { config }
     }
 

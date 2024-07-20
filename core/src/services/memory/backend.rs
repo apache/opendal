@@ -16,23 +16,21 @@
 // under the License.
 
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use self::raw::ConfigDeserializer;
 use crate::raw::adapters::typed_kv;
 use crate::*;
 
 ///Config for memory.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemoryConfig {
-    ///root of the backend.
+    /// root of the backend.
     pub root: Option<String>,
 }
 
@@ -54,12 +52,10 @@ impl MemoryBuilder {
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
     type Accessor = MemoryBackend;
+    type Config = MemoryConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        MemoryBuilder {
-            config: MemoryConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+    fn from_config(config: Self::Config) -> Self {
+        MemoryBuilder { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

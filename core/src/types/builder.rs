@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use crate::raw::*;
 use crate::*;
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Builder is used to set up a real underlying service, i.e. storage accessor.
 ///
@@ -40,9 +41,18 @@ pub trait Builder: Default {
     const SCHEME: Scheme;
     /// The accessor that built by this builder.
     type Accessor: Access;
+    /// The config for this builder.
+    type Config: DeserializeOwned;
+
+    /// Construct a builder from given config.
+    fn from_config(config: Self::Config) -> Self;
 
     /// Construct a builder from given map which contains several parameters needed by underlying service.
-    fn from_map(map: HashMap<String, String>) -> Self;
+    fn from_map(map: HashMap<String, String>) -> Self {
+        Self::Config::deserialize(ConfigDeserializer::new(map))
+            .map(Self::from_config)
+            .expect("config deserialize must succeed")
+    }
 
     /// Consume the accessor builder to build a service.
     fn build(&mut self) -> Result<Self::Accessor>;
@@ -53,6 +63,10 @@ impl Builder for () {
     const SCHEME: Scheme = Scheme::Custom("dummy");
 
     type Accessor = ();
+
+    type Config = ();
+
+    fn from_config(_: Self::Config) -> Self {}
 
     fn from_map(_: HashMap<String, String>) -> Self {}
 

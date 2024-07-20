@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // use uuid::Uuid;
 use super::error::parse_hdfs_error;
@@ -36,7 +35,7 @@ use crate::*;
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 
 /// Config for HdfsNative services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsNativeConfig {
@@ -113,14 +112,10 @@ impl HdfsNativeBuilder {
 impl Builder for HdfsNativeBuilder {
     const SCHEME: Scheme = Scheme::HdfsNative;
     type Accessor = HdfsNativeBackend;
+    type Config = HdfsNativeConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsNativeBuilder instance with the deserialized config.
-        HdfsNativeBuilder { config }
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

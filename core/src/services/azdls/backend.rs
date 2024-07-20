@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -26,7 +25,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -47,13 +46,18 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 /// Azure Data Lake Storage Gen2 Support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzdlsConfig {
-    root: Option<String>,
-    filesystem: String,
-    endpoint: Option<String>,
-    account_name: Option<String>,
-    account_key: Option<String>,
+    /// Root of this backend.
+    pub root: Option<String>,
+    /// Filesystem name of this backend.
+    pub filesystem: String,
+    /// Endpoint of this backend.
+    pub endpoint: Option<String>,
+    /// Account name of this backend.
+    pub account_name: Option<String>,
+    /// Account key of this backend.
+    pub account_key: Option<String>,
 }
 
 impl Debug for AzdlsConfig {
@@ -164,8 +168,16 @@ impl AzdlsBuilder {
 }
 
 impl Builder for AzdlsBuilder {
-    type Accessor = AzdlsBackend;
     const SCHEME: Scheme = Scheme::Azdls;
+    type Accessor = AzdlsBackend;
+    type Config = AzdlsConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        AzdlsBuilder {
+            config,
+            http_client: None,
+        }
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -224,16 +236,6 @@ impl Builder for AzdlsBuilder {
                 signer,
             }),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzdlsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzdlsBuilder {
-            config,
-            http_client: None,
-        }
     }
 }
 

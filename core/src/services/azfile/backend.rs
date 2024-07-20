@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -26,7 +25,7 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::AzfileCore;
 use super::error::parse_error;
@@ -40,14 +39,20 @@ use crate::*;
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 /// Azure File services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzfileConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    share_name: String,
-    account_name: Option<String>,
-    account_key: Option<String>,
-    sas_token: Option<String>,
+    /// The root path for azfile.
+    pub root: Option<String>,
+    /// The endpoint for azfile.
+    pub endpoint: Option<String>,
+    /// The share name for azfile.
+    pub share_name: String,
+    /// The account name for azfile.
+    pub account_name: Option<String>,
+    /// The account key for azfile.
+    pub account_key: Option<String>,
+    /// The sas token for azfile.
+    pub sas_token: Option<String>,
 }
 
 impl Debug for AzfileConfig {
@@ -163,12 +168,10 @@ impl AzfileBuilder {
 impl Builder for AzfileBuilder {
     const SCHEME: Scheme = Scheme::Azfile;
     type Accessor = AzfileBackend;
+    type Config = AzfileConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzfileConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzfileBuilder {
+    fn from_config(config: Self::Config) -> Self {
+        Self {
             config,
             http_client: None,
         }

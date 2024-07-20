@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -36,7 +35,7 @@ use crate::*;
 /// Atomicserver service support.
 
 /// Config for Atomicserver services support
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AtomicserverConfig {
@@ -115,14 +114,10 @@ impl AtomicserverBuilder {
 impl Builder for AtomicserverBuilder {
     const SCHEME: Scheme = Scheme::Atomicserver;
     type Accessor = AtomicserverBackend;
+    type Config = AtomicserverConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = AtomicserverConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an AtomicserverBuilder instance with the deserialized config.
-        AtomicserverBuilder { config }
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

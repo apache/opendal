@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::Entry;
 use super::core::GithubCore;
@@ -35,8 +34,8 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Github services support.
-#[derive(Default, Deserialize)]
+/// Config for backblaze GitHub services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GithubConfig {
@@ -44,17 +43,17 @@ pub struct GithubConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
-    /// Github access_token.
+    /// GitHub access_token.
     ///
     /// optional.
     /// If not provided, the backend will only support read operations for public repositories.
     /// And rate limit will be limited to 60 requests per hour.
     pub token: Option<String>,
-    /// Github repo owner.
+    /// GitHub repo owner.
     ///
     /// required.
     pub owner: String,
-    /// Github repo name.
+    /// GitHub repo name.
     ///
     /// required.
     pub repo: String,
@@ -77,7 +76,6 @@ impl Debug for GithubConfig {
 #[derive(Default)]
 pub struct GithubBuilder {
     config: GithubConfig,
-
     http_client: Option<HttpClient>,
 }
 
@@ -142,22 +140,9 @@ impl GithubBuilder {
 impl Builder for GithubBuilder {
     const SCHEME: Scheme = Scheme::Github;
     type Accessor = GithubBackend;
+    type Config = GithubConfig;
 
-    /// Converts a HashMap into an GithubBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of GithubBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = GithubConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an GithubBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         GithubBuilder {
             config,
             http_client: None,

@@ -15,13 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
-use log::debug;
-
 use super::backend::IpmfsBackend;
 use crate::raw::*;
 use crate::*;
+use log::debug;
+use serde::{Deserialize, Serialize};
+
+/// Config for IPFS MFS support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct IpmfsConfig {
+    /// Root for ipfs.
+    pub root: Option<String>,
+    /// Endpoint for ipfs.
+    pub endpoint: Option<String>,
+}
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
@@ -66,15 +75,14 @@ use crate::*;
 /// ```
 #[derive(Default, Debug)]
 pub struct IpmfsBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
+    config: IpmfsConfig,
     http_client: Option<HttpClient>,
 }
 
 impl IpmfsBuilder {
     /// Set root for ipfs.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -87,7 +95,7 @@ impl IpmfsBuilder {
     ///
     /// Default: http://localhost:5001
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -110,21 +118,21 @@ impl IpmfsBuilder {
 impl Builder for IpmfsBuilder {
     const SCHEME: Scheme = Scheme::Ipmfs;
     type Accessor = IpmfsBackend;
+    type Config = IpmfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = IpmfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-
-        builder
+    fn from_config(config: Self::Config) -> Self {
+        IpmfsBuilder {
+            config,
+            http_client: None,
+        }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = self
+            .config
             .endpoint
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -26,18 +25,19 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+use crate::raw::*;
+use crate::*;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
-use crate::raw::*;
-use crate::*;
 
 /// Config for backblaze YandexDisk services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct YandexDiskConfig {
@@ -116,22 +116,9 @@ impl YandexDiskBuilder {
 impl Builder for YandexDiskBuilder {
     const SCHEME: Scheme = Scheme::YandexDisk;
     type Accessor = YandexDiskBackend;
+    type Config = YandexDiskConfig;
 
-    /// Converts a HashMap into an YandexDiskBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of YandexDiskBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an YandexDiskBuilder instance with the deserialized config.
+    fn from_config(config: Self::Config) -> Self {
         YandexDiskBuilder {
             config,
             http_client: None,

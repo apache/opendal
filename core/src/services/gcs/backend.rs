@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -28,7 +27,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 use super::core::*;
@@ -43,29 +42,29 @@ const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GcsConfig {
     /// root URI, all operations happens under `root`
-    root: Option<String>,
+    pub root: Option<String>,
     /// bucket name
-    bucket: String,
+    pub bucket: String,
     /// endpoint URI of GCS service,
     /// default is `https://storage.googleapis.com`
-    endpoint: Option<String>,
+    pub endpoint: Option<String>,
     /// Scope for gcs.
-    scope: Option<String>,
+    pub scope: Option<String>,
     /// Service Account for gcs.
-    service_account: Option<String>,
+    pub service_account: Option<String>,
     /// Credentials string for GCS service OAuth2 authentication.
-    credential: Option<String>,
+    pub credential: Option<String>,
     /// Local path to credentials file for GCS service OAuth2 authentication.
-    credential_path: Option<String>,
+    pub credential_path: Option<String>,
     /// The predefined acl for GCS.
-    predefined_acl: Option<String>,
+    pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
-    default_storage_class: Option<String>,
+    pub default_storage_class: Option<String>,
 }
 
 impl Debug for GcsConfig {
@@ -229,14 +228,13 @@ impl GcsBuilder {
 impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
     type Accessor = GcsBackend;
+    type Config = GcsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = GcsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        GcsBuilder {
+    fn from_config(config: Self::Config) -> Self {
+        Self {
             config,
-            ..GcsBuilder::default()
+            http_client: None,
+            customized_token_loader: None,
         }
     }
 

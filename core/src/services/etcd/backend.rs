@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -28,7 +27,7 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -38,7 +37,7 @@ use crate::*;
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
 /// Config for Etcd services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct EtcdConfig {
@@ -192,12 +191,10 @@ impl EtcdBuilder {
 impl Builder for EtcdBuilder {
     const SCHEME: Scheme = Scheme::Etcd;
     type Accessor = EtcdBackend;
+    type Config = EtcdConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        EtcdBuilder {
-            config: EtcdConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {

@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
@@ -28,7 +27,6 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
 use crate::Buffer;
 use crate::Builder;
 use crate::Capability;
@@ -37,19 +35,28 @@ use crate::ErrorKind;
 use crate::Scheme;
 
 /// Config for Surrealdb services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SurrealdbConfig {
-    connection_string: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    namespace: Option<String>,
-    database: Option<String>,
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    /// The connection string for surrealdb.
+    pub connection_string: Option<String>,
+    /// The username for surrealdb.
+    pub username: Option<String>,
+    /// The password for surrealdb.
+    pub password: Option<String>,
+    /// The namespace for surrealdb.
+    pub namespace: Option<String>,
+    /// The database for surrealdb.
+    pub database: Option<String>,
+    /// The table for surrealdb.
+    pub table: Option<String>,
+    /// The key field for surrealdb.
+    pub key_field: Option<String>,
+    /// The value field for surrealdb.
+    pub value_field: Option<String>,
+    /// The root for surrealdb.
+    pub root: Option<String>,
 }
 
 impl Debug for SurrealdbConfig {
@@ -174,11 +181,9 @@ impl SurrealdbBuilder {
 impl Builder for SurrealdbBuilder {
     const SCHEME: Scheme = Scheme::Surrealdb;
     type Accessor = SurrealdbBackend;
+    type Config = SurrealdbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = SurrealdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         SurrealdbBuilder { config }
     }
 

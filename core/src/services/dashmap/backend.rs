@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::typed_kv;
-use crate::raw::ConfigDeserializer;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-#[derive(Default, Deserialize, Clone, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DashmapConfig {
-    root: Option<String>,
+    /// The root path for dashmap.
+    pub root: Option<String>,
 }
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -50,11 +49,9 @@ impl DashmapBuilder {
 impl Builder for DashmapBuilder {
     const SCHEME: Scheme = Scheme::Dashmap;
     type Accessor = DashmapBackend;
+    type Config = DashmapConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = DashmapConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self { config }
     }
 

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -23,7 +22,7 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
@@ -31,18 +30,18 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
-/// Cloudflare Kv Service Support.
-#[derive(Default, Deserialize, Clone)]
+/// Cloudflare KV Service Support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CloudflareKvConfig {
     /// The token used to authenticate with CloudFlare.
-    token: Option<String>,
+    pub token: Option<String>,
     /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
-    account_id: Option<String>,
+    pub account_id: Option<String>,
     /// The namespace ID. Used as URI path parameter.
-    namespace_id: Option<String>,
+    pub namespace_id: Option<String>,
 
     /// Root within this backend.
-    root: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for CloudflareKvConfig {
@@ -116,11 +115,9 @@ impl Builder for CloudflareKvBuilder {
     const SCHEME: Scheme = Scheme::CloudflareKv;
 
     type Accessor = CloudflareKvBackend;
+    type Config = CloudflareKvConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self {
             config,
             http_client: None,

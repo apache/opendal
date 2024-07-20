@@ -16,6 +16,7 @@
 // under the License.
 
 pub use backend::AzfileBuilder as Azfile;
+pub use backend::AzfileConfig;
 
 mod backend;
 mod core;

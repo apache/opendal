@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::time::Duration;
 
 use bb8::RunError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
@@ -29,24 +28,24 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for MemCached services support
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemcachedConfig {
     /// network address of the memcached service.
     ///
     /// For example: "tcp://localhost:11211"
-    endpoint: Option<String>,
+    pub endpoint: Option<String>,
     /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
     /// Memcached username, optional.
-    username: Option<String>,
+    pub username: Option<String>,
     /// Memcached password, optional.
-    password: Option<String>,
+    pub password: Option<String>,
     /// The default ttl for put operations.
-    default_ttl: Option<Duration>,
+    pub default_ttl: Option<Duration>,
 }
 
 /// [Memcached](https://memcached.org/) service support.
@@ -99,10 +98,9 @@ impl MemcachedBuilder {
 impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
     type Accessor = MemcachedBackend;
+    type Config = MemcachedConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MemcachedConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
+    fn from_config(config: Self::Config) -> Self {
         MemcachedBuilder { config }
     }
 

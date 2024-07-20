@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,14 +26,14 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 /// Config for Http service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HttpConfig {
@@ -146,11 +145,9 @@ impl HttpBuilder {
 impl Builder for HttpBuilder {
     const SCHEME: Scheme = Scheme::Http;
     type Accessor = HttpBackend;
+    type Config = HttpConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HttpConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         HttpBuilder {
             config,
             http_client: None,

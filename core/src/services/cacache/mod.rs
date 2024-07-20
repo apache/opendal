@@ -18,3 +18,4 @@
 mod backend;
 
 pub use backend::CacacheBuilder as Cacache;
+pub use backend::CacacheConfig;

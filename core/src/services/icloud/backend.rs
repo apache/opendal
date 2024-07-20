@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::core::*;
@@ -30,7 +29,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for icloud services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct IcloudConfig {
@@ -53,6 +52,7 @@ pub struct IcloudConfig {
     ///
     /// token must be valid.
     pub trust_token: Option<String>,
+    /// ds_web_auth_token must be set in Session
     pub ds_web_auth_token: Option<String>,
     /// enable the china origin
     /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".
@@ -184,10 +184,9 @@ impl IcloudBuilder {
 impl Builder for IcloudBuilder {
     const SCHEME: Scheme = Scheme::Icloud;
     type Accessor = IcloudBackend;
+    type Config = IcloudConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = IcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
+    fn from_config(config: Self::Config) -> Self {
         IcloudBuilder {
             config,
             http_client: None,

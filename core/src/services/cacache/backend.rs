@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
 use cacache;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::raw::adapters::kv;
-use crate::raw::ConfigDeserializer;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -32,10 +30,10 @@ use crate::Scheme;
 use crate::*;
 
 /// cacache service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
-    datadir: Option<String>,
+    pub datadir: Option<String>,
 }
 
 /// cacache service support.
@@ -56,11 +54,9 @@ impl CacacheBuilder {
 impl Builder for CacacheBuilder {
     const SCHEME: Scheme = Scheme::Cacache;
     type Accessor = CacacheBackend;
+    type Config = CacacheConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CacacheConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         Self { config }
     }
 

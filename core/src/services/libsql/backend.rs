@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str;
 
@@ -36,7 +35,7 @@ use hrana_client_proto::StmtResult;
 use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
@@ -44,17 +43,23 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Libsqlservices support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LibsqlConfig {
-    connection_string: Option<String>,
-    auth_token: Option<String>,
+    /// Connection string for libsql service.
+    pub connection_string: Option<String>,
+    /// Authentication token for libsql service.
+    pub auth_token: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    /// Table name for libsql service.
+    pub table: Option<String>,
+    /// Key field name for libsql service.
+    pub key_field: Option<String>,
+    /// Value field name for libsql service.
+    pub value_field: Option<String>,
+    /// Root for libsql service.
+    pub root: Option<String>,
 }
 
 impl Debug for LibsqlConfig {
@@ -162,11 +167,9 @@ impl LibsqlBuilder {
 impl Builder for LibsqlBuilder {
     const SCHEME: Scheme = Scheme::Libsql;
     type Accessor = LibsqlBackend;
+    type Config = LibsqlConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = LibsqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
+    fn from_config(config: Self::Config) -> Self {
         LibsqlBuilder { config }
     }
 

@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::WebhdfsBuilder as Webhdfs;
+pub use backend::WebhdfsConfig;
 
 mod error;
 mod lister;

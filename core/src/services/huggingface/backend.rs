@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
@@ -34,7 +33,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Configuration for Huggingface service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HuggingfaceConfig {
@@ -172,12 +171,10 @@ impl HuggingfaceBuilder {
 impl Builder for HuggingfaceBuilder {
     const SCHEME: Scheme = Scheme::Huggingface;
     type Accessor = HuggingfaceBackend;
+    type Config = HuggingfaceConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        HuggingfaceBuilder { config }
+    fn from_config(config: Self::Config) -> Self {
+        Self { config }
     }
 
     /// Build a HuggingfaceBackend.

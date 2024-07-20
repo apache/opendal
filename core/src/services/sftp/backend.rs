@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::SeekFrom;
@@ -30,7 +29,7 @@ use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
@@ -45,7 +44,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Sftp Service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SftpConfig {
@@ -169,6 +168,11 @@ impl SftpBuilder {
 impl Builder for SftpBuilder {
     const SCHEME: Scheme = Scheme::Sftp;
     type Accessor = SftpBackend;
+    type Config = SftpConfig;
+
+    fn from_config(config: Self::Config) -> Self {
+        SftpBuilder { config }
+    }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("sftp backend build started: {:?}", &self);
@@ -217,13 +221,6 @@ impl Builder for SftpBuilder {
 
             client: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SftpBuilder {
-            config: SftpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 

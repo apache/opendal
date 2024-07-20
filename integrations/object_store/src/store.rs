@@ -68,7 +68,7 @@ use std::sync::Arc;
 ///         ]
 ///         .into_iter()
 ///         .collect(),
-///     );
+///     ).unwrap();
 ///
 ///     // Create a new operator
 ///     let operator = Operator::new(builder).unwrap().finish();

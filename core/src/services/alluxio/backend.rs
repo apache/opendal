@@ -259,7 +259,7 @@ mod test {
         map.insert("root".to_string(), "/".to_string());
         map.insert("endpoint".to_string(), "http://127.0.0.1:39999".to_string());
 
-        let builder = AlluxioBuilder::from_map(map);
+        let builder = AlluxioBuilder::from_map(map).unwrap();
 
         assert_eq!(builder.config.root, Some("/".to_string()));
         assert_eq!(

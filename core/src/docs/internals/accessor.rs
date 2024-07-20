@@ -214,15 +214,22 @@
 //! ///     Ok(())
 //! /// }
 //! /// ```
+//! #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+//! #[serde(default)]
+//! #[non_exhaustive]
+//! pub struct DuckConfig {
+//!     pub root: Option<String>,
+//! }
+//!
 //! #[derive(Default, Clone)]
 //! pub struct DuckBuilder {
-//!     root: Option<String>,
+//!     config: DuckConfig,
 //! }
 //! ```
 //!
 //! Note that `DuckBuilder` is part of our public API, so it needs to be
 //! documented. And any changes you make will directly affect users, so
-//! please take it seriously. Otherwise you will be hunted down by many
+//! please take it seriously. Otherwise, you will be hunted down by many
 //! angry ducks.
 //!
 //! Then, we can implement required APIs for `DuckBuilder`:
@@ -233,7 +240,7 @@
 //!     ///
 //!     /// All operations will happen under this root.
 //!     pub fn root(&mut self, root: &str) -> &mut Self {
-//!         self.root = if root.is_empty() {
+//!         self.config.root = if root.is_empty() {
 //!             None
 //!         } else {
 //!             Some(root.to_string())
@@ -246,19 +253,16 @@
 //! impl Builder for DuckBuilder {
 //!     const SCHEME: Scheme = Scheme::Duck;
 //!     type Accessor = DuckBackend;
+//!     type Config = DuckConfig;
 //!
-//!     fn from_map(map: HashMap<String, String>) -> Self {
-//!         let mut builder = DuckBuilder::default();
-//!
-//!         map.get("root").map(|v| builder.root(v));
-//!
-//!         builder
+//!     fn from_config(config: Self::Config) -> Self {
+//!        DuckBuilder { config }
 //!     }
 //!
 //!     fn build(&mut self) -> Result<Self::Accessor> {
 //!         debug!("backend build started: {:?}", &self);
 //!
-//!         let root = normalize_root(&self.root.clone().unwrap_or_default());
+//!         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
 //!         debug!("backend use root {}", &root);
 //!
 //!         Ok(DuckBackend { root })

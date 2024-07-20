@@ -756,7 +756,6 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -779,10 +778,6 @@ mod tests {
         type Config = ();
 
         fn from_config(_: Self::Config) -> Self {
-            Self::default()
-        }
-
-        fn from_map(_: HashMap<String, String>) -> Self {
             Self::default()
         }
 

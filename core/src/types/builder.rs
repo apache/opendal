@@ -48,10 +48,14 @@ pub trait Builder: Default {
     fn from_config(config: Self::Config) -> Self;
 
     /// Construct a builder from given map which contains several parameters needed by underlying service.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        Self::Config::deserialize(ConfigDeserializer::new(map))
-            .map(Self::from_config)
-            .expect("config deserialize must succeed")
+    fn from_map(map: HashMap<String, String>) -> Result<Self> {
+        match Self::Config::deserialize(ConfigDeserializer::new(map)) {
+            Ok(config) => Ok(Self::from_config(config)),
+            Err(err) => Err(
+                Error::new(ErrorKind::ConfigInvalid, "failed to deserialize config")
+                    .set_source(err),
+            ),
+        }
     }
 
     /// Consume the accessor builder to build a service.
@@ -67,8 +71,6 @@ impl Builder for () {
     type Config = ();
 
     fn from_config(_: Self::Config) -> Self {}
-
-    fn from_map(_: HashMap<String, String>) -> Self {}
 
     fn build(&mut self) -> Result<Self::Accessor> {
         Ok(())

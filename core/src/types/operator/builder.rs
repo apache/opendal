@@ -112,7 +112,7 @@ impl Operator {
     pub fn from_map<B: Builder>(
         map: HashMap<String, String>,
     ) -> Result<OperatorBuilder<impl Access>> {
-        let acc = B::from_map(map).build()?;
+        let acc = B::from_map(map)?.build()?;
         Ok(OperatorBuilder::new(acc))
     }
 

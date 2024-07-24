@@ -224,6 +224,16 @@ impl Debug for S3Config {
     }
 }
 
+impl Configurator for S3Config {
+    fn into_builder(self) -> impl Builder {
+        S3Builder {
+            config: self,
+            customized_credential_load: None,
+            http_client: None,
+        }
+    }
+}
+
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
@@ -803,18 +813,9 @@ impl S3Builder {
 
 impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
-    type Accessor = S3Backend;
     type Config = S3Config;
 
-    fn from_config(config: Self::Config) -> Self {
-        S3Builder {
-            config,
-            customized_credential_load: None,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -889,15 +890,6 @@ impl Builder for S3Builder {
             }
         };
 
-        let client = if let Some(client) = self.http_client.take() {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
-            })?
-        };
-
         // This is our current config.
         let mut cfg = AwsConfig::default();
         if !self.config.disable_config_load {
@@ -908,7 +900,7 @@ impl Builder for S3Builder {
             }
         }
 
-        if let Some(v) = self.config.region.take() {
+        if let Some(v) = self.config.region.clone() {
             cfg.region = Some(v);
         }
         if cfg.region.is_none() {
@@ -928,24 +920,33 @@ impl Builder for S3Builder {
         debug!("backend use endpoint: {endpoint}");
 
         // Setting all value from user input if available.
-        if let Some(v) = self.config.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v)
         }
-        if let Some(v) = self.config.secret_access_key.take() {
+        if let Some(v) = self.config.secret_access_key {
             cfg.secret_access_key = Some(v)
         }
-        if let Some(v) = self.config.session_token.take() {
+        if let Some(v) = self.config.session_token {
             cfg.session_token = Some(v)
         }
 
+        let client = if let Some(client) = self.http_client {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::S3)
+            })?
+        };
+
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
         // If customized_credential_load is set, we will use it.
-        if let Some(v) = self.customized_credential_load.take() {
+        if let Some(v) = self.customized_credential_load {
             loader = Some(v);
         }
 
         // If role_arn is set, we must use AssumeRoleLoad.
-        if let Some(role_arn) = self.config.role_arn.take() {
+        if let Some(role_arn) = self.config.role_arn {
             // use current env as source credential loader.
             let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
 
@@ -991,7 +992,7 @@ impl Builder for S3Builder {
             .config
             .batch_max_operations
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-        debug!("backend build finished");
+
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 bucket: bucket.to_string(),

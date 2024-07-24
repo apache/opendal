@@ -25,7 +25,6 @@ use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
@@ -503,22 +502,6 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
-            self.endpoint, self.bucket, p
-        );
-
-        let mut req = Request::post(&url)
-            .header(CONTENT_LENGTH, 0)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
     pub async fn gcs_upload_part(
         &self,
         path: &str,
@@ -600,64 +583,6 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
-    pub fn gcs_upload_in_resumable_upload(
-        &self,
-        location: &str,
-        size: u64,
-        written: u64,
-        body: Buffer,
-    ) -> Result<Request<Buffer>> {
-        let mut req = Request::put(location);
-
-        let range_header = format!("bytes {}-{}/*", written, written + size - 1);
-
-        req = req
-            .header(CONTENT_LENGTH, size)
-            .header(CONTENT_RANGE, range_header);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn gcs_complete_resumable_upload(
-        &self,
-        location: &str,
-        written: u64,
-        size: u64,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = Request::post(location)
-            .header(CONTENT_LENGTH, size)
-            .header(
-                CONTENT_RANGE,
-                format!(
-                    "bytes {}-{}/{}",
-                    written,
-                    written + size - 1,
-                    written + size
-                ),
-            )
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
-        self.send(req).await
-    }
-
-    pub async fn gcs_abort_resumable_upload(&self, location: &str) -> Result<Response<Buffer>> {
-        let mut req = Request::delete(location)
-            .header(CONTENT_LENGTH, 0)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
         self.send(req).await
     }
 }

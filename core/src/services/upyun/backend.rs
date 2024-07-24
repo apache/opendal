@@ -24,14 +24,12 @@ use http::StatusCode;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use super::core::parse_info;
-use super::core::UpyunCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
-use crate::services::upyun::core::UpyunSigner;
 use crate::*;
 
 /// Config for backblaze upyun services support.
@@ -60,6 +58,15 @@ impl Debug for UpyunConfig {
         ds.field("operator", &self.operator);
 
         ds.finish()
+    }
+}
+
+impl Configurator for UpyunConfig {
+    fn into_builder(self) -> impl Builder {
+        UpyunBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -144,18 +151,10 @@ impl UpyunBuilder {
 
 impl Builder for UpyunBuilder {
     const SCHEME: Scheme = Scheme::Upyun;
-    type Accessor = UpyunBackend;
     type Config = UpyunConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        UpyunBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of UpyunBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -184,7 +183,7 @@ impl Builder for UpyunBuilder {
                 .with_context("service", Scheme::Upyun)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -202,7 +201,6 @@ impl Builder for UpyunBuilder {
             core: Arc::new(UpyunCore {
                 root,
                 operator,
-                password,
                 bucket: self.config.bucket.clone(),
                 signer,
                 client,

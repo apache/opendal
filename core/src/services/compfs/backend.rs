@@ -20,10 +20,9 @@ use std::{io::Cursor, sync::Arc};
 use compio::{dispatcher::Dispatcher, fs::OpenOptions};
 use serde::{Deserialize, Serialize};
 
+use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
 use crate::raw::*;
 use crate::*;
-
-use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
 
 /// compio-based file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,6 +31,12 @@ pub struct CompfsConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
+}
+
+impl Configurator for CompfsConfig {
+    fn into_builder(self) -> impl Builder {
+        CompfsBuilder { config: self }
+    }
 }
 
 /// [`compio`]-based file system support.
@@ -55,15 +60,10 @@ impl CompfsBuilder {
 
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
-    type Accessor = CompfsBackend;
     type Config = CompfsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = match self.config.root.take() {
+    fn build(self) -> Result<impl Access> {
+        let root = match self.config.root {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,

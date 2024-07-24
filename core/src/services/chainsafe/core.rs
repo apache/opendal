@@ -114,33 +114,6 @@ impl ChainsafeCore {
         self.send(req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let url = format!(
-            "https://api.chainsafe.io/api/v1/bucket/{}/mv",
-            self.bucket_id
-        );
-
-        let req_body = &json!({
-            "path": from,
-            "new_path": to,
-        });
-        let body = Buffer::from(Bytes::from(req_body.to_string()));
-
-        let req = Request::post(url)
-            .header(
-                header::AUTHORIZATION,
-                format_authorization_by_bearer(&self.api_key)?,
-            )
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        self.send(req).await
-    }
-
     pub async fn delete_object(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 

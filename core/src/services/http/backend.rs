@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 
 use super::error::parse_error;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for Http service support.
@@ -56,6 +57,15 @@ impl Debug for HttpConfig {
         de.field("root", &self.root);
 
         de.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for HttpConfig {
+    fn into_builder(self) -> impl Builder {
+        HttpBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -144,17 +154,9 @@ impl HttpBuilder {
 
 impl Builder for HttpBuilder {
     const SCHEME: Scheme = Scheme::Http;
-    type Accessor = HttpBackend;
     type Config = HttpConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        HttpBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.config.endpoint {
@@ -165,10 +167,10 @@ impl Builder for HttpBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -188,7 +190,6 @@ impl Builder for HttpBuilder {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HttpBackend {
             endpoint: endpoint.to_string(),
             authorization: auth,

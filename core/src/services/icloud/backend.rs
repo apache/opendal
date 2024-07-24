@@ -26,6 +26,7 @@ use tokio::sync::Mutex;
 
 use super::core::*;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for icloud services support.
@@ -67,6 +68,15 @@ impl Debug for IcloudConfig {
         d.field("root", &self.root);
         d.field("is_china_mainland", &self.is_china_mainland);
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for IcloudConfig {
+    fn into_builder(self) -> impl Builder {
+        IcloudBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -183,18 +193,10 @@ impl IcloudBuilder {
 
 impl Builder for IcloudBuilder {
     const SCHEME: Scheme = Scheme::Icloud;
-    type Accessor = IcloudBackend;
     type Config = IcloudConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        IcloudBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
 
         let apple_id = match &self.config.apple_id {
             Some(apple_id) => Ok(apple_id.clone()),
@@ -226,7 +228,7 @@ impl Builder for IcloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

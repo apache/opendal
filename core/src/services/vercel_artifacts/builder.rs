@@ -19,11 +19,10 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::raw::HttpClient;
+use super::backend::VercelArtifactsBackend;
+use crate::raw::{Access, HttpClient};
 use crate::Scheme;
 use crate::*;
-
-use super::backend::VercelArtifactsBackend;
 
 /// Config for Vercel Cache support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -39,6 +38,15 @@ impl Debug for VercelArtifactsConfig {
         f.debug_struct("VercelArtifactsConfig")
             .field("access_token", &"<redacted>")
             .finish()
+    }
+}
+
+impl Configurator for VercelArtifactsConfig {
+    fn into_builder(self) -> impl Builder {
+        VercelArtifactsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -81,18 +89,10 @@ impl VercelArtifactsBuilder {
 
 impl Builder for VercelArtifactsBuilder {
     const SCHEME: Scheme = Scheme::VercelArtifacts;
-    type Accessor = VercelArtifactsBackend;
     type Config = VercelArtifactsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let client = if let Some(client) = self.http_client.take() {
+    fn build(self) -> Result<impl Access> {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

@@ -34,7 +34,7 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze GitHub services support.
+/// Config for GitHub services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -68,6 +68,15 @@ impl Debug for GithubConfig {
             .field("repo", &self.repo);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for GithubConfig {
+    fn into_builder(self) -> impl Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -139,18 +148,10 @@ impl GithubBuilder {
 
 impl Builder for GithubBuilder {
     const SCHEME: Scheme = Scheme::Github;
-    type Accessor = GithubBackend;
     type Config = GithubConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        GithubBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of GithubBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -174,7 +175,7 @@ impl Builder for GithubBuilder {
 
         debug!("backend use repo {}", &self.config.repo);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

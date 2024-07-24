@@ -57,6 +57,12 @@ impl Debug for HdfsNativeConfig {
     }
 }
 
+impl Configurator for HdfsNativeConfig {
+    fn into_builder(self) -> impl Builder {
+        HdfsNativeBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsNativeBuilder {
@@ -111,14 +117,9 @@ impl HdfsNativeBuilder {
 
 impl Builder for HdfsNativeBuilder {
     const SCHEME: Scheme = Scheme::HdfsNative;
-    type Accessor = HdfsNativeBackend;
     type Config = HdfsNativeConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let url = match &self.config.url {
@@ -129,14 +130,13 @@ impl Builder for HdfsNativeBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = hdfs_native::Client::new(url).map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),

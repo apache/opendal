@@ -73,8 +73,33 @@ impl Operator {
     /// }
     /// ```
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Access>> {
+    pub fn new<B: Builder>(ab: B) -> Result<OperatorBuilder<impl Access>> {
         let acc = ab.build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator from given config.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::services::MemoryConfig;
+    /// use opendal::Operator;
+    /// async fn test() -> Result<()> {
+    ///     let cfg = MemoryConfig::default();
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_config(cfg)?.finish();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_config<C: Configurator>(cfg: C) -> Result<OperatorBuilder<impl Access>> {
+        let builder = cfg.into_builder();
+        let acc = builder.build()?;
         Ok(OperatorBuilder::new(acc))
     }
 
@@ -112,7 +137,8 @@ impl Operator {
     pub fn from_map<B: Builder>(
         map: HashMap<String, String>,
     ) -> Result<OperatorBuilder<impl Access>> {
-        let acc = B::from_map(map)?.build()?;
+        let builder = B::Config::from_iter(map)?.into_builder();
+        let acc = builder.build()?;
         Ok(OperatorBuilder::new(acc))
     }
 

@@ -39,6 +39,12 @@ pub struct MonoiofsConfig {
     pub root: Option<String>,
 }
 
+impl Configurator for MonoiofsConfig {
+    fn into_builder(self) -> impl Builder {
+        MonoiofsBuilder { config: self }
+    }
+}
+
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
@@ -62,15 +68,10 @@ impl MonoiofsBuilder {
 
 impl Builder for MonoiofsBuilder {
     const SCHEME: Scheme = Scheme::Monoiofs;
-    type Accessor = MonoiofsBackend;
     type Config = MonoiofsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MonoiofsBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = self.config.root.take().map(PathBuf::from).ok_or(
+    fn build(self) -> Result<impl Access> {
+        let root = self.config.root.map(PathBuf::from).ok_or(
             Error::new(ErrorKind::ConfigInvalid, "root is not specified")
                 .with_operation("Builder::build"),
         )?;

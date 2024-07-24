@@ -773,15 +773,9 @@ mod tests {
 
     impl Builder for MockBuilder {
         const SCHEME: Scheme = Scheme::Custom("mock");
-        type Accessor = MockService;
-
         type Config = ();
 
-        fn from_config(_: Self::Config) -> Self {
-            Self::default()
-        }
-
-        fn build(&mut self) -> Result<Self::Accessor> {
+        fn build(self) -> Result<impl Access> {
             Ok(MockService {
                 attempt: self.attempt.clone(),
             })

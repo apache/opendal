@@ -26,12 +26,13 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
-use crate::raw::normalize_root;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
+use crate::raw::{normalize_root, Access};
 use crate::services::gdrive::core::GdriveCore;
 use crate::services::gdrive::core::GdrivePathQuery;
 use crate::services::gdrive::core::GdriveSigner;
+
 use crate::Scheme;
 use crate::*;
 
@@ -57,6 +58,15 @@ impl Debug for GdriveConfig {
         f.debug_struct("GdriveConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for GdriveConfig {
+    fn into_builder(self) -> impl Builder {
+        GdriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -139,21 +149,13 @@ impl GdriveBuilder {
 
 impl Builder for GdriveBuilder {
     const SCHEME: Scheme = Scheme::Gdrive;
-    type Accessor = GdriveBackend;
     type Config = GdriveConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -163,24 +165,21 @@ impl Builder for GdriveBuilder {
         };
 
         let mut signer = GdriveSigner::new(client.clone());
-        match (
-            self.config.access_token.take(),
-            self.config.refresh_token.take(),
-        ) {
+        match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
                 // We will never expire user specified access token.
                 signer.expires_in = DateTime::<Utc>::MAX_UTC;
             }
             (None, Some(refresh_token)) => {
-                let client_id = self.config.client_id.take().ok_or_else(|| {
+                let client_id = self.config.client_id.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
                     .with_context("service", Scheme::Gdrive)
                 })?;
-                let client_secret = self.config.client_secret.take().ok_or_else(|| {
+                let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",

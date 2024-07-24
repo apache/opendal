@@ -27,14 +27,13 @@ use http::StatusCode;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::*;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
+use crate::raw::*;
+use crate::*;
 
 /// Config for backblaze YandexDisk services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -56,6 +55,15 @@ impl Debug for YandexDiskConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl Configurator for YandexDiskConfig {
+    fn into_builder(self) -> impl Builder {
+        YandexDiskBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -115,18 +123,10 @@ impl YandexDiskBuilder {
 
 impl Builder for YandexDiskBuilder {
     const SCHEME: Scheme = Scheme::YandexDisk;
-    type Accessor = YandexDiskBackend;
     type Config = YandexDiskConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        YandexDiskBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of YandexDiskBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -141,7 +141,7 @@ impl Builder for YandexDiskBuilder {
             );
         }
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

@@ -59,6 +59,15 @@ impl Debug for AlluxioConfig {
     }
 }
 
+impl Configurator for AlluxioConfig {
+    fn into_builder(self) -> impl Builder {
+        AlluxioBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [Alluxio](https://www.alluxio.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -117,18 +126,10 @@ impl AlluxioBuilder {
 
 impl Builder for AlluxioBuilder {
     const SCHEME: Scheme = Scheme::Alluxio;
-    type Accessor = AlluxioBackend;
     type Config = AlluxioConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        AlluxioBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of AlluxioBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -142,7 +143,7 @@ impl Builder for AlluxioBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -259,13 +260,10 @@ mod test {
         map.insert("root".to_string(), "/".to_string());
         map.insert("endpoint".to_string(), "http://127.0.0.1:39999".to_string());
 
-        let builder = AlluxioBuilder::from_map(map).unwrap();
+        let builder = AlluxioConfig::from_iter(map).unwrap();
 
-        assert_eq!(builder.config.root, Some("/".to_string()));
-        assert_eq!(
-            builder.config.endpoint,
-            Some("http://127.0.0.1:39999".to_string())
-        );
+        assert_eq!(builder.root, Some("/".to_string()));
+        assert_eq!(builder.endpoint, Some("http://127.0.0.1:39999".to_string()));
     }
 
     #[test]

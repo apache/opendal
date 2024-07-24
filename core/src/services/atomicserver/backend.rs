@@ -62,6 +62,12 @@ impl Debug for AtomicserverConfig {
     }
 }
 
+impl Configurator for AtomicserverConfig {
+    fn into_builder(self) -> impl Builder {
+        AtomicserverBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AtomicserverBuilder {
@@ -113,14 +119,9 @@ impl AtomicserverBuilder {
 
 impl Builder for AtomicserverBuilder {
     const SCHEME: Scheme = Scheme::Atomicserver;
-    type Accessor = AtomicserverBackend;
     type Config = AtomicserverConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let root = normalize_root(
             self.config
                 .root

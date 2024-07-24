@@ -60,6 +60,12 @@ impl Debug for MysqlConfig {
     }
 }
 
+impl Configurator for MysqlConfig {
+    fn into_builder(self) -> impl Builder {
+        MysqlBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MysqlBuilder {
@@ -137,14 +143,9 @@ impl MysqlBuilder {
 
 impl Builder for MysqlBuilder {
     const SCHEME: Scheme = Scheme::Mysql;
-    type Accessor = MySqlBackend;
     type Config = MysqlConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MysqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

@@ -75,6 +75,12 @@ impl Debug for SqliteConfig {
     }
 }
 
+impl Configurator for SqliteConfig {
+    fn into_builder(self) -> impl Builder {
+        SqliteBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SqliteBuilder {
@@ -150,14 +156,9 @@ impl SqliteBuilder {
 
 impl Builder for SqliteBuilder {
     const SCHEME: Scheme = Scheme::Sqlite;
-    type Accessor = SqliteBackend;
     type Config = SqliteConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SqliteBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let connection_string = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

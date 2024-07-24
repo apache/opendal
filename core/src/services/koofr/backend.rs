@@ -35,6 +35,7 @@ use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for backblaze Koofr services support.
@@ -62,6 +63,15 @@ impl Debug for KoofrConfig {
         ds.field("email", &self.email);
 
         ds.finish()
+    }
+}
+
+impl Configurator for KoofrConfig {
+    fn into_builder(self) -> impl Builder {
+        KoofrBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -149,18 +159,10 @@ impl KoofrBuilder {
 
 impl Builder for KoofrBuilder {
     const SCHEME: Scheme = Scheme::Koofr;
-    type Accessor = KoofrBackend;
     type Config = KoofrConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        KoofrBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of KoofrBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -189,7 +191,7 @@ impl Builder for KoofrBuilder {
                 .with_context("service", Scheme::Koofr)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

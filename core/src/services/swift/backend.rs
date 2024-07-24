@@ -24,13 +24,12 @@ use http::StatusCode;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use crate::raw::*;
-use crate::*;
-
 use super::core::*;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
+use crate::raw::*;
+use crate::*;
 
 /// Config for OpenStack Swift support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,6 +59,12 @@ impl Debug for SwiftConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for SwiftConfig {
+    fn into_builder(self) -> impl Builder {
+        SwiftBuilder { config: self }
     }
 }
 
@@ -136,21 +141,16 @@ impl SwiftBuilder {
 
 impl Builder for SwiftBuilder {
     const SCHEME: Scheme = Scheme::Swift;
-    type Accessor = SwiftBackend;
     type Config = SwiftConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SwiftBuilder { config }
-    }
-
     /// Build a SwiftBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match self.config.endpoint.take() {
+        let endpoint = match self.config.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint
@@ -167,7 +167,7 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        let container = match self.config.container.take() {
+        let container = match self.config.container {
             Some(container) => container,
             None => {
                 return Err(Error::new(
@@ -178,11 +178,10 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use container: {}", &container);
 
-        let token = self.config.token.take().unwrap_or_default();
+        let token = self.config.token.unwrap_or_default();
 
         let client = HttpClient::new()?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
                 root,

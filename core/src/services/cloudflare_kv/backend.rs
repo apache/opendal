@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+
 use crate::ErrorKind;
 use crate::*;
 
@@ -57,6 +58,15 @@ impl Debug for CloudflareKvConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for CloudflareKvConfig {
+    fn into_builder(self) -> impl Builder {
+        CloudflareKvBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -113,18 +123,9 @@ impl CloudflareKvBuilder {
 
 impl Builder for CloudflareKvBuilder {
     const SCHEME: Scheme = Scheme::CloudflareKv;
-
-    type Accessor = CloudflareKvBackend;
     type Config = CloudflareKvConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let authorization = match &self.config.token {
             Some(token) => format_authorization_by_bearer(token)?,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
@@ -144,7 +145,7 @@ impl Builder for CloudflareKvBuilder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -166,7 +167,7 @@ impl Builder for CloudflareKvBuilder {
             account_id, namespace_id
         );
 
-        Ok(kv::Backend::new(Adapter {
+        Ok(CloudflareKvBackend::new(Adapter {
             authorization,
             account_id,
             namespace_id,

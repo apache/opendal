@@ -35,6 +35,7 @@ use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
 use crate::raw::*;
+
 use crate::*;
 
 /// Aliyun Drive services support.
@@ -84,6 +85,15 @@ impl Debug for AliyunDriveConfig {
             .field("drive_type", &self.drive_type);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for AliyunDriveConfig {
+    fn into_builder(self) -> impl Builder {
+        AliyunDriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -167,25 +177,15 @@ impl AliyunDriveBuilder {
 
 impl Builder for AliyunDriveBuilder {
     const SCHEME: Scheme = Scheme::AliyunDrive;
-
-    type Accessor = AliyunDriveBackend;
-
     type Config = AliyunDriveConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        AliyunDriveBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -449,7 +449,6 @@ impl Access for AliyunDriveBackend {
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
                 Some(AliyunDriveParent {
                     file_id: file.file_id,
-                    name: file.name,
                     path: path.to_string(),
                     updated_at: file.updated_at,
                 })

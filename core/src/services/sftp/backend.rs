@@ -71,6 +71,12 @@ impl Debug for SftpConfig {
     }
 }
 
+impl Configurator for SftpConfig {
+    fn into_builder(self) -> impl Builder {
+        SftpBuilder { config: self }
+    }
+}
+
 /// SFTP services support. (only works on unix)
 ///
 /// If you are interested in working on windows, pl ease refer to [this](https://github.com/apache/opendal/issues/2963) issue.
@@ -167,14 +173,9 @@ impl SftpBuilder {
 
 impl Builder for SftpBuilder {
     const SCHEME: Scheme = Scheme::Sftp;
-    type Accessor = SftpBackend;
     type Config = SftpConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SftpBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("sftp backend build started: {:?}", &self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,

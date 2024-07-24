@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::time::Duration;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
 use crate::*;
 use log::debug;
 use mini_moka::sync::Cache;
@@ -42,6 +43,12 @@ pub struct MiniMokaConfig {
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub time_to_idle: Option<Duration>,
+}
+
+impl Configurator for MiniMokaConfig {
+    fn into_builder(self) -> impl Builder {
+        MiniMokaBuilder { config: self }
+    }
 }
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
@@ -85,14 +92,9 @@ impl MiniMokaBuilder {
 
 impl Builder for MiniMokaBuilder {
     const SCHEME: Scheme = Scheme::MiniMoka;
-    type Accessor = MiniMokaBackend;
     type Config = MiniMokaConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();

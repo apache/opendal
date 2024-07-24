@@ -77,6 +77,15 @@ impl Debug for AzfileConfig {
     }
 }
 
+impl Configurator for AzfileConfig {
+    fn into_builder(self) -> impl Builder {
+        AzfileBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// Azure File services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
@@ -167,20 +176,12 @@ impl AzfileBuilder {
 
 impl Builder for AzfileBuilder {
     const SCHEME: Scheme = Scheme::Azfile;
-    type Accessor = AzfileBackend;
     type Config = AzfileConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = match &self.config.endpoint {
@@ -191,7 +192,7 @@ impl Builder for AzfileBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -223,10 +224,7 @@ impl Builder for AzfileBuilder {
         };
 
         let cred_loader = AzureStorageLoader::new(config_loader);
-
         let signer = AzureStorageSigner::new();
-
-        debug!("backend build finished: {:?}", &self);
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
                 root,
@@ -401,7 +399,6 @@ impl Access for AzfileBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -421,25 +418,5 @@ mod tests {
             let account_name = infer_account_name_from_endpoint(endpoint);
             assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
         }
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azfile_builder = AzfileBuilder::default();
-        azfile_builder.endpoint("https://account.file.core.windows.net/");
-        azfile_builder.account_key("account-key");
-        let azfile = azfile_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azfile.core.endpoint,
-            "https://account.file.core.windows.net"
-        );
-
-        assert_eq!(
-            azfile_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
     }
 }

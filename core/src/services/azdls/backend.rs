@@ -33,6 +33,7 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
+
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -76,6 +77,15 @@ impl Debug for AzdlsConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for AzdlsConfig {
+    fn into_builder(self) -> impl Builder {
+        AzdlsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -169,20 +179,12 @@ impl AzdlsBuilder {
 
 impl Builder for AzdlsBuilder {
     const SCHEME: Scheme = Scheme::Azdls;
-    type Accessor = AzdlsBackend;
     type Config = AzdlsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        AzdlsBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
@@ -202,7 +204,7 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -224,8 +226,6 @@ impl Builder for AzdlsBuilder {
 
         let cred_loader = AzureStorageLoader::new(config_loader);
         let signer = AzureStorageSigner::new();
-
-        debug!("backend build finished: {:?}", &self);
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 filesystem: self.config.filesystem.clone(),
@@ -430,9 +430,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::AzdlsBuilder;
-    use crate::services::azdls::backend::infer_storage_name_from_endpoint;
-    use crate::Builder;
+    use super::infer_storage_name_from_endpoint;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -446,47 +444,5 @@ mod tests {
         let endpoint = "https://account.dfs.core.windows.net/";
         let storage_name = infer_storage_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azdls_builder = AzdlsBuilder::default();
-        azdls_builder.endpoint("https://storagesample.dfs.core.chinacloudapi.cn");
-        azdls_builder.account_key("account-key");
-        azdls_builder.filesystem("filesystem");
-        let azdls = azdls_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azdls.core.endpoint,
-            "https://storagesample.dfs.core.chinacloudapi.cn"
-        );
-
-        assert_eq!(azdls.core.filesystem, "filesystem".to_string());
-
-        assert_eq!(
-            azdls_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-    }
-
-    #[test]
-    fn test_no_key_wont_infer_account_name() {
-        let mut azdls_builder = AzdlsBuilder::default();
-        azdls_builder.endpoint("https://storagesample.dfs.core.windows.net");
-        azdls_builder.filesystem("filesystem");
-        let azdls = azdls_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azdls.core.endpoint,
-            "https://storagesample.dfs.core.windows.net"
-        );
-
-        assert_eq!(azdls.core.filesystem, "filesystem".to_string());
-
-        assert_eq!(azdls_builder.config.account_key, None);
     }
 }

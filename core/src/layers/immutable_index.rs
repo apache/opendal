@@ -251,7 +251,7 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
-    use crate::services::Http;
+    use crate::services::HttpConfig;
     use crate::EntryMode;
     use crate::Operator;
 
@@ -264,12 +264,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
             map
         })
-        .and_then(Operator::new)?
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -302,12 +302,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
             map
         })
-        .and_then(Operator::new)?
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -346,12 +346,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
             map
         })
-        .and_then(Operator::new)?
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -404,12 +404,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
             map
         })
-        .and_then(Operator::new)?
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();

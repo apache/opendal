@@ -30,6 +30,7 @@ use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
@@ -60,6 +61,15 @@ impl Debug for WebdavConfig {
             .field("root", &self.root);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for WebdavConfig {
+    fn into_builder(self) -> impl Builder {
+        WebdavBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -150,17 +160,9 @@ impl WebdavBuilder {
 
 impl Builder for WebdavBuilder {
     const SCHEME: Scheme = Scheme::Webdav;
-    type Accessor = WebdavBackend;
     type Config = WebdavConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        WebdavBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.config.endpoint {
@@ -184,7 +186,7 @@ impl Builder for WebdavBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -203,8 +205,6 @@ impl Builder for WebdavBuilder {
         if let Some(token) = &self.config.token {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
-
-        debug!("backend build finished: {:?}", &self);
 
         let core = Arc::new(WebdavCore {
             endpoint: endpoint.to_string(),

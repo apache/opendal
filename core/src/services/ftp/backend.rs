@@ -43,6 +43,7 @@ use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for Ftpservices support.
@@ -66,6 +67,12 @@ impl Debug for FtpConfig {
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for FtpConfig {
+    fn into_builder(self) -> impl Builder {
+        FtpBuilder { config: self }
     }
 }
 
@@ -132,14 +139,9 @@ impl FtpBuilder {
 
 impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
-    type Accessor = FtpBackend;
     type Config = FtpConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        FtpBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -175,7 +177,7 @@ impl Builder for FtpBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
 
         let user = match &self.config.user {
             None => "".to_string(),
@@ -186,8 +188,6 @@ impl Builder for FtpBuilder {
             None => "".to_string(),
             Some(v) => v.clone(),
         };
-
-        debug!("ftp backend finished: {:?}", &self);
 
         Ok(FtpBackend {
             endpoint,

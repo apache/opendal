@@ -81,6 +81,15 @@ impl Debug for B2Config {
     }
 }
 
+impl Configurator for B2Config {
+    fn into_builder(self) -> impl Builder {
+        B2Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -165,18 +174,10 @@ impl B2Builder {
 
 impl Builder for B2Builder {
     const SCHEME: Scheme = Scheme::B2;
-    type Accessor = B2Backend;
     type Config = B2Config;
 
-    fn from_config(config: Self::Config) -> Self {
-        B2Builder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of B2Backend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -218,7 +219,7 @@ impl Builder for B2Builder {
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

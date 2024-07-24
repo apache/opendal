@@ -63,6 +63,15 @@ impl Debug for PcloudConfig {
     }
 }
 
+impl Configurator for PcloudConfig {
+    fn into_builder(self) -> impl Builder {
+        PcloudBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [pCloud](https://www.pcloud.com/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -146,18 +155,10 @@ impl PcloudBuilder {
 
 impl Builder for PcloudBuilder {
     const SCHEME: Scheme = Scheme::Pcloud;
-    type Accessor = PcloudBackend;
     type Config = PcloudConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        PcloudBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of PcloudBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -186,7 +187,7 @@ impl Builder for PcloudBuilder {
                 .with_context("service", Scheme::Pcloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

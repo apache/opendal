@@ -44,6 +44,12 @@ pub struct RedbConfig {
     pub table: Option<String>,
 }
 
+impl Configurator for RedbConfig {
+    fn into_builder(self) -> impl Builder {
+        RedbBuilder { config: self }
+    }
+}
+
 /// Redb service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
@@ -73,20 +79,15 @@ impl RedbBuilder {
 
 impl Builder for RedbBuilder {
     const SCHEME: Scheme = Scheme::Redb;
-    type Accessor = RedbBackend;
     type Config = RedbConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Redb)
         })?;
 
-        let table_name = self.config.table.take().ok_or_else(|| {
+        let table_name = self.config.table.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
                 .with_context("service", Scheme::Redb)
         })?;

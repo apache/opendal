@@ -54,6 +54,12 @@ impl Debug for FoundationConfig {
     }
 }
 
+impl Configurator for FoundationConfig {
+    fn into_builder(self) -> impl Builder {
+        FoundationdbBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {
@@ -76,14 +82,9 @@ impl FoundationdbBuilder {
 
 impl Builder for FoundationdbBuilder {
     const SCHEME: Scheme = Scheme::Foundationdb;
-    type Accessor = FoundationdbBackend;
     type Config = FoundationConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let _network = Arc::new(unsafe { foundationdb::boot() });
         let db;
         if let Some(cfg_path) = &self.config.config_path {

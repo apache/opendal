@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
+use crate::raw::Access;
 use crate::*;
 
 /// Config for Mongodb service support.
@@ -58,6 +59,12 @@ impl Debug for MongodbConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for MongodbConfig {
+    fn into_builder(self) -> impl Builder {
+        MongodbBuilder { config: self }
     }
 }
 
@@ -151,14 +158,9 @@ impl MongodbBuilder {
 
 impl Builder for MongodbBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
-    type Accessor = MongodbBackend;
     type Config = MongodbConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MongodbBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {

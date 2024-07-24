@@ -28,6 +28,7 @@ use tokio_postgres::Config;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for PostgreSQL services support.
@@ -64,6 +65,12 @@ impl Debug for PostgresqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for PostgresqlConfig {
+    fn into_builder(self) -> impl Builder {
+        PostgresqlBuilder { config: self }
     }
 }
 
@@ -162,14 +169,9 @@ impl PostgresqlBuilder {
 
 impl Builder for PostgresqlBuilder {
     const SCHEME: Scheme = Scheme::Postgresql;
-    type Accessor = PostgresqlBackend;
     type Config = PostgresqlConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        PostgresqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

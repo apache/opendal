@@ -97,6 +97,12 @@ impl Debug for RedisConfig {
     }
 }
 
+impl Configurator for RedisConfig {
+    fn into_builder(self) -> impl Builder {
+        RedisBuilder { config: self }
+    }
+}
+
 /// [Redis](https://redis.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
@@ -192,14 +198,9 @@ impl RedisBuilder {
 
 impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
-    type Accessor = RedisBackend;
     type Config = RedisConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        RedisBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let root = normalize_root(
             self.config
                 .root

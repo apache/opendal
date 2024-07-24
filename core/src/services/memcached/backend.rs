@@ -25,6 +25,7 @@ use tokio::sync::OnceCell;
 use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+
 use crate::*;
 
 /// Config for MemCached services support
@@ -46,6 +47,12 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+}
+
+impl Configurator for MemcachedConfig {
+    fn into_builder(self) -> impl Builder {
+        MemcachedBuilder { config: self }
+    }
 }
 
 /// [Memcached](https://memcached.org/) service support.
@@ -97,14 +104,9 @@ impl MemcachedBuilder {
 
 impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
-    type Accessor = MemcachedBackend;
     type Config = MemcachedConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MemcachedBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let endpoint = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)

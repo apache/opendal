@@ -59,8 +59,6 @@ pub struct UpyunCore {
     pub root: String,
     /// The endpoint of this backend.
     pub operator: String,
-    /// The password id of this backend.
-    pub password: String,
     /// The bucket of this backend.
     pub bucket: String,
 

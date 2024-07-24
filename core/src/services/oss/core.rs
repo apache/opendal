@@ -469,19 +469,6 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_put_object(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
     pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);

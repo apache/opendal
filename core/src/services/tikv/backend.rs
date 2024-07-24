@@ -24,6 +24,7 @@ use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
+use crate::raw::Access;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;
@@ -58,6 +59,12 @@ impl Debug for TikvConfig {
             .field("cert_path", &self.cert_path)
             .field("key_path", &self.key_path)
             .finish()
+    }
+}
+
+impl Configurator for TikvConfig {
+    fn into_builder(self) -> impl Builder {
+        TikvBuilder { config: self }
     }
 }
 
@@ -119,15 +126,10 @@ impl TikvBuilder {
 
 impl Builder for TikvBuilder {
     const SCHEME: Scheme = Scheme::Tikv;
-    type Accessor = TikvBackend;
     type Config = TikvConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        TikvBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoints = self.config.endpoints.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let endpoints = self.config.endpoints.ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "endpoints is required but not set",

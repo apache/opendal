@@ -36,6 +36,7 @@ use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use crate::raw::*;
+
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
@@ -75,6 +76,16 @@ impl Debug for GcsConfig {
             .field("endpoint", &self.endpoint)
             .field("scope", &self.scope)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for GcsConfig {
+    fn into_builder(self) -> impl Builder {
+        GcsBuilder {
+            config: self,
+            http_client: None,
+            customized_token_loader: None,
+        }
     }
 }
 
@@ -227,21 +238,12 @@ impl GcsBuilder {
 
 impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
-    type Accessor = GcsBackend;
     type Config = GcsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-            customized_token_loader: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint and bucket name
@@ -256,7 +258,7 @@ impl Builder for GcsBuilder {
 
         // TODO: server side encryption
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -298,7 +300,7 @@ impl Builder for GcsBuilder {
         if let Ok(Some(cred)) = cred_loader.load() {
             token_loader = token_loader.with_credentials(cred)
         }
-        if let Some(loader) = self.customized_token_loader.take() {
+        if let Some(loader) = self.customized_token_loader {
             token_loader = token_loader.with_customized_token_loader(loader)
         }
 

@@ -22,8 +22,8 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 use super::backend::OnedriveBackend;
-use crate::raw::normalize_root;
 use crate::raw::HttpClient;
+use crate::raw::{normalize_root, Access};
 use crate::Scheme;
 use crate::*;
 
@@ -43,6 +43,15 @@ impl Debug for OnedriveConfig {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for OnedriveConfig {
+    fn into_builder(self) -> impl Builder {
+        OnedriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -91,21 +100,13 @@ impl OnedriveBuilder {
 
 impl Builder for OnedriveBuilder {
     const SCHEME: Scheme = Scheme::Onedrive;
-    type Accessor = OnedriveBackend;
     type Config = OnedriveConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        OnedriveBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

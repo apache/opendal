@@ -20,8 +20,7 @@ async fn main() {
     let root = env::var("ROOT").expect("$ROOT is set");
     let client_path = env::var("CLIENT_PATH").expect("$CLIENT_PATH is set");
 
-    let mut fs = services::Fs::default();
-    fs.root(&root);
+    let mut fs = services::Fs::default().root(&root);
 
     let op = Operator::new(fs).expect("build operator").finish();
 

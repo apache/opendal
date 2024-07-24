@@ -32,7 +32,6 @@ use tokio::sync::OnceCell;
 use crate::raw::adapters::kv;
 use crate::raw::new_std_io_error;
 use crate::raw::Access;
-use crate::services::MongodbConfig;
 use crate::*;
 
 /// Config for Grid file system support.
@@ -152,7 +151,7 @@ impl GridFsBuilder {
 
 impl Builder for GridFsBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
-    type Config = MongodbConfig;
+    type Config = GridFsConfig;
 
     fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {

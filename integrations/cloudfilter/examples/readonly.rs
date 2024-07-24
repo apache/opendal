@@ -1,14 +1,10 @@
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
 use cloud_filter::root::{
-    HydrationType, PopulationType, Registration, SecurityId, Session, SyncRootIdBuilder,
+    HydrationType, PopulationType, SecurityId, Session, SyncRootIdBuilder, SyncRootInfo,
 };
 use opendal::{services, Operator};
-use tokio::signal;
-use widestring::{u16str, U16String};
+use tokio::{runtime::Handle, signal};
 
 const PROVIDER_NAME: &str = "ro-cloudfilter";
 const DISPLAY_NAME: &str = "Read Only Cloud Filter";
@@ -25,30 +21,33 @@ async fn main() {
 
     let op = Operator::new(fs).expect("build operator").finish();
 
-    let sync_root_id = SyncRootIdBuilder::new(U16String::from_str(PROVIDER_NAME))
+    let sync_root_id = SyncRootIdBuilder::new(PROVIDER_NAME)
         .user_security_id(SecurityId::current_user().unwrap())
         .build();
 
     if !sync_root_id.is_registered().unwrap() {
-        let u16_display_name = U16String::from_str(DISPLAY_NAME);
-        Registration::from_sync_root_id(&sync_root_id)
-            .display_name(&u16_display_name)
-            .hydration_type(HydrationType::Full)
-            .population_type(PopulationType::Full)
-            .icon(
-                U16String::from_str("%SystemRoot%\\system32\\charmap.exe"),
-                0,
+        sync_root_id
+            .register(
+                SyncRootInfo::default()
+                    .with_display_name(DISPLAY_NAME)
+                    .with_hydration_type(HydrationType::Full)
+                    .with_population_type(PopulationType::Full)
+                    .with_icon("%SystemRoot%\\system32\\charmap.exe,0")
+                    .with_version("1.0.0")
+                    .with_recycle_bin_uri("http://cloudmirror.example.com/recyclebin")
+                    .unwrap()
+                    .with_path(&client_path)
+                    .unwrap(),
             )
-            .version(u16str!("1.0.0"))
-            .recycle_bin_uri(u16str!("http://cloudmirror.example.com/recyclebin"))
-            .register(Path::new(&client_path))
             .unwrap();
     }
 
+    let handle = Handle::current();
     let connection = Session::new()
-        .connect(
+        .connect_async(
             &client_path,
             cloudfilter_opendal::CloudFilter::new(op, PathBuf::from(&client_path)),
+            move |f| handle.clone().block_on(f),
         )
         .expect("create session");
 

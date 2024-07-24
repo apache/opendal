@@ -374,7 +374,7 @@ impl Operator {
     ///     ]);
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_iter(Scheme::Fs, map)?;
+    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?;
     ///
     ///     Ok(())
     /// }

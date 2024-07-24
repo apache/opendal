@@ -113,7 +113,7 @@ impl B2Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -124,7 +124,7 @@ impl B2Builder {
     }
 
     /// application_key_id of this backend.
-    pub fn application_key_id(&mut self, application_key_id: &str) -> &mut Self {
+    pub fn application_key_id(mut self, application_key_id: &str) -> Self {
         self.config.application_key_id = if application_key_id.is_empty() {
             None
         } else {
@@ -135,7 +135,7 @@ impl B2Builder {
     }
 
     /// application_key of this backend.
-    pub fn application_key(&mut self, application_key: &str) -> &mut Self {
+    pub fn application_key(mut self, application_key: &str) -> Self {
         self.config.application_key = if application_key.is_empty() {
             None
         } else {
@@ -147,7 +147,7 @@ impl B2Builder {
 
     /// Set bucket name of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -155,7 +155,7 @@ impl B2Builder {
 
     /// Set bucket id of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -167,7 +167,7 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

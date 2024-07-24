@@ -60,19 +60,19 @@ pub struct PersyBuilder {
 
 impl PersyBuilder {
     /// Set the path to the persy data directory. Will create if not exists.
-    pub fn datafile(&mut self, path: &str) -> &mut Self {
+    pub fn datafile(mut self, path: &str) -> Self {
         self.config.datafile = Some(path.into());
         self
     }
 
     /// Set the name of the persy segment. Will create if not exists.
-    pub fn segment(&mut self, path: &str) -> &mut Self {
+    pub fn segment(mut self, path: &str) -> Self {
         self.config.segment = Some(path.into());
         self
     }
 
     /// Set the name of the persy index. Will create if not exists.
-    pub fn index(&mut self, path: &str) -> &mut Self {
+    pub fn index(mut self, path: &str) -> Self {
         self.config.index = Some(path.into());
         self
     }

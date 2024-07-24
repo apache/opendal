@@ -32,14 +32,14 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Postgresql::default();
-    builder.root("/");
-    builder.connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database");
-    builder.table("your_table");
-    // key field type in the table should be compatible with Rust's &str like text
-    builder.key_field("key");
-    // value field type in the table should be compatible with Rust's Vec<u8> like bytea
-    builder.value_field("value");
+    let mut builder = Postgresql::default()
+        .root("/")
+        .connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database")
+        .table("your_table")
+        // key field type in the table should be compatible with Rust's &str like text
+        .key_field("key")
+        // value field type in the table should be compatible with Rust's Vec<u8> like bytea
+        .value_field("value");
 
     let op = Operator::new(builder)?.finish();
     Ok(())

@@ -38,11 +38,7 @@ use crate::*;
 /// use opendal::Operator;
 /// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
+///     let mut builder = Fs::default().root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
 ///     let op: Operator = Operator::new(builder)?.finish();

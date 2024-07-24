@@ -35,18 +35,17 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Obs::default();
-
-    // set the storage bucket for OpenDAL
-    builder.bucket("test");
-    builder.endpoint("obs.cn-north-1.myhuaweicloud.com");
-    // Set the access_key_id and secret_access_key.
-    //
-    // OpenDAL will try load credential from the env.
-    // If credential not set and no valid credential in env, OpenDAL will
-    // send request without signing like anonymous user.
-    builder.access_key_id("access_key_id");
-    builder.secret_access_key("secret_access_key");
+    let mut builder = Obs::default()
+        // set the storage bucket for OpenDAL
+        .bucket("test")
+        .endpoint("obs.cn-north-1.myhuaweicloud.com")
+        // Set the access_key_id and secret_access_key.
+        //
+        // OpenDAL will try load credential from the env.
+        // If credential not set and no valid credential in env, OpenDAL will
+        // send request without signing like anonymous user.
+        .access_key_id("access_key_id")
+        .secret_access_key("secret_access_key");
 
     let op: Operator = Operator::new(builder)?.finish();
 

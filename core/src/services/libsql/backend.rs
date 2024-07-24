@@ -115,7 +115,7 @@ impl LibsqlBuilder {
     /// - `http://example.com/db`
     /// - `https://example.com/db`
     /// - `libsql://example.com/db`
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -125,7 +125,7 @@ impl LibsqlBuilder {
     /// set the authentication token for libsql service.
     ///
     /// default: no authentication token
-    pub fn auth_token(&mut self, auth_token: &str) -> &mut Self {
+    pub fn auth_token(mut self, auth_token: &str) -> Self {
         if !auth_token.is_empty() {
             self.config.auth_token = Some(auth_token.to_owned());
         }
@@ -135,7 +135,7 @@ impl LibsqlBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -143,7 +143,7 @@ impl LibsqlBuilder {
     }
 
     /// Set the table name of the libsql service to read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -153,7 +153,7 @@ impl LibsqlBuilder {
     /// Set the key field name of the libsql service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -163,7 +163,7 @@ impl LibsqlBuilder {
     /// Set the value field name of the libsql service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }

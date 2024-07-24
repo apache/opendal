@@ -35,13 +35,12 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Supabase::default();
-    
-    builder.root("/");
-    builder.bucket("test_bucket");
-    builder.endpoint("http://127.0.0.1:54321");
-    // this sets up the anon_key, which means this operator can only write public resource
-    builder.key("some_anon_key");
+    let mut builder = Supabase::default()
+        .root("/")
+        .bucket("test_bucket")
+        .endpoint("http://127.0.0.1:54321")
+        // this sets up the anon_key, which means this operator can only write public resource
+        .key("some_anon_key");
 
     let op: Operator = Operator::new(builder)?.finish();
 

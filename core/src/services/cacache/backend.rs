@@ -53,7 +53,7 @@ pub struct CacacheBuilder {
 
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }

@@ -95,7 +95,7 @@ impl ObsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -111,7 +111,7 @@ impl ObsBuilder {
     /// - `https://obs.cn-north-4.myhuaweicloud.com`
     /// - `obs.cn-north-4.myhuaweicloud.com` (https by default)
     /// - `https://custom.obs.com` (port should not be set)
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
@@ -122,7 +122,7 @@ impl ObsBuilder {
     /// Set access_key_id of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, access_key_id: &str) -> &mut Self {
+    pub fn access_key_id(mut self, access_key_id: &str) -> Self {
         if !access_key_id.is_empty() {
             self.config.access_key_id = Some(access_key_id.to_string());
         }
@@ -133,7 +133,7 @@ impl ObsBuilder {
     /// Set secret_access_key of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_access_key(&mut self, secret_access_key: &str) -> &mut Self {
+    pub fn secret_access_key(mut self, secret_access_key: &str) -> Self {
         if !secret_access_key.is_empty() {
             self.config.secret_access_key = Some(secret_access_key.to_string());
         }
@@ -143,7 +143,7 @@ impl ObsBuilder {
 
     /// Set bucket of this backend.
     /// The param is required.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
             self.config.bucket = Some(bucket.to_string());
         }
@@ -157,7 +157,7 @@ impl ObsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

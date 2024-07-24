@@ -74,10 +74,9 @@ impl Configurator for IpmfsConfig {
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = Ipmfs::default();
-///
-///     // set the storage bucket for OpenDAL
-///     builder.endpoint("http://127.0.0.1:5001");
+///     let mut builder = Ipmfs::default()
+///         // set the storage bucket for OpenDAL
+///         .endpoint("http://127.0.0.1:5001");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///
@@ -92,7 +91,7 @@ pub struct IpmfsBuilder {
 
 impl IpmfsBuilder {
     /// Set root for ipfs.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -105,7 +104,7 @@ impl IpmfsBuilder {
     /// Set endpoint for ipfs.
     ///
     /// Default: http://localhost:5001
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -120,7 +119,7 @@ impl IpmfsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

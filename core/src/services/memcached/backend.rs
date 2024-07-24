@@ -66,7 +66,7 @@ impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_owned());
         }
@@ -76,7 +76,7 @@ impl MemcachedBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -84,19 +84,19 @@ impl MemcachedBuilder {
     }
 
     /// set the username.
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         self.config.username = Some(username.to_string());
         self
     }
 
     /// set the password.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = Some(password.to_string());
         self
     }
 
     /// Set the default ttl for memcached services.
-    pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = Some(ttl);
         self
     }

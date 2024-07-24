@@ -104,7 +104,7 @@ impl Debug for SftpBuilder {
 impl SftpBuilder {
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -116,7 +116,7 @@ impl SftpBuilder {
 
     /// set root path for sftp backend.
     /// It uses the default directory set by the remote `sftp-server` as default.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -127,7 +127,7 @@ impl SftpBuilder {
     }
 
     /// set user for sftp backend.
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         self.config.user = if user.is_empty() {
             None
         } else {
@@ -138,7 +138,7 @@ impl SftpBuilder {
     }
 
     /// set key path for sftp backend.
-    pub fn key(&mut self, key: &str) -> &mut Self {
+    pub fn key(mut self, key: &str) -> Self {
         self.config.key = if key.is_empty() {
             None
         } else {
@@ -153,7 +153,7 @@ impl SftpBuilder {
     /// - Strict (default)
     /// - Accept
     /// - Add
-    pub fn known_hosts_strategy(&mut self, strategy: &str) -> &mut Self {
+    pub fn known_hosts_strategy(mut self, strategy: &str) -> Self {
         self.config.known_hosts_strategy = if strategy.is_empty() {
             None
         } else {
@@ -165,7 +165,7 @@ impl SftpBuilder {
 
     /// set enable_copy for sftp backend.
     /// It requires the server supports copy-file extension.
-    pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
+    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
         self.config.enable_copy = enable_copy;
 
         self

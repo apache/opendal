@@ -32,12 +32,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = VercelBlob::default();
-
-    // set the storage bucket for OpenDAL
-    builder.root("/");
-    // set the token for OpenDAL
-    builder.token("you_token");
+    let mut builder = VercelBlob::default()
+        // set the storage bucket for OpenDAL
+        .root("/")
+        // set the token for OpenDAL
+        .token("you_token");
 
     let op: Operator = Operator::new(builder)?.finish();
 

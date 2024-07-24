@@ -84,19 +84,19 @@ impl Debug for AtomicserverBuilder {
 
 impl AtomicserverBuilder {
     /// Set the root for Atomicserver.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
 
     /// Set the server address for Atomicserver.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = Some(endpoint.into());
         self
     }
 
     /// Set the private key for agent used for Atomicserver.
-    pub fn private_key(&mut self, private_key: &str) -> &mut Self {
+    pub fn private_key(mut self, private_key: &str) -> Self {
         self.config.private_key = Some(private_key.into());
         self
     }
@@ -105,13 +105,13 @@ impl AtomicserverBuilder {
     /// For example, if the subject URL for the agent being used
     /// is ${endpoint}/agents/lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=
     /// Then the required public key is `lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=`
-    pub fn public_key(&mut self, public_key: &str) -> &mut Self {
+    pub fn public_key(mut self, public_key: &str) -> Self {
         self.config.public_key = Some(public_key.into());
         self
     }
 
     /// Set the parent resource id (url) that Atomicserver uses to store resources under.
-    pub fn parent_resource_id(&mut self, parent_resource_id: &str) -> &mut Self {
+    pub fn parent_resource_id(mut self, parent_resource_id: &str) -> Self {
         self.config.parent_resource_id = Some(parent_resource_id.into());
         self
     }

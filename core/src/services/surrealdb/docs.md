@@ -37,16 +37,16 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Surrealdb::default();
-    builder.root("/");
-    builder.connection_string("ws://127.0.0.1:8000");
-    builder.username("username");
-    builder.password("password");
-    builder.namespace("namespace");
-    builder.database("database");
-    builder.table("table");
-    builder.key_field("key");
-    builder.value_field("value");
+    let mut builder = Surrealdb::default()
+        .root("/")
+        .connection_string("ws://127.0.0.1:8000")
+        .username("username")
+        .password("password")
+        .namespace("namespace")
+        .database("database")
+        .table("table")
+        .key_field("key")
+        .value_field("value");
 
     let op = Operator::new(builder)?.finish();
     Ok(())

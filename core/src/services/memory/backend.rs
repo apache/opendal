@@ -51,7 +51,7 @@ pub struct MemoryBuilder {
 
 impl MemoryBuilder {
     /// Set the root for BTreeMap.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }

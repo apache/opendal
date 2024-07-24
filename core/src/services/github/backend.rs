@@ -102,7 +102,7 @@ impl GithubBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -115,21 +115,21 @@ impl GithubBuilder {
     /// Github access_token.
     ///
     /// required.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         self.config.token = Some(token.to_string());
 
         self
     }
 
     /// Set Github repo owner.
-    pub fn owner(&mut self, owner: &str) -> &mut Self {
+    pub fn owner(mut self, owner: &str) -> Self {
         self.config.owner = owner.to_string();
 
         self
     }
 
     /// Set Github repo name.
-    pub fn repo(&mut self, repo: &str) -> &mut Self {
+    pub fn repo(mut self, repo: &str) -> Self {
         self.config.repo = repo.to_string();
 
         self
@@ -141,7 +141,7 @@ impl GithubBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

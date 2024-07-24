@@ -260,7 +260,7 @@ impl S3Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -271,7 +271,7 @@ impl S3Builder {
     }
 
     /// Set bucket name of this backend.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -289,7 +289,7 @@ impl S3Builder {
     ///
     /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
     /// will prepend "https://" before it.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
@@ -304,7 +304,7 @@ impl S3Builder {
     /// If using a custom endpoint,
     /// - If region is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn region(&mut self, region: &str) -> &mut Self {
+    pub fn region(mut self, region: &str) -> Self {
         if !region.is_empty() {
             self.config.region = Some(region.to_string())
         }
@@ -316,7 +316,7 @@ impl S3Builder {
     ///
     /// - If access_key_id is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.access_key_id = Some(v.to_string())
         }
@@ -328,7 +328,7 @@ impl S3Builder {
     ///
     /// - If secret_access_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
+    pub fn secret_access_key(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.secret_access_key = Some(v.to_string())
         }
@@ -340,7 +340,7 @@ impl S3Builder {
     ///
     /// If `role_arn` is set, we will use already known config as source
     /// credential to assume role with `role_arn`.
-    pub fn role_arn(&mut self, v: &str) -> &mut Self {
+    pub fn role_arn(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.role_arn = Some(v.to_string())
         }
@@ -349,7 +349,7 @@ impl S3Builder {
     }
 
     /// Set external_id for this backend.
-    pub fn external_id(&mut self, v: &str) -> &mut Self {
+    pub fn external_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.external_id = Some(v.to_string())
         }
@@ -369,7 +369,7 @@ impl S3Builder {
     /// - `REDUCED_REDUNDANCY`
     /// - `STANDARD`
     /// - `STANDARD_IA`
-    pub fn default_storage_class(&mut self, v: &str) -> &mut Self {
+    pub fn default_storage_class(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.default_storage_class = Some(v.to_string())
         }
@@ -387,7 +387,7 @@ impl S3Builder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption = Some(v.to_string())
         }
@@ -412,7 +412,7 @@ impl S3Builder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn server_side_encryption_aws_kms_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_aws_kms_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption_aws_kms_key_id = Some(v.to_string())
         }
@@ -430,7 +430,7 @@ impl S3Builder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn server_side_encryption_customer_algorithm(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_customer_algorithm(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption_customer_algorithm = Some(v.to_string())
         }
@@ -451,7 +451,7 @@ impl S3Builder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn server_side_encryption_customer_key(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_customer_key(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption_customer_key = Some(v.to_string())
         }
@@ -471,7 +471,7 @@ impl S3Builder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn server_side_encryption_customer_key_md5(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_customer_key_md5(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption_customer_key_md5 = Some(v.to_string())
         }
@@ -484,7 +484,7 @@ impl S3Builder {
     /// As known as: SSE-KMS
     ///
     /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
-    pub fn server_side_encryption_with_aws_managed_kms_key(&mut self) -> &mut Self {
+    pub fn server_side_encryption_with_aws_managed_kms_key(mut self) -> Self {
         self.config.server_side_encryption = Some("aws:kms".to_string());
         self
     }
@@ -495,9 +495,9 @@ impl S3Builder {
     ///
     /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
     pub fn server_side_encryption_with_customer_managed_kms_key(
-        &mut self,
+        mut self,
         aws_kms_key_id: &str,
-    ) -> &mut Self {
+    ) -> Self {
         self.config.server_side_encryption = Some("aws:kms".to_string());
         self.config.server_side_encryption_aws_kms_key_id = Some(aws_kms_key_id.to_string());
         self
@@ -508,7 +508,7 @@ impl S3Builder {
     /// As known as: SSE-S3
     ///
     /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
-    pub fn server_side_encryption_with_s3_key(&mut self) -> &mut Self {
+    pub fn server_side_encryption_with_s3_key(mut self) -> Self {
         self.config.server_side_encryption = Some("AES256".to_string());
         self
     }
@@ -518,11 +518,7 @@ impl S3Builder {
     /// As known as: SSE-C
     ///
     /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
-    pub fn server_side_encryption_with_customer_key(
-        &mut self,
-        algorithm: &str,
-        key: &[u8],
-    ) -> &mut Self {
+    pub fn server_side_encryption_with_customer_key(mut self, algorithm: &str, key: &[u8]) -> Self {
         self.config.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.config.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
         self.config.server_side_encryption_customer_key_md5 =
@@ -535,7 +531,7 @@ impl S3Builder {
     /// # Warning
     ///
     /// session token's lifetime is short and requires users to refresh in time.
-    pub fn session_token(&mut self, token: &str) -> &mut Self {
+    pub fn session_token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.session_token = Some(token.to_string());
         }
@@ -544,7 +540,7 @@ impl S3Builder {
 
     /// Set temporary credential used in AWS S3 connections
     #[deprecated(note = "Please use `session_token` instead")]
-    pub fn security_token(&mut self, token: &str) -> &mut Self {
+    pub fn security_token(self, token: &str) -> Self {
         self.session_token(token)
     }
 
@@ -555,7 +551,7 @@ impl S3Builder {
     ///
     /// - envs like `AWS_ACCESS_KEY_ID`
     /// - files like `~/.aws/config`
-    pub fn disable_config_load(&mut self) -> &mut Self {
+    pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
     }
@@ -564,14 +560,14 @@ impl S3Builder {
     ///
     /// This option is used to disable the default behavior of opendal
     /// to load credential from ec2 metadata, a.k.a, IMDSv2
-    pub fn disable_ec2_metadata(&mut self) -> &mut Self {
+    pub fn disable_ec2_metadata(mut self) -> Self {
         self.config.disable_ec2_metadata = true;
         self
     }
 
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(&mut self) -> &mut Self {
+    pub fn allow_anonymous(mut self) -> Self {
         self.config.allow_anonymous = true;
         self
     }
@@ -581,7 +577,7 @@ impl S3Builder {
     ///
     /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
     /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
-    pub fn enable_virtual_host_style(&mut self) -> &mut Self {
+    pub fn enable_virtual_host_style(mut self) -> Self {
         self.config.enable_virtual_host_style = true;
         self
     }
@@ -589,7 +585,7 @@ impl S3Builder {
     /// Disable stat with override so that opendal will not send stat request with override queries.
     ///
     /// For example, R2 doesn't support stat with `response_content_type` query.
-    pub fn disable_stat_with_override(&mut self) -> &mut Self {
+    pub fn disable_stat_with_override(mut self) -> Self {
         self.config.disable_stat_with_override = true;
         self
     }
@@ -598,7 +594,7 @@ impl S3Builder {
     ///
     /// If customized_credential_load has been set, we will ignore all other
     /// credential load methods.
-    pub fn customized_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
+    pub fn customized_credential_load(mut self, cred: Box<dyn AwsCredentialLoad>) -> Self {
         self.customized_credential_load = Some(cred);
         self
     }
@@ -609,7 +605,7 @@ impl S3Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -679,7 +675,7 @@ impl S3Builder {
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
         self.config.batch_max_operations = Some(batch_max_operations);
 
         self
@@ -690,7 +686,7 @@ impl S3Builder {
     ///
     /// Available options:
     /// - "crc32c"
-    pub fn checksum_algorithm(&mut self, checksum_algorithm: &str) -> &mut Self {
+    pub fn checksum_algorithm(mut self, checksum_algorithm: &str) -> Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 
         self
@@ -1274,9 +1270,9 @@ mod tests {
 
         for (bucket, enable_virtual_host_style, expected) in bucket_cases {
             let mut b = S3Builder::default();
-            b.bucket(bucket);
+            b = b.bucket(bucket);
             if enable_virtual_host_style {
-                b.enable_virtual_host_style();
+                b = b.enable_virtual_host_style();
             }
             assert_eq!(b.is_bucket_valid(), expected)
         }
@@ -1294,10 +1290,9 @@ mod tests {
         ];
 
         for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default();
-            b.bucket("test");
+            let mut b = S3Builder::default().bucket("test");
             if let Some(endpoint) = endpoint {
-                b.endpoint(endpoint);
+                b = b.endpoint(endpoint);
             }
 
             let endpoint = b.build_endpoint("us-east-2");
@@ -1305,11 +1300,11 @@ mod tests {
         }
 
         for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default();
-            b.bucket("test");
-            b.enable_virtual_host_style();
+            let mut b = S3Builder::default()
+                .bucket("test")
+                .enable_virtual_host_style();
             if let Some(endpoint) = endpoint {
-                b.endpoint(endpoint);
+                b = b.endpoint(endpoint);
             }
 
             let endpoint = b.build_endpoint("us-east-2");

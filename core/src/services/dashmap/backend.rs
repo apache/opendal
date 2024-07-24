@@ -48,7 +48,7 @@ pub struct DashmapBuilder {
 
 impl DashmapBuilder {
     /// Set the root for dashmap.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }

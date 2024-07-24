@@ -128,7 +128,7 @@ impl RedisBuilder {
     /// - "tcp" or "redis": unsecured redis connections
     /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_owned());
         }
@@ -143,7 +143,7 @@ impl RedisBuilder {
     /// - "tcp" or "redis": unsecured redis connections
     /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
-    pub fn cluster_endpoints(&mut self, cluster_endpoints: &str) -> &mut Self {
+    pub fn cluster_endpoints(mut self, cluster_endpoints: &str) -> Self {
         if !cluster_endpoints.is_empty() {
             self.config.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
@@ -153,7 +153,7 @@ impl RedisBuilder {
     /// set the username for redis
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -163,7 +163,7 @@ impl RedisBuilder {
     /// set the password for redis
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -173,7 +173,7 @@ impl RedisBuilder {
     /// set the db used in redis
     ///
     /// default: 0
-    pub fn db(&mut self, db: i64) -> &mut Self {
+    pub fn db(mut self, db: i64) -> Self {
         self.config.db = db;
         self
     }
@@ -181,7 +181,7 @@ impl RedisBuilder {
     /// Set the default ttl for redis services.
     ///
     /// If set, we will specify `EX` for write operations.
-    pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = Some(ttl);
         self
     }
@@ -189,7 +189,7 @@ impl RedisBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }

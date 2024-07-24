@@ -102,7 +102,7 @@ impl SeafileBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -115,7 +115,7 @@ impl SeafileBuilder {
     /// endpoint of this backend.
     ///
     /// It is required. e.g. `http://127.0.0.1:80`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -128,7 +128,7 @@ impl SeafileBuilder {
     /// username of this backend.
     ///
     /// It is required. e.g. `me@example.com`
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         self.config.username = if username.is_empty() {
             None
         } else {
@@ -141,7 +141,7 @@ impl SeafileBuilder {
     /// password of this backend.
     ///
     /// It is required. e.g. `asecret`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -154,7 +154,7 @@ impl SeafileBuilder {
     /// Set repo name of this backend.
     ///
     /// It is required. e.g. `myrepo`
-    pub fn repo_name(&mut self, repo_name: &str) -> &mut Self {
+    pub fn repo_name(mut self, repo_name: &str) -> Self {
         self.config.repo_name = repo_name.to_string();
 
         self
@@ -166,7 +166,7 @@ impl SeafileBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

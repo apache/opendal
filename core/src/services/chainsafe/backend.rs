@@ -95,7 +95,7 @@ impl ChainsafeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -108,7 +108,7 @@ impl ChainsafeBuilder {
     /// api_key of this backend.
     ///
     /// required.
-    pub fn api_key(&mut self, api_key: &str) -> &mut Self {
+    pub fn api_key(mut self, api_key: &str) -> Self {
         self.config.api_key = if api_key.is_empty() {
             None
         } else {
@@ -119,7 +119,7 @@ impl ChainsafeBuilder {
     }
 
     /// Set bucket_id name of this backend.
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -131,7 +131,7 @@ impl ChainsafeBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

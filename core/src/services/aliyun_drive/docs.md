@@ -38,21 +38,21 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create aliyun-drive backend builder.
-    let mut builder = AliyunDrive::default();
-    // Set the root for aliyun-drive, all operations will happen under this root.
-    //
-    // NOTE: the root must be absolute path.
-    builder.root("/path/to/dir");
-    // Set the client_id. This is required.
-    builder.client_id("client_id");
-    // Set the client_secret. This is required.
-    builder.client_secret("client_secret");
-    // Set the refresh_token. This is required.
-    builder.refresh_token("refresh_token");
-    // Set the drive_type. This is required.
-    //
-    // Fallback to the default type if no other types found.
-    builder.drive_type("resource");
+    let mut builder = AliyunDrive::default()
+        // Set the root for aliyun-drive, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/path/to/dir")
+        // Set the client_id. This is required.
+        .client_id("client_id")
+        // Set the client_secret. This is required.
+        .client_secret("client_secret")
+        // Set the refresh_token. This is required.
+        .refresh_token("refresh_token")
+        // Set the drive_type. This is required.
+        //
+        // Fallback to the default type if no other types found.
+        .drive_type("resource");
 
     let op: Operator = Operator::new(builder)?.finish();
 

@@ -33,15 +33,15 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Libsql::default();
-    builder.root("/");
-    builder.connection_string("https://example.com/db");
-    builder.auth_token("secret");
-    builder.table("your_table");
-    // key field type in the table should be compatible with Rust's &str like text
-    builder.key_field("key");
-    // value field type in the table should be compatible with Rust's Vec<u8> like bytea
-    builder.value_field("value");
+    let mut builder = Libsql::default()
+        .root("/")
+        .connection_string("https://example.com/db")
+        .auth_token("secret")
+        .table("your_table")
+        // key field type in the table should be compatible with Rust's &str like text
+        .key_field("key")
+        // value field type in the table should be compatible with Rust's Vec<u8> like bytea
+        .value_field("value");
 
     let op = Operator::new(builder)?.finish();
     Ok(())

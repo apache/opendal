@@ -298,9 +298,7 @@ mod tests {
     async fn test_invalid_lister() -> Result<()> {
         let _ = tracing_subscriber::fmt().try_init();
 
-        let mut builder = Azblob::default();
-
-        builder
+        let builder = Azblob::default()
             .container("container")
             .account_name("account_name")
             .account_key("account_key")

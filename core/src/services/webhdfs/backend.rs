@@ -98,7 +98,7 @@ impl WebhdfsBuilder {
     /// # Note
     ///
     /// The root will be automatically created if not exists.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -116,7 +116,7 @@ impl WebhdfsBuilder {
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `http://` to it.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // trim tailing slash so we can accept `http://127.0.0.1:9870/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -130,7 +130,7 @@ impl WebhdfsBuilder {
     /// # Note
     /// The builder prefers using delegation token over username.
     /// If both are set, delegation token will be used.
-    pub fn delegation(&mut self, delegation: &str) -> &mut Self {
+    pub fn delegation(mut self, delegation: &str) -> Self {
         if !delegation.is_empty() {
             self.config.delegation = Some(delegation.to_string());
         }
@@ -143,7 +143,7 @@ impl WebhdfsBuilder {
     ///
     /// When listing a directory, the backend will default to use batch listing.
     /// If disabled, the backend will list all files/directories in one request.
-    pub fn disable_list_batch(&mut self) -> &mut Self {
+    pub fn disable_list_batch(mut self) -> Self {
         self.config.disable_list_batch = true;
         self
     }
@@ -153,7 +153,7 @@ impl WebhdfsBuilder {
     /// # Notes
     ///
     /// If not set, write multi not support, eg: `.opendal_tmp/`.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         self.config.atomic_write_dir = if dir.is_empty() {
             None
         } else {

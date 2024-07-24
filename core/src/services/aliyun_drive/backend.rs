@@ -118,7 +118,7 @@ impl AliyunDriveBuilder {
     /// Set the root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -129,35 +129,35 @@ impl AliyunDriveBuilder {
     }
 
     /// Set access_token of this backend.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
 
         self
     }
 
     /// Set client_id of this backend.
-    pub fn client_id(&mut self, client_id: &str) -> &mut Self {
+    pub fn client_id(mut self, client_id: &str) -> Self {
         self.config.client_id = Some(client_id.to_string());
 
         self
     }
 
     /// Set client_secret of this backend.
-    pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
         self.config.client_secret = Some(client_secret.to_string());
 
         self
     }
 
     /// Set refresh_token of this backend.
-    pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
         self.config.refresh_token = Some(refresh_token.to_string());
 
         self
     }
 
     /// Set drive_type of this backend.
-    pub fn drive_type(&mut self, drive_type: &str) -> &mut Self {
+    pub fn drive_type(mut self, drive_type: &str) -> Self {
         self.config.drive_type = drive_type.to_string();
 
         self
@@ -169,7 +169,7 @@ impl AliyunDriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

@@ -37,11 +37,10 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Webdav::default();
-
-    builder.endpoint("127.0.0.1");
-    builder.username("xxx");
-    builder.password("xxx");
+    let mut builder = Webdav::default()
+        .endpoint("127.0.0.1")
+        .username("xxx")
+        .password("xxx");
 
     let op: Operator = Operator::new(builder)?.finish();
 

@@ -34,8 +34,8 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Tikv::default();
-    builder.endpoints(vec!["127.0.0.1:2379".to_string()]);
+    let mut builder = Tikv::default()
+        .endpoints(vec!["127.0.0.1:2379".to_string()]);
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

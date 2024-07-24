@@ -80,19 +80,19 @@ impl Debug for SledBuilder {
 
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the root for sled.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
 
     /// Set the tree for sled.
-    pub fn tree(&mut self, tree: &str) -> &mut Self {
+    pub fn tree(mut self, tree: &str) -> Self {
         self.config.tree = Some(tree.into());
         self
     }

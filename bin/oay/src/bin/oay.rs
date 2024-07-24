@@ -45,7 +45,7 @@ async fn s3() -> Result<()> {
     let cfg: Config =
         toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;
     let scheme = Scheme::from_str(&cfg.backend.typ).context("unsupported scheme")?;
-    let op = Operator::via_map(scheme, cfg.backend.map.clone())?;
+    let op = Operator::via_iter(scheme, cfg.backend.map.clone())?;
 
     let s3 = S3Service::new(Arc::new(cfg), op);
 

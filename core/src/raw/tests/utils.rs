@@ -67,7 +67,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::via_map(scheme, cfg).expect("must succeed");
+    let op = Operator::via_iter(scheme, cfg).expect("must succeed");
 
     #[cfg(feature = "layers-chaos")]
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };

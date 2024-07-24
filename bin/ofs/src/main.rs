@@ -68,7 +68,7 @@ async fn execute(cfg: Config) -> Result<()> {
         Ok(Scheme::Custom(_)) | Err(_) => Err(anyhow!("invalid scheme: {}", scheme_str)),
         Ok(s) => Ok(s),
     }?;
-    let backend = Operator::via_map(scheme, op_args)?;
+    let backend = Operator::via_iter(scheme, op_args)?;
 
     let mut mount_options = MountOptions::default();
     let mut gid = nix::unistd::getgid().into();
